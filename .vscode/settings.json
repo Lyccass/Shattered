@@ -1,0 +1,12 @@
+{
+  "[markdown]": {
+    "editor.fontFamily": "'Atkinson Hyperlegible', 'Aptos', 'Iowan Old Style', Georgia, serif",
+    "editor.fontSize": 16,
+    "editor.lineHeight": 25,
+    "editor.wordWrap": "wordWrapColumn",
+    "editor.wordWrapColumn": 100
+  },
+  "markdown.preview.fontFamily": "'Atkinson Hyperlegible', 'Aptos', 'Iowan Old Style', Georgia, serif",
+  "markdown.preview.fontSize": 17,
+  "markdown.preview.lineHeight": 1.8
+}
