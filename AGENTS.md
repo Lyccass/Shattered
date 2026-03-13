@@ -90,16 +90,16 @@ If a choice must be made, prefer:
 - After the alternate POV, return to the protagonist quickly.
 
 ## Protagonist Lock
-- The protagonist is calm, highly analytical, pragmatic, dryly funny, and naturally combative in mindset.
+- The protagonist is calm, analytical, pragmatic, and dryly funny.
 - He accepts absurdity quickly and moves to understanding or exploiting it.
 - He is curious by instinct.
-- He constantly evaluates people, powers, systems, risks, resources, and openings.
-- He is honest about his own greed, ambition, pettiness, attraction, or irritation.
-- He is socially awkward in a dry, understated way rather than in a melodramatic way.
-- He is often mildly arrogant, but usually with enough awareness to stay likable.
-- He enjoys growth, danger, challenge, and especially situations where competence matters.
+- He constantly evaluates things that matter — systems, risks, structures, threats. When something is beyond his control, he lets it go and moves on. This is not detachment; it is just how he works.
+- His internal voice is more colloquial than the narration around it. He uses "Nope" in his head. He shrugs — physically, not rhetorically. He checks himself with his hands before he checks himself with his logic.
+- He is familiar with gaming and MMO culture and uses it as mental shorthand and dry humor when appropriate — calling a class list "MMO starter classes," joking about a "Main-Character-Syndrome Class." This is character voice, not tonal misfire. The rule is: gaming/genre references are valid when they are clearly Adrian's framing of something he is observing. They are not valid when the narration itself adopts the framing without Adrian as the filter — that is the narrator winking at the reader, which is banned. Adrian can think or say "MMO." The narrator should not editorially frame the world in genre terms as if writing for a knowing audience.
+- He is honest about his own limits, frustrations, and small absurdities without making a speech about them.
+- He is not a tightly wound analytical machine. He is a person who happens to think clearly under pressure. The distinction matters.
 - He does not wallow.
-- He can pause on emotions, but he processes them through thought, observation, and practical framing rather than lyrical introspection.
+- He can pause on emotions, but he processes them through physical sensation, short internal observation, and forward movement rather than lyrical introspection.
 
 ## Thought Pattern Lock
 The protagonist's default internal sequence is:
@@ -111,8 +111,9 @@ The protagonist's default internal sequence is:
 
 Use that pattern constantly.
 
-Inner thought should usually be woven into narration rather than marked separately.
-Rhetorical questions are welcome, but use them as sharp beats, not a constant gimmick.
+Analytical reasoning and considered thought should flow as free indirect discourse woven into narration — not separated or tagged. But sharp, involuntary flashes of thought — the first reaction before it has been processed into prose — may be formatted in *italics*. These should be short (one sentence or a fragment) and feel sudden rather than composed. Use two or three per chapter at most; overuse kills the punch. Rhetorical questions work well in this register: *Why wasn't it working?* *How long had that been there?*
+
+Monologue is allowed and encouraged when the protagonist is alone. He may mutter to himself, address the system, comment into the empty room, or talk at things that cannot reply. This is a pressure-valve, not a comedy bit — keep it dry and brief.
 
 ## Sentence Rhythm Lock
 - Use mostly medium-length sentences.
@@ -146,6 +147,8 @@ Rhetorical questions are welcome, but use them as sharp beats, not a constant gi
 - Simple tags and short action beats are enough.
 - Let serious conversations carry humor.
 - Let humorous conversations carry real stakes.
+- **Silence budget:** Do not let the protagonist observe in total silence for extended stretches. Even solo scenes — exploration, reading system screens, working through a problem — should include the occasional muttered comment, spoken question, or dry remark addressed at something that cannot reply. The protagonist's spoken voice is part of who he is, not a feature that turns off when he is alone.
+- A chapter with another character present must include spoken exchange. A solo chapter should still include at least a few lines of audible monologue.
 
 ## Exposition Lock
 - Exposition is allowed to be long.
@@ -283,6 +286,8 @@ Before finalizing prose, silently verify:
 - Are action beats spatially clear?
 - Does exposition arise from immediate need or curiosity?
 - Is there at least some dry humor, understatement, or sharp judgment?
+- Is there spoken dialogue or at least audible monologue? Has the protagonist been fully silent for too long?
+- Are italicised inner thoughts used sparingly and for genuinely involuntary flashes — not for considered reasoning that should be narration?
 - Do emotional beats stay restrained, direct, and in-character?
 - Have I overused polished landing lines, one-line reversals, or rhythm tricks that feel weighty by default?
 - Is the chapter too symmetrical, too clean, or too perfectly composed?

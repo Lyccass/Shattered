@@ -188,6 +188,28 @@ Banter lines are often **one sentence or less**. Rapid back-and-forth uses no ta
 
 ---
 
+## INNER THOUGHT FORMAT
+
+Direct, sharp thoughts that arrive before the character has processed them — a sudden recognition, a first recoil, a judgment that interrupts the flow — are formatted in *italics*.
+
+These are distinct from free indirect discourse, which blends seamlessly into third-person narration. Italicised inner thoughts are more sudden and involuntary. They feel like the thought preceding the sentence that makes sense of it.
+
+> *Not right.*
+> *She knew.*
+> *How long had that been there?*
+> *God, that's going to be a problem.*
+
+Rules for use:
+- Keep them short: one sentence or a fragment. Rarely two.
+- Do not italicise reasoning or analysis — that belongs in narration. Italics are for the flash before the reasoning.
+- Rhetorical questions work well: *Why wasn't it working? When had the air changed?*
+- Use two or three per chapter at most. Overuse kills the punch.
+- They should feel like the character's voice, not a caption.
+
+**Monologue:** The reference style also includes the protagonist talking aloud to himself, addressing the system, or commenting at things that cannot reply. This is brief, dry, and in-character — not a comedy beat. It breaks observation silence and keeps the spoken voice present even in solo scenes.
+
+---
+
 ## THE TRANSITION BETWEEN ACTION AND ANALYSIS
 
 The style cuts between action and thought constantly. A fight is not all motion. Reasoning appears *inside* the combat, not after it.
