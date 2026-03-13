@@ -1,4 +1,4 @@
-# Chapter 2
+# Chapter 2 - A great Choice
 
 Weight came back first, not pain exactly so much as the sense that something heavy had settled over his lungs and ribs and forgotten to move. Adrian dragged in a breath that tasted of cold metal, dust, and air old enough to seem stored. He opened his eyes to darkness split by a thin red line above him and spent one long second with no idea where he was. Then memory caught up all at once: the cradle, Helix, the blue strip in the lid, the bad bet.
 

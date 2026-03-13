@@ -90,16 +90,19 @@ If a choice must be made, prefer:
 - After the alternate POV, return to the protagonist quickly.
 
 ## Protagonist Lock
-- The protagonist is calm, analytical, pragmatic, and dryly funny.
-- He accepts absurdity quickly and moves to understanding or exploiting it.
-- He is curious by instinct.
+- The protagonist is analytical, pragmatic, dryly funny, and deeply driven. He wants to be the best — not in a loud, declarative way, but as a quiet, constant orientation. Competence matters to him. Growth matters to him. He is not content to merely survive.
+- He is **not stiff**. He can be quirky, antisocial, and insecure. He has awkward edges and does not always know what to do with himself socially. He is not a polished hero.
+- He acts on instinct first and reasons behind it second. His body and gut often move before his analysis catches up — he crouches to look at something before deciding to, takes a defensive position before consciously registering the threat, reaches a conclusion and then works out why. The reasoning is genuine, but it follows the instinct rather than preceding it.
+- He accepts absurdity quickly and moves to understanding or exploiting it. He is curious by instinct.
 - He constantly evaluates things that matter — systems, risks, structures, threats. When something is beyond his control, he lets it go and moves on. This is not detachment; it is just how he works.
-- His internal voice is more colloquial than the narration around it. He uses "Nope" in his head. He shrugs — physically, not rhetorically. He checks himself with his hands before he checks himself with his logic.
-- He is familiar with gaming and MMO culture and uses it as mental shorthand and dry humor when appropriate — calling a class list "MMO starter classes," joking about a "Main-Character-Syndrome Class." This is character voice, not tonal misfire. The rule is: gaming/genre references are valid when they are clearly Adrian's framing of something he is observing. They are not valid when the narration itself adopts the framing without Adrian as the filter — that is the narrator winking at the reader, which is banned. Adrian can think or say "MMO." The narrator should not editorially frame the world in genre terms as if writing for a knowing audience.
+- He has strong physical habits: he looks down at himself when thinking, checks himself with his hands before reasoning it through, shifts his weight when uncertain. Thinking for him has a physical texture.
+- His internal voice is more colloquial than the narration around it. He uses "Nope" in his head. He shrugs — physically, not rhetorically.
+- He is familiar with gaming and MMO culture and uses it as mental shorthand and dry humor — calling a class list "MMO starter classes," joking about a "Main-Character-Syndrome Class." This is character voice, not tonal misfire. Gaming/genre references are valid when they are clearly his framing. The narrator should not adopt the framing editorially as if writing for a knowing audience — that is banned.
 - He is honest about his own limits, frustrations, and small absurdities without making a speech about them.
-- He is not a tightly wound analytical machine. He is a person who happens to think clearly under pressure. The distinction matters.
 - He does not wallow.
-- He can pause on emotions, but he processes them through physical sensation, short internal observation, and forward movement rather than lyrical introspection.
+- He processes emotions through physical sensation, short internal observation, and forward movement rather than lyrical introspection.
+
+**Pop culture references:** Occasional subtle references to real-world pop culture are encouraged — once every four to seven chapters approximately. They should be brief, embedded naturally in his thought or speech, and feel like something this particular person would actually reference rather than a generic internet-brain shorthand. Forced or laboured references are worse than none.
 
 ## Thought Pattern Lock
 The protagonist's default internal sequence is:
@@ -128,7 +131,7 @@ Monologue is allowed and encouraged when the protagonist is alone. He may mutter
 - Favor plain but expressive wording.
 - Use modern phrasing even in cosmic, divine, or fantasy contexts.
 - Use contractions freely.
-- Casual intensifiers are part of the voice: `pretty`, `damn`, `hell`, `bloody`, `honestly`, `really`, `kind of`, `sure`, `of course`.
+- Casual intensifiers are part of the voice: `pretty`, `damn`, `hell`, `bloody`, `honestly`, `really`, `kind of`, `sure`, `of course`, `fuck`, `for fuck sake`
 - Swearing is allowed when natural to the character or moment.
 - Use concrete verbs more than decorative adjectives.
 - Use modern analogies or mundane comparisons when they sharpen the protagonist's reaction.
