@@ -200,7 +200,7 @@ These are distinct from free indirect discourse, which blends seamlessly into th
 > *God, that's going to be a problem.*
 
 Rules for use:
-- Keep them short: one sentence or a fragment. Rarely two.
+- Keep them short: one sentence or a fragment as a default. Two or three sentences are fine if they form a single coherent burst — the same uninterrupted mental voice, no reasoning gap between them. Example: *Why Pulse of all things? Couldn't the System use a more common name like mana? What an imbecile of an author thought of that?* — three sentences, one connected reaction.
 - Do not italicise reasoning or analysis — that belongs in narration. Italics are for the flash before the reasoning.
 - Rhetorical questions work well: *Why wasn't it working? When had the air changed?*
 - Use two or three per chapter at most. Overuse kills the punch.
