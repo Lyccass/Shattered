@@ -25,11 +25,14 @@ Carefully now, as if he might somehow frighten the fact away, Adrian bent one kn
 When he finally looked around properly, the chamber told a bleak enough story by itself.
 
 It had once been clean. That much still showed beneath the ruin. Rows of white preservation cradles sat in recessed bays along both walls, most of them broken open, some half collapsed under fallen panels, and one whole section at the far end crushed beneath a slab of cracked ceiling. Black cable bundles hung down in loops from the ceiling and walls. The thin red line above came from an emergency strip sunk into the ceiling, dim enough to feel less like lighting than a refusal to go fully dark.
+
 Faded lettering ran across the opposite wall.
 `CONTINUITY SUITE C`
 Beneath it, browned by mineral staining and time, sat the Helix logo.
+
 So that part, at least, had been real. *Or this is a damn good illusion, which considering that my freaking hands and legs ware doing what I tell them too, I wouldn`t even mind.*
 He stepped away from the cradle and nearly slipped on a drift of pale residue gathered in the floor groove beside it. Dust, mostly, though some of it was finer than it should have been. He glanced towards the nearest open unit and regretted it immediately. Something lay inside — straps, grey residue, and a shape that had once relied on bones.
+
 Adrian looked away at once. He had seen his fair share of blood in his old life, blood samples from medichis countless hospital visits, multiple accidents at work. But knowing the remains in the cradle had once been somebody caught in the same gamble he had taken was another thing entirely.
 He moved through the chamber instead, slower now, scanning automatically. Ceiling compromised at the far end. One exit still looked intact. No obvious cameras. No movement. Fresh tracks were harder. He saw none in the dust, but dust settled undisturbed long enough told him less than he wanted.
 

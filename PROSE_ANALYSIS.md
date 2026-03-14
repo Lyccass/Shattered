@@ -254,3 +254,47 @@ Most chapters and scenes end on a **forward-pushing line** — something that cr
 These closers share a shape: short, grounded, with personality. The last one is funny and forward-looking at once. The first has momentum and defiance. None of them are grand or poetic. They sound like the character's voice, not the author's.
 
 The closing line should feel like **the last thing this person would think before moving on** — not a thesis sentence for the chapter.
+
+---
+
+## ADRIAN KELLER — CHARACTER-SPECIFIC VOICE PATTERNS
+
+*Observations drawn from Chapters 1–3. These are patterns specific to this protagonist, distinct from the general reference style above.*
+
+---
+
+### SPOKEN VOICE: ONE-WORD OPENERS TO NON-RESPONDENTS
+
+Adrian's dialogue is almost always addressed to something that cannot reply — the chamber, the system, the room, the dead. The lines are short, dry, and structured around a single mood-setting word at the front:
+
+> *"Good. Something else is missing."*
+> *"Right. Excellent timing."*
+> *"Sorry."*
+> *"Hell of a first morning."*
+
+The opener ("Good", "Right", "Sorry", "Hell of a") carries the emotional content. The sentence that follows, if there is one, delivers the observation. The register is sardonic understatement — not comedy, not stoicism. Adrian does not perform distress; he files it under the appropriate heading and continues.
+
+These lines should be brief, infrequent, and always feel like something that slipped out rather than something composed. Two to four per chapter is the range.
+
+---
+
+### FORENSIC READING OF SURFACES
+
+Adrian's professional background produces a distinctive deduction pattern: he reads physical surfaces for **age, use-frequency, and failure mode**, then situates evidence in time relative to known reference points.
+
+> *"The fasteners at the corners had been turned often enough to break the rust pattern. Later than Helix. Not recent enough to matter."*
+> *"The bracket mismatches told him something: not laziness, but repeated failure in the same locations."*
+
+The move is always: observation → what the observation indicates about **process over time** → conclusion about what that means *now*. He doesn't describe things; he dates and diagnoses them. The voice should feel like a professional assessment delivered in shorthand.
+
+---
+
+### THE ACCEPTANCE FORMULA
+
+Under pressure, Adrian's internal voice collapses pragmatic acceptance into minimal, slightly self-aware formulas:
+
+> *"Reach was reach."*
+> *"Warmth was warmth."*
+> *"Surviving the dead was still part of surviving."*
+
+These work because they name exactly what the situation requires and nothing else. Use sparingly — once per chapter at most. Overuse makes the voice sound passive rather than deliberate.

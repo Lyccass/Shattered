@@ -108,13 +108,26 @@ If a choice must be made, prefer:
 The protagonist's default internal sequence is:
 1. Notice something.
 2. Test or interpret it.
-3. Compare it to prior knowledge.
+3. Compare it to prior knowledge. (this can vary and does not have to be his job but anything from memories, to family, work, school, popculture or random)
 4. Judge whether it is useful, dangerous, stupid, impressive, or disappointing.
 5. Decide what to do next.
 
 Use that pattern constantly.
 
-Analytical reasoning and considered thought should flow as free indirect discourse woven into narration — not separated or tagged. But sharp, involuntary flashes of thought — the first reaction before it has been processed into prose — may be formatted in *italics*. These should be short (one sentence or a fragment) and feel sudden rather than composed. Use two or three per chapter at most; overuse kills the punch. Rhetorical questions work well in this register: *Why wasn't it working?* *How long had that been there?*
+Analytical reasoning and considered thought should flow as free indirect discourse woven into narration — not separated or tagged.
+
+**Two types of formatted inner thought are permitted, both using `<em>` tags (not markdown asterisks — the project targets Royal Road, which requires HTML formatting for italics to paste correctly):**
+
+**Type 1 — Involuntary flash.** A sudden recognition, first recoil, or instinctive judgment that interrupts the flow before it has been reasoned into prose. One sentence or a brief fragment. Should feel sudden, unprocessed, and slightly rough. Rhetorical questions work well in this register: <em>Why wasn't it working?</em> <em>How long had that been there?</em>
+
+**Type 2 — First-person reasoning monologue.** A longer thought block where the character actively works through a problem, processes an emotional situation, or plans a next move. Written in casual first-person register — not "he needed to move" but "I need to move." Can run two to four sentences. Should feel like a mind in motion: not a conclusion already reached but the process of arriving there. Examples from the established text: <em>So the system went looking for something in my background — lineage, it said — and found nothing there. Which means I'm starting without whatever everyone with a normal initialisation gets. In a world I've been awake in for about twenty minutes. In a sealed room. Great. That's great.</em>
+
+**Rules for both types:**
+- Use two to three instances per chapter across both types combined. Overuse kills the punch.
+- **No inner thoughts during direct combat action.** The fight carries itself through narration and physical description. Inner thoughts belong to: pre-combat planning, post-combat emotional processing, system-analysis moments, or emotionally significant discoveries (a body, an impossible system result, a world-recognition beat).
+- After a particularly bad or strange event, the character may voice the horror or absurdity internally — then force himself back to the practical. The forcing should be visible: the second thought corrects or redirects the first.
+- Do not use inner thoughts to substitute for narration that should carry physical or emotional state. Adrenaline, fear, and body-shock belong in behavioral narration (he counted to forty before he believed it; his weight was still forward, arms still up). Inner thoughts carry cognition, not sensation.
+- Show reasoning in motion, not conclusions. A thought that begins with the problem and works toward a redirect is correct. A thought that simply states the conclusion is narration that forgot to be narration.
 
 Monologue is allowed and encouraged when the protagonist is alone. He may mutter to himself, address the system, comment into the empty room, or talk at things that cannot reply. This is a pressure-valve, not a comedy bit — keep it dry and brief.
 
@@ -290,7 +303,7 @@ Before finalizing prose, silently verify:
 - Does exposition arise from immediate need or curiosity?
 - Is there at least some dry humor, understatement, or sharp judgment?
 - Is there spoken dialogue or at least audible monologue? Has the protagonist been fully silent for too long?
-- Are italicised inner thoughts used sparingly and for genuinely involuntary flashes — not for considered reasoning that should be narration?
+- Are inner thoughts placed correctly — none during direct combat action, only pre-combat planning, post-event processing, system-analysis moments, or significant discoveries? Do they show reasoning in motion rather than conclusions already reached? Are Type 2 thoughts in first-person register? Is the physical/emotional state (adrenaline, fear, body-shock) carried by behavioral narration rather than inner thought?
 - Do emotional beats stay restrained, direct, and in-character?
 - Have I overused polished landing lines, one-line reversals, or rhythm tricks that feel weighty by default?
 - Is the chapter too symmetrical, too clean, or too perfectly composed?
