@@ -1,6 +1,6 @@
-# Chapter 2 - A great Choice
-
-Weight came back first, not pain exactly so much as the sense that something heavy had settled over his lungs and ribs and forgotten to move. Adrian dragged in a breath that tasted of cold metal, dust, and air old enough to seem stored. He opened his eyes to darkness split by a thin red line above him and spent one long second with no idea where he was. Then memory caught up all at once: the cradle, Helix, the blue strip in the lid, the bad bet.
+*[System Event Pending]*
+*[Anomaly detected]*
+The Weight came back first, not pain exactly so much as the sense that something heavy had settled over his lungs and ribs and forgotten to move. Adrian dragged in a breath that tasted of cold metal, dust, and air old enough to seem stored. He opened his eyes to darkness split by a thin red line above him and spent one long second with no idea where he was. Then memory caught up all at once: the cradle, Helix, the blue strip in the lid, the bad bet.
 
 His heart kicked hard enough to hurt. He moved, and his body moved with him. "What the-" he muttered, coughing up a handful of dust.
 
@@ -25,19 +25,12 @@ Carefully now, as if he might somehow frighten the fact away, Adrian bent one kn
 When he finally looked around properly, the chamber told a bleak enough story by itself.
 
 It had once been clean. That much still showed beneath the ruin. Rows of white preservation cradles sat in recessed bays along both walls, most of them broken open, some half collapsed under fallen panels, and one whole section at the far end crushed beneath a slab of cracked ceiling. Black cable bundles hung down in loops from the ceiling and walls. The thin red line above came from an emergency strip sunk into the ceiling, dim enough to feel less like lighting than a refusal to go fully dark.
-
 Faded lettering ran across the opposite wall.
-
 `CONTINUITY SUITE C`
-
 Beneath it, browned by mineral staining and time, sat the Helix logo.
-
-So that part, at least, had been real.
-
+So that part, at least, had been real. *Or this is a damn good illusion, which considering that my freaking hands and legs ware doing what I tell them too, I wouldn`t even mind.*
 He stepped away from the cradle and nearly slipped on a drift of pale residue gathered in the floor groove beside it. Dust, mostly, though some of it was finer than it should have been. He glanced towards the nearest open unit and regretted it immediately. Something lay inside — straps, grey residue, and a shape that had once relied on bones.
-
-Adrian looked away at once. He had other problems first.
-
+Adrian looked away at once. He had seen his fair share of blood in his old life, blood samples from medichis countless hospital visits, multiple accidents at work. But knowing the remains in the cradle had once been somebody caught in the same gamble he had taken was another thing entirely.
 He moved through the chamber instead, slower now, scanning automatically. Ceiling compromised at the far end. One exit still looked intact. No obvious cameras. No movement. Fresh tracks were harder. He saw none in the dust, but dust settled undisturbed long enough told him less than he wanted.
 
 At the base of one wall panel he found a recessed emergency cabinet. The clear cover had gone cloudy and crazed with age, but when he hit it with the heel of his hand it shattered inward. Inside sat a narrow metal tool, somewhere between a release bar and a bit of industrial optimism. He weighed it in his hand. Light, slightly flexible, and not especially good at anything. At the moment, being good enough at several things would do.
@@ -106,7 +99,7 @@ The system reappeared.
 
 *[Initial class selection required.]*
 *[Environment unstable.]*
-*[Selection may be completed now.]*
+*[Selection required.]*
 
 Adrian looked up at the arch again. "You think?"
 
@@ -120,9 +113,7 @@ The text ignored him and unfolded the options beneath itself.
 That was the whole list. No explanation of who was offering the choices. No note for the recently thawed.
 
 "Good," Adrian said. "Mysterious bureaucracy. Just what I needed."
-
-He focused on the first option.
-
+He focused on the first option. And surprisingly the prompt in front of him expanded.
 *[Fighter]*
 *[Direct martial growth. Favours physical reinforcement, close combat, weapon familiarity, and decisive force. Balanced for survival in contested environments.]*
 
@@ -143,11 +134,10 @@ He checked the third option.
 *[Favours Pulse shaping, ranged force, control, and abstract power development. Requires higher precision and grows strongly with system literacy.]*
 
 He had no idea what Pulse was yet, though its appearance in the description confirmed it was something real in the system rather than decorative terminology. A class that required system literacy when he had none was a class built for people who already knew where the floor was.
-
 *[Healer]*
-*[Favours restoration, stability, support methods, and preservation under pressure. Excels in attrition, recovery, and group endurance.]*
 
-"So I have four basic MMO starter classes for choice? Great, where is my overpowered Main-Character-Syndrome Class?" Chuckling to himself, he turned back and analysed the options a bit more seriously.
+*[Favours restoration, stability, support methods, and preservation under pressure. Excels in attrition, recovery, and group endurance.]*
+"So I have four basic game-like starter classes for choice? Great, where is my overpowered Main-Character-Syndrome Class?" Chuckling to himself, he turned back and analysed the options a bit more seriously.
 
 Healer was not happening. Stability had been doctors, handrails, reduced hours, and very sensible language about realistic outcomes, and he had not crawled out of a cryogenic coffin in a dead facility after who knew how many years just to wake up and pick the class whose whole pitch boiled down to hold everything together and help everybody else last longer.
 
@@ -178,7 +168,7 @@ Lines broke apart across his vision too quickly to read in sequence.
 *[Base class selection accepted.]*
 *[Runeheart initiation in progress.]*
 *[Body-state synchronisation underway.]*
-*[Iron stage established.]*
+*[First stage established.]*
 
 What threw him, oddly enough, was his heartbeat. He had spent years learning the rhythms of a failing body. This was something else entirely, a new pulse catching somewhere deep and hidden and pulling the rest of him into line behind it.
 
@@ -201,13 +191,16 @@ The next screen settled into view with unnerving calm.
 *Will: 6*
 *Pulse: 3*
 
+*Skills: None*
+*Technique: None*
+
 He read it twice, then a third time more slowly, because if a system insisted on dropping a status sheet in front of him with no manual attached, he could at least try to mug the paperwork. Strength, Agility, Endurance, Sense, Will, Pulse. The first four were obvious enough if the thing was using plain language rather than being cute. Strength was force. Agility was speed and coordination. Endurance probably covered toughness and recovery both — a damage floor more than a ceiling. Sense was perception unless the system had chosen a very stupid synonym for something mystical. Will was harder — discipline, maybe, or honestly something closer to pain tolerance. Some form of internal resistance he didn't have a cleaner word for. It sat highest beside Strength and Endurance, which he chose to treat as flattering until evidence said otherwise.
 
 Pulse was the awkward one. Caster had used the word, and now it sat in the same list as everything else, which made it too central to ignore. *Why Pulse of all things? Couldn't the System use a more common name like mana or I dont know Madra? What an imbecile of an author thought of that?* It's a Resource, then. Energy, fuel, whatever this world used instead — something the system treated as fundamental and expected him to recognise on sight. Iron sounded less like flavour text and more like the first actual rung of a ladder, while level one confirmed he was standing at the bottom of it. "I do like myself some gaming logic in my life. How sure am I that I really woke up and Helix didn't just upload my brain in some random simulation or something?" he asked himself, not the first time since waking up in this godforsaken place.
 
-It was hard not to read the whole thing like a schematic — something that looked legible and turned out to require knowledge he did not yet have. This one had given him a dead facility, an unstable environment warning, and a machine the size of a bus humming quietly in front of him. If trouble followed from that, it was probably not the biggest stretch in the world.
+It was hard not to read the whole thing like a schematic — something that looked legible and turned out to require knowledge he did not yet have. This one had given him a dead facility, an unstable environment warning, and a machine the size of a bus humming quietly in front of him. Expecting some trouble next was probably not the biggest stretch in the world.
 
-Which raised the question: what was the baseline? How good or bad were his Stats? He definitely didn't feel any different than before. He looked down at himself. Nope, there was definitely no change to be seen anywhere. *I guess this won't stay a mystery for long anyway*. With a shrug, he turned his attention back to the screen in his vision.
+Which raised the question: what was the baseline? How good or bad were his Stats? He definitely didn't feel any different than before. He looked down at himself. Nope, there was definitely no change to be seen anywhere, well besides the obvious that his Illness from before was gone, or at least surpressed. *I guess this won't stay a mystery for long anyway*. With a shrug, he turned his attention back to the screen in his vision.
 
 The line under Class still looked wrong.
 
