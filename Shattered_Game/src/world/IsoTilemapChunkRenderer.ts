@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
 import { IsoTransform } from './IsoTransform';
-import type { GridMode, TileStyleMap, TileType } from './IsoTilemapTypes';
+import type { GridMode, TileStyleMap } from './IsoTilemapTypes';
+import { WorldGrid } from './WorldGrid';
 
 const GRID_ALPHA = 0.055;
 
@@ -21,7 +22,9 @@ const TILE_STYLES: TileStyleMap = {
 type IsoTilemapChunkRendererConfig = {
   scene: Phaser.Scene;
   transform: IsoTransform;
-  tiles: TileType[][];
+  // IsoTilemapChunkRenderer is the visual rendering layer.
+  // It reads tile data from WorldGrid and uses IsoTransform for all coordinates.
+  worldGrid: WorldGrid;
   chunkSize?: number;
 };
 
@@ -38,7 +41,7 @@ type TileChunk = {
 export class IsoTilemapChunkRenderer {
   private readonly scene: Phaser.Scene;
   private readonly transform: IsoTransform;
-  private readonly tiles: TileType[][];
+  private readonly worldGrid: WorldGrid;
   private readonly chunkSize: number;
   private readonly chunks: TileChunk[] = [];
   private gridMode: GridMode = 'off';
@@ -46,12 +49,12 @@ export class IsoTilemapChunkRenderer {
   constructor({
     scene,
     transform,
-    tiles,
+    worldGrid,
     chunkSize = PROTOTYPE_SCALE.terrainChunkSize,
   }: IsoTilemapChunkRendererConfig) {
     this.scene = scene;
     this.transform = transform;
-    this.tiles = tiles;
+    this.worldGrid = worldGrid;
     this.chunkSize = chunkSize;
   }
 
@@ -86,8 +89,7 @@ export class IsoTilemapChunkRenderer {
       return;
     }
 
-    const mapHeight = this.tiles.length;
-    const mapWidth = this.tiles[0]?.length ?? 0;
+    const { width: mapWidth, height: mapHeight } = this.worldGrid;
 
     for (let startY = 0; startY < mapHeight; startY += this.chunkSize) {
       for (let startX = 0; startX < mapWidth; startX += this.chunkSize) {
@@ -118,7 +120,7 @@ export class IsoTilemapChunkRenderer {
 
       for (let gridY = chunk.startY; gridY < chunk.endY; gridY += 1) {
         for (let gridX = chunk.startX; gridX < chunk.endX; gridX += 1) {
-          const tileType = this.tiles[gridY][gridX];
+          const tileType = this.worldGrid.getTile(gridX, gridY) ?? 'water';
 
           chunk.groundLayer.fillStyle(TILE_STYLES[tileType].fill, 1);
           chunk.groundLayer.fillPoints(this.transform.getTileDiamondPoints(gridX, gridY), true);

@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
+import { generateOrganicIsland } from './IslandGenerator';
 import { IsoTransform } from './IsoTransform';
 import { IsoTilemapChunkRenderer } from './IsoTilemapChunkRenderer';
-import type { GridMode, TileType } from './IsoTilemapTypes';
+import type { GridMode } from './IsoTilemapTypes';
+import { WorldGrid } from './WorldGrid';
 
 const MAP_MARGIN = 160;
 
@@ -17,6 +19,10 @@ type WorldPoint = {
   y: number;
 };
 
+// IsoTilemap is a coordinator/facade.
+// It creates and wires WorldGrid (gameplay state), IsoTransform (coordinate projection),
+// and IsoTilemapChunkRenderer (visual rendering), then exposes a stable interface
+// for player and debug systems so they never need to reach through into subsystems.
 export class IsoTilemap {
   readonly width: number;
   readonly height: number;
@@ -24,11 +30,12 @@ export class IsoTilemap {
   readonly originY: number;
   readonly tileWidth = PROTOTYPE_SCALE.tileWidth;
   readonly tileHeight = PROTOTYPE_SCALE.tileHeight;
+  // IsoTransform is the coordinate projection layer — grid ↔ world ↔ screen.
   readonly transform: IsoTransform;
+  // WorldGrid is the authoritative gameplay state for the map.
+  readonly worldGrid: WorldGrid;
 
   private readonly scene: Phaser.Scene;
-  private readonly tiles: TileType[][];
-  private readonly terrainBlockedTileCount: number;
   private renderer?: IsoTilemapChunkRenderer;
   private gridMode: GridMode = 'off';
 
@@ -44,73 +51,62 @@ export class IsoTilemap {
       tileWidth: this.tileWidth,
       tileHeight: this.tileHeight,
     });
-    this.tiles = this.createOrganicIsland();
-    this.terrainBlockedTileCount = this.countTerrainBlockedTiles();
+    this.worldGrid = new WorldGrid(
+      this.width,
+      this.height,
+      generateOrganicIsland(this.width, this.height),
+    );
   }
 
   render(): Phaser.Geom.Rectangle {
     this.createWaterBackdrop();
     this.createChunkRenderer();
-
-    // Future systems can replace this prototype pass with real island building,
-    // resource nodes, world islands, and multiplayer rooms/layers.
     return this.getWorldBounds();
   }
 
+  // --- Coordinate facade (delegates to IsoTransform) ---
+
   gridToWorld(gridX: number, gridY: number): WorldPoint {
     const point = this.transform.gridToWorld(gridX, gridY);
-
     return { x: point.x, y: point.y };
   }
 
   getTileCenterWorld(gridX: number, gridY: number): WorldPoint {
     const point = this.transform.getTileCenterWorld(gridX, gridY);
-
     return { x: point.x, y: point.y };
   }
 
   worldToGrid(worldX: number, worldY: number): WorldPoint {
     const point = this.transform.worldToGrid(worldX, worldY);
-
     return { x: point.x, y: point.y };
   }
 
+  // --- Walkability facade (delegates to WorldGrid) ---
+
   isTileInBounds(tileX: number, tileY: number): boolean {
-    return (
-      Number.isInteger(tileX) &&
-      Number.isInteger(tileY) &&
-      tileX >= 0 &&
-      tileY >= 0 &&
-      tileX < this.width &&
-      tileY < this.height
-    );
+    return this.worldGrid.isTileInBounds(tileX, tileY);
   }
 
   isTileTerrainBlocked(tileX: number, tileY: number): boolean {
-    if (!this.isTileInBounds(tileX, tileY)) return true;
-    return this.tiles[tileY][tileX] === 'water';
+    return this.worldGrid.isTerrainBlocked(tileX, tileY);
   }
 
+  // Unified walkability check — terrain and future object blocking both feed in here.
   isTileWalkable(tileX: number, tileY: number): boolean {
-    return this.isTileInBounds(tileX, tileY) && !this.isTileTerrainBlocked(tileX, tileY);
+    return this.worldGrid.isTileWalkable(tileX, tileY);
   }
 
+  // Fractional grid position walkability check (used by the debug overlay).
   isWorldGridWalkable(gridX: number, gridY: number): boolean {
     const tile = this.transform.gridToTile(new Phaser.Math.Vector2(gridX, gridY));
-
-    return this.isTileWalkable(tile.x, tile.y);
+    return this.worldGrid.isTileWalkable(tile.x, tile.y);
   }
 
   getTerrainBlockedTileCount(): number {
-    return this.terrainBlockedTileCount;
+    return this.worldGrid.getTerrainBlockedTileCount();
   }
 
-  private countTerrainBlockedTiles(): number {
-    return this.tiles.reduce(
-      (count, row) => count + row.filter((tileType) => tileType === 'water').length,
-      0,
-    );
-  }
+  // --- Renderer info ---
 
   getTerrainChunkCount(): number {
     return this.renderer?.getChunkCount() ?? 0;
@@ -120,15 +116,15 @@ export class IsoTilemap {
     return this.getTileCenterWorld(Math.floor(this.width / 2), Math.floor(this.height / 2));
   }
 
+  // --- Grid mode (delegates to renderer) ---
+
   cycleGridMode(): GridMode {
     const nextMode: Record<GridMode, GridMode> = {
       off: 'subtle',
       subtle: 'build',
       build: 'off',
     };
-
     this.setGridMode(nextMode[this.gridMode]);
-
     return this.gridMode;
   }
 
@@ -137,41 +133,14 @@ export class IsoTilemap {
   }
 
   toggleGridVisibility(): boolean {
-    if (!this.renderer) {
-      return false;
-    }
-
+    if (!this.renderer) return false;
     this.setGridMode(this.gridMode === 'off' ? 'build' : 'off');
-
     return this.gridMode !== 'off';
   }
 
-  private createOrganicIsland(): TileType[][] {
-    const centreX = (this.width - 1) / 2;
-    const centreY = (this.height - 1) / 2;
-
-    return Array.from({ length: this.height }, (_, y) =>
-      Array.from({ length: this.width }, (_, x) => {
-        const normalisedX = (x - centreX) / (this.width / 2);
-        const normalisedY = (y - centreY) / (this.height / 2);
-        const distance = Math.sqrt(normalisedX * normalisedX + normalisedY * normalisedY);
-        const edgeNoise =
-          Math.sin(x * 1.7 + y * 0.4) * 0.06 +
-          Math.cos(y * 1.3 - x * 0.35) * 0.05 +
-          Math.sin((x + y) * 0.8) * 0.035;
-        const islandDistance = distance + edgeNoise;
-
-        if (islandDistance < 0.52) {
-          return 'grass';
-        }
-
-        if (islandDistance < 0.73) {
-          return 'sand';
-        }
-
-        return 'water';
-      }),
-    );
+  private setGridMode(gridMode: GridMode): void {
+    this.gridMode = gridMode;
+    this.renderer?.setGridMode(gridMode);
   }
 
   private createWaterBackdrop(): void {
@@ -184,20 +153,14 @@ export class IsoTilemap {
       0x07111f,
       1,
     );
-
     backdrop.setDepth(RENDER_DEPTHS.GROUND - 10);
-  }
-
-  private setGridMode(gridMode: GridMode): void {
-    this.gridMode = gridMode;
-    this.renderer?.setGridMode(gridMode);
   }
 
   private createChunkRenderer(): void {
     this.renderer = new IsoTilemapChunkRenderer({
       scene: this.scene,
       transform: this.transform,
-      tiles: this.tiles,
+      worldGrid: this.worldGrid,
     });
     this.renderer.render();
   }
@@ -214,7 +177,6 @@ export class IsoTilemap {
     const maxX = bounds.right + MAP_MARGIN;
     const minY = bounds.top - MAP_MARGIN;
     const maxY = bounds.bottom + MAP_MARGIN;
-
     return new Phaser.Geom.Rectangle(minX, minY, maxX - minX, maxY - minY);
   }
 }
