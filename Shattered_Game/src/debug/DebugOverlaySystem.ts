@@ -224,10 +224,22 @@ export class DebugOverlaySystem {
   }
 
   private ignoreWorldForUiCamera(): void {
-    const nonUiChildren = this.scene.children
-      .getChildren()
-      .filter((child) => child !== this.zoomText && child !== this.detailText);
+    const isUiObject = (child: Phaser.GameObjects.GameObject): boolean =>
+      child === this.zoomText || child === this.detailText;
 
-    this.uiCamera.ignore(nonUiChildren);
+    const existing = this.scene.children.getChildren().filter((c) => !isUiObject(c));
+    this.uiCamera.ignore(existing);
+
+    // Any world object added after construction (lazy terrain chunks, debug overlays)
+    // is also ignored. Phaser 3.90 fires ADDED_TO_SCENE on scene.events when an object
+    // enters the DisplayList — this is the only reliable hook for post-construction adds.
+    this.scene.events.on(
+      Phaser.Scenes.Events.ADDED_TO_SCENE,
+      (child: Phaser.GameObjects.GameObject) => {
+        if (!isUiObject(child)) {
+          this.uiCamera.ignore(child);
+        }
+      },
+    );
   }
 }

@@ -4,12 +4,6 @@ import { IsoTransform } from '../world/IsoTransform';
 import { getObjectDepthAnchorWorld } from './ObjectDepth';
 import type { ObjectDefinition, ObjectInstance, VisualPart } from './ObjectTypes';
 
-type RenderedObject = {
-  instanceId: string;
-  definition: ObjectDefinition;
-  visual: Phaser.GameObjects.Container;
-};
-
 export type ObjectOcclusionTarget = {
   instanceId: string;
   definition: ObjectDefinition;
@@ -22,7 +16,7 @@ export type ObjectOcclusionTarget = {
 // align exactly with terrain tile diamonds. Visual size never participates
 // in collision — collision is purely the WorldGrid footprint.
 export class ObjectRenderer {
-  private readonly rendered = new Map<string, RenderedObject>();
+  private readonly rendered = new Map<string, ObjectOcclusionTarget>();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -57,12 +51,8 @@ export class ObjectRenderer {
     this.rendered.delete(instanceId);
   }
 
-  getOcclusionTargets(): ObjectOcclusionTarget[] {
-    return Array.from(this.rendered.values()).map(({ instanceId, definition, visual }) => ({
-      instanceId,
-      definition,
-      visual,
-    }));
+  getOcclusionTargets(): IterableIterator<ObjectOcclusionTarget> {
+    return this.rendered.values();
   }
 }
 

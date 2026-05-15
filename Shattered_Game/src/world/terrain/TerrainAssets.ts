@@ -1,5 +1,7 @@
 import { PROTOTYPE_SCALE } from '../../config/prototypeScale';
 import Phaser from 'phaser';
+import { TERRAIN_TILE_DEFINITIONS } from './TerrainTileDefinitions';
+import { TERRAIN_TRANSITION_DEFINITIONS } from './TerrainTransitionDefinitions';
 
 type TerrainSourceAsset = {
   sourceKey: string;
@@ -9,6 +11,25 @@ type TerrainSourceAsset = {
 
 const TERRAIN_TARGET_WIDTH = PROTOTYPE_SCALE.tileWidth;
 const TERRAIN_TARGET_HEIGHT = PROTOTYPE_SCALE.tileHeight;
+
+// Derive the set of render keys that are actually referenced by tile and
+// transition definitions. Only assets whose renderKey appears here get loaded
+// and scaled — unused source textures (e.g. the full water autotile set) are
+// excluded until their definitions reference them.
+function buildActiveRenderKeys(): Set<string> {
+  const keys = new Set<string>();
+  for (const def of TERRAIN_TILE_DEFINITIONS) {
+    keys.add(def.spriteFrame);
+  }
+  for (const def of TERRAIN_TRANSITION_DEFINITIONS) {
+    if (def.enabled) {
+      keys.add(def.spriteFrame);
+    }
+  }
+  return keys;
+}
+
+const ACTIVE_RENDER_KEYS = buildActiveRenderKeys();
 
 const SOURCE_ASSETS: TerrainSourceAsset[] = [
   ...createNumberedTerrainAssets('grassA', '/assets/Grass_A_PNG/Grass_A_', 44),
@@ -35,7 +56,7 @@ const SOURCE_ASSETS: TerrainSourceAsset[] = [
   createTerrainAsset('waterCrossWayTop', '/assets/Water/CrossWay_Top.png'),
   createTerrainAsset('waterA', '/assets/Water/Water_A.png'),
   createTerrainAsset('waterB', '/assets/Water/Water_B.png'),
-];
+].filter(({ renderKey }) => ACTIVE_RENDER_KEYS.has(renderKey));
 
 export function preloadTerrainAssets(scene: Phaser.Scene): void {
   SOURCE_ASSETS.forEach(({ sourceKey, path }) => {
@@ -49,7 +70,6 @@ export function createTerrainRenderTextures(scene: Phaser.Scene): void {
   SOURCE_ASSETS.forEach((asset) => {
     createScaledTexture(scene, asset);
   });
-
 }
 
 function createNumberedTerrainAssets(

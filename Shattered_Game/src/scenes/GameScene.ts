@@ -60,7 +60,13 @@ export class GameScene extends Phaser.Scene {
       objectRenderer,
       this.objectDebugRenderer,
     );
-    this.objectTestArea = new ObjectTestArea(this.objectPlacementSystem);
+    this.objectTestArea = new ObjectTestArea({
+      placement: this.objectPlacementSystem,
+      mapWidth: PROTOTYPE_SCALE.mapWidth,
+      mapHeight: PROTOTYPE_SCALE.mapHeight,
+      spawnX: Math.floor(PROTOTYPE_SCALE.mapWidth / 2),
+      spawnY: Math.floor(PROTOTYPE_SCALE.mapHeight / 2),
+    });
     this.objectTestArea.build();
 
     const spawnPoint = this.isoTilemap.getSpawnPoint();

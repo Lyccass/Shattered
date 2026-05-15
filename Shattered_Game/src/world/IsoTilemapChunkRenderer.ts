@@ -24,12 +24,15 @@ type IsoTilemapChunkRendererConfig = {
   chunkSize?: number;
 };
 
-type TileChunk = {
+type ChunkConfig = {
   startX: number;
   startY: number;
   endX: number;
   endY: number;
   bounds: Phaser.Geom.Rectangle;
+};
+
+type TileChunk = ChunkConfig & {
   groundLayer: Phaser.GameObjects.RenderTexture;
   gridLayer: Phaser.GameObjects.Graphics;
 };
@@ -40,7 +43,8 @@ export class IsoTilemapChunkRenderer {
   private readonly worldGrid: WorldGrid;
   private readonly chunkSize: number;
   private readonly terrainResolver = new TerrainResolver();
-  private readonly chunks: TileChunk[] = [];
+  private readonly chunkConfigs: ChunkConfig[] = [];
+  private readonly activeChunks = new Map<string, TileChunk>();
   private tileStamp?: Phaser.GameObjects.Image;
   private gridMode: GridMode = 'off';
 
@@ -57,36 +61,36 @@ export class IsoTilemapChunkRenderer {
   }
 
   render(): void {
-    this.createChunks();
-    this.redrawGroundChunks();
-    this.setGridMode(this.gridMode);
+    this.registerChunkConfigs();
     this.scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.updateChunkVisibility, this);
+    this.updateChunkVisibility();
   }
 
   setGridMode(gridMode: GridMode): void {
     this.gridMode = gridMode;
-    this.redrawGridChunks();
+    for (const chunk of this.activeChunks.values()) {
+      this.drawGridChunk(chunk);
+    }
     this.updateChunkVisibility();
   }
 
   getChunkCount(): number {
-    return this.chunks.length;
+    return this.chunkConfigs.length;
   }
 
   destroy(): void {
     this.scene.events.off(Phaser.Scenes.Events.POST_UPDATE, this.updateChunkVisibility, this);
-    this.chunks.forEach((chunk) => {
+    for (const chunk of this.activeChunks.values()) {
       chunk.groundLayer.destroy();
       chunk.gridLayer.destroy();
-    });
+    }
     this.tileStamp?.destroy();
-    this.chunks.length = 0;
+    this.chunkConfigs.length = 0;
+    this.activeChunks.clear();
   }
 
-  private createChunks(): void {
-    if (this.chunks.length > 0) {
-      return;
-    }
+  private registerChunkConfigs(): void {
+    if (this.chunkConfigs.length > 0) return;
 
     const { width: mapWidth, height: mapHeight } = this.worldGrid;
 
@@ -95,88 +99,83 @@ export class IsoTilemapChunkRenderer {
         const endX = Math.min(startX + this.chunkSize, mapWidth);
         const endY = Math.min(startY + this.chunkSize, mapHeight);
         const bounds = this.getChunkBounds(startX, startY, endX, endY);
-        const groundLayer = this.scene.add.renderTexture(bounds.x, bounds.y, bounds.width, bounds.height);
-        const gridLayer = this.scene.add.graphics();
-
-        groundLayer.setOrigin(0, 0);
-        groundLayer.setDepth(RENDER_DEPTHS.GROUND);
-        gridLayer.setDepth(RENDER_DEPTHS.GRID);
-
-        this.chunks.push({
-          startX,
-          startY,
-          endX,
-          endY,
-          bounds,
-          groundLayer,
-          gridLayer,
-        });
+        this.chunkConfigs.push({ startX, startY, endX, endY, bounds });
       }
     }
   }
 
-  private redrawGroundChunks(): void {
-    this.chunks.forEach((chunk) => {
-      chunk.groundLayer.clear();
+  private materializeChunk(config: ChunkConfig): TileChunk {
+    const groundLayer = this.scene.add.renderTexture(
+      config.bounds.x, config.bounds.y, config.bounds.width, config.bounds.height,
+    );
+    const gridLayer = this.scene.add.graphics();
 
-      this.forEachTileInDrawOrder(chunk, (gridX, gridY) => {
-        const tileType = this.worldGrid.getTile(gridX, gridY) ?? 'water';
-        const resolvedTile = this.terrainResolver.resolve({
-          family: tileType,
-          gridX,
-          gridY,
-          neighbours: sampleTerrainNeighbours(this.worldGrid, gridX, gridY),
-        });
-        const replacementTransition = this.getReplacementTransition(resolvedTile);
-        const textureKey = replacementTransition?.definition.spriteFrame ?? resolvedTile.baseTileDefinition.spriteFrame;
-        const frame = this.scene.textures.getFrame(textureKey);
+    groundLayer.setOrigin(0, 0);
+    groundLayer.setDepth(RENDER_DEPTHS.GROUND);
+    gridLayer.setDepth(RENDER_DEPTHS.GRID);
 
-        if (!frame) {
-          return;
-        }
+    const chunk: TileChunk = { ...config, groundLayer, gridLayer };
+    this.drawGroundChunk(chunk);
+    this.drawGridChunk(chunk);
+    return chunk;
+  }
 
-        const tileCenter = this.transform.getTileCenterWorld(gridX, gridY);
-        const drawX = Math.round(tileCenter.x - frame.width / 2 - chunk.bounds.x);
-        const drawY = Math.round(tileCenter.y - this.transform.tileHeight / 2 - chunk.bounds.y);
+  private drawGroundChunk(chunk: TileChunk): void {
+    chunk.groundLayer.clear();
 
-        if (replacementTransition) {
-          this.drawTextureFrame(chunk, textureKey, replacementTransition.transform, frame, drawX, drawY);
-        } else {
-          this.drawResolvedTile(chunk, resolvedTile, frame, drawX, drawY);
-        }
-
-        this.drawResolvedTransitionArt(chunk, resolvedTile, tileCenter.x, tileCenter.y);
+    this.forEachTileInDrawOrder(chunk, (gridX, gridY) => {
+      const tileType = this.worldGrid.getTile(gridX, gridY) ?? 'water';
+      const resolvedTile = this.terrainResolver.resolve({
+        family: tileType,
+        gridX,
+        gridY,
+        neighbours: sampleTerrainNeighbours(this.worldGrid, gridX, gridY),
       });
+      const replacementTransition = this.getReplacementTransition(resolvedTile);
+      const textureKey = replacementTransition?.definition.spriteFrame ?? resolvedTile.baseTileDefinition.spriteFrame;
+      const frame = this.scene.textures.getFrame(textureKey);
+
+      if (!frame) return;
+
+      const tileCenter = this.transform.getTileCenterWorld(gridX, gridY);
+      const drawX = Math.round(tileCenter.x - frame.width / 2 - chunk.bounds.x);
+      const drawY = Math.round(tileCenter.y - this.transform.tileHeight / 2 - chunk.bounds.y);
+
+      if (replacementTransition) {
+        this.drawTextureFrame(chunk, textureKey, replacementTransition.transform, frame, drawX, drawY);
+      } else {
+        this.drawResolvedTile(chunk, resolvedTile, frame, drawX, drawY);
+      }
+
+      this.drawResolvedTransitionArt(chunk, resolvedTile, tileCenter.x, tileCenter.y);
     });
   }
 
-  private redrawGridChunks(): void {
+  private drawGridChunk(chunk: TileChunk): void {
+    chunk.gridLayer.clear();
+
     const isGridVisible = this.gridMode !== 'off';
+    if (!isGridVisible) {
+      chunk.gridLayer.setVisible(false);
+      return;
+    }
+
     const alpha = this.gridMode === 'build' ? 0.16 : GRID_ALPHA;
     const colour = this.gridMode === 'build' ? 0xd7f3ff : 0x1d4f36;
 
-    this.chunks.forEach((chunk) => {
-      chunk.gridLayer.clear();
+    chunk.gridLayer.lineStyle(1, colour, alpha);
 
-      if (!isGridVisible) {
-        chunk.gridLayer.setVisible(false);
-        return;
+    // Grid debug uses the same diamond helper as terrain fill, so tile edges
+    // and debug/build overlays stay locked to one coordinate system.
+    for (let gridY = chunk.startY; gridY < chunk.endY; gridY += 1) {
+      for (let gridX = chunk.startX; gridX < chunk.endX; gridX += 1) {
+        chunk.gridLayer.strokePoints(this.transform.getTileDiamondPoints(gridX, gridY), true);
       }
+    }
 
-      chunk.gridLayer.lineStyle(1, colour, alpha);
-
-      // Grid debug uses the same diamond helper as terrain fill, so tile edges
-      // and debug/build overlays stay locked to one coordinate system.
-      for (let gridY = chunk.startY; gridY < chunk.endY; gridY += 1) {
-        for (let gridX = chunk.startX; gridX < chunk.endX; gridX += 1) {
-          chunk.gridLayer.strokePoints(this.transform.getTileDiamondPoints(gridX, gridY), true);
-        }
-      }
-
-      if (this.gridMode === 'build') {
-        this.drawTransitionDebugOverlays(chunk);
-      }
-    });
+    if (this.gridMode === 'build') {
+      this.drawTransitionDebugOverlays(chunk);
+    }
   }
 
   private updateChunkVisibility(): void {
@@ -185,12 +184,26 @@ export class IsoTilemapChunkRenderer {
 
     Phaser.Geom.Rectangle.Inflate(paddedView, this.transform.tileWidth * 2, this.transform.tileHeight * 4);
 
-    this.chunks.forEach((chunk) => {
-      const isVisible = Phaser.Geom.Rectangle.Overlaps(paddedView, chunk.bounds);
+    for (const config of this.chunkConfigs) {
+      const isVisible = Phaser.Geom.Rectangle.Overlaps(paddedView, config.bounds);
+      const key = chunkKey(config);
 
-      chunk.groundLayer.setVisible(isVisible);
-      chunk.gridLayer.setVisible(isVisible && this.gridMode !== 'off');
-    });
+      if (isVisible) {
+        let chunk = this.activeChunks.get(key);
+        if (!chunk) {
+          chunk = this.materializeChunk(config);
+          this.activeChunks.set(key, chunk);
+        }
+        chunk.groundLayer.setVisible(true);
+        chunk.gridLayer.setVisible(this.gridMode !== 'off');
+      } else {
+        const chunk = this.activeChunks.get(key);
+        if (chunk) {
+          chunk.groundLayer.setVisible(false);
+          chunk.gridLayer.setVisible(false);
+        }
+      }
+    }
   }
 
   private getChunkBounds(startX: number, startY: number, endX: number, endY: number): Phaser.Geom.Rectangle {
@@ -214,7 +227,7 @@ export class IsoTilemapChunkRenderer {
     return bounds;
   }
 
-  private forEachTileInDrawOrder(chunk: TileChunk, callback: (gridX: number, gridY: number) => void): void {
+  private forEachTileInDrawOrder(chunk: ChunkConfig, callback: (gridX: number, gridY: number) => void): void {
     const startDiagonal = chunk.startX + chunk.startY;
     const endDiagonal = chunk.endX + chunk.endY - 2;
 
@@ -319,9 +332,7 @@ export class IsoTilemapChunkRenderer {
 
       const frame = this.scene.textures.getFrame(definition.spriteFrame);
 
-      if (!frame) {
-        return;
-      }
+      if (!frame) return;
 
       const drawX = Math.round(tileCenterX - frame.width / 2 - chunk.bounds.x);
       const drawY = Math.round(tileCenterY - this.transform.tileHeight / 2 - chunk.bounds.y);
@@ -353,6 +364,10 @@ export class IsoTilemapChunkRenderer {
 
     return this.tileStamp;
   }
+}
+
+function chunkKey(config: ChunkConfig): string {
+  return `${config.startX},${config.startY}`;
 }
 
 function isEdgeDirection(direction: string): direction is IsoEdgeKey {

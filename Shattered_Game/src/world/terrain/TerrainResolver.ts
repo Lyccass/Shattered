@@ -43,10 +43,19 @@ const OUTER_CORNER_EDGE_PAIRS: Record<IsoCornerKey, [IsoEdgeKey, IsoEdgeKey]> = 
 };
 
 export class TerrainResolver {
+  private readonly transitionIndex: Map<string, TerrainTransitionDefinition>;
+
   constructor(
     private readonly definitions: TerrainTileDefinition[] = TERRAIN_TILE_DEFINITIONS,
-    private readonly transitionDefinitions: TerrainTransitionDefinition[] = TERRAIN_TRANSITION_DEFINITIONS,
-  ) {}
+    transitionDefinitions: TerrainTransitionDefinition[] = TERRAIN_TRANSITION_DEFINITIONS,
+  ) {
+    this.transitionIndex = new Map(
+      transitionDefinitions.map((def) => [
+        transitionKey(def.fromFamily, def.toFamily, def.kind, def.direction),
+        def,
+      ]),
+    );
+  }
 
   resolve({
     family,
@@ -192,12 +201,8 @@ export class TerrainResolver {
     gridX: number,
     gridY: number,
   ): ResolvedTerrainTransition | null {
-    const definition = this.transitionDefinitions.find(
-      (candidate) =>
-        candidate.fromFamily === fromFamily &&
-        candidate.toFamily === toFamily &&
-        candidate.kind === kind &&
-        candidate.direction === direction,
+    const definition = this.transitionIndex.get(
+      transitionKey(fromFamily, toFamily, kind, direction),
     );
 
     if (!definition) {
@@ -251,6 +256,15 @@ export class TerrainResolver {
       TERRAIN_PRIORITY[candidate] > TERRAIN_PRIORITY[best] ? candidate : best,
     );
   }
+}
+
+function transitionKey(
+  from: RenderTerrainFamily,
+  to: RenderTerrainFamily,
+  kind: TerrainTransitionKind,
+  direction: IsoEdgeKey | IsoCornerKey | string,
+): string {
+  return `${from}:${to}:${kind}:${direction}`;
 }
 
 function createFallbackNeighbours(family: TerrainFamily): TerrainNeighbourFamilies {

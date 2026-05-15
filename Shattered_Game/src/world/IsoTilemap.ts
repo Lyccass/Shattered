@@ -40,6 +40,7 @@ export class IsoTilemap {
 
   private readonly scene: Phaser.Scene;
   private readonly terrainResolver = new TerrainResolver();
+  private readonly resolvedTileCache = new Map<string, ResolvedTerrainTile>();
   private renderer?: IsoTilemapChunkRenderer;
   private gridMode: GridMode = 'off';
 
@@ -106,12 +107,19 @@ export class IsoTilemap {
       return null;
     }
 
-    return this.terrainResolver.resolve({
+    const cacheKey = `${tileX},${tileY}`;
+    const cached = this.resolvedTileCache.get(cacheKey);
+    if (cached) return cached;
+
+    const result = this.terrainResolver.resolve({
       family,
       gridX: tileX,
       gridY: tileY,
       neighbours: sampleTerrainNeighbours(this.worldGrid, tileX, tileY),
     });
+
+    this.resolvedTileCache.set(cacheKey, result);
+    return result;
   }
 
   // Unified walkability check — terrain and future object blocking both feed in here.
