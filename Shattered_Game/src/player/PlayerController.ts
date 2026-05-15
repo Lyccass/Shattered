@@ -22,7 +22,7 @@ export class PlayerController {
     this.collision = new PlayerCollisionSystem(tilemap);
     this.position = new PlayerPositionSystem();
     this.movement = new PlayerMovementSystem(this.collision, this.position);
-    this.visuals = new PlayerVisualSystem(scene, sprite);
+    this.visuals = new PlayerVisualSystem(sprite);
     this.keys = scene.input.keyboard?.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
       left: Phaser.Input.Keyboard.KeyCodes.A,

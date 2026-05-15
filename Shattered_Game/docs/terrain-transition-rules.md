@@ -20,6 +20,8 @@ Outer corners happen when two adjacent edge neighbours differ from the current t
 
 Shoreline transitions have higher priority than ordinary grass/dirt/stone transitions. If a tile touches water and dirt, water wins because coastline readability matters more than inland blending.
 
+Rendered shoreline art belongs to the `water` tile when water touches land. This keeps visuals aligned with gameplay: the shoreline tile still behaves as blocked water, while the neighbouring grass/dirt/stone tile stays visually and mechanically walkable.
+
 Flipping is opt-in per tile definition. Decorative grass variants can allow `flipX` or `flipY`; strong-lit dirt and stone tiles should usually not flip unless they are authored for it.
 
 When transition tiles support flipping later, the edge tags must transform with the sprite. A flipped transition cannot keep the same edge metadata if the visual edge changed sides.

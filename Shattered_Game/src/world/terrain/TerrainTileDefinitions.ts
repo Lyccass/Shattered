@@ -9,47 +9,48 @@ import {
 type TerrainDefinitionInput = {
   id: string;
   family: RenderTerrainFamily;
-  role: TerrainRole;
-  weight: number;
+  role?: TerrainRole;
+  weight?: number;
   walkable: boolean;
   edgeTag: TerrainEdgeTag;
+  spriteFrame?: string;
   allowFlipX?: boolean;
   allowFlipY?: boolean;
 };
 
 export const TERRAIN_TILE_DEFINITIONS: TerrainTileDefinition[] = [
-  defineTile({ id: 'dirt1', family: 'dirt', role: 'full', weight: 4, walkable: true, edgeTag: 'dirt' }),
-  defineTile({ id: 'dirt2', family: 'dirt', role: 'transition', weight: 1, walkable: true, edgeTag: 'dirt' }),
-  defineTile({ id: 'dirt3', family: 'dirt', role: 'transition', weight: 1, walkable: true, edgeTag: 'dirt' }),
-  defineTile({ id: 'dirt4', family: 'dirt', role: 'full', weight: 3, walkable: true, edgeTag: 'dirt' }),
+  ...createNumberedTiles('grassA', 44, 'grass', 'grass', true, {
+    decoratedEvery: 3,
+    allowFlipX: true,
+    allowFlipY: true,
+  }),
+  ...createNumberedTiles('groundA', 48, 'dirt', 'dirt', true, {
+    decoratedEvery: 4,
+    allowFlipX: true,
+  }),
 
-  defineTile({ id: 'grass1', family: 'grass', role: 'full', weight: 5, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass2', family: 'grass', role: 'decorated', weight: 2, walkable: true, edgeTag: 'grass', allowFlipX: true }),
-  defineTile({ id: 'grass3', family: 'grass', role: 'full', weight: 4, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass4', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass5', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass6', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass7', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass8', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass9', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
-  defineTile({ id: 'grass10', family: 'grass', role: 'transition', weight: 1, walkable: true, edgeTag: 'grass' }),
+  // The current new pack does not include dedicated stone floor diamonds, so
+  // stone terrain temporarily reuses rocky ground variants while preserving the
+  // gameplay family and edge tags for future replacement.
+  defineTile({ id: 'stoneGroundA08', family: 'stone', walkable: true, edgeTag: 'stone', spriteFrame: 'terrain-groundA08', role: 'decorated', weight: 2 }),
+  defineTile({ id: 'stoneGroundA20', family: 'stone', walkable: true, edgeTag: 'stone', spriteFrame: 'terrain-groundA20', role: 'decorated', weight: 2 }),
+  defineTile({ id: 'stoneGroundA32', family: 'stone', walkable: true, edgeTag: 'stone', spriteFrame: 'terrain-groundA32', role: 'decorated', weight: 2 }),
+  defineTile({ id: 'stoneGroundA44', family: 'stone', walkable: true, edgeTag: 'stone', spriteFrame: 'terrain-groundA44', role: 'full', weight: 3 }),
 
-  defineTile({ id: 'stone1', family: 'stone', role: 'decorated', weight: 2, walkable: true, edgeTag: 'stone' }),
-  defineTile({ id: 'stone2', family: 'stone', role: 'full', weight: 4, walkable: true, edgeTag: 'stone' }),
-  defineTile({ id: 'stone3', family: 'stone', role: 'decorated', weight: 2, walkable: true, edgeTag: 'stone' }),
-  defineTile({ id: 'stone4', family: 'stone', role: 'decorated', weight: 2, walkable: true, edgeTag: 'stone' }),
-
-  defineTile({ id: 'water1', family: 'water', role: 'full', weight: 5, walkable: false, edgeTag: 'water' }),
-  defineTile({ id: 'water2', family: 'water', role: 'decorated', weight: 2, walkable: false, edgeTag: 'water', allowFlipX: true }),
+  // Temporary water simplification: every water tile resolves to Water_A while
+  // shoreline/corner art is paused. This keeps blocked water tiles visually
+  // predictable until the full water autotile set is mapped cleanly.
+  defineTile({ id: 'waterA', family: 'water', walkable: false, edgeTag: 'water', spriteFrame: 'terrain-waterA', weight: 1 }),
 ];
 
 function defineTile({
   id,
   family,
-  role,
-  weight,
+  role = 'full',
+  weight = 1,
   walkable,
   edgeTag,
+  spriteFrame = `terrain-${id}`,
   allowFlipX = false,
   allowFlipY = false,
 }: TerrainDefinitionInput): TerrainTileDefinition {
@@ -57,7 +58,7 @@ function defineTile({
     id,
     family,
     role,
-    spriteFrame: `terrain-${id}`,
+    spriteFrame,
     weight,
     walkable,
     edges: createUniformTerrainEdges(edgeTag),
@@ -65,4 +66,35 @@ function defineTile({
     allowFlipY,
     allowRotation: false,
   };
+}
+
+function createNumberedTiles(
+  prefix: string,
+  count: number,
+  family: RenderTerrainFamily,
+  edgeTag: TerrainEdgeTag,
+  walkable: boolean,
+  options: {
+    decoratedEvery?: number;
+    baseWeight?: number;
+    decoratedWeight?: number;
+    allowFlipX?: boolean;
+    allowFlipY?: boolean;
+  } = {},
+): TerrainTileDefinition[] {
+  return Array.from({ length: count }, (_, index) => {
+    const number = `${index + 1}`.padStart(2, '0');
+    const isDecorated = options.decoratedEvery !== undefined && (index + 1) % options.decoratedEvery === 0;
+
+    return defineTile({
+      id: `${prefix}${number}`,
+      family,
+      role: isDecorated ? 'decorated' : 'full',
+      weight: isDecorated ? options.decoratedWeight ?? 2 : options.baseWeight ?? 4,
+      walkable,
+      edgeTag,
+      allowFlipX: options.allowFlipX,
+      allowFlipY: options.allowFlipY,
+    });
+  });
 }

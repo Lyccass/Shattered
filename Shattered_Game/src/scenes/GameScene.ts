@@ -2,8 +2,10 @@ import Phaser from 'phaser';
 import { CameraSystem } from '../camera/CameraSystem';
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
+import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { OBJECT_DEFINITIONS } from '../objects/ObjectDefinitions';
 import { ObjectDebugRenderer } from '../objects/ObjectDebugRenderer';
+import { ObjectOcclusionSystem } from '../objects/ObjectOcclusionSystem';
 import { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
 import { ObjectRegistry } from '../objects/ObjectRegistry';
 import { ObjectRenderer } from '../objects/ObjectRenderer';
@@ -22,6 +24,7 @@ export class GameScene extends Phaser.Scene {
   private debugOverlaySystem?: DebugOverlaySystem;
   private objectPlacementSystem?: ObjectPlacementSystem;
   private objectDebugRenderer?: ObjectDebugRenderer;
+  private objectOcclusionSystem?: ObjectOcclusionSystem;
   private objectTestArea?: ObjectTestArea;
 
   constructor() {
@@ -34,6 +37,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     preloadTerrainAssets(this);
+    preloadObjectAssets(this);
   }
 
   create(): void {
@@ -63,6 +67,7 @@ export class GameScene extends Phaser.Scene {
     this.player = this.add.sprite(spawnPoint.x, spawnPoint.y, PLAYER_TEXTURE_KEY);
     this.player.setScale(PLAYER_CONFIG.visualScale);
     this.playerController = new PlayerController(this, this.player, this.isoTilemap);
+    this.objectOcclusionSystem = new ObjectOcclusionSystem(objectRenderer, this.player);
 
     this.cameraSystem = new CameraSystem({
       scene: this,
@@ -91,6 +96,7 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.playerController?.update(delta);
+    this.objectOcclusionSystem?.update(delta);
     this.debugOverlaySystem?.update();
   }
 

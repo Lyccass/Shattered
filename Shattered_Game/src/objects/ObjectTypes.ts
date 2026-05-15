@@ -18,27 +18,45 @@ export type ObjectCategory =
   | 'fence'
   | 'flora'
   | 'pebble'
-  | 'grass'
   | 'tree';
 
 export type GridFootprint = ReadonlyArray<{ x: number; y: number }>;
 
-export type VisualShape = 'ellipse' | 'rect';
+export type VisualShape = 'ellipse' | 'rect' | 'sprite';
+
+type BaseVisualPart = {
+  shape: VisualShape;
+  localOffsetX: number;
+  localOffsetY: number;
+};
 
 // A single drawn shape relative to an object's anchor tile centre.
 // (localOffsetX, localOffsetY) is the CENTRE of the shape in world pixels.
-export type VisualPart = {
-  shape: VisualShape;
+export type ShapeVisualPart = BaseVisualPart & {
+  shape: 'ellipse' | 'rect';
   width: number;
   height: number;
-  localOffsetX: number;
-  localOffsetY: number;
   color: number;
   alpha?: number;
   strokeColor?: number;
   strokeWidth?: number;
   strokeAlpha?: number;
 };
+
+// Sprite parts also use local object-space offsets, but originX/Y control which
+// point of the sprite sits on that local anchor. For props that stand on a tile,
+// originY: 1 means "bottom of sprite is the ground contact point".
+export type SpriteVisualPart = BaseVisualPart & {
+  shape: 'sprite';
+  textureKey: string;
+  scale: number;
+  originX?: number;
+  originY?: number;
+  alpha?: number;
+  flipX?: boolean;
+};
+
+export type VisualPart = ShapeVisualPart | SpriteVisualPart;
 
 export type VisualDefinition = {
   parts: VisualPart[];

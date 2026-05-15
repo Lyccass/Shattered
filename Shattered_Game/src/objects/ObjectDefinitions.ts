@@ -1,4 +1,5 @@
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
+import { OBJECT_TEXTURES } from './ObjectAssets';
 import type { GridFootprint, ObjectDefinition, ShadowDefinition } from './ObjectTypes';
 
 const TW = PROTOTYPE_SCALE.tileWidth;
@@ -18,6 +19,13 @@ const FOOTPRINT_2x2: GridFootprint = [
 // anchor tile centre. Used to position visuals that should span multiple tiles.
 const CENTRE_2x1_H = { x: TW / 4, y: TH / 4 };   // (16, 8) with default scale
 const CENTRE_2x2   = { x: 0,      y: TH / 2 };   // (0, 16) with default scale
+
+// Tree PNGs include extra transparent/low-alpha pixels below the trunk. If we
+// use originY: 1, Phaser anchors the bottom of the file instead of the trunk
+// base, which makes large trees float above the tile they block. These origins
+// mark the actual trunk/ground contact point inside each source image.
+const TREE_01_BASE_ORIGIN = { x: 208 / 428, y: 523 / 589 };
+const TREE_02_BASE_ORIGIN = { x: 245 / 474, y: 496 / 545 };
 
 const noShadow = (): ShadowDefinition => ({
   enabled: false, localOffsetX: 0, localOffsetY: 0, width: 0, height: 0, alpha: 0,
@@ -109,11 +117,25 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     blocksMovement: true,
     visual: {
       parts: [
-        { shape: 'ellipse', width: 30, height: 18, localOffsetX: 0, localOffsetY: -4, color: 0x78716c, strokeColor: 0x44403c, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 14, height: 6,  localOffsetX: -6, localOffsetY: -8, color: 0xa8a29e, alpha: 0.85 },
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.stone07, scale: 0.46, originX: 0.5, originY: 1, localOffsetX: 0, localOffsetY: 8 },
       ],
     },
-    shadow: shadow(28, 10, 0, 4),
+    shadow: shadow(36, 12, 0, 5),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0xef4444 },
+  },
+  {
+    id: 'medium_rock',
+    displayName: 'Medium Rock',
+    category: 'rock',
+    collisionFootprint: FOOTPRINT_1x1,
+    blocksMovement: true,
+    visual: {
+      parts: [
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.stone04, scale: 0.52, originX: 0.5, originY: 1, localOffsetX: 0, localOffsetY: 9 },
+      ],
+    },
+    shadow: shadow(54, 16, 0, 6),
     depth: DEFAULT_DEPTH,
     debug: { color: 0xef4444 },
   },
@@ -125,12 +147,10 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     blocksMovement: true,
     visual: {
       parts: [
-        { shape: 'ellipse', width: 76, height: 42, localOffsetX: CENTRE_2x2.x, localOffsetY: CENTRE_2x2.y - 8, color: 0x78716c, strokeColor: 0x44403c, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 34, height: 14, localOffsetX: CENTRE_2x2.x - 14, localOffsetY: CENTRE_2x2.y - 18, color: 0xa8a29e, alpha: 0.85 },
-        { shape: 'ellipse', width: 20, height: 10, localOffsetX: CENTRE_2x2.x + 12, localOffsetY: CENTRE_2x2.y - 22, color: 0xa8a29e, alpha: 0.6 },
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.stone01, scale: 0.42, originX: 0.5, originY: 1, localOffsetX: CENTRE_2x2.x, localOffsetY: CENTRE_2x2.y + 10 },
       ],
     },
-    shadow: shadow(72, 24, CENTRE_2x2.x, CENTRE_2x2.y + 6),
+    shadow: shadow(76, 24, CENTRE_2x2.x, CENTRE_2x2.y + 8),
     depth: DEFAULT_DEPTH,
     debug: { color: 0xef4444 },
   },
@@ -234,25 +254,6 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     depth: DEFAULT_DEPTH,
     debug: { color: 0x3b82f6, label: 'pebbles' },
   },
-  {
-    id: 'wild_grass',
-    displayName: 'Wild Grass',
-    category: 'grass',
-    collisionFootprint: FOOTPRINT_1x1,
-    blocksMovement: false,
-    visual: {
-      parts: [
-        { shape: 'rect', width: 3, height: 14, localOffsetX: -12, localOffsetY: -5, color: 0x166534, alpha: 0.8 },
-        { shape: 'rect', width: 3, height: 18, localOffsetX: -4,  localOffsetY: -7, color: 0x15803d, alpha: 0.85 },
-        { shape: 'rect', width: 3, height: 12, localOffsetX: 5,   localOffsetY: -4, color: 0x22c55e, alpha: 0.75 },
-        { shape: 'rect', width: 3, height: 16, localOffsetX: 13,  localOffsetY: -6, color: 0x166534, alpha: 0.78 },
-      ],
-    },
-    shadow: noShadow(),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0x3b82f6, label: 'grass' },
-  },
-
   // ---- Tree (1×1 trunk, canopy extends visually beyond footprint) ----
   {
     id: 'tree_test',
@@ -262,14 +263,10 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     blocksMovement: true,
     visual: {
       parts: [
-        { shape: 'rect',    width: 18, height: 70, localOffsetX: 0,   localOffsetY: -35,  color: 0x713f12, strokeColor: 0x422006, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 104, height: 78, localOffsetX: -16, localOffsetY: -92,  color: 0x15803d, strokeColor: 0x14532d, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 112, height: 82, localOffsetX: 22,  localOffsetY: -104, color: 0x16a34a, strokeColor: 0x14532d, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 66,  height: 48, localOffsetX: 4,   localOffsetY: -136, color: 0x22c55e, alpha: 0.82 },
-        { shape: 'ellipse', width: 42,  height: 34, localOffsetX: 36,  localOffsetY: -126, color: 0x4ade80, alpha: 0.68 },
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree01, scale: 0.3, originX: TREE_01_BASE_ORIGIN.x, originY: TREE_01_BASE_ORIGIN.y, localOffsetX: 0, localOffsetY: 0 },
       ],
     },
-    shadow: shadow(58, 18, 0, 4),
+    shadow: shadow(58, 18, 0, 6),
     depth: DEFAULT_DEPTH,
     debug: { color: 0xef4444 },
   },
@@ -281,13 +278,10 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     blocksMovement: true,
     visual: {
       parts: [
-        { shape: 'rect',    width: 20,  height: 76, localOffsetX: 0,   localOffsetY: -38,  color: 0x5f3510, strokeColor: 0x422006, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 116, height: 86, localOffsetX: -20, localOffsetY: -100, color: 0x14532d, strokeColor: 0x052e16, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 104, height: 80, localOffsetX: 24,  localOffsetY: -112, color: 0x166534, strokeColor: 0x052e16, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 58,  height: 42, localOffsetX: 4,   localOffsetY: -146, color: 0x15803d, alpha: 0.75 },
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree02, scale: 0.31, originX: TREE_02_BASE_ORIGIN.x, originY: TREE_02_BASE_ORIGIN.y, localOffsetX: 0, localOffsetY: 0 },
       ],
     },
-    shadow: shadow(64, 20, 0, 5),
+    shadow: shadow(62, 20, 0, 6),
     depth: DEFAULT_DEPTH,
     debug: { color: 0xef4444 },
   },
@@ -299,13 +293,74 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     blocksMovement: true,
     visual: {
       parts: [
-        { shape: 'rect',    width: 16, height: 88, localOffsetX: 0,   localOffsetY: -44,  color: 0x854d0e, strokeColor: 0x422006, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 86, height: 74, localOffsetX: -8,  localOffsetY: -114, color: 0x16a34a, strokeColor: 0x14532d, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 92, height: 78, localOffsetX: 16,  localOffsetY: -134, color: 0x22c55e, strokeColor: 0x14532d, strokeWidth: 2, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 50, height: 40, localOffsetX: 0,   localOffsetY: -166, color: 0x4ade80, alpha: 0.7 },
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree01, scale: 0.34, originX: TREE_01_BASE_ORIGIN.x, originY: TREE_01_BASE_ORIGIN.y, localOffsetX: 0, localOffsetY: 0, flipX: true },
       ],
     },
-    shadow: shadow(52, 18, 0, 4),
+    shadow: shadow(66, 20, 0, 6),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0xef4444 },
+  },
+
+  // ---- Trees — 2× size (1×1 footprint, scale doubled) ----
+  {
+    id: 'tree_01_2x',
+    displayName: 'Tree (Large)',
+    category: 'tree',
+    collisionFootprint: FOOTPRINT_1x1,
+    blocksMovement: true,
+    visual: {
+      parts: [
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree01, scale: 0.6, originX: TREE_01_BASE_ORIGIN.x, originY: TREE_01_BASE_ORIGIN.y, localOffsetX: 0, localOffsetY: 0 },
+      ],
+    },
+    shadow: shadow(116, 36, 0, 6),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0xef4444 },
+  },
+  {
+    id: 'tree_02_2x',
+    displayName: 'Dark Tree (Large)',
+    category: 'tree',
+    collisionFootprint: FOOTPRINT_1x1,
+    blocksMovement: true,
+    visual: {
+      parts: [
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree02, scale: 0.62, originX: TREE_02_BASE_ORIGIN.x, originY: TREE_02_BASE_ORIGIN.y, localOffsetX: 0, localOffsetY: 0 },
+      ],
+    },
+    shadow: shadow(124, 40, 0, 6),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0xef4444 },
+  },
+
+  // ---- Trees — 4× size (2×2 footprint, visual centred on 2×2 centroid) ----
+  {
+    id: 'tree_01_4x',
+    displayName: 'Tree (Huge)',
+    category: 'tree',
+    collisionFootprint: FOOTPRINT_2x2,
+    blocksMovement: true,
+    visual: {
+      parts: [
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree01, scale: 1.2, originX: TREE_01_BASE_ORIGIN.x, originY: TREE_01_BASE_ORIGIN.y, localOffsetX: CENTRE_2x2.x, localOffsetY: CENTRE_2x2.y },
+      ],
+    },
+    shadow: shadow(232, 72, CENTRE_2x2.x, CENTRE_2x2.y + 6),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0xef4444 },
+  },
+  {
+    id: 'tree_02_4x',
+    displayName: 'Dark Tree (Huge)',
+    category: 'tree',
+    collisionFootprint: FOOTPRINT_2x2,
+    blocksMovement: true,
+    visual: {
+      parts: [
+        { shape: 'sprite', textureKey: OBJECT_TEXTURES.tree02, scale: 1.24, originX: TREE_02_BASE_ORIGIN.x, originY: TREE_02_BASE_ORIGIN.y, localOffsetX: CENTRE_2x2.x, localOffsetY: CENTRE_2x2.y },
+      ],
+    },
+    shadow: shadow(248, 80, CENTRE_2x2.x, CENTRE_2x2.y + 6),
     depth: DEFAULT_DEPTH,
     debug: { color: 0xef4444 },
   },

@@ -28,31 +28,35 @@ const TRANSITION_PRIORITIES: Record<TerrainTransitionKind, number> = {
 };
 
 const AVAILABLE_TRANSITION_FRAMES: Partial<Record<string, string>> = {
-  grass_to_dirt_edge_xPlus: 'terrain-dirt3',
-  grass_to_dirt_edge_xMinus: 'terrain-dirt3',
-  grass_to_dirt_edge_yPlus: 'terrain-dirt2',
-  grass_to_dirt_edge_yMinus: 'terrain-dirt2',
-  grass_to_dirt_outer_corner_xPlusYPlus: 'terrain-dirt2',
-  grass_to_dirt_outer_corner_xPlusYMinus: 'terrain-dirt3',
-  grass_to_dirt_outer_corner_xMinusYPlus: 'terrain-dirt3',
-  grass_to_dirt_outer_corner_xMinusYMinus: 'terrain-dirt2',
-  grass_to_dirt_inner_corner_xPlusYPlus: 'terrain-dirt3',
-  grass_to_dirt_inner_corner_xPlusYMinus: 'terrain-dirt2',
-  grass_to_dirt_inner_corner_xMinusYPlus: 'terrain-dirt2',
-  grass_to_dirt_inner_corner_xMinusYMinus: 'terrain-dirt3',
+  grass_to_dirt_edge_xPlus: 'terrain-grassA03',
+  grass_to_dirt_edge_xMinus: 'terrain-grassA12',
+  grass_to_dirt_edge_yPlus: 'terrain-grassA24',
+  grass_to_dirt_edge_yMinus: 'terrain-grassA35',
+  grass_to_dirt_outer_corner_xPlusYPlus: 'terrain-grassA04',
+  grass_to_dirt_outer_corner_xPlusYMinus: 'terrain-grassA15',
+  grass_to_dirt_outer_corner_xMinusYPlus: 'terrain-grassA26',
+  grass_to_dirt_outer_corner_xMinusYMinus: 'terrain-grassA37',
+  grass_to_dirt_inner_corner_xPlusYPlus: 'terrain-grassA08',
+  grass_to_dirt_inner_corner_xPlusYMinus: 'terrain-grassA19',
+  grass_to_dirt_inner_corner_xMinusYPlus: 'terrain-grassA30',
+  grass_to_dirt_inner_corner_xMinusYMinus: 'terrain-grassA41',
 
-  grass_to_stone_edge_xPlus: 'terrain-grass5',
-  grass_to_stone_edge_xMinus: 'terrain-grass5',
-  grass_to_stone_edge_yPlus: 'terrain-grass4',
-  grass_to_stone_edge_yMinus: 'terrain-grass4',
-  grass_to_stone_outer_corner_xPlusYPlus: 'terrain-grass4',
-  grass_to_stone_outer_corner_xPlusYMinus: 'terrain-grass5',
-  grass_to_stone_outer_corner_xMinusYPlus: 'terrain-grass5',
-  grass_to_stone_outer_corner_xMinusYMinus: 'terrain-grass4',
-  grass_to_stone_inner_corner_xPlusYPlus: 'terrain-grass7',
-  grass_to_stone_inner_corner_xPlusYMinus: 'terrain-grass4',
-  grass_to_stone_inner_corner_xMinusYPlus: 'terrain-grass4',
-  grass_to_stone_inner_corner_xMinusYMinus: 'terrain-grass7',
+  grass_to_stone_edge_xPlus: 'terrain-grassA06',
+  grass_to_stone_edge_xMinus: 'terrain-grassA17',
+  grass_to_stone_edge_yPlus: 'terrain-grassA28',
+  grass_to_stone_edge_yMinus: 'terrain-grassA39',
+  grass_to_stone_outer_corner_xPlusYPlus: 'terrain-grassA10',
+  grass_to_stone_outer_corner_xPlusYMinus: 'terrain-grassA21',
+  grass_to_stone_outer_corner_xMinusYPlus: 'terrain-grassA32',
+  grass_to_stone_outer_corner_xMinusYMinus: 'terrain-grassA43',
+  grass_to_stone_inner_corner_xPlusYPlus: 'terrain-grassA11',
+  grass_to_stone_inner_corner_xPlusYMinus: 'terrain-grassA22',
+  grass_to_stone_inner_corner_xMinusYPlus: 'terrain-grassA33',
+  grass_to_stone_inner_corner_xMinusYMinus: 'terrain-grassA44',
+
+  ...createWaterShorelineFrameMap('grass'),
+  ...createWaterShorelineFrameMap('dirt'),
+  ...createWaterShorelineFrameMap('stone'),
 };
 
 export const TERRAIN_TRANSITION_DEFINITIONS: TerrainTransitionDefinition[] = [
@@ -63,9 +67,30 @@ export const TERRAIN_TRANSITION_DEFINITIONS: TerrainTransitionDefinition[] = [
   ...createShorelineSet('grass'),
   ...createShorelineSet('dirt'),
   ...createShorelineSet('stone'),
+  ...createWaterShorelineSet('grass'),
+  ...createWaterShorelineSet('dirt'),
+  ...createWaterShorelineSet('stone'),
   createSlopePlaceholder('slope_up_x', 'slopeUpX', 'xAxis'),
   createSlopePlaceholder('slope_up_y', 'slopeUpY', 'yAxis'),
 ];
+
+function createWaterShorelineFrameMap(
+  toFamily: Exclude<RenderTerrainFamily, 'water'>,
+): Record<string, string> {
+  const waterFrame = 'terrain-waterA';
+
+  return {
+    [`water_to_${toFamily}_shoreline_edge_xMinus`]: waterFrame,
+    [`water_to_${toFamily}_shoreline_edge_yMinus`]: waterFrame,
+    [`water_to_${toFamily}_shoreline_edge_xPlus`]: waterFrame,
+    [`water_to_${toFamily}_shoreline_edge_yPlus`]: waterFrame,
+
+    [`water_to_${toFamily}_shoreline_corner_xMinusYMinus`]: waterFrame,
+    [`water_to_${toFamily}_shoreline_corner_xPlusYMinus`]: waterFrame,
+    [`water_to_${toFamily}_shoreline_corner_xMinusYPlus`]: waterFrame,
+    [`water_to_${toFamily}_shoreline_corner_xPlusYPlus`]: waterFrame,
+  };
+}
 
 function createFamilyTransitionSet(
   fromFamily: RenderTerrainFamily,
@@ -118,6 +143,29 @@ function createShorelineSet(fromFamily: Exclude<RenderTerrainFamily, 'water'>): 
         id: `${fromFamily}_to_water_shoreline_corner_${direction}`,
         fromFamily,
         toFamily: 'water',
+        kind: 'shorelineCorner',
+        direction,
+      }),
+    ),
+  ];
+}
+
+function createWaterShorelineSet(toFamily: Exclude<RenderTerrainFamily, 'water'>): TerrainTransitionDefinition[] {
+  return [
+    ...ISO_EDGE_KEYS.map((direction) =>
+      createTransitionDefinition({
+        id: `water_to_${toFamily}_shoreline_edge_${direction}`,
+        fromFamily: 'water',
+        toFamily,
+        kind: 'shorelineEdge',
+        direction,
+      }),
+    ),
+    ...ISO_CORNER_KEYS.map((direction) =>
+      createTransitionDefinition({
+        id: `water_to_${toFamily}_shoreline_corner_${direction}`,
+        fromFamily: 'water',
+        toFamily,
         kind: 'shorelineCorner',
         direction,
       }),

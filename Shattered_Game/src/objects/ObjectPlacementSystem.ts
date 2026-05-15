@@ -50,7 +50,9 @@ export class ObjectPlacementSystem {
     }
 
     this.renderer.render(instance, definition);
-    this.debugRenderer.render(instance, definition);
+    if (definition.blocksMovement) {
+      this.debugRenderer.render(instance, definition);
+    }
 
     return instance;
   }

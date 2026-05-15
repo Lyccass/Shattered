@@ -122,7 +122,8 @@ export class TerrainResolver {
         return [];
       }
 
-      const kind: TerrainTransitionKind = targetFamily === 'water' ? 'shorelineEdge' : 'edge';
+      const kind: TerrainTransitionKind =
+        currentFamily === 'water' || targetFamily === 'water' ? 'shorelineEdge' : 'edge';
       const transition = this.createTransition(currentFamily, targetFamily, kind, direction, gridX, gridY);
 
       return transition ? [transition] : [];
@@ -147,7 +148,8 @@ export class TerrainResolver {
         return [];
       }
 
-      const kind: TerrainTransitionKind = targetFamily === 'water' ? 'shorelineCorner' : 'outerCorner';
+      const kind: TerrainTransitionKind =
+        currentFamily === 'water' || targetFamily === 'water' ? 'shorelineCorner' : 'outerCorner';
       const transition = this.createTransition(currentFamily, targetFamily, kind, direction, gridX, gridY);
 
       return transition ? [transition] : [];
@@ -174,7 +176,8 @@ export class TerrainResolver {
         return [];
       }
 
-      const kind: TerrainTransitionKind = targetFamily === 'water' ? 'shorelineCorner' : 'innerCorner';
+      const kind: TerrainTransitionKind =
+        currentFamily === 'water' || targetFamily === 'water' ? 'shorelineCorner' : 'innerCorner';
       const transition = this.createTransition(currentFamily, targetFamily, kind, direction, gridX, gridY);
 
       return transition ? [transition] : [];
@@ -228,6 +231,12 @@ export class TerrainResolver {
     currentFamily: RenderTerrainFamily,
     targetFamily: RenderTerrainFamily,
   ): boolean {
+    // Shoreline art belongs to the water tile so visual water/land edges stay
+    // consistent with water's blocked gameplay tile.
+    if (currentFamily === 'water' && targetFamily !== 'water') {
+      return true;
+    }
+
     return targetFamily !== currentFamily && TERRAIN_PRIORITY[targetFamily] > TERRAIN_PRIORITY[currentFamily];
   }
 
