@@ -1,11 +1,21 @@
 import Phaser from 'phaser';
+import { PLAYER_CONFIG } from './PlayerConfig';
 import { IsoTilemap } from '../world/IsoTilemap';
 
 export class PlayerCollisionSystem {
   constructor(private readonly tilemap: IsoTilemap) {}
 
   getFeetSamplePoints(feetWorldX: number, feetWorldY: number): Phaser.Math.Vector2[] {
-    return [new Phaser.Math.Vector2(feetWorldX, feetWorldY)];
+    const radiusX = PLAYER_CONFIG.groundFootprintRadiusX;
+    const radiusY = PLAYER_CONFIG.groundFootprintRadiusY;
+
+    return [
+      new Phaser.Math.Vector2(feetWorldX, feetWorldY),
+      new Phaser.Math.Vector2(feetWorldX - radiusX, feetWorldY),
+      new Phaser.Math.Vector2(feetWorldX + radiusX, feetWorldY),
+      new Phaser.Math.Vector2(feetWorldX, feetWorldY - radiusY),
+      new Phaser.Math.Vector2(feetWorldX, feetWorldY + radiusY),
+    ];
   }
 
   isWorldPointWalkable(worldX: number, worldY: number): boolean {

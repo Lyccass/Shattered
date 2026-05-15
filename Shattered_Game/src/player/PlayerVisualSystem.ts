@@ -6,6 +6,7 @@ export class PlayerVisualSystem {
   readonly shadow: Phaser.GameObjects.Ellipse;
 
   constructor(scene: Phaser.Scene, private readonly sprite: Phaser.GameObjects.Sprite) {
+    this.sprite.setOrigin(PLAYER_CONFIG.originX, PLAYER_CONFIG.originY);
     this.shadow = scene.add.ellipse(
       sprite.x,
       sprite.y,

@@ -4,6 +4,9 @@ import { RENDER_DEPTHS } from '../render/RenderLayers';
 import { generateOrganicIsland } from './IslandGenerator';
 import { IsoTransform } from './IsoTransform';
 import { IsoTilemapChunkRenderer } from './IsoTilemapChunkRenderer';
+import { sampleTerrainNeighbours } from './terrain/TerrainNeighbourSampler';
+import { TerrainResolver } from './terrain/TerrainResolver';
+import type { ResolvedTerrainTile } from './terrain/TerrainTypes';
 import type { GridMode } from './IsoTilemapTypes';
 import { WorldGrid } from './WorldGrid';
 
@@ -36,6 +39,7 @@ export class IsoTilemap {
   readonly worldGrid: WorldGrid;
 
   private readonly scene: Phaser.Scene;
+  private readonly terrainResolver = new TerrainResolver();
   private renderer?: IsoTilemapChunkRenderer;
   private gridMode: GridMode = 'off';
 
@@ -89,6 +93,25 @@ export class IsoTilemap {
 
   isTileTerrainBlocked(tileX: number, tileY: number): boolean {
     return this.worldGrid.isTerrainBlocked(tileX, tileY);
+  }
+
+  getTerrainFamilyAtTile(tileX: number, tileY: number): string | null {
+    return this.worldGrid.getTile(tileX, tileY);
+  }
+
+  resolveTerrainTile(tileX: number, tileY: number): ResolvedTerrainTile | null {
+    const family = this.worldGrid.getTile(tileX, tileY);
+
+    if (!family) {
+      return null;
+    }
+
+    return this.terrainResolver.resolve({
+      family,
+      gridX: tileX,
+      gridY: tileY,
+      neighbours: sampleTerrainNeighbours(this.worldGrid, tileX, tileY),
+    });
   }
 
   // Unified walkability check — terrain and future object blocking both feed in here.

@@ -17,6 +17,12 @@ export function generateOrganicIsland(width: number, height: number): TileType[]
         Math.cos(y * 1.3 - x * 0.35) * 0.05 +
         Math.sin((x + y) * 0.8) * 0.035;
       const islandDistance = distance + edgeNoise;
+      const centreDistance = Math.sqrt(
+        Math.pow((x - centreX) / 10, 2) +
+        Math.pow((y - centreY) / 8, 2),
+      );
+
+      if (centreDistance < 1.05) return 'dirt';
 
       if (islandDistance < 0.52) return 'grass';
       if (islandDistance < 0.73) return 'sand';

@@ -1,5 +1,5 @@
-export type TileType = 'water' | 'sand' | 'grass';
+import type { TerrainFamily } from './terrain/TerrainTypes';
+
+export type TileType = TerrainFamily;
 
 export type GridMode = 'off' | 'subtle' | 'build';
-
-export type TileStyleMap = Record<TileType, { fill: number }>;
