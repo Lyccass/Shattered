@@ -7,19 +7,40 @@ Before launching any review agent, load the five chapters that precede the chapt
 
 **Parallel agents to launch:**
 - `06_story_analyst.md` — Role 6 (The Story Analyst) ← run first; story logic problems outrank all other fixes
+- `07_character_auditor.md` — Role 7 (The Character Auditor) ← run second; character gaps compound story logic problems
 - `01_style_auditor.md` — Role 5 (Style Auditor)
 - `02_ai_detector.md` — Role 3 (AI Detector)
 - `03_lector.md` — Role 1 (The Lector)
 - `04_writing_professional.md` — Role 4 (The Writing Professional)
 - `05_royal_road_reader.md` — Role 2 (The Royal Road Reader)
 
-After all six complete, produce a single `00_synthesis.md` in the same folder. The synthesis must:
-1. List every flagged item from all six roles, deduplicated and grouped by type (story logic, structural, line-level, style, AI tells, engagement).
-2. Order them by the implementation sequence: hard bans → story logic → structure → AI tells + style → line fixes → engagement → the Writing Professional's question.
+After all seven complete, produce a single `00_synthesis.md` in the same folder. The synthesis must:
+1. List every flagged item from all seven roles, deduplicated and grouped by type (story logic, character gaps, structural, line-level, style, AI tells, engagement).
+2. Order them by the implementation sequence: hard bans → story logic → character gaps → structure → AI tells + style → line fixes → engagement → the Writing Professional's question.
 3. For each item: source role, quote, recommended fix, and a checkbox `[ ]` so the author can track what has been applied.
-4. Do not add new opinions. Only consolidate what the six roles produced.
+4. Do not add new opinions. Only consolidate what the seven roles produced.
 
-**Implementation pass:** When asked to **implement** feedback from `Reviews/[chapter-name]/`, load `00_synthesis.md`, work through items in order, revise the chapter file in place, and check off each item as it is applied. Flag any item where two roles conflict and ask the author to decide before applying either.
+**Implementation pass:** When asked to **implement** feedback from `Reviews/[chapter-name]/`, load `00_synthesis.md` and work through items in the following priority order, revising the chapter file in place and checking off each item as applied. Flag any item where two roles conflict and ask the author to decide before applying either.
+
+**Implementation priority sequence (mandatory):**
+1. **Typos** — fix first, always. Misspellings, broken word-order, possessive errors.
+2. **Hollow action lines and clipped fragment chains** — the pass focused on replacing bare outcome lines with lived beats. A sentence that reports what Adrian did without sensory texture, micro-judgment, or POV filter is a stage direction, not prose. These erode reader presence faster than any structural tell and must be fixed before structural work.
+3. **Hard bans** — emotional monologues detached from behavior, omniscient narration, explicit growth signaling.
+4. **Structural tells** — two-line contrast stacks, negation-reveals over threshold, micro-paragraph percussion, rule-of-three lists, post-pressure rhythm.
+5. **AI tells + style** — POV intrusions, mechanical comparisons, thesis-antithesis-synthesis, symmetrical paragraph closings.
+6. **Story logic** — last. Only flag if a beat is implausible given what the scene has established. Do not flag intentional information withholding, deliberate ambiguity, or authorial choices that serve tension and uncertainty. Curiosity or interest from a character does not imply assured survival or active intervention.
+
+**Simile and comparison rule (addition to Anti-AI Tell Lock):** Do not use industrial or mechanical object comparisons to describe human physiological or emotional states unless that comparison is earned by prior context and feels like something this specific character would reach for. "Like a machine left in a drawer" applied to adrenaline or aliveness is the failure mode: the object is generic, the mapping is imprecise, and the explanation costs more than the thing it describes. When a simile requires unpacking to land, it is the wrong simile. If no found comparison exists, describe the sensation directly.
+
+**HTML export (mandatory after every implementation pass):** After completing the implementation pass on a chapter file, produce an HTML version of the chapter and save it to `Chapter_HTML/CHAPTER_XX.html`. Format rules:
+- No outer HTML structure (no `<html>`, `<head>`, or `<body>` tags). Content paragraphs only.
+- Do not include the chapter title or heading.
+- Every paragraph wrapped in `<p>...</p>`.
+- Italic inner thoughts (`*...*` in markdown) converted to `<em>...</em>` inline within their paragraph.
+- Short punchy paragraphs (one sentence, one word) still get their own `<p>` tag.
+- Dialogue lines that are their own paragraph in the markdown get their own `<p>` tag.
+- Section breaks (`--`) render as `<p>--</p>`.
+- No extra blank lines between tags in the output file.
 
 ---
 
@@ -54,7 +75,7 @@ If a choice must be made, prefer:
 
 ## Non-Negotiables
 - Write in third-person limited past tense.
-- Keep the narration extremely close to the current POV character.
+- Keep the narration extremely close to the current POV character.s
 - Default POV is the protagonist.
 - The narration must sound like the protagonist's mind even outside direct thought.
 - Use modern, direct, readable language.
@@ -91,7 +112,7 @@ If a choice must be made, prefer:
 
 ## Protagonist Lock
 - The protagonist is analytical, pragmatic, dryly funny, and deeply driven. He wants to be the best — not in a loud, declarative way, but as a quiet, constant orientation. Competence matters to him. Growth matters to him. He is not content to merely survive.
-- He is **not stiff**. He can be quirky, antisocial, and insecure. He has awkward edges and does not always know what to do with himself socially. He is not a polished hero.
+- He is **not stiff**. He can be quirky, awkward, and insecure. He has genuine edges and does not always know what to do with himself socially — but he likes conversation when the company warrants it, and can be genuinely engaged in it rather than merely tactical. He is not a polished hero and not a cold one.
 - He acts on instinct first and reasons behind it second. His body and gut often move before his analysis catches up — he crouches to look at something before deciding to, takes a defensive position before consciously registering the threat, reaches a conclusion and then works out why. The reasoning is genuine, but it follows the instinct rather than preceding it.
 - He accepts absurdity quickly and moves to understanding or exploiting it. He is curious by instinct.
 - He constantly evaluates things that matter — systems, risks, structures, threats. When something is beyond his control, he lets it go and moves on. This is not detachment; it is just how he works.
@@ -99,8 +120,10 @@ If a choice must be made, prefer:
 - His internal voice is more colloquial than the narration around it. He uses "Nope" in his head. He shrugs — physically, not rhetorically.
 - He is familiar with gaming and MMO culture and uses it as mental shorthand and dry humor — calling a class list "MMO starter classes," joking about a "Main-Character-Syndrome Class." This is character voice, not tonal misfire. Gaming/genre references are valid when they are clearly his framing. The narrator should not adopt the framing editorially as if writing for a knowing audience — that is banned.
 - He is honest about his own limits, frustrations, and small absurdities without making a speech about them.
-- He does not wallow.
-- He processes emotions through physical sensation, short internal observation, and forward movement rather than lyrical introspection.
+- He has real emotions and they sometimes boil over — frustration, fear, relief, dark humour as a pressure valve. These are not rare exceptions; they are part of who he is. What he does not do is perform his feelings for an audience or let them pin him in place longer than he can help. When he needs to function under pressure, he can suppress and redirect through analysis and forward motion — but that is an active effort, not his resting state. He is not a machine.
+- He does not wallow. He processes emotions through physical sensation, short internal observation, and forward movement rather than lyrical introspection. The emotion still happens first. The processing follows.
+
+**Hard ban — performed detachment:** Do not write Adrian as cool about his own reactions. The failure mode looks like: body parts acting independently (*his hands found the spear shaft*), wry distance from one's own emotional state (*nothing useful to do so they settled there*), or any construction that frames his composure as effortless and stylish rather than earned and human. His dry humour comes from specific accurate observations, not from disowning his own experience. He is not the protagonist who allows himself a small smile. He is not above what is happening to him. When he is scared, he is scared. When he grips the spear, he grips it — no clever framing required.
 
 **Pop culture references:** Occasional subtle references to real-world pop culture are encouraged — once every four to seven chapters approximately. They should be brief, embedded naturally in his thought or speech, and feel like something this particular person would actually reference rather than a generic internet-brain shorthand. Forced or laboured references are worse than none.
 
@@ -206,6 +229,7 @@ Monologue is allowed and encouraged when the protagonist is alone. He may mutter
 - Affection is usually carried by teasing, physical ease, quiet honesty, and direct statements.
 - Sincerity often arrives after banter.
 - Vulnerability should be specific and conversational.
+- He is not emotionally flat. Frustration, relief, irritation, and warmth all exist in him at normal volume. The analytical control is a skill he reaches for under pressure, not a permanent state. When something gets through, it gets through — in his voice, his body, his spoken words — before the composure reassembles.
 - Intimacy can be explicit in implication, body language, and consequences, but do not turn anatomically detailed.
 - Do not write intimacy like a different genre.
 - After intimate beats, pivot naturally into banter, practical concerns, magic, politics, or relationship terms.
@@ -265,6 +289,7 @@ If a scene feels static, it usually needs more of:
 - Do not keep writing polished emotional landing lines just because they sound good. One or two sharp landings are craft. A steady stream of them is a tell.
 - Avoid too much symmetry, compositional neatness, or over-deliberate callback architecture. The scene should feel discovered as well as controlled.
 - Preserve roughness, surprise, bluntness, and strange edges where they fit the character. Real prose can be lopsided. It should not feel evenly machined.
+- Comparisons and similes must feel found, not built. A comparison that arrives in three symmetrical units, or that sounds too clean and architecturally even, reads as constructed rather than experienced. Adrian's comparative instinct is specific, lateral, and slightly odd — not balanced for effect. If a comparison could be mistaken for a list assembled by a machine, rewrite it.
 - Prefer truly specific details over details that merely feel literary. If a detail could belong to almost any fantasy chapter, it is probably too generic.
 - Let scenes gather and release. Do not make every paragraph sound like a closing statement.
 - After pressure scenes, widen back out. The aftermath should breathe differently from the peak tension.
@@ -276,6 +301,7 @@ If a scene feels static, it usually needs more of:
 - Do not let internal reasoning turn into thesis-antithesis-synthesis essays. The protagonist can reason sharply, but the logic should feel lived-in, biased, partial, and in motion.
 - Micro-paragraph percussion is banned outside active combat. More than four consecutive single-sentence paragraphs outside a pressure exchange is a revision target.
 - Parallel stacking and tri-line blocks must be treated as rare emphasis devices, not default rhythm. More than three clearly similar vertical stacks in one chapter is a revision target.
+- Mechanical comparison parallelism: three consecutive short sentences functioning as a single comparison or characterisation ('He was X. He was Y. He was Z.' / 'It did X. It did Y. It did Z.') assembled for rhythmic symmetry rather than meaning is banned outside active combat percussion. This construction does not sound like Adrian — it sounds assembled. Flag and rewrite any such structure so the description arrives in a single organically shaped sentence or a genuinely asymmetric sequence.
 - Two-line contrast or pivot stacks must be treated as rare. If the pair can be one sentence without loss, it should be one sentence. More than two clear cases in one chapter is a revision target.
 - Synthetic dramatic compression is forbidden. Not every line should land like a trailer beat, and not every paragraph should close on a dramatic mic-drop.
 - If a scene has just resolved tension, the syntax, paragraph shape, and cadence should change to show consequence. If the clipped rhythm continues unchanged, revise the aftermath.
@@ -297,6 +323,7 @@ Before finalizing prose, silently verify:
 - Could this scene slot into the reference chapters without a jarring style shift?
 - Is the prose readable first and stylish second?
 - Does the protagonist observe, think, judge, and act rather than just witness?
+- Are there hollow action lines — sentences that report what Adrian did without any sensory texture, micro-judgment, or POV filter? (*"He watched them." / "Adrian stared at him for a moment." / "He took it."* — these are stage directions, not prose.) If yes, replace with a line that puts him back in his body at that exact moment, or cut and let the next beat carry the weight.
 - Do the details appear because this character would notice them, or because they felt generically evocative?
 - Have sentence patterns varied enough, or am I leaning on the same grammatical landing over and over?
 - Are action beats spatially clear?
