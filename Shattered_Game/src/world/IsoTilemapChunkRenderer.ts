@@ -24,6 +24,8 @@ type IsoTilemapChunkRendererConfig = {
   visibleChunkRadius?: number;
   retainChunkRadius?: number;
   bleedTiles?: number;
+  groundBuildBudgetPerFrame?: number;
+  gridBuildBudgetPerFrame?: number;
 };
 
 export type TerrainChunkStats = {
@@ -32,6 +34,9 @@ export type TerrainChunkStats = {
   visibleChunkCount: number;
   cachedChunkCount: number;
   evictedChunkCount: number;
+  peakMaterializedChunkCount: number;
+  pendingGroundBuildCount: number;
+  pendingGridBuildCount: number;
   chunkDebugEnabled: boolean;
 };
 
@@ -40,13 +45,19 @@ export class IsoTilemapChunkRenderer {
   private readonly visibleChunkRadius: number;
   private readonly retainChunkRadius: number;
   private readonly bleedTiles: number;
+  private readonly groundBuildBudgetPerFrame: number;
+  private readonly gridBuildBudgetPerFrame: number;
   private readonly drawSystem: TerrainChunkDrawSystem;
   private readonly chunkConfigs: TerrainChunkConfig[] = [];
+  private readonly chunkConfigsByKey = new Map<string, TerrainChunkConfig>();
   private readonly materializedChunks = new Map<string, MaterializedTerrainChunk>();
   private gridMode: GridMode = 'off';
   private chunkDebugVisible = false;
   private visibleChunkCount = 0;
   private evictedChunkCount = 0;
+  private peakMaterializedChunkCount = 0;
+  private pendingGroundBuildCount = 0;
+  private pendingGridBuildCount = 0;
 
   constructor(
     private readonly config: IsoTilemapChunkRendererConfig,
@@ -55,6 +66,10 @@ export class IsoTilemapChunkRenderer {
     this.visibleChunkRadius = config.visibleChunkRadius ?? PROTOTYPE_SCALE.terrainChunkVisibleRadius;
     this.retainChunkRadius = config.retainChunkRadius ?? PROTOTYPE_SCALE.terrainChunkRetainRadius;
     this.bleedTiles = config.bleedTiles ?? PROTOTYPE_SCALE.terrainChunkBleedTiles;
+    this.groundBuildBudgetPerFrame = config.groundBuildBudgetPerFrame
+      ?? PROTOTYPE_SCALE.terrainChunkGroundBuildBudgetPerFrame;
+    this.gridBuildBudgetPerFrame = config.gridBuildBudgetPerFrame
+      ?? PROTOTYPE_SCALE.terrainChunkGridBuildBudgetPerFrame;
     this.drawSystem = new TerrainChunkDrawSystem(
       config.scene,
       config.transform,
@@ -69,10 +84,16 @@ export class IsoTilemapChunkRenderer {
   }
 
   setGridMode(gridMode: GridMode): void {
+    if (this.gridMode === gridMode) {
+      return;
+    }
+
     this.gridMode = gridMode;
 
     for (const chunk of this.materializedChunks.values()) {
-      this.drawSystem.drawGridChunk(chunk, this.gridMode);
+      if (chunk.builtGridMode !== 'off' || chunk.gridBuildMode !== 'off') {
+        this.drawSystem.clearGridChunk(chunk);
+      }
     }
 
     this.updateChunkLifecycle();
@@ -91,6 +112,9 @@ export class IsoTilemapChunkRenderer {
       visibleChunkCount: this.visibleChunkCount,
       cachedChunkCount: Math.max(0, this.materializedChunks.size - this.visibleChunkCount),
       evictedChunkCount: this.evictedChunkCount,
+      peakMaterializedChunkCount: this.peakMaterializedChunkCount,
+      pendingGroundBuildCount: this.pendingGroundBuildCount,
+      pendingGridBuildCount: this.pendingGridBuildCount,
       chunkDebugEnabled: this.chunkDebugVisible,
     };
   }
@@ -110,6 +134,10 @@ export class IsoTilemapChunkRenderer {
     this.chunkConfigs.length = 0;
     this.visibleChunkCount = 0;
     this.evictedChunkCount = 0;
+    this.peakMaterializedChunkCount = 0;
+    this.pendingGroundBuildCount = 0;
+    this.pendingGridBuildCount = 0;
+    this.chunkConfigsByKey.clear();
     this.drawSystem.destroy();
   }
 
@@ -118,15 +146,17 @@ export class IsoTilemapChunkRenderer {
       return;
     }
 
-    this.chunkConfigs.push(
-      ...createChunkConfigs({
+    const configs = createChunkConfigs({
         mapWidth: this.config.worldGrid.width,
         mapHeight: this.config.worldGrid.height,
         chunkSize: this.chunkSize,
         bleedTiles: this.bleedTiles,
         transform: this.config.transform,
-      }),
-    );
+      });
+    this.chunkConfigs.push(...configs);
+    configs.forEach((config) => {
+      this.chunkConfigsByKey.set(config.key, config);
+    });
   }
 
   private updateChunkLifecycle(): void {
@@ -149,6 +179,10 @@ export class IsoTilemapChunkRenderer {
     });
 
     let visibleChunkCount = 0;
+    const pendingGroundBuildKeys = new Set<string>();
+    const pendingGridBuildKeys = new Set<string>();
+    const centerChunkX = Math.floor((visibleRange.minChunkX + visibleRange.maxChunkX) / 2);
+    const centerChunkY = Math.floor((visibleRange.minChunkY + visibleRange.maxChunkY) / 2);
 
     for (const config of this.chunkConfigs) {
       const isVisible = isChunkCoordInRange(config.chunkX, config.chunkY, visibleRange);
@@ -157,15 +191,36 @@ export class IsoTilemapChunkRenderer {
 
       if (isVisible) {
         if (!chunk) {
-          chunk = this.materializeChunk(config);
-        }
+          pendingGroundBuildKeys.add(config.key);
+        } else {
+          chunk.groundLayer.setVisible(chunk.isGroundReady);
 
-        chunk.groundLayer.setVisible(true);
-        chunk.gridLayer.setVisible(this.gridMode !== 'off');
-        visibleChunkCount += 1;
+          if (chunk.isGroundReady) {
+            visibleChunkCount += 1;
+          } else {
+            pendingGroundBuildKeys.add(config.key);
+          }
+
+          if (this.gridMode === 'off') {
+            if (chunk.builtGridMode !== 'off' || chunk.gridBuildMode !== 'off') {
+              this.drawSystem.clearGridChunk(chunk);
+            }
+          } else if (chunk.isGroundReady) {
+            if (chunk.builtGridMode === this.gridMode) {
+              chunk.gridLayer.setVisible(true);
+            } else {
+              chunk.gridLayer.setVisible(false);
+              pendingGridBuildKeys.add(config.key);
+            }
+          }
+        }
       } else if (chunk) {
         chunk.groundLayer.setVisible(false);
         chunk.gridLayer.setVisible(false);
+
+        if (chunk.builtGridMode !== 'off' || chunk.gridBuildMode !== 'off') {
+          this.drawSystem.clearGridChunk(chunk);
+        }
 
         if (!shouldRetain) {
           this.drawSystem.destroyChunk(chunk);
@@ -176,27 +231,142 @@ export class IsoTilemapChunkRenderer {
       }
 
       if (chunk) {
-        this.drawSystem.drawChunkDebugOutline(chunk, {
-          visible: isVisible,
-          debugVisible: this.chunkDebugVisible,
-        });
+        this.refreshChunkDebugState(chunk, isVisible);
       }
     }
 
+    const sortedPendingGroundKeys = this.sortChunkKeysByDistance(
+      Array.from(pendingGroundBuildKeys),
+      centerChunkX,
+      centerChunkY,
+    );
+    const sortedPendingGridKeys = this.sortChunkKeysByDistance(
+      Array.from(pendingGridBuildKeys),
+      centerChunkX,
+      centerChunkY,
+    );
+
+    const builtGroundKeys = this.processGroundBuildQueue(
+      sortedPendingGroundKeys,
+      this.groundBuildBudgetPerFrame,
+    );
+    visibleChunkCount += builtGroundKeys.length;
+
+    builtGroundKeys.forEach((key) => {
+      if (this.gridMode !== 'off') {
+        sortedPendingGridKeys.push(key);
+      }
+    });
+
+    const dedupedGridKeys = Array.from(new Set(sortedPendingGridKeys));
+    this.processGridBuildQueue(dedupedGridKeys, this.gridBuildBudgetPerFrame);
+
+    this.pendingGroundBuildCount = sortedPendingGroundKeys.filter((key) => {
+      const chunk = this.materializedChunks.get(key);
+      return !chunk || !chunk.isGroundReady;
+    }).length;
+    this.pendingGridBuildCount = this.gridMode === 'off'
+      ? 0
+      : dedupedGridKeys.filter((key) => {
+          const chunk = this.materializedChunks.get(key);
+          return !!chunk && chunk.isGroundReady && chunk.builtGridMode !== this.gridMode;
+        }).length;
     this.visibleChunkCount = visibleChunkCount;
+  }
+
+  private processGroundBuildQueue(keys: string[], budget: number): string[] {
+    const builtKeys: string[] = [];
+    let remainingBudget = budget;
+
+    for (const key of keys) {
+      if (remainingBudget <= 0) {
+        break;
+      }
+
+      const config = this.chunkConfigsByKey.get(key);
+
+      if (!config) {
+        continue;
+      }
+
+      let chunk = this.materializedChunks.get(key);
+
+      if (!chunk) {
+        chunk = this.materializeChunk(config);
+      }
+
+      if (chunk.isGroundReady) {
+        builtKeys.push(key);
+        continue;
+      }
+
+      const processedTiles = this.drawSystem.buildGroundChunkStep(chunk, remainingBudget);
+      remainingBudget -= processedTiles;
+      this.refreshChunkDebugState(chunk, true);
+
+      if (chunk.isGroundReady) {
+        builtKeys.push(key);
+      }
+    }
+
+    return builtKeys;
+  }
+
+  private processGridBuildQueue(keys: string[], budget: number): void {
+    let remainingBudget = budget;
+
+    for (const key of keys) {
+      if (remainingBudget <= 0) {
+        break;
+      }
+
+      const chunk = this.materializedChunks.get(key);
+
+      if (!chunk || !chunk.isGroundReady || chunk.builtGridMode === this.gridMode || this.gridMode === 'off') {
+        continue;
+      }
+
+      const processedTiles = this.drawSystem.buildGridChunkStep(chunk, this.gridMode, remainingBudget);
+      remainingBudget -= processedTiles;
+    }
+  }
+
+  private sortChunkKeysByDistance(
+    keys: string[],
+    centerChunkX: number,
+    centerChunkY: number,
+  ): string[] {
+    return keys.sort((leftKey, rightKey) => {
+      const left = this.chunkConfigsByKey.get(leftKey)!;
+      const right = this.chunkConfigsByKey.get(rightKey)!;
+      const leftDistance = Math.abs(left.chunkX - centerChunkX) + Math.abs(left.chunkY - centerChunkY);
+      const rightDistance = Math.abs(right.chunkX - centerChunkX) + Math.abs(right.chunkY - centerChunkY);
+      return leftDistance - rightDistance;
+    });
   }
 
   private materializeChunk(config: TerrainChunkConfig): MaterializedTerrainChunk {
     const chunk = this.drawSystem.materializeChunk(config);
 
-    this.drawSystem.drawGroundChunk(chunk);
-    this.drawSystem.drawGridChunk(chunk, this.gridMode);
-    this.drawSystem.drawChunkDebugOutline(chunk, {
-      visible: true,
-      debugVisible: this.chunkDebugVisible,
-    });
+    chunk.groundLayer.setVisible(false);
+    chunk.gridLayer.setVisible(false);
     this.materializedChunks.set(config.key, chunk);
+    this.peakMaterializedChunkCount = Math.max(this.peakMaterializedChunkCount, this.materializedChunks.size);
 
     return chunk;
+  }
+
+  private refreshChunkDebugState(chunk: MaterializedTerrainChunk, isVisible: boolean): void {
+    const signature = `${this.chunkDebugVisible}:${isVisible}`;
+
+    if (chunk.lastDebugSignature === signature) {
+      return;
+    }
+
+    this.drawSystem.drawChunkDebugOutline(chunk, {
+      visible: isVisible,
+      debugVisible: this.chunkDebugVisible,
+    });
+    chunk.lastDebugSignature = signature;
   }
 }

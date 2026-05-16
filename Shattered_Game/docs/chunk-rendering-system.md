@@ -33,6 +33,15 @@ Chunk lifecycle is simple for now:
 - retained but non-visible chunks stay cached
 - chunks outside the retain range are destroyed and counted as evicted
 
+Chunk builds are also budgeted. The renderer only materializes a small number of missing visible chunks per frame instead of trying to create every newly visible chunk at once. That keeps exploration spikes smoother on larger maps.
+
+Ground chunk builds and grid/debug overlay builds are budgeted separately:
+
+- ground chunks are created first so terrain appears as soon as possible
+- grid/debug overlays are queued independently
+- only visible chunks receive grid/debug overlay work
+- retained offscreen chunks keep their ground cache but drop grid/debug overlay state
+
 This keeps chunk memory bounded without introducing full streaming-world architecture yet.
 
 Terrain resolution is cached per map runtime through `TerrainResolutionCache`.
@@ -52,6 +61,14 @@ Map unload should clear:
 - terrain resolution cache
 - transition visuals
 - object visuals and debug overlays
+
+Chunk debug mode is grid-native:
+
+- the logical chunk footprint is drawn on the actual isometric tile grid
+- the bleed footprint is drawn separately
+- debug should communicate "this is the gameplay-aligned chunk rectangle" versus "this is the extra art padding used by the render texture"
+
+The chunk debug overlay should not use axis-aligned render-texture rectangles as the primary signal, because those are implementation bounds, not the logical chunk tiling.
 
 Future work for true large-map streaming:
 

@@ -32,6 +32,11 @@ export type ChunkWorldBounds = {
   height: number;
 };
 
+export type ChunkFootprintPoint = {
+  x: number;
+  y: number;
+};
+
 type RectangleLike = {
   left: number;
   top: number;
@@ -136,6 +141,24 @@ export function getChunkWorldBounds(
   return bounds;
 }
 
+export function getChunkFootprintPoints(
+  transform: Pick<IsoTransform, 'getTileTopWorld'>,
+  chunk: Pick<TerrainChunkConfig, 'startX' | 'startY' | 'endX' | 'endY' | 'drawStartX' | 'drawStartY' | 'drawEndX' | 'drawEndY'>,
+  useBleedRange = false,
+): ChunkFootprintPoint[] {
+  const startX = useBleedRange ? chunk.drawStartX : chunk.startX;
+  const startY = useBleedRange ? chunk.drawStartY : chunk.startY;
+  const endX = useBleedRange ? chunk.drawEndX : chunk.endX;
+  const endY = useBleedRange ? chunk.drawEndY : chunk.endY;
+
+  return [
+    toPlainPoint(transform.getTileTopWorld(startX, startY)),
+    toPlainPoint(transform.getTileTopWorld(endX, startY)),
+    toPlainPoint(transform.getTileTopWorld(endX, endY)),
+    toPlainPoint(transform.getTileTopWorld(startX, endY)),
+  ];
+}
+
 export function getChunkRangeForWorldView(params: {
   worldView: RectangleLike;
   transform: IsoTransform;
@@ -196,5 +219,12 @@ function createBoundsFromPoints(points: Array<{ x: number; y: number }>): ChunkW
     y: minY,
     width: maxX - minX,
     height: maxY - minY,
+  };
+}
+
+function toPlainPoint(point: { x: number; y: number }): ChunkFootprintPoint {
+  return {
+    x: point.x,
+    y: point.y,
   };
 }

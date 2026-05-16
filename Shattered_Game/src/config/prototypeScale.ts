@@ -8,5 +8,8 @@ export const PROTOTYPE_SCALE = {
   terrainChunkVisibleRadius: 1,
   terrainChunkRetainRadius: 3,
   terrainChunkBleedTiles: 1,
-  debugOverlayRefreshMs: 120,
+  terrainChunkGroundBuildBudgetPerFrame: 96,
+  terrainChunkGridBuildBudgetPerFrame: 64,
+  debugOverlayBannerRefreshMs: 120,
+  debugOverlayDetailRefreshMs: 200,
 } as const;

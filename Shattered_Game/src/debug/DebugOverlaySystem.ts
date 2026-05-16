@@ -23,6 +23,9 @@ type DebugOverlaySystemConfig = {
 };
 
 export class DebugOverlaySystem {
+  private static readonly FRAME_TIME_SAMPLE_SIZE = 120;
+  private static readonly FRAME_TIME_SPIKE_THRESHOLD_MS = 25;
+
   private readonly scene: Phaser.Scene;
   private readonly cameraSystem: CameraSystem;
   private readonly playerController: PlayerController;
@@ -36,7 +39,14 @@ export class DebugOverlaySystem {
   private readonly detailText: Phaser.GameObjects.Text;
   private readonly playerFeetMarker: Phaser.GameObjects.Arc;
   private isVisible = false;
+  private nextBannerRefreshAt = 0;
   private nextDetailRefreshAt = 0;
+  private lastBannerText = '';
+  private lastFrameSampleAt = 0;
+  private latestFrameTimeMs = 0;
+  private readonly recentFrameTimes = new Array<number>(DebugOverlaySystem.FRAME_TIME_SAMPLE_SIZE).fill(0);
+  private recentFrameTimeCount = 0;
+  private recentFrameTimeWriteIndex = 0;
 
   constructor({
     scene,
@@ -70,6 +80,8 @@ export class DebugOverlaySystem {
   }
 
   update(): void {
+    this.recordFrameTimeSample();
+
     const zoom = this.cameraSystem.getZoom();
     const gridMode = this.isoTilemap.getGridMode();
     const objectDebugOn = this.objectDebugRenderer?.isVisible() ?? false;
@@ -79,10 +91,17 @@ export class DebugOverlaySystem {
       ? `  Press E -> ${activeTransition.targetMapId}:${activeTransition.targetSpawnId}`
       : '';
     const chunkStats = this.isoTilemap.getTerrainChunkStats();
+    const now = this.scene.time.now;
 
-    this.zoomText.setText(
-      `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Z/Wheel] [G] [C] [K] [O] [L]${transitionPrompt}`,
-    );
+    if (now >= this.nextBannerRefreshAt) {
+      this.nextBannerRefreshAt = now + PROTOTYPE_SCALE.debugOverlayBannerRefreshMs;
+      const bannerText = `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Z/Wheel] [G] [C] [K] [O] [L]${transitionPrompt}`;
+
+      if (bannerText !== this.lastBannerText) {
+        this.zoomText.setText(bannerText);
+        this.lastBannerText = bannerText;
+      }
+    }
 
     if (!this.isVisible) {
       return;
@@ -93,11 +112,10 @@ export class DebugOverlaySystem {
     this.playerFeetMarker.setPosition(feetPoint.x, feetPoint.y);
     this.playerFeetMarker.setFillStyle(isPlayerFeetBlocked ? 0xff3b5c : 0xffff00, 1);
 
-    const now = this.scene.time.now;
     if (now < this.nextDetailRefreshAt) {
       return;
     }
-    this.nextDetailRefreshAt = now + PROTOTYPE_SCALE.debugOverlayRefreshMs;
+    this.nextDetailRefreshAt = now + PROTOTYPE_SCALE.debugOverlayDetailRefreshMs;
 
     const player = this.playerController.sprite;
     const playerGrid = this.playerController.getGridPosition();
@@ -112,6 +130,7 @@ export class DebugOverlaySystem {
     const mouseResolvedTerrain = this.isoTilemap.resolveTerrainTile(mouseTile.x, mouseTile.y);
     const mouseTransition = this.mapTransitionSystem?.getTransitionAtTile(mouseTile.x, mouseTile.y) ?? null;
     const fps = this.scene.game.loop.actualFps;
+    const frameTimingStats = this.getFrameTimingStats();
 
     const objectInstanceCount = this.objectPlacementSystem?.getInstanceCount() ?? 0;
     const objectBlockedCount = this.isoTilemap.worldGrid.getObjectBlockedTileCount();
@@ -124,6 +143,9 @@ export class DebugOverlaySystem {
       visibleChunkCount: 0,
       cachedChunkCount: 0,
       evictedChunkCount: 0,
+      peakMaterializedChunkCount: 0,
+      pendingGroundBuildCount: 0,
+      pendingGridBuildCount: 0,
       chunkDebugEnabled: false,
     };
 
@@ -147,14 +169,16 @@ export class DebugOverlaySystem {
       `Active transition: ${activeTransition ? `${activeTransition.id} -> ${activeTransition.targetMapId}:${activeTransition.targetSpawnId} [E]` : 'none'}`,
       `Mouse tile object: ${mouseObjectLabel}`,
       `FPS: ${fps.toFixed(0)}`,
+      `Frame ms: ${this.latestFrameTimeMs.toFixed(1)}   avg ${frameTimingStats.averageMs.toFixed(1)}   worst ${frameTimingStats.worstMs.toFixed(1)}   spikes>${DebugOverlaySystem.FRAME_TIME_SPIKE_THRESHOLD_MS}ms ${frameTimingStats.spikeCount}`,
       `Zoom: ${zoom.toFixed(2)}x`,
       `Grid mode: ${gridMode}`,
-      `Map/chunks: ${this.isoTilemap.width}x${this.isoTilemap.height} / configured ${resolvedChunkStats.configuredChunkCount} / visible ${resolvedChunkStats.visibleChunkCount} / cached ${resolvedChunkStats.cachedChunkCount} / materialized ${resolvedChunkStats.materializedChunkCount}`,
-      `Chunk debug: ${resolvedChunkStats.chunkDebugEnabled ? 'on' : 'off'}   evicted: ${resolvedChunkStats.evictedChunkCount}`,
+      `Map/chunks: ${this.isoTilemap.width}x${this.isoTilemap.height} / configured ${resolvedChunkStats.configuredChunkCount} / visible ${resolvedChunkStats.visibleChunkCount} / cached ${resolvedChunkStats.cachedChunkCount} / resident ${resolvedChunkStats.materializedChunkCount}`,
+      `Chunk queues: ground ${resolvedChunkStats.pendingGroundBuildCount} / grid ${resolvedChunkStats.pendingGridBuildCount}   peak resident: ${resolvedChunkStats.peakMaterializedChunkCount}   evicted: ${resolvedChunkStats.evictedChunkCount}`,
       `Terrain-blocked tiles: ${this.isoTilemap.getTerrainBlockedTileCount()}`,
       `Object instances: ${objectInstanceCount}   object-blocked tiles: ${objectBlockedCount}`,
       `Object debug overlays: ${objectDebugOn ? 'on' : 'off'}`,
       'Legend:',
+      'chunk debug = green logical chunk, orange bleed margin',
       'yellow dot = player feet/depth anchor',
       'red diamond = blocking object footprint',
       'blue diamond = non-blocking object footprint',
@@ -240,6 +264,53 @@ export class DebugOverlaySystem {
     marker.setDepth(RENDER_DEPTHS.DEBUG + 4);
 
     return marker;
+  }
+
+  private recordFrameTimeSample(): void {
+    const now = performance.now();
+
+    if (this.lastFrameSampleAt > 0) {
+      this.latestFrameTimeMs = now - this.lastFrameSampleAt;
+      this.recentFrameTimes[this.recentFrameTimeWriteIndex] = this.latestFrameTimeMs;
+      this.recentFrameTimeWriteIndex =
+        (this.recentFrameTimeWriteIndex + 1) % DebugOverlaySystem.FRAME_TIME_SAMPLE_SIZE;
+      this.recentFrameTimeCount = Math.min(
+        this.recentFrameTimeCount + 1,
+        DebugOverlaySystem.FRAME_TIME_SAMPLE_SIZE,
+      );
+    }
+
+    this.lastFrameSampleAt = now;
+  }
+
+  private getFrameTimingStats(): { averageMs: number; worstMs: number; spikeCount: number } {
+    if (this.recentFrameTimeCount === 0) {
+      return {
+        averageMs: 0,
+        worstMs: 0,
+        spikeCount: 0,
+      };
+    }
+
+    let sum = 0;
+    let worstMs = 0;
+    let spikeCount = 0;
+
+    for (let index = 0; index < this.recentFrameTimeCount; index += 1) {
+      const frameTimeMs = this.recentFrameTimes[index];
+      sum += frameTimeMs;
+      worstMs = Math.max(worstMs, frameTimeMs);
+
+      if (frameTimeMs > DebugOverlaySystem.FRAME_TIME_SPIKE_THRESHOLD_MS) {
+        spikeCount += 1;
+      }
+    }
+
+    return {
+      averageMs: sum / this.recentFrameTimeCount,
+      worstMs,
+      spikeCount,
+    };
   }
 
   private registerToggleKey(): void {

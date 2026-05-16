@@ -9,18 +9,30 @@ import type {
   ResolvedTerrainTransition,
 } from '../terrain/TerrainTypes';
 import type { GridMode } from '../IsoTilemapTypes';
-import type { TerrainChunkConfig } from './TerrainChunkMath';
+import {
+  getChunkFootprintPoints,
+  type TerrainChunkConfig,
+} from './TerrainChunkMath';
 
 const GRID_ALPHA = 0.055;
 
 export type MaterializedTerrainChunk = TerrainChunkConfig & {
   groundLayer: Phaser.GameObjects.RenderTexture;
-  gridLayer: Phaser.GameObjects.Graphics;
+  gridLayer: Phaser.GameObjects.RenderTexture;
   chunkDebugLayer: Phaser.GameObjects.Graphics;
+  groundDrawOrder: Array<{ gridX: number; gridY: number }>;
+  gridDrawOrder: Array<{ gridX: number; gridY: number }>;
+  groundDrawIndex: number;
+  gridDrawIndex: number;
+  isGroundReady: boolean;
+  builtGridMode: GridMode;
+  gridBuildMode: GridMode;
+  lastDebugSignature?: string;
 };
 
 export class TerrainChunkDrawSystem {
   private tileStamp?: Phaser.GameObjects.Image;
+  private gridScratch?: Phaser.GameObjects.Graphics;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -35,10 +47,16 @@ export class TerrainChunkDrawSystem {
       config.bounds.width,
       config.bounds.height,
     );
-    const gridLayer = this.scene.add.graphics();
+    const gridLayer = this.scene.add.renderTexture(
+      config.bounds.x,
+      config.bounds.y,
+      config.bounds.width,
+      config.bounds.height,
+    );
     const chunkDebugLayer = this.scene.add.graphics();
 
     groundLayer.setOrigin(0, 0);
+    gridLayer.setOrigin(0, 0);
     groundLayer.setDepth(RENDER_DEPTHS.GROUND);
     gridLayer.setDepth(RENDER_DEPTHS.GRID);
     chunkDebugLayer.setDepth(RENDER_DEPTHS.DEBUG - 1);
@@ -48,17 +66,32 @@ export class TerrainChunkDrawSystem {
       groundLayer,
       gridLayer,
       chunkDebugLayer,
+      groundDrawOrder: createTileDrawOrder(config, true),
+      gridDrawOrder: createTileDrawOrder(config, false),
+      groundDrawIndex: 0,
+      gridDrawIndex: 0,
+      isGroundReady: false,
+      builtGridMode: 'off',
+      gridBuildMode: 'off',
     };
   }
 
-  drawGroundChunk(chunk: MaterializedTerrainChunk): void {
-    chunk.groundLayer.clear();
+  buildGroundChunkStep(chunk: MaterializedTerrainChunk, maxTiles: number): number {
+    if (chunk.groundDrawIndex === 0) {
+      chunk.groundLayer.clear();
+      chunk.groundLayer.setVisible(false);
+    }
 
-    this.forEachTileInDrawOrder(chunk, true, (gridX, gridY) => {
+    let processedTiles = 0;
+
+    while (processedTiles < maxTiles && chunk.groundDrawIndex < chunk.groundDrawOrder.length) {
+      const { gridX, gridY } = chunk.groundDrawOrder[chunk.groundDrawIndex];
       const resolvedTile = this.terrainResolutionCache.resolveTile(gridX, gridY);
+      chunk.groundDrawIndex += 1;
+      processedTiles += 1;
 
       if (!resolvedTile) {
-        return;
+        continue;
       }
 
       const replacementTransition = this.getReplacementTransition(resolvedTile);
@@ -66,7 +99,7 @@ export class TerrainChunkDrawSystem {
       const frame = this.scene.textures.getFrame(textureKey);
 
       if (!frame) {
-        return;
+        continue;
       }
 
       const tileCenter = this.transform.getTileCenterWorld(gridX, gridY);
@@ -80,31 +113,65 @@ export class TerrainChunkDrawSystem {
       }
 
       this.drawResolvedTransitionArt(chunk, resolvedTile, tileCenter.x, tileCenter.y);
-    });
+    }
+
+    if (chunk.groundDrawIndex >= chunk.groundDrawOrder.length) {
+      chunk.isGroundReady = true;
+      chunk.groundLayer.setVisible(true);
+    }
+
+    return processedTiles;
   }
 
-  drawGridChunk(chunk: MaterializedTerrainChunk, gridMode: GridMode): void {
-    chunk.gridLayer.clear();
-
+  buildGridChunkStep(chunk: MaterializedTerrainChunk, gridMode: GridMode, maxTiles: number): number {
     if (gridMode === 'off') {
-      chunk.gridLayer.setVisible(false);
-      return;
+      this.clearGridChunk(chunk);
+      return 0;
     }
 
-    const alpha = gridMode === 'build' ? 0.16 : GRID_ALPHA;
-    const colour = gridMode === 'build' ? 0xd7f3ff : 0x1d4f36;
+    if (chunk.gridBuildMode !== gridMode) {
+      this.prepareGridChunkBuild(chunk, gridMode);
+    }
 
-    chunk.gridLayer.lineStyle(1, colour, alpha);
+    const scratch = this.getGridScratch();
+    let processedTiles = 0;
 
-    for (let gridY = chunk.startY; gridY < chunk.endY; gridY += 1) {
-      for (let gridX = chunk.startX; gridX < chunk.endX; gridX += 1) {
-        chunk.gridLayer.strokePoints(this.transform.getTileDiamondPoints(gridX, gridY), true);
+    while (processedTiles < maxTiles && chunk.gridDrawIndex < chunk.gridDrawOrder.length) {
+      const { gridX, gridY } = chunk.gridDrawOrder[chunk.gridDrawIndex];
+      chunk.gridDrawIndex += 1;
+      processedTiles += 1;
+      const localPoints = toLocalPhaserPoints(
+        this.transform.getTileDiamondPoints(gridX, gridY),
+        chunk.bounds.x,
+        chunk.bounds.y,
+      );
+
+      scratch.clear();
+      scratch.lineStyle(1, gridMode === 'build' ? 0xd7f3ff : 0x1d4f36, gridMode === 'build' ? 0.16 : GRID_ALPHA);
+      scratch.strokePoints(localPoints, true);
+
+      if (gridMode === 'build') {
+        this.drawTransitionDebugOverlaysForTile(scratch, gridX, gridY, localPoints);
       }
+
+      chunk.gridLayer.draw(scratch);
     }
 
-    if (gridMode === 'build') {
-      this.drawTransitionDebugOverlays(chunk);
+    if (chunk.gridDrawIndex >= chunk.gridDrawOrder.length) {
+      chunk.gridLayer.setVisible(true);
+      chunk.builtGridMode = gridMode;
+      chunk.gridBuildMode = gridMode;
     }
+
+    return processedTiles;
+  }
+
+  clearGridChunk(chunk: MaterializedTerrainChunk): void {
+    chunk.gridLayer.clear();
+    chunk.gridLayer.setVisible(false);
+    chunk.gridDrawIndex = 0;
+    chunk.builtGridMode = 'off';
+    chunk.gridBuildMode = 'off';
   }
 
   drawChunkDebugOutline(
@@ -118,17 +185,16 @@ export class TerrainChunkDrawSystem {
       return;
     }
 
-    const colour = options.visible ? 0x34d399 : 0x60a5fa;
-    const alpha = options.visible ? 0.85 : 0.3;
+    const logicalColour = options.visible ? 0x34d399 : 0x60a5fa;
+    const logicalAlpha = options.visible ? 0.9 : 0.4;
+    const logicalPoints = getChunkFootprintPoints(this.transform, chunk, false);
+    const bleedPoints = getChunkFootprintPoints(this.transform, chunk, true);
 
     chunk.chunkDebugLayer.setVisible(true);
-    chunk.chunkDebugLayer.lineStyle(2, colour, alpha);
-    chunk.chunkDebugLayer.strokeRect(
-      chunk.bounds.x,
-      chunk.bounds.y,
-      chunk.bounds.width,
-      chunk.bounds.height,
-    );
+    chunk.chunkDebugLayer.lineStyle(2, 0xf59e0b, 0.5);
+    chunk.chunkDebugLayer.strokePoints(toPhaserPoints(bleedPoints), true);
+    chunk.chunkDebugLayer.lineStyle(2, logicalColour, logicalAlpha);
+    chunk.chunkDebugLayer.strokePoints(toPhaserPoints(logicalPoints), true);
   }
 
   destroyChunk(chunk: MaterializedTerrainChunk): void {
@@ -140,30 +206,41 @@ export class TerrainChunkDrawSystem {
   destroy(): void {
     this.tileStamp?.destroy();
     this.tileStamp = undefined;
+    this.gridScratch?.destroy();
+    this.gridScratch = undefined;
   }
 
-  private drawTransitionDebugOverlays(chunk: MaterializedTerrainChunk): void {
-    this.forEachTileInDrawOrder(chunk, false, (gridX, gridY) => {
-      const resolvedTile = this.terrainResolutionCache.resolveTile(gridX, gridY);
+  private prepareGridChunkBuild(chunk: MaterializedTerrainChunk, gridMode: GridMode): void {
+    chunk.gridLayer.clear();
+    chunk.gridLayer.setVisible(false);
+    chunk.gridDrawIndex = 0;
+    chunk.builtGridMode = 'off';
+    chunk.gridBuildMode = gridMode;
+  }
 
-      if (!resolvedTile) {
-        return;
-      }
+  private drawTransitionDebugOverlaysForTile(
+    scratch: Phaser.GameObjects.Graphics,
+    gridX: number,
+    gridY: number,
+    points: Phaser.Geom.Point[],
+  ): void {
+    const resolvedTile = this.terrainResolutionCache.resolveTile(gridX, gridY);
 
-      resolvedTile.transitionOverlays.forEach((overlay) => {
-        this.drawTransitionDebugOverlay(chunk.gridLayer, gridX, gridY, overlay);
-      });
+    if (!resolvedTile) {
+      return;
+    }
+
+    resolvedTile.transitionOverlays.forEach((overlay) => {
+      this.drawTransitionDebugOverlay(scratch, points, overlay);
     });
   }
 
   private drawTransitionDebugOverlay(
     gridLayer: Phaser.GameObjects.Graphics,
-    gridX: number,
-    gridY: number,
+    points: Phaser.Geom.Point[],
     overlay: ResolvedTerrainTransition,
   ): void {
     const { definition } = overlay;
-    const points = this.transform.getTileDiamondPoints(gridX, gridY);
 
     if (isEdgeDirection(definition.direction)) {
       const [start, end] = getEdgeDebugLine(points, definition.direction);
@@ -254,28 +331,51 @@ export class TerrainChunkDrawSystem {
     return this.tileStamp;
   }
 
-  private forEachTileInDrawOrder(
-    chunk: TerrainChunkConfig,
-    useBleedRange: boolean,
-    callback: (gridX: number, gridY: number) => void,
-  ): void {
-    const startX = useBleedRange ? chunk.drawStartX : chunk.startX;
-    const startY = useBleedRange ? chunk.drawStartY : chunk.startY;
-    const endX = useBleedRange ? chunk.drawEndX : chunk.endX;
-    const endY = useBleedRange ? chunk.drawEndY : chunk.endY;
-    const startDiagonal = startX + startY;
-    const endDiagonal = endX + endY - 2;
+  private getGridScratch(): Phaser.GameObjects.Graphics {
+    if (!this.gridScratch) {
+      this.gridScratch = this.scene.add.graphics();
+      this.gridScratch.setVisible(false);
+    }
 
-    for (let diagonal = startDiagonal; diagonal <= endDiagonal; diagonal += 1) {
-      for (let gridX = startX; gridX < endX; gridX += 1) {
-        const gridY = diagonal - gridX;
+    return this.gridScratch;
+  }
+}
 
-        if (gridY >= startY && gridY < endY) {
-          callback(gridX, gridY);
-        }
+function createTileDrawOrder(
+  chunk: Pick<TerrainChunkConfig, 'startX' | 'startY' | 'endX' | 'endY' | 'drawStartX' | 'drawStartY' | 'drawEndX' | 'drawEndY'>,
+  useBleedRange: boolean,
+): Array<{ gridX: number; gridY: number }> {
+  const startX = useBleedRange ? chunk.drawStartX : chunk.startX;
+  const startY = useBleedRange ? chunk.drawStartY : chunk.startY;
+  const endX = useBleedRange ? chunk.drawEndX : chunk.endX;
+  const endY = useBleedRange ? chunk.drawEndY : chunk.endY;
+  const startDiagonal = startX + startY;
+  const endDiagonal = endX + endY - 2;
+  const tiles: Array<{ gridX: number; gridY: number }> = [];
+
+  for (let diagonal = startDiagonal; diagonal <= endDiagonal; diagonal += 1) {
+    for (let gridX = startX; gridX < endX; gridX += 1) {
+      const gridY = diagonal - gridX;
+
+      if (gridY >= startY && gridY < endY) {
+        tiles.push({ gridX, gridY });
       }
     }
   }
+
+  return tiles;
+}
+
+function toPhaserPoints(points: Array<{ x: number; y: number }>): Phaser.Geom.Point[] {
+  return points.map((point) => new Phaser.Geom.Point(point.x, point.y));
+}
+
+function toLocalPhaserPoints(
+  points: Phaser.Geom.Point[],
+  offsetX: number,
+  offsetY: number,
+): Phaser.Geom.Point[] {
+  return points.map((point) => new Phaser.Geom.Point(point.x - offsetX, point.y - offsetY));
 }
 
 function isEdgeDirection(direction: string): direction is IsoEdgeKey {

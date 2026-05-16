@@ -51,6 +51,22 @@ describe('TerrainChunkMath', () => {
     expect(configs[8].key).toBe('2,2');
   });
 
+  it('returns grid-native footprint points for logical and bleed chunk bounds', async () => {
+    const { getChunkFootprintPoints, getChunkTileBounds } = await loadChunkMath();
+    const transform = createTransformStub();
+    const chunk = getChunkTileBounds(1, 1, 16, 64, 64, 1);
+
+    const logical = getChunkFootprintPoints(transform, chunk, false);
+    const bleed = getChunkFootprintPoints(transform, chunk, true);
+
+    expect(logical).toHaveLength(4);
+    expect(bleed).toHaveLength(4);
+    expect(logical[0]).toEqual(transform.getTileTopWorld(16, 16));
+    expect(logical[2]).toEqual(transform.getTileTopWorld(32, 32));
+    expect(bleed[0]).toEqual(transform.getTileTopWorld(15, 15));
+    expect(bleed[2]).toEqual(transform.getTileTopWorld(33, 33));
+  });
+
   it('builds visible chunk ranges from the world view', async () => {
     const { getChunkRangeForWorldView, isChunkCoordInRange } = await loadChunkMath();
     const transform = createTransformStub();
@@ -105,6 +121,12 @@ function createTransformStub() {
   return {
     tileWidth: 64,
     tileHeight: 32,
+    getTileTopWorld(gridX: number, gridY: number) {
+      return {
+        x: (gridX - gridY) * 32,
+        y: (gridX + gridY) * 16,
+      };
+    },
     getTileCenterWorld(gridX: number, gridY: number) {
       return {
         x: (gridX - gridY) * 32,
