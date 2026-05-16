@@ -3,6 +3,7 @@ import type {
   MapInteractionAnchor,
   MapPlacedObject,
   MapTransition,
+  MapZone,
 } from './MapTypes';
 import { createOvalIslandTerrain, createSpawnPoints, paintRect } from './MapBuilderUtils';
 
@@ -56,6 +57,25 @@ export function createHomeIslandMap(): MapDefinition {
     },
   ];
 
+  const zones: MapZone[] = [
+    {
+      id: 'home_build_zone',
+      tileX: 11,
+      tileY: 14,
+      width: 10,
+      height: 8,
+      tags: ['personal_build'],
+    },
+    {
+      id: 'home_dock_transition_zone',
+      tileX: 23,
+      tileY: 18,
+      width: 3,
+      height: 3,
+      tags: ['transition'],
+    },
+  ];
+
   const interactionAnchors: MapInteractionAnchor[] = [
     {
       id: 'home_workbench_use',
@@ -80,6 +100,7 @@ export function createHomeIslandMap(): MapDefinition {
     spawnPoints,
     objects,
     transitions,
+    zones,
     interactionAnchors,
     metadata: {
       handcrafted: true,

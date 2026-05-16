@@ -8,6 +8,22 @@ export type MapSpawnPoint = {
   tileY: number;
 };
 
+export type MapZoneTag =
+  | 'personal_build'
+  | 'wilderness_camp'
+  | 'town'
+  | 'harbor'
+  | 'transition';
+
+export type MapZone = {
+  id: string;
+  tileX: number;
+  tileY: number;
+  width: number;
+  height: number;
+  tags: MapZoneTag[];
+};
+
 export type MapPlacedObject = {
   id: string;
   definitionId: string;
@@ -49,6 +65,7 @@ export type MapNpcAnchor = BaseMapInteractionAnchor & {
 
 export type MapWorkbenchAnchor = BaseMapInteractionAnchor & {
   interactionType: 'workbench';
+  stationType?: 'workbench';
   requiredWood?: number;
   craftedItemId?: PlayerItemKey;
   successMessage?: string;
@@ -90,6 +107,7 @@ export type MapDefinition = {
   spawnPoints: Record<string, MapSpawnPoint>;
   objects: MapPlacedObject[];
   transitions: MapTransition[];
+  zones?: MapZone[];
   interactionAnchors?: MapInteractionAnchor[];
   metadata?: Record<string, unknown>;
 };

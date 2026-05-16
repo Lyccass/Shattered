@@ -1,14 +1,19 @@
 import Phaser from 'phaser';
 import { ItemRegistry } from '../items/ItemRegistry';
+import {
+  describeItemPlacementFailure,
+  evaluateItemPlacement,
+} from '../items/ItemPlacementRules';
 import type { PlayerController } from '../player/PlayerController';
 import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { getFacingLookaheadWorldOffset } from '../player/PlayerFacing';
 import { getDynamicDepth, RENDER_DEPTHS } from '../render/RenderLayers';
 import type { IsoTransform } from '../world/IsoTransform';
-import {
-  describeObjectPlacementFailure,
-  type ObjectPlacementEvaluation,
-} from '../objects/ObjectPlacementPolicy';
+import type { WorldGrid } from '../world/WorldGrid';
+import { getTransitionFootprintTiles } from '../world/maps/MapTransitionSystem';
+import type { MapTransition } from '../world/maps/MapTypes';
+import type { MapZoneIndex } from '../world/maps/MapZoneIndex';
+import type { ObjectPlacementEvaluation } from '../objects/ObjectPlacementPolicy';
 
 type PlacementPreviewSystem = Pick<ObjectPlacementSystemLike, 'getPlacementEvaluation'>;
 
@@ -34,7 +39,14 @@ export type PlacementPreviewState = {
 
 type PlacementRuntimeContext = {
   transform: IsoTransform;
+  worldGrid: Pick<
+    WorldGrid,
+    'isTileInBounds' | 'isTerrainBlocked' | 'isObjectBlocked' | 'isTileWalkable'
+  >;
+  zoneIndex: MapZoneIndex;
+  transitions: MapTransition[];
   objectPlacementSystem: PlacementPreviewSystem;
+  getActivePlacedCount(definitionId: string): number;
 };
 
 export class PlacementModeSystem {
@@ -53,11 +65,19 @@ export class PlacementModeSystem {
 
   bindRuntimeContext(
     transform: IsoTransform,
+    worldGrid: PlacementRuntimeContext['worldGrid'],
+    zoneIndex: MapZoneIndex,
+    transitions: MapTransition[],
     objectPlacementSystem: PlacementPreviewSystem,
+    getActivePlacedCount: PlacementRuntimeContext['getActivePlacedCount'],
   ): void {
     this.runtimeContext = {
       transform,
+      worldGrid,
+      zoneIndex,
+      transitions,
       objectPlacementSystem,
+      getActivePlacedCount,
     };
     this.clearPreview();
   }
@@ -66,7 +86,7 @@ export class PlacementModeSystem {
     const itemDefinition = this.itemRegistry.get(itemId);
     const placementObjectDefinitionId = itemDefinition.placementObjectDefinitionId;
 
-    if (!placementObjectDefinitionId || !itemDefinition.placeable) {
+    if (!placementObjectDefinitionId || itemDefinition.useMode !== 'place') {
       this.state = null;
       this.clearPreview();
       return null;
@@ -103,21 +123,37 @@ export class PlacementModeSystem {
       feetPoint.x + lookahead.x,
       feetPoint.y + lookahead.y,
     );
-    const evaluation = this.runtimeContext.objectPlacementSystem.getPlacementEvaluation(
+    const itemDefinition = this.itemRegistry.get(this.state.itemId);
+    const objectPlacementEvaluation = this.runtimeContext.objectPlacementSystem.getPlacementEvaluation(
       this.state.placementObjectDefinitionId,
       targetTile.x,
       targetTile.y,
     );
+    const itemPlacementEvaluation = evaluateItemPlacement(itemDefinition, {
+      tileX: targetTile.x,
+      tileY: targetTile.y,
+      zoneTags: this.runtimeContext.zoneIndex.getTagsAtTile(targetTile.x, targetTile.y),
+      activePlacedCount: this.runtimeContext.getActivePlacedCount(
+        this.state.placementObjectDefinitionId,
+      ),
+      isTileInBounds: (tileX, tileY) => this.runtimeContext?.worldGrid.isTileInBounds(tileX, tileY) ?? false,
+      isTerrainBlocked: (tileX, tileY) => this.runtimeContext?.worldGrid.isTerrainBlocked(tileX, tileY) ?? true,
+      isObjectBlocked: (tileX, tileY) => this.runtimeContext?.worldGrid.isObjectBlocked(tileX, tileY) ?? true,
+      isTileWalkable: (tileX, tileY) => this.runtimeContext?.worldGrid.isTileWalkable(tileX, tileY) ?? false,
+      isNearTransition: (tileX, tileY, minDistanceTiles) =>
+        isTileNearTransition(this.runtimeContext?.transitions ?? [], tileX, tileY, minDistanceTiles),
+      objectPlacementEvaluation,
+    });
 
     this.state = {
       ...this.state,
       targetTileX: targetTile.x,
       targetTileY: targetTile.y,
-      valid: evaluation.ok,
-      invalidReason: evaluation.ok
+      valid: itemPlacementEvaluation.ok,
+      invalidReason: itemPlacementEvaluation.ok
         ? undefined
-        : describeObjectPlacementFailure(evaluation.failure).reason,
-      promptText: evaluation.ok
+        : describeItemPlacementFailure(itemPlacementEvaluation.failure),
+      promptText: itemPlacementEvaluation.ok
         ? `Place ${this.state.itemDisplayName} [E/Space confirm, Esc cancel]`
         : `Can't place ${this.state.itemDisplayName} here [Esc cancel]`,
     };
@@ -183,4 +219,17 @@ export class PlacementModeSystem {
     this.previewGraphics.clear();
     this.previewGraphics.setVisible(false);
   }
+}
+
+function isTileNearTransition(
+  transitions: MapTransition[],
+  tileX: number,
+  tileY: number,
+  minDistanceTiles: number,
+): boolean {
+  return transitions.some((transition) =>
+    getTransitionFootprintTiles(transition).some((transitionTile) =>
+      Math.abs(transitionTile.x - tileX) + Math.abs(transitionTile.y - tileY) <= minDistanceTiles,
+    ),
+  );
 }

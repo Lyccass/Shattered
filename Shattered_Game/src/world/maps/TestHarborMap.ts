@@ -3,6 +3,7 @@ import type {
   MapInteractionAnchor,
   MapPlacedObject,
   MapTransition,
+  MapZone,
 } from './MapTypes';
 import { createSpawnPoints, fillTerrain, paintRect } from './MapBuilderUtils';
 
@@ -69,6 +70,33 @@ export function createHarborMap(): MapDefinition {
     },
   ];
 
+  const zones: MapZone[] = [
+    {
+      id: 'harbor_town_zone',
+      tileX: 5,
+      tileY: 5,
+      width: 27,
+      height: 16,
+      tags: ['town', 'harbor'],
+    },
+    {
+      id: 'harbor_home_transition_zone',
+      tileX: 8,
+      tileY: 16,
+      width: 3,
+      height: 3,
+      tags: ['transition'],
+    },
+    {
+      id: 'harbor_wild_transition_zone',
+      tileX: 28,
+      tileY: 9,
+      width: 3,
+      height: 3,
+      tags: ['transition'],
+    },
+  ];
+
   const interactionAnchors: MapInteractionAnchor[] = [
     {
       id: 'harbor_notice_board_talk',
@@ -118,6 +146,7 @@ export function createHarborMap(): MapDefinition {
     spawnPoints,
     objects,
     transitions,
+    zones,
     interactionAnchors,
     metadata: {
       handcrafted: true,

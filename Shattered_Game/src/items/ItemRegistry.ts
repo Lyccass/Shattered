@@ -1,8 +1,7 @@
-import type { PlayerItemKey } from '../player/PlayerInventoryState';
-import type { ItemDefinition } from './ItemTypes';
+import type { ItemDefinition, ItemId } from './ItemTypes';
 
 export class ItemRegistry {
-  private readonly byId = new Map<PlayerItemKey, ItemDefinition>();
+  private readonly byId = new Map<ItemId, ItemDefinition>();
 
   constructor(definitions: readonly ItemDefinition[]) {
     definitions.forEach((definition) => {
@@ -10,7 +9,7 @@ export class ItemRegistry {
     });
   }
 
-  get(itemId: PlayerItemKey): ItemDefinition {
+  get(itemId: ItemId): ItemDefinition {
     const definition = this.byId.get(itemId);
 
     if (!definition) {

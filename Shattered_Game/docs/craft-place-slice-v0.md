@@ -7,7 +7,7 @@ This slice extends the first interaction loop into a slightly fuller home cycle:
 3. Gather driftwood and stone.
 4. Return home.
 5. Use the workbench to craft a `firestarter_set`.
-6. Enter placement mode and place the `firestarter_set` on a valid nearby tile.
+6. Use `Space` to enter placement mode and place the `firestarter_set` on a valid nearby tile.
 7. Interact with the placed firestarter while carrying stone to turn it into a campfire.
 
 ## Inventory Split
@@ -40,10 +40,11 @@ The `firestarter_set` is the first placeable session item.
 Flow:
 
 1. Craft the item at the home workbench.
-2. Placement mode starts automatically.
+2. The item stays in the session inventory.
 3. A preview appears one tile in front of the player.
-4. `E` or `Space` confirms placement.
-5. `Escape` cancels placement.
+4. `Space` enters placement mode when the player is ready.
+5. `E` or `Space` confirms placement.
+6. `Escape` cancels placement.
 
 If the player cancels placement, `Space` can be used later to re-enter placement mode as long as a `firestarter_set` is still in inventory.
 
@@ -81,7 +82,8 @@ For now:
 
 - it is non-blocking
 - it uses a simple placeholder visual
-- interacting with it only shows flavour text
+- interacting with it can consume `1 herb` to produce `1 warm_tea`
+- if the player has no herb, it only gives flavour text
 - it despawns on a session timer even after being lit
 
 ## Session Timers

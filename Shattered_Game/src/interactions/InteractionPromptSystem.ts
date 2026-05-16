@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { ActiveEffectSnapshot } from '../effects/EffectTypes';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
 import type { ActiveInteraction } from './InteractionTypes';
 import type { PlayerInventorySnapshot } from '../player/PlayerInventoryState';
@@ -27,6 +28,7 @@ export class InteractionPromptSystem {
   update(
     activeInteraction: ActiveInteraction | null,
     inventory: PlayerInventorySnapshot,
+    activeEffects: ActiveEffectSnapshot[],
     placementState: PlacementPreviewState | null,
   ): void {
     const promptText = placementState?.promptText ?? activeInteraction?.promptText ?? '';
@@ -35,19 +37,39 @@ export class InteractionPromptSystem {
     this.promptText.setVisible(!!promptText);
     this.inventoryText.setText(
       (() => {
-        const parts = [
-        `Wood ${inventory.resources.wood}`,
-        `Stone ${inventory.resources.stone}`,
-        `Herb ${inventory.resources.herb}`,
-        `Firestarter ${inventory.items.firestarter_set}`,
-        `Tea ${inventory.items.warm_tea}`,
+        const inventoryParts = [
+          `Wood ${inventory.resources.wood}`,
+          `Stone ${inventory.resources.stone}`,
+          `Herb ${inventory.resources.herb}`,
+          `Firestarter ${inventory.items.firestarter_set}`,
+          `Tea ${inventory.items.warm_tea}`,
         ];
+        const hintParts: string[] = [];
 
         if (!placementState?.active && inventory.items.firestarter_set > 0) {
-          parts.push('[Space: place]');
+          hintParts.push('[Space: place]');
         }
 
-        return parts.join('   ');
+        if (inventory.items.warm_tea > 0) {
+          hintParts.push('[T: drink]');
+        }
+
+        const effectLine = activeEffects.length > 0
+          ? `Effects: ${activeEffects
+            .map((effect) => `${effect.displayName} ${Math.ceil(effect.remainingMs / 1000)}s`)
+            .join('   ')}`
+          : 'Effects: none';
+
+        const lines = [
+          inventoryParts.join('   '),
+          effectLine,
+        ];
+
+        if (hintParts.length > 0) {
+          lines.push(hintParts.join('   '));
+        }
+
+        return lines.join('\n');
       })(),
     );
 

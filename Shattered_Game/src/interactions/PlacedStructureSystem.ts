@@ -1,8 +1,9 @@
+import { applyRecipeToInventory, canCraftRecipe } from '../crafting/RecipeInventory';
+import type { RecipeRegistry } from '../crafting/RecipeRegistry';
 import type { ItemRegistry } from '../items/ItemRegistry';
 import type { PlayerInventoryState, PlayerItemKey } from '../player/PlayerInventoryState';
 import type { ObjectInstance } from '../objects/ObjectTypes';
 import {
-  type RuntimePlacedObjectKind,
   type RuntimePlacedObjectRecord,
   WorldSessionState,
 } from '../world/session/WorldSessionState';
@@ -25,16 +26,17 @@ type ObjectPlacementSystemLike = {
   removeObject(instanceId: string): boolean;
 };
 
-const PLACED_OBJECT_DESPAWN_MS: Record<RuntimePlacedObjectKind, number> = {
-  placed_firestarter_set: 45_000,
-  campfire: 90_000,
-};
+const DEFAULT_FIRESTARTER_DURATION_MS = 45_000;
+const CAMPFIRE_DESPAWN_MS = 90_000;
 
 export class PlacedStructureSystem {
   private currentMapId: string | null = null;
   private currentObjects: RuntimePlacedObjectRecord[] = [];
 
-  constructor(private readonly sessionState: WorldSessionState) {}
+  constructor(
+    private readonly sessionState: WorldSessionState,
+    private readonly recipeRegistry: RecipeRegistry,
+  ) {}
 
   setCurrentMap(
     mapId: string,
@@ -103,7 +105,7 @@ export class PlacedStructureSystem {
         promptText:
           placedObject.kind === 'placed_firestarter_set'
             ? 'Press E: Light Firestarter'
-            : 'Press E: Warm Hands',
+            : 'Press E: Use Campfire',
         interactionRangeTiles: 1,
         priority: placedObject.kind === 'placed_firestarter_set' ? 110 : 35,
       },
@@ -126,7 +128,7 @@ export class PlacedStructureSystem {
     const itemDefinition = itemRegistry.get(itemId);
     const placementObjectDefinitionId = itemDefinition.placementObjectDefinitionId;
 
-    if (!placementObjectDefinitionId || !itemDefinition.placeable) {
+    if (!placementObjectDefinitionId || itemDefinition.useMode !== 'place') {
       return {
         ok: false,
         interactionType: 'placed_object',
@@ -169,7 +171,7 @@ export class PlacedStructureSystem {
       tileY,
       objectDefinitionId: placementObjectDefinitionId,
       kind: 'placed_firestarter_set',
-      despawnAtMs: nowMs + PLACED_OBJECT_DESPAWN_MS.placed_firestarter_set,
+      despawnAtMs: nowMs + (itemDefinition.placementRules?.durationMs ?? DEFAULT_FIRESTARTER_DURATION_MS),
     };
 
     this.sessionState.getPlacedObjects(mapId).push(placedObjectState);
@@ -203,10 +205,10 @@ export class PlacedStructureSystem {
     }
 
     if (placedObject.kind === 'campfire') {
-      if (inventory.hasAtLeast('herb', 1)) {
-        inventory.consumeDelta({ herb: 1 });
-        inventory.addItem('warm_tea', 1);
+      const recipe = this.requireCampfireRecipe();
 
+      if (canCraftRecipe(recipe, inventory)) {
+        applyRecipeToInventory(recipe, inventory);
         return {
           ok: true,
           interactionType: 'placed_object',
@@ -252,15 +254,14 @@ export class PlacedStructureSystem {
 
     placedObject.kind = 'campfire';
     placedObject.objectDefinitionId = 'campfire';
-    placedObject.despawnAtMs = nowMs + PLACED_OBJECT_DESPAWN_MS.campfire;
+    placedObject.despawnAtMs = nowMs + CAMPFIRE_DESPAWN_MS;
 
     return {
       ok: true,
       interactionType: 'placed_object',
       targetId: placedObjectId,
-      message: 'The bundle catches and grows into a campfire.',
+      message: 'The fire catches.',
       inventoryDelta: { stone: -1 },
-      createdObjectId: campfireInstance.id,
     };
   }
 
@@ -268,16 +269,34 @@ export class PlacedStructureSystem {
     return [...this.currentObjects];
   }
 
-  private createPlacedObjectId(mapId: string, kind: string): string {
-    const nextSequence = this.sessionState.getNextPlacedObjectSequence(mapId);
-    return `${mapId}:${kind}:${nextSequence}`;
+  getActiveObjectCountForDefinition(objectDefinitionId: string): number {
+    return this.currentObjects.filter(
+      (placedObject) => placedObject.objectDefinitionId === objectDefinitionId,
+    ).length;
   }
 
   private requireCurrentMapId(): string {
     if (!this.currentMapId) {
-      throw new Error('PlacedStructureSystem: no active map is set');
+      throw new Error('PlacedStructureSystem: no current map is active');
     }
 
     return this.currentMapId;
+  }
+
+  private createPlacedObjectId(mapId: string, placementObjectDefinitionId: string): string {
+    const nextSequence = this.sessionState.getNextPlacedObjectSequence(mapId);
+    return [mapId, placementObjectDefinitionId, nextSequence].join(':');
+  }
+
+  private requireCampfireRecipe() {
+    const recipe = this.recipeRegistry.listByStation('campfire').find(
+      (candidate) => candidate.requiredActiveObjectType === 'campfire',
+    );
+
+    if (!recipe) {
+      throw new Error('PlacedStructureSystem: no campfire recipe is registered');
+    }
+
+    return recipe;
   }
 }

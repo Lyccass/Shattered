@@ -1,3 +1,6 @@
+import { applyRecipeToInventory, canCraftRecipe } from '../crafting/RecipeInventory';
+import type { RecipeRegistry } from '../crafting/RecipeRegistry';
+import type { RecipeDefinition } from '../crafting/RecipeTypes';
 import type { PlayerInventoryState } from '../player/PlayerInventoryState';
 import type { MapWorkbenchAnchor } from '../world/maps/MapTypes';
 import type { InteractionResult, WorkbenchInteractionTarget } from './InteractionTypes';
@@ -10,6 +13,8 @@ type WorkbenchState = {
 
 export class WorkbenchSystem {
   private currentWorkbenches = new Map<string, WorkbenchState>();
+
+  constructor(private readonly recipeRegistry: RecipeRegistry) {}
 
   setMapWorkbenches(mapId: string, anchors: MapWorkbenchAnchor[]): void {
     this.currentWorkbenches = new Map(
@@ -28,7 +33,7 @@ export class WorkbenchSystem {
       definition: {
         id: state.anchor.id,
         interactionType: 'workbench',
-        promptText: 'Press E: Use Workbench',
+        promptText: `Press E: Craft ${this.getPrimaryRecipe(state.anchor).displayName}`,
         interactionRangeTiles: state.anchor.interactionRangeTiles ?? 1,
         priority: 95,
       },
@@ -49,29 +54,67 @@ export class WorkbenchSystem {
       };
     }
 
-    const requiredWood = state.anchor.requiredWood ?? 1;
-    const craftedItemId = state.anchor.craftedItemId ?? 'firestarter_set';
+    const recipe = this.getPrimaryRecipe(state.anchor);
 
-    if (!inventory.hasAtLeast('wood', requiredWood)) {
+    if (!canCraftRecipe(recipe, inventory)) {
       return {
         ok: false,
         interactionType: 'workbench',
         targetId: workbenchId,
-        message: state.anchor.missingResourceMessage ?? `You need ${requiredWood} wood.`,
+        message: state.anchor.missingResourceMessage ?? this.getMissingResourceMessage(recipe),
       };
     }
 
-    inventory.consumeDelta({ wood: requiredWood });
-    inventory.addItem(craftedItemId, 1);
+    applyRecipeToInventory(recipe, inventory);
+    const craftedItemId = recipe.outputs.find((output) => output.kind === 'item')?.id;
 
     return {
       ok: true,
       interactionType: 'workbench',
       targetId: workbenchId,
-      message: state.anchor.successMessage ?? 'You put together a firestarter set. Press Space to place it.',
-      inventoryDelta: { wood: -requiredWood },
-      itemDelta: { [craftedItemId]: 1 },
+      message: state.anchor.successMessage ?? `You craft ${recipe.displayName}.`,
+      inventoryDelta: this.getInventoryDelta(recipe),
+      itemDelta: this.getItemDelta(recipe),
       placementItemId: craftedItemId,
     };
+  }
+
+  private getPrimaryRecipe(anchor: MapWorkbenchAnchor): RecipeDefinition {
+    const stationType = anchor.stationType ?? 'workbench';
+    const [recipe] = this.recipeRegistry.listByStation(stationType);
+
+    if (!recipe) {
+      throw new Error(`WorkbenchSystem: no recipes registered for station "${stationType}"`);
+    }
+
+    return recipe;
+  }
+
+  private getMissingResourceMessage(recipe: RecipeDefinition): string {
+    const firstInput = recipe.inputs[0];
+
+    if (!firstInput) {
+      return 'You are missing materials.';
+    }
+
+    return `You need ${firstInput.amount} ${firstInput.id}.`;
+  }
+
+  private getInventoryDelta(recipe: RecipeDefinition): Record<string, number> {
+    return recipe.inputs.reduce<Record<string, number>>((delta, input) => {
+      if (input.kind === 'resource') {
+        delta[input.id] = -input.amount;
+      }
+      return delta;
+    }, {});
+  }
+
+  private getItemDelta(recipe: RecipeDefinition): Record<string, number> {
+    return recipe.outputs.reduce<Record<string, number>>((delta, output) => {
+      if (output.kind === 'item') {
+        delta[output.id] = output.amount;
+      }
+      return delta;
+    }, {});
   }
 }

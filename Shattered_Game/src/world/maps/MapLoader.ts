@@ -4,6 +4,7 @@ import { PROTOTYPE_SCALE } from '../../config/prototypeScale';
 import { generateOrganicIsland } from '../IslandGenerator';
 import { IsoTilemap } from '../IsoTilemap';
 import { getMapDefinition } from './MapDefinitions';
+import { MapZoneIndex } from './MapZoneIndex';
 import type { MapDefinition, MapSpawnPoint, MapTransition } from './MapTypes';
 import type { LoadedMapRuntime } from './MapRuntime';
 
@@ -30,6 +31,8 @@ export class MapLoader {
       worldBounds,
       activeSpawnId,
       transitions: definition.transitions,
+      zones: definition.zones ?? [],
+      zoneIndex: new MapZoneIndex(definition.zones ?? []),
       interactionAnchors: definition.interactionAnchors ?? [],
     };
 
@@ -79,6 +82,8 @@ export class MapLoader {
       worldBounds,
       activeSpawnId,
       transitions: proceduralDefinition.transitions,
+      zones: proceduralDefinition.zones ?? [],
+      zoneIndex: new MapZoneIndex(proceduralDefinition.zones ?? []),
       interactionAnchors: proceduralDefinition.interactionAnchors ?? [],
     };
 

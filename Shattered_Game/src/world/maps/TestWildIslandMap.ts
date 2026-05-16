@@ -11,6 +11,7 @@ import type {
   MapInteractionAnchor,
   MapPlacedObject,
   MapTransition,
+  MapZone,
 } from './MapTypes';
 import { createSpawnPoints, paintRect } from './MapBuilderUtils';
 
@@ -201,6 +202,33 @@ export function createWildIslandMap(): MapDefinition {
     },
   ];
 
+  const zones: MapZone[] = [
+    {
+      id: 'wild_camp_zone',
+      tileX: 84,
+      tileY: 84,
+      width: 26,
+      height: 26,
+      tags: ['wilderness_camp'],
+    },
+    {
+      id: 'wild_dock_transition_zone',
+      tileX: 36,
+      tileY: 133,
+      width: 3,
+      height: 3,
+      tags: ['transition'],
+    },
+    {
+      id: 'wild_home_transition_zone',
+      tileX: 89,
+      tileY: 89,
+      width: 3,
+      height: 3,
+      tags: ['transition'],
+    },
+  ];
+
   const interactionAnchors: MapInteractionAnchor[] = [
     {
       id: 'wild_driftwood_gather_01',
@@ -240,6 +268,7 @@ export function createWildIslandMap(): MapDefinition {
     spawnPoints,
     objects,
     transitions,
+    zones,
     interactionAnchors,
     metadata: {
       handcrafted: true,

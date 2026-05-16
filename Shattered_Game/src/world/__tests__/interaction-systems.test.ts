@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { RECIPE_DEFINITIONS } from '../../crafting/RecipeDefinitions';
+import { RecipeRegistry } from '../../crafting/RecipeRegistry';
 import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
@@ -261,7 +263,13 @@ describe('ResourceNodeSystem', () => {
     const system = new ResourceNodeSystem(sessionState);
     const getInstance = vi.fn(() => undefined);
     const removeObject = vi.fn(() => true);
-    const placeObject = vi.fn(() => null);
+    const placeObject = vi.fn(() => ({
+      id: 'wild_herb_node_01',
+      definitionId: 'herb_patch_node',
+      tileX: 3,
+      tileY: 3,
+      createdAt: Date.now(),
+    }));
     const node: MapResourceNodeAnchor = {
       id: 'herb_01',
       interactionType: 'resource_node',
@@ -285,11 +293,13 @@ describe('ResourceNodeSystem', () => {
 });
 
 describe('WorkbenchSystem', () => {
+  const recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
+
   it('consumes wood and crafts a firestarter set item', () => {
     const inventory = new PlayerInventoryState();
     inventory.add('wood', 1);
 
-    const system = new WorkbenchSystem();
+    const system = new WorkbenchSystem(recipeRegistry);
     const workbench: MapWorkbenchAnchor = {
       id: 'home_bench',
       interactionType: 'workbench',
@@ -310,7 +320,7 @@ describe('WorkbenchSystem', () => {
 
   it('fails cleanly when the player is missing wood', () => {
     const inventory = new PlayerInventoryState();
-    const system = new WorkbenchSystem();
+    const system = new WorkbenchSystem(recipeRegistry);
     const workbench: MapWorkbenchAnchor = {
       id: 'home_bench',
       interactionType: 'workbench',
@@ -330,12 +340,13 @@ describe('WorkbenchSystem', () => {
 
 describe('PlacedStructureSystem', () => {
   const itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+  const recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
 
   it('placement consumes one firestarter_set item', () => {
     const inventory = new PlayerInventoryState();
     inventory.addItem('firestarter_set', 1);
 
-    const system = new PlacedStructureSystem(new WorldSessionState());
+    const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi.fn(() => ({
       id: 'test_home_island:placed_firestarter_set:1',
@@ -367,7 +378,7 @@ describe('PlacedStructureSystem', () => {
     const inventory = new PlayerInventoryState();
     inventory.addItem('firestarter_set', 1);
 
-    const system = new PlacedStructureSystem(new WorldSessionState());
+    const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi.fn(() => null);
     const removeObject = vi.fn(() => true);
@@ -393,7 +404,7 @@ describe('PlacedStructureSystem', () => {
     inventory.addItem('firestarter_set', 1);
     inventory.add('stone', 1);
 
-    const system = new PlacedStructureSystem(new WorldSessionState());
+    const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi
       .fn()
@@ -440,7 +451,7 @@ describe('PlacedStructureSystem', () => {
     const inventory = new PlayerInventoryState();
     inventory.addItem('firestarter_set', 1);
 
-    const system = new PlacedStructureSystem(new WorldSessionState());
+    const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi.fn(() => ({
       id: 'test_home_island:placed_firestarter_set:1',
@@ -476,7 +487,7 @@ describe('PlacedStructureSystem', () => {
   it('interacting with campfire without herb returns neutral feedback', () => {
     const inventory = new PlayerInventoryState();
     const sessionState = new WorldSessionState();
-    const system = new PlacedStructureSystem(sessionState);
+    const system = new PlacedStructureSystem(sessionState, recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi.fn(() => ({
       id: 'test_home_island:placed_firestarter_set:1',
@@ -515,7 +526,7 @@ describe('PlacedStructureSystem', () => {
     const inventory = new PlayerInventoryState();
     inventory.add('herb', 1);
     const sessionState = new WorldSessionState();
-    const system = new PlacedStructureSystem(sessionState);
+    const system = new PlacedStructureSystem(sessionState, recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi.fn(() => ({
       id: 'test_home_island:placed_firestarter_set:1',
@@ -557,7 +568,7 @@ describe('PlacedStructureSystem', () => {
     inventory.addItem('firestarter_set', 1);
     inventory.add('stone', 1);
 
-    const system = new PlacedStructureSystem(new WorldSessionState());
+    const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi
       .fn()
@@ -604,7 +615,7 @@ describe('PlacedStructureSystem', () => {
   it('expired campfire cannot be interacted with', () => {
     const inventory = new PlayerInventoryState();
     const sessionState = new WorldSessionState();
-    const system = new PlacedStructureSystem(sessionState);
+    const system = new PlacedStructureSystem(sessionState, recipeRegistry);
     const getInstance = vi.fn(() => undefined);
     const placeObject = vi.fn(() => null);
     const removeObject = vi.fn(() => true);

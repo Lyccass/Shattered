@@ -56,6 +56,7 @@ export class GameScene extends Phaser.Scene {
       this.interactionPromptSystem.update(
         this.worldRuntimeCoordinator.getActiveInteraction(),
         this.worldRuntimeCoordinator.getPlayerInventoryState().getSnapshot(),
+        this.worldRuntimeCoordinator.getPlayerActiveEffects(),
         this.worldRuntimeCoordinator.getPlacementState(),
       );
     }
@@ -114,6 +115,10 @@ export class GameScene extends Phaser.Scene {
       if (message) {
         this.interactionPromptSystem?.showFeedback(message);
       }
+    });
+
+    keyboard.on('keydown-T', () => {
+      this.tryUseWarmTea();
     });
   }
 
@@ -254,6 +259,16 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastInteractionAt = now;
+    this.interactionPromptSystem.showFeedback(result.message);
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+  }
+
+  private tryUseWarmTea(): void {
+    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+      return;
+    }
+
+    const result = this.worldRuntimeCoordinator.useItem('warm_tea');
     this.interactionPromptSystem.showFeedback(result.message);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }

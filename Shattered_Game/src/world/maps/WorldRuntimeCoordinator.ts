@@ -1,13 +1,16 @@
 import Phaser from 'phaser';
+import { CameraSystem } from '../../camera/CameraSystem';
+import { RECIPE_DEFINITIONS } from '../../crafting/RecipeDefinitions';
+import { RecipeRegistry } from '../../crafting/RecipeRegistry';
 import { OBJECT_DEFINITIONS } from '../../objects/ObjectDefinitions';
 import { ObjectDebugRenderer } from '../../objects/ObjectDebugRenderer';
 import { ObjectOcclusionSystem } from '../../objects/ObjectOcclusionSystem';
 import { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import { ObjectRegistry } from '../../objects/ObjectRegistry';
 import { ObjectRenderer } from '../../objects/ObjectRenderer';
-import { CameraSystem } from '../../camera/CameraSystem';
 import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
+import { ItemUseSystem } from '../../items/ItemUseSystem';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
 import {
   createFootprintInteractionTiles,
@@ -22,18 +25,21 @@ import {
   type ResourceNodeInteractionTarget,
   type WorkbenchInteractionTarget,
 } from '../../interactions/InteractionTypes';
-import { PlacementModeSystem, type PlacementPreviewState } from '../../interactions/PlacementModeSystem';
+import {
+  PlacementModeSystem,
+  type PlacementPreviewState,
+} from '../../interactions/PlacementModeSystem';
 import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem';
 import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import { PlayerController } from '../../player/PlayerController';
-import { PlayerInventoryState, type PlayerItemKey } from '../../player/PlayerInventoryState';
+import { PlayerSessionState } from '../../player/PlayerSessionState';
+import type { PlayerItemKey, PlayerInventoryState } from '../../player/PlayerInventoryState';
 import { MapLoader } from './MapLoader';
 import type { LoadedMapRuntime } from './MapRuntime';
 import { getMapDisplayName } from './MapDefinitions';
-import { MapTransitionSystem } from './MapTransitionSystem';
+import { getTransitionTiles, MapTransitionSystem } from './MapTransitionSystem';
 import { MapTransitionVisualSystem } from './MapTransitionVisualSystem';
-import { getTransitionTiles } from './MapTransitionSystem';
 import { WorldSessionState } from '../session/WorldSessionState';
 import type {
   MapGenericDebugAnchor,
@@ -51,14 +57,22 @@ export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
   private readonly objectRegistry: ObjectRegistry;
   private readonly itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+  private readonly recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
   private readonly worldSessionState = new WorldSessionState();
+  private readonly playerSessionState = new PlayerSessionState();
   private readonly mapTransitionSystem = new MapTransitionSystem();
   private readonly mapTransitionVisualSystem: MapTransitionVisualSystem;
-  private readonly playerInventoryState = new PlayerInventoryState();
   private readonly resourceNodeSystem = new ResourceNodeSystem(this.worldSessionState);
-  private readonly workbenchSystem = new WorkbenchSystem();
-  private readonly placedStructureSystem = new PlacedStructureSystem(this.worldSessionState);
+  private readonly workbenchSystem = new WorkbenchSystem(this.recipeRegistry);
+  private readonly placedStructureSystem = new PlacedStructureSystem(
+    this.worldSessionState,
+    this.recipeRegistry,
+  );
   private readonly placementModeSystem: PlacementModeSystem;
+  private readonly itemUseSystem = new ItemUseSystem(
+    this.itemRegistry,
+    this.playerSessionState.getEffectSystem(),
+  );
   private readonly interactionSystem = new InteractionSystem({
     onMapTransition: (target) => this.handleMapTransition(target),
     onResourceNode: (target) => this.handleResourceNode(target),
@@ -136,6 +150,7 @@ export class WorldRuntimeCoordinator {
     }
 
     const nowMs = this.scene.time.now;
+    this.playerSessionState.update(nowMs);
     const resourceStateChanged = this.resourceNodeSystem.updateRuntimeState(
       nowMs,
       this.objectPlacementSystem,
@@ -170,6 +185,14 @@ export class WorldRuntimeCoordinator {
     return result;
   }
 
+  useItem(itemId: PlayerItemKey): InteractionResult {
+    return this.itemUseSystem.useItem(
+      itemId,
+      this.playerSessionState.getInventoryState(),
+      this.scene.time.now,
+    );
+  }
+
   getCurrentRuntime(): LoadedMapRuntime {
     if (!this.currentRuntime) {
       throw new Error('WorldRuntimeCoordinator: no map runtime is active');
@@ -195,7 +218,11 @@ export class WorldRuntimeCoordinator {
   }
 
   getPlayerInventoryState(): PlayerInventoryState {
-    return this.playerInventoryState;
+    return this.playerSessionState.getInventoryState();
+  }
+
+  getPlayerActiveEffects() {
+    return this.playerSessionState.getActiveEffects(this.scene.time.now);
   }
 
   getPlacementState(): PlacementPreviewState | null {
@@ -211,7 +238,7 @@ export class WorldRuntimeCoordinator {
       return 'Placement is unavailable right now.';
     }
 
-    if (!this.playerInventoryState.hasItemAtLeast(itemId, 1)) {
+    if (!this.playerSessionState.getInventoryState().hasItemAtLeast(itemId, 1)) {
       return `You don't have a ${this.itemRegistry.get(itemId).displayName}.`;
     }
 
@@ -246,7 +273,7 @@ export class WorldRuntimeCoordinator {
       placementState.targetTileX,
       placementState.targetTileY,
       this.scene.time.now,
-      this.playerInventoryState,
+      this.playerSessionState.getInventoryState(),
       this.itemRegistry,
       this.objectPlacementSystem,
     );
@@ -308,7 +335,14 @@ export class WorldRuntimeCoordinator {
     );
     this.placedStructureSystem.setCurrentMap(runtime.definition.id, nowMs, this.objectPlacementSystem);
     if (this.objectPlacementSystem) {
-      this.placementModeSystem.bindRuntimeContext(runtime.isoTilemap.transform, this.objectPlacementSystem);
+      this.placementModeSystem.bindRuntimeContext(
+        runtime.isoTilemap.transform,
+        runtime.isoTilemap.worldGrid,
+        runtime.zoneIndex,
+        runtime.transitions,
+        this.objectPlacementSystem,
+        (definitionId) => this.placedStructureSystem.getActiveObjectCountForDefinition(definitionId),
+      );
     }
     this.placementModeSystem.cancelPlacement();
     this.rebuildInteractionTargets();
@@ -420,7 +454,7 @@ export class WorldRuntimeCoordinator {
   private handleResourceNode(target: ResourceNodeInteractionTarget): InteractionResult {
     return this.resourceNodeSystem.gatherNode(
       target.anchor.id,
-      this.playerInventoryState,
+      this.playerSessionState.getInventoryState(),
       this.scene.time.now,
       this.objectPlacementSystem,
     );
@@ -436,7 +470,10 @@ export class WorldRuntimeCoordinator {
   }
 
   private handleWorkbench(target: WorkbenchInteractionTarget): InteractionResult {
-    return this.workbenchSystem.useWorkbench(target.anchor.id, this.playerInventoryState);
+    return this.workbenchSystem.useWorkbench(
+      target.anchor.id,
+      this.playerSessionState.getInventoryState(),
+    );
   }
 
   private handlePlacedObject(target: PlacedObjectInteractionTarget): InteractionResult {
@@ -452,7 +489,7 @@ export class WorldRuntimeCoordinator {
     return this.placedStructureSystem.interactWithPlacedObject(
       target.placedObjectId,
       this.scene.time.now,
-      this.playerInventoryState,
+      this.playerSessionState.getInventoryState(),
       this.objectPlacementSystem,
     );
   }

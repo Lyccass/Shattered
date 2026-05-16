@@ -10,6 +10,7 @@ import type {
   MapInteractionAnchor,
   MapPlacedObject,
   MapTransition,
+  MapZone,
 } from './MapTypes';
 
 export function validateMapDefinition(
@@ -59,9 +60,40 @@ export function validateMapDefinition(
     validateTransition(mapDefinition, transition, occupiedTiles);
   });
 
+  (mapDefinition.zones ?? []).forEach((zone) => {
+    validateZone(mapDefinition, zone);
+  });
+
   (mapDefinition.interactionAnchors ?? []).forEach((interactionAnchor) => {
     validateInteractionAnchor(mapDefinition, interactionAnchor, objectIds);
   });
+}
+
+function validateZone(
+  mapDefinition: MapDefinition,
+  zone: MapZone,
+): void {
+  if (zone.tags.length === 0) {
+    throw new Error(
+      `Map "${mapDefinition.id}": zone "${zone.id}" has no tags. Suggested fix: add at least one zone tag or remove the zone.`,
+    );
+  }
+
+  const endTileX = zone.tileX + zone.width - 1;
+  const endTileY = zone.tileY + zone.height - 1;
+
+  if (
+    zone.tileX < 0 ||
+    zone.tileY < 0 ||
+    zone.width <= 0 ||
+    zone.height <= 0 ||
+    endTileX >= mapDefinition.width ||
+    endTileY >= mapDefinition.height
+  ) {
+    throw new Error(
+      `Map "${mapDefinition.id}": zone "${zone.id}" extends outside the map bounds. Suggested fix: keep the full zone rectangle inside the map.`,
+    );
+  }
 }
 
 export function validateMapDefinitions(

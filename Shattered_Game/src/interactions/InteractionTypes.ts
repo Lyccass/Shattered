@@ -18,6 +18,7 @@ export type InteractionType =
   | 'npc'
   | 'workbench'
   | 'placed_object'
+  | 'item_use'
   | 'generic_debug';
 
 export type InteractionTile = {
