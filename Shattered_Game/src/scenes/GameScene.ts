@@ -2,36 +2,19 @@ import Phaser from 'phaser';
 import { CameraSystem } from '../camera/CameraSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
-import { OBJECT_DEFINITIONS } from '../objects/ObjectDefinitions';
-import { ObjectDebugRenderer } from '../objects/ObjectDebugRenderer';
-import { ObjectOcclusionSystem } from '../objects/ObjectOcclusionSystem';
-import { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
-import { ObjectRegistry } from '../objects/ObjectRegistry';
-import { ObjectRenderer } from '../objects/ObjectRenderer';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
-import { IsoTilemap } from '../world/IsoTilemap';
-import { MapLoader } from '../world/maps/MapLoader';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
-import { MapTransitionSystem } from '../world/maps/MapTransitionSystem';
-import { MapTransitionVisualSystem } from '../world/maps/MapTransitionVisualSystem';
+import { WorldRuntimeCoordinator } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
 
 export class GameScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Sprite;
   private playerController?: PlayerController;
-  private isoTilemap?: IsoTilemap;
   private cameraSystem?: CameraSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
-  private objectRegistry?: ObjectRegistry;
-  private objectRenderer?: ObjectRenderer;
-  private objectPlacementSystem?: ObjectPlacementSystem;
-  private objectDebugRenderer?: ObjectDebugRenderer;
-  private objectOcclusionSystem?: ObjectOcclusionSystem;
-  private mapLoader?: MapLoader;
-  private mapTransitionSystem?: MapTransitionSystem;
-  private mapTransitionVisualSystem?: MapTransitionVisualSystem;
+  private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private lastMapTransitionAt = 0;
 
   constructor() {
@@ -50,11 +33,8 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     createTerrainRenderTextures(this);
 
-    this.mapLoader = new MapLoader(this);
-    this.objectRegistry = new ObjectRegistry(OBJECT_DEFINITIONS);
-    this.mapTransitionSystem = new MapTransitionSystem();
-    this.mapTransitionVisualSystem = new MapTransitionVisualSystem(this);
-    this.loadMapIntoScene('test_wild_island', 'dock');
+    this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this);
+    this.initializeWorldRuntime('test_wild_island', 'dock');
     this.registerDebugKeys();
 
     // Future system hooks:
@@ -68,7 +48,7 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.playerController?.update(delta);
     this.updateActiveTransitionState();
-    this.objectOcclusionSystem?.update(delta);
+    this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     this.debugOverlaySystem?.update();
   }
 
@@ -84,16 +64,16 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-G', () => {
-      this.isoTilemap?.cycleGridMode();
+      this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode();
     });
 
     // Object debug controls.
     keyboard.on('keydown-O', () => {
-      this.objectDebugRenderer?.toggle();
+      this.worldRuntimeCoordinator?.getObjectDebugRenderer()?.toggle();
     });
 
     keyboard.on('keydown-L', () => {
-      this.objectPlacementSystem?.debugLogPlacementInfo();
+      this.worldRuntimeCoordinator?.getObjectPlacementSystem()?.debugLogPlacementInfo();
     });
 
     keyboard.on('keydown-E', () => {
@@ -101,38 +81,19 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private loadMapIntoScene(mapId: string, spawnId: string): void {
-    if (!this.mapLoader || !this.objectRegistry || !this.mapTransitionSystem) {
+  private initializeWorldRuntime(mapId: string, spawnId: string): void {
+    if (!this.worldRuntimeCoordinator) {
       return;
     }
 
-    const objectDebugVisible = this.objectDebugRenderer?.isVisible() ?? false;
-    this.objectPlacementSystem?.clear();
-
-    const loadedMap = this.mapLoader.loadMap(mapId, spawnId);
-    this.isoTilemap = loadedMap.isoTilemap;
-    this.mapTransitionSystem.setTransitions(loadedMap.transitions);
-    this.mapTransitionVisualSystem?.setMapContext(this.isoTilemap.transform, loadedMap.transitions);
-
-    this.objectRenderer = new ObjectRenderer(this, this.isoTilemap.transform);
-    this.objectDebugRenderer = new ObjectDebugRenderer(this, this.isoTilemap.transform);
-    this.objectDebugRenderer.setVisible(objectDebugVisible);
-    this.objectPlacementSystem = new ObjectPlacementSystem(
-      this.isoTilemap.worldGrid,
-      this.objectRegistry,
-      this.objectRenderer,
-      this.objectDebugRenderer,
-    );
-    this.mapLoader.placeCurrentMapObjects(this.objectPlacementSystem);
-
-    this.bindPlayerToMap(loadedMap);
-    this.bindCameraToMap(loadedMap);
-    this.bindDebugOverlayToMap();
+    const loadedMap = this.worldRuntimeCoordinator.loadMap(mapId, spawnId);
+    this.bindPlayerAndCamera(loadedMap);
+    this.bindDebugOverlayToRuntime();
     this.updateActiveTransitionState();
   }
 
-  private bindPlayerToMap(loadedMap: LoadedMapRuntime): void {
-    const spawnPoint = this.mapLoader?.getCurrentSpawnWorldPoint();
+  private bindPlayerAndCamera(loadedMap: LoadedMapRuntime): void {
+    const spawnPoint = this.worldRuntimeCoordinator?.getCurrentSpawnWorldPoint();
 
     if (!spawnPoint) {
       return;
@@ -145,19 +106,8 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.playerController) {
       this.playerController = new PlayerController(this, this.player, loadedMap.isoTilemap);
-    } else {
-      this.playerController.setTilemap(loadedMap.isoTilemap);
-      this.playerController.setWorldPosition(spawnPoint.x, spawnPoint.y);
     }
 
-    if (!this.objectRenderer) {
-      return;
-    }
-
-    this.objectOcclusionSystem = new ObjectOcclusionSystem(this.objectRenderer, this.player);
-  }
-
-  private bindCameraToMap(loadedMap: LoadedMapRuntime): void {
     if (!this.player) {
       return;
     }
@@ -173,13 +123,23 @@ export class GameScene extends Phaser.Scene {
       this.cameraSystem.setBounds(loadedMap.worldBounds);
     }
 
-    this.cameras.main.centerOn(this.player.x, this.player.y);
+    this.worldRuntimeCoordinator?.bindSceneSystems({
+      player: this.player,
+      playerController: this.playerController,
+      cameraSystem: this.cameraSystem,
+    });
   }
 
-  private bindDebugOverlayToMap(): void {
-    if (!this.playerController || !this.isoTilemap || !this.cameraSystem) {
+  private bindDebugOverlayToRuntime(): void {
+    if (!this.playerController || !this.cameraSystem || !this.worldRuntimeCoordinator) {
       return;
     }
+
+    const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    const mapLoader = this.worldRuntimeCoordinator.getMapLoader();
+    const mapTransitionSystem = this.worldRuntimeCoordinator.getMapTransitionSystem();
+    const objectPlacementSystem = this.worldRuntimeCoordinator.getObjectPlacementSystem();
+    const objectDebugRenderer = this.worldRuntimeCoordinator.getObjectDebugRenderer();
 
     if (!this.debugOverlaySystem) {
       this.debugOverlaySystem = new DebugOverlaySystem({
@@ -187,36 +147,35 @@ export class GameScene extends Phaser.Scene {
         worldCamera: this.cameras.main,
         cameraSystem: this.cameraSystem,
         playerController: this.playerController,
-        isoTilemap: this.isoTilemap,
-        mapLoader: this.mapLoader,
-        mapTransitionSystem: this.mapTransitionSystem,
-        objectPlacementSystem: this.objectPlacementSystem,
-        objectDebugRenderer: this.objectDebugRenderer,
+        isoTilemap,
+        mapLoader,
+        mapTransitionSystem,
+        objectPlacementSystem,
+        objectDebugRenderer,
       });
       return;
     }
 
     this.debugOverlaySystem.setWorldContext({
-      isoTilemap: this.isoTilemap,
-      mapLoader: this.mapLoader,
-      mapTransitionSystem: this.mapTransitionSystem,
-      objectPlacementSystem: this.objectPlacementSystem,
-      objectDebugRenderer: this.objectDebugRenderer,
+      isoTilemap,
+      mapLoader,
+      mapTransitionSystem,
+      objectPlacementSystem,
+      objectDebugRenderer,
     });
   }
 
   private updateActiveTransitionState(): void {
-    if (!this.playerController || !this.mapTransitionSystem) {
+    if (!this.playerController || !this.worldRuntimeCoordinator) {
       return;
     }
 
     const feetTile = this.playerController.getFeetTile();
-    const activeTransition = this.mapTransitionSystem.updateActiveTransition(feetTile.x, feetTile.y);
-    this.mapTransitionVisualSystem?.setActiveTransition(activeTransition?.id ?? null);
+    this.worldRuntimeCoordinator.updateActiveTransition(feetTile.x, feetTile.y);
   }
 
   private tryTriggerActiveTransition(): void {
-    if (!this.mapTransitionSystem) {
+    if (!this.worldRuntimeCoordinator) {
       return;
     }
 
@@ -226,13 +185,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const transition = this.mapTransitionSystem.getActiveTransition();
-
-    if (!transition) {
+    if (!this.worldRuntimeCoordinator.triggerActiveTransition()) {
       return;
     }
 
     this.lastMapTransitionAt = now;
-    this.loadMapIntoScene(transition.targetMapId, transition.targetSpawnId);
+    this.bindDebugOverlayToRuntime();
+    this.updateActiveTransitionState();
   }
 }

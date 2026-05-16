@@ -49,3 +49,11 @@ export type MapDefinition = {
   transitions: MapTransition[];
   metadata?: Record<string, unknown>;
 };
+
+export type MapDefinitionFactory = () => MapDefinition;
+
+export type MapRegistration = {
+  id: string;
+  displayName: string;
+  factory: MapDefinitionFactory;
+};

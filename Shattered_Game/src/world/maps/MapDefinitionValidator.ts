@@ -1,86 +1,133 @@
+import {
+  evaluateStaticObjectPlacement,
+  formatMapObjectPlacementError,
+} from '../../objects/ObjectPlacementPolicy';
 import { ObjectRegistry } from '../../objects/ObjectRegistry';
 import type { ObjectDefinition } from '../../objects/ObjectTypes';
 import { getTransitionFootprintTiles } from './MapTransitionSystem';
-import type { MapDefinition } from './MapTypes';
+import type { MapDefinition, MapPlacedObject, MapTransition } from './MapTypes';
+
+export function validateMapDefinition(
+  mapDefinition: MapDefinition,
+  objectDefinitions: readonly ObjectDefinition[],
+): void {
+  const registry = new ObjectRegistry(objectDefinitions);
+  const occupiedTiles = new Map<string, string>();
+
+  mapDefinition.objects.forEach((placedObject) => {
+    const objectDefinition = getMapObjectDefinition(registry, mapDefinition.id, placedObject);
+    const evaluation = evaluateStaticObjectPlacement(
+      {
+        isTileInBounds: (tileX, tileY) =>
+          tileX >= 0 &&
+          tileY >= 0 &&
+          tileX < mapDefinition.width &&
+          tileY < mapDefinition.height,
+        isTerrainBlocked: (tileX, tileY) => mapDefinition.terrain[tileY][tileX] === 'water',
+        getOccupyingObjectId: (tileX, tileY) => occupiedTiles.get(tileKey(tileX, tileY)) ?? null,
+      },
+      objectDefinition,
+      placedObject.tileX,
+      placedObject.tileY,
+    );
+
+    if (!evaluation.ok) {
+      throw new Error(
+        formatMapObjectPlacementError({
+          mapId: mapDefinition.id,
+          objectId: placedObject.id,
+          definitionId: placedObject.definitionId,
+          tileX: placedObject.tileX,
+          tileY: placedObject.tileY,
+          failure: evaluation.failure,
+        }),
+      );
+    }
+
+    evaluation.footprintTiles.forEach((tile) => {
+      occupiedTiles.set(tileKey(tile.x, tile.y), placedObject.id);
+    });
+  });
+
+  mapDefinition.transitions.forEach((transition) => {
+    validateTransition(mapDefinition, transition, occupiedTiles);
+  });
+}
 
 export function validateMapDefinitions(
   mapDefinitions: readonly MapDefinition[],
   objectDefinitions: readonly ObjectDefinition[],
 ): void {
-  const registry = new ObjectRegistry(objectDefinitions);
-
   mapDefinitions.forEach((mapDefinition) => {
-    const occupiedTiles = new Map<string, string>();
-
-    mapDefinition.objects.forEach((placedObject) => {
-      const objectDefinition = registry.get(placedObject.definitionId);
-
-      objectDefinition.collisionFootprint.forEach((offset) => {
-        const tileX = placedObject.tileX + offset.x;
-        const tileY = placedObject.tileY + offset.y;
-        const key = tileKey(tileX, tileY);
-        const existingObjectId = occupiedTiles.get(key);
-
-        if (
-          tileX < 0 ||
-          tileY < 0 ||
-          tileX >= mapDefinition.width ||
-          tileY >= mapDefinition.height
-        ) {
-          throw new Error(
-            `MapDefinitions: object "${placedObject.id}" in map "${mapDefinition.id}" is out of bounds at (${tileX}, ${tileY})`,
-          );
-        }
-
-        if (mapDefinition.terrain[tileY][tileX] === 'water') {
-          throw new Error(
-            `MapDefinitions: object "${placedObject.id}" in map "${mapDefinition.id}" blocks water at (${tileX}, ${tileY})`,
-          );
-        }
-
-        if (existingObjectId) {
-          throw new Error(
-            `MapDefinitions: object "${placedObject.id}" in map "${mapDefinition.id}" overlaps object "${existingObjectId}" at (${tileX}, ${tileY})`,
-          );
-        }
-
-        occupiedTiles.set(key, placedObject.id);
-      });
-    });
-
-    mapDefinition.transitions.forEach((transition) => {
-      getTransitionFootprintTiles(transition).forEach((tile) => {
-        const blockingObjectId = occupiedTiles.get(tileKey(tile.x, tile.y));
-
-        if (blockingObjectId) {
-          throw new Error(
-            `MapDefinitions: transition "${transition.id}" in map "${mapDefinition.id}" overlaps object "${blockingObjectId}" at (${tile.x}, ${tile.y})`,
-          );
-        }
-      });
-
-      if (transition.visualAnchor) {
-        const visualAnchorKey = tileKey(transition.visualAnchor.tileX, transition.visualAnchor.tileY);
-        const anchorObjectId = occupiedTiles.get(visualAnchorKey);
-
-        if (anchorObjectId) {
-          throw new Error(
-            `MapDefinitions: transition "${transition.id}" in map "${mapDefinition.id}" uses visual anchor on object "${anchorObjectId}" at (${transition.visualAnchor.tileX}, ${transition.visualAnchor.tileY})`,
-          );
-        }
-
-        const anchorIsTriggerTile = getTransitionFootprintTiles(transition).some(
-          (tile) => tile.x === transition.visualAnchor?.tileX && tile.y === transition.visualAnchor?.tileY,
-        );
-
-        if (!anchorIsTriggerTile) {
-          throw new Error(
-            `MapDefinitions: transition "${transition.id}" in map "${mapDefinition.id}" has visual anchor (${transition.visualAnchor.tileX}, ${transition.visualAnchor.tileY}) outside its trigger footprint`,
-          );
-        }
-      }
-    });
+    validateMapDefinition(mapDefinition, objectDefinitions);
   });
+}
+
+function getMapObjectDefinition(
+  registry: ObjectRegistry,
+  mapId: string,
+  placedObject: MapPlacedObject,
+): ObjectDefinition {
+  try {
+    return registry.get(placedObject.definitionId);
+  } catch {
+    throw new Error(
+      `Map "${mapId}": object "${placedObject.id}" references unknown definition "${placedObject.definitionId}". Suggested fix: use a valid id from ObjectDefinitions.ts.`,
+    );
+  }
+}
+
+function validateTransition(
+  mapDefinition: MapDefinition,
+  transition: MapTransition,
+  occupiedTiles: Map<string, string>,
+): void {
+  const footprintTiles = getTransitionFootprintTiles(transition);
+
+  footprintTiles.forEach((tile) => {
+    if (
+      tile.x < 0 ||
+      tile.y < 0 ||
+      tile.x >= mapDefinition.width ||
+      tile.y >= mapDefinition.height
+    ) {
+      throw new Error(
+        `Map "${mapDefinition.id}": transition "${transition.id}" uses trigger tile ${tile.x},${tile.y} outside the map bounds. Suggested fix: move the transition footprint fully inside the map.`,
+      );
+    }
+
+    const blockingObjectId = occupiedTiles.get(tileKey(tile.x, tile.y));
+
+    if (blockingObjectId) {
+      throw new Error(
+        `Map "${mapDefinition.id}": transition "${transition.id}" overlaps object "${blockingObjectId}" at tile ${tile.x},${tile.y}. Suggested fix: move the transition trigger onto clear walkable tiles.`,
+      );
+    }
+  });
+
+  if (!transition.visualAnchor) {
+    return;
+  }
+
+  const visualAnchorKey = tileKey(transition.visualAnchor.tileX, transition.visualAnchor.tileY);
+  const anchorObjectId = occupiedTiles.get(visualAnchorKey);
+
+  if (anchorObjectId) {
+    throw new Error(
+      `Map "${mapDefinition.id}": transition "${transition.id}" uses visual anchor tile ${transition.visualAnchor.tileX},${transition.visualAnchor.tileY} on object "${anchorObjectId}". Suggested fix: move the anchor onto a clear trigger tile.`,
+    );
+  }
+
+  const anchorIsTriggerTile = footprintTiles.some(
+    (tile) =>
+      tile.x === transition.visualAnchor?.tileX && tile.y === transition.visualAnchor?.tileY,
+  );
+
+  if (!anchorIsTriggerTile) {
+    throw new Error(
+      `Map "${mapDefinition.id}": transition "${transition.id}" has visual anchor ${transition.visualAnchor.tileX},${transition.visualAnchor.tileY} outside its trigger footprint. Suggested fix: keep the visible anchor on one of the actual trigger tiles.`,
+    );
+  }
 }
 
 function tileKey(tileX: number, tileY: number): string {

@@ -1,22 +1,37 @@
 import { OBJECT_DEFINITIONS } from '../../objects/ObjectDefinitions';
 import type { MapDefinition } from './MapTypes';
-import { validateMapDefinitions } from './MapDefinitionValidator';
+import { validateMapDefinition } from './MapDefinitionValidator';
+import { MapRegistry } from './MapRegistry';
 import { TEST_MAPS } from './TestMaps';
 
-export const MAP_DEFINITIONS: MapDefinition[] = TEST_MAPS;
+const MAP_REGISTRY = new MapRegistry();
 
-validateMapDefinitions(MAP_DEFINITIONS, OBJECT_DEFINITIONS);
+TEST_MAPS.forEach((registration) => {
+  MAP_REGISTRY.registerMapFactory(registration);
+});
 
-const MAP_DEFINITIONS_BY_ID = new Map(
-  MAP_DEFINITIONS.map((definition) => [definition.id, definition] as const),
-);
+export function hasMapDefinition(mapId: string): boolean {
+  return MAP_REGISTRY.hasMap(mapId);
+}
+
+export function listMapIds(): string[] {
+  return MAP_REGISTRY.listMapIds();
+}
+
+export function getMapDisplayName(mapId: string): string {
+  return MAP_REGISTRY.getDisplayName(mapId);
+}
 
 export function getMapDefinition(mapId: string): MapDefinition {
-  const definition = MAP_DEFINITIONS_BY_ID.get(mapId);
+  return MAP_REGISTRY.getMapDefinition(mapId);
+}
 
-  if (!definition) {
-    throw new Error(`MapDefinitions: unknown map "${mapId}"`);
-  }
-
+export function validateRegisteredMap(mapId: string): MapDefinition {
+  const definition = getMapDefinition(mapId);
+  validateMapDefinition(definition, OBJECT_DEFINITIONS);
   return definition;
+}
+
+export function validateAllRegisteredMaps(): MapDefinition[] {
+  return listMapIds().map((mapId) => validateRegisteredMap(mapId));
 }

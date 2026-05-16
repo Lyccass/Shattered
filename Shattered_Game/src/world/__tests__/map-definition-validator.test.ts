@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ObjectDefinition } from '../../objects/ObjectTypes';
-import { validateMapDefinitions } from '../maps/MapDefinitionValidator';
+import { validateMapDefinition } from '../maps/MapDefinitionValidator';
 import type { MapDefinition } from '../maps/MapTypes';
 import type { TileType } from '../IsoTilemapTypes';
 
@@ -46,7 +46,7 @@ function makeMapDefinition(overrides: Partial<MapDefinition> = {}): MapDefinitio
   };
 }
 
-describe('validateMapDefinitions', () => {
+describe('validateMapDefinition', () => {
   it('allows transitions when their trigger tiles do not overlap objects', () => {
     const mapDefinition = makeMapDefinition({
       objects: [{ id: 'crate_01', definitionId: 'crate', tileX: 1, tileY: 1 }],
@@ -58,7 +58,7 @@ describe('validateMapDefinitions', () => {
       }],
     });
 
-    expect(() => validateMapDefinitions([mapDefinition], TEST_OBJECT_DEFINITIONS)).not.toThrow();
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).not.toThrow();
   });
 
   it('throws when a transition trigger overlaps an object footprint tile', () => {
@@ -72,7 +72,7 @@ describe('validateMapDefinitions', () => {
       }],
     });
 
-    expect(() => validateMapDefinitions([mapDefinition], TEST_OBJECT_DEFINITIONS)).toThrow(
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).toThrow(
       /overlaps object "crate_01"/,
     );
   });
@@ -90,8 +90,8 @@ describe('validateMapDefinitions', () => {
       }],
     });
 
-    expect(() => validateMapDefinitions([mapDefinition], TEST_OBJECT_DEFINITIONS)).toThrow(
-      /uses visual anchor on object "crate_01"/,
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).toThrow(
+      /uses visual anchor tile 2,2 on object "crate_01"/,
     );
   });
 
@@ -107,7 +107,7 @@ describe('validateMapDefinitions', () => {
       }],
     });
 
-    expect(() => validateMapDefinitions([mapDefinition], TEST_OBJECT_DEFINITIONS)).toThrow(
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).toThrow(
       /outside its trigger footprint/,
     );
   });
@@ -123,8 +123,8 @@ describe('validateMapDefinitions', () => {
       objects: [{ id: 'crate_01', definitionId: 'crate', tileX: 2, tileY: 2 }],
     });
 
-    expect(() => validateMapDefinitions([mapDefinition], TEST_OBJECT_DEFINITIONS)).toThrow(
-      /blocks water at \(2, 2\)/,
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).toThrow(
+      /Map "test_map": object "crate_01" using definition "crate" cannot be placed at tile 2,2 because footprint tile 2,2 is water/,
     );
   });
 
@@ -136,8 +136,18 @@ describe('validateMapDefinitions', () => {
       ],
     });
 
-    expect(() => validateMapDefinitions([mapDefinition], TEST_OBJECT_DEFINITIONS)).toThrow(
-      /overlaps object "crate_01"/,
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).toThrow(
+      /footprint tile 1,1 is already occupied by object "crate_01"/,
+    );
+  });
+
+  it('throws a clear error when an object references an unknown definition', () => {
+    const mapDefinition = makeMapDefinition({
+      objects: [{ id: 'mystery_01', definitionId: 'missing_definition', tileX: 1, tileY: 1 }],
+    });
+
+    expect(() => validateMapDefinition(mapDefinition, TEST_OBJECT_DEFINITIONS)).toThrow(
+      /object "mystery_01" references unknown definition "missing_definition"/,
     );
   });
 });

@@ -89,28 +89,16 @@ export class MapLoader {
 
   placeCurrentMapObjects(objectPlacementSystem: ObjectPlacementSystem): {
     placed: number;
-    failed: number;
   } {
     const runtime = this.getCurrentRuntime();
     let placed = 0;
-    let failed = 0;
 
     runtime.definition.objects.forEach((mapObject) => {
-      const instance = objectPlacementSystem.placeObject(
-        mapObject.definitionId,
-        mapObject.tileX,
-        mapObject.tileY,
-        mapObject.id,
-      );
-
-      if (instance) {
-        placed += 1;
-      } else {
-        failed += 1;
-      }
+      objectPlacementSystem.placeAuthoredObject(runtime.definition.id, mapObject);
+      placed += 1;
     });
 
-    return { placed, failed };
+    return { placed };
   }
 
   getCurrentRuntime(): LoadedMapRuntime {

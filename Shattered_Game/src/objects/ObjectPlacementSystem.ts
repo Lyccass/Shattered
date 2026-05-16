@@ -1,8 +1,15 @@
 import { WorldGrid } from '../world/WorldGrid';
 import { ObjectDebugRenderer } from './ObjectDebugRenderer';
+import {
+  evaluateStaticObjectPlacement,
+  formatMapObjectPlacementError,
+  getObjectFootprintTiles,
+  type ObjectPlacementEvaluation,
+} from './ObjectPlacementPolicy';
 import { ObjectRegistry } from './ObjectRegistry';
 import { ObjectRenderer } from './ObjectRenderer';
-import type { GridFootprint, ObjectDefinition, ObjectInstance } from './ObjectTypes';
+import type { ObjectDefinition, ObjectInstance } from './ObjectTypes';
+import type { MapPlacedObject } from '../world/maps/MapTypes';
 
 // ObjectPlacementSystem coordinates the lifecycle of static world objects:
 //   - validates target tiles against WorldGrid
@@ -33,7 +40,7 @@ export class ObjectPlacementSystem {
   ): ObjectInstance | null {
     const definition = this.registry.get(definitionId);
 
-    if (!this.canPlaceWithDefinition(definition, tileX, tileY)) {
+    if (!this.getPlacementEvaluation(definitionId, tileX, tileY).ok) {
       return null;
     }
 
@@ -66,6 +73,42 @@ export class ObjectPlacementSystem {
     return instance;
   }
 
+  placeAuthoredObject(mapId: string, mapObject: MapPlacedObject): ObjectInstance {
+    const evaluation = this.getPlacementEvaluation(
+      mapObject.definitionId,
+      mapObject.tileX,
+      mapObject.tileY,
+    );
+
+    if (!evaluation.ok) {
+      throw new Error(
+        formatMapObjectPlacementError({
+          mapId,
+          objectId: mapObject.id,
+          definitionId: mapObject.definitionId,
+          tileX: mapObject.tileX,
+          tileY: mapObject.tileY,
+          failure: evaluation.failure,
+        }),
+      );
+    }
+
+    const instance = this.placeObject(
+      mapObject.definitionId,
+      mapObject.tileX,
+      mapObject.tileY,
+      mapObject.id,
+    );
+
+    if (!instance) {
+      throw new Error(
+        `Map "${mapId}": object "${mapObject.id}" using definition "${mapObject.definitionId}" passed placement validation but failed to place at tile ${mapObject.tileX},${mapObject.tileY}. Suggested fix: inspect ObjectPlacementSystem for a rule mismatch.`,
+      );
+    }
+
+    return instance;
+  }
+
   removeObject(instanceId: string): boolean {
     const instance = this.instances.get(instanceId);
     if (!instance) return false;
@@ -89,7 +132,26 @@ export class ObjectPlacementSystem {
   }
 
   canPlaceObject(definitionId: string, tileX: number, tileY: number): boolean {
-    return this.canPlaceWithDefinition(this.registry.get(definitionId), tileX, tileY);
+    return this.getPlacementEvaluation(definitionId, tileX, tileY).ok;
+  }
+
+  getPlacementEvaluation(
+    definitionId: string,
+    tileX: number,
+    tileY: number,
+  ): ObjectPlacementEvaluation {
+    const definition = this.registry.get(definitionId);
+
+    return evaluateStaticObjectPlacement(
+      {
+        isTileInBounds: (targetX, targetY) => this.worldGrid.isTileInBounds(targetX, targetY),
+        isTerrainBlocked: (targetX, targetY) => this.worldGrid.isTerrainBlocked(targetX, targetY),
+        getOccupyingObjectId: (targetX, targetY) => this.getFirstOccupyingObjectId(targetX, targetY),
+      },
+      definition,
+      tileX,
+      tileY,
+    );
   }
 
   getInstance(instanceId: string): ObjectInstance | undefined {
@@ -126,34 +188,17 @@ export class ObjectPlacementSystem {
 
     for (const instance of this.instances.values()) {
       const def = this.registry.get(instance.definitionId);
-      const footprintTiles = footprintFor(def)
-        .map((o) => `(${instance.tileX + o.x},${instance.tileY + o.y})`)
+      const footprintTiles = getObjectFootprintTiles(def, instance.tileX, instance.tileY)
+        .map((tile) => `(${tile.x},${tile.y})`)
         .join(' ');
       const status = def.blocksMovement ? 'blocking' : 'non-blocking';
       console.log(`  ${instance.id}  ${status}  footprint=${footprintTiles}`);
     }
   }
 
-  private canPlaceWithDefinition(
-    definition: ObjectDefinition,
-    tileX: number,
-    tileY: number,
-  ): boolean {
-    const footprint = footprintFor(definition);
-    for (const offset of footprint) {
-      const tx = tileX + offset.x;
-      const ty = tileY + offset.y;
-
-      if (!this.worldGrid.isTileInBounds(tx, ty)) return false;
-      if (this.worldGrid.isTerrainBlocked(tx, ty)) return false;
-      if (definition.blocksMovement && this.worldGrid.isObjectBlocked(tx, ty)) return false;
-    }
-    return true;
-  }
-
   private indexFootprint(instance: ObjectInstance, definition: ObjectDefinition): void {
-    for (const offset of footprintFor(definition)) {
-      const key = tileKey(instance.tileX + offset.x, instance.tileY + offset.y);
+    for (const tile of getObjectFootprintTiles(definition, instance.tileX, instance.tileY)) {
+      const key = tileKey(tile.x, tile.y);
       const set = this.tileToInstances.get(key) ?? new Set<string>();
       set.add(instance.id);
       this.tileToInstances.set(key, set);
@@ -161,20 +206,24 @@ export class ObjectPlacementSystem {
   }
 
   private unindexFootprint(instance: ObjectInstance, definition: ObjectDefinition): void {
-    for (const offset of footprintFor(definition)) {
-      const key = tileKey(instance.tileX + offset.x, instance.tileY + offset.y);
+    for (const tile of getObjectFootprintTiles(definition, instance.tileX, instance.tileY)) {
+      const key = tileKey(tile.x, tile.y);
       const set = this.tileToInstances.get(key);
       if (!set) continue;
       set.delete(instance.id);
       if (set.size === 0) this.tileToInstances.delete(key);
     }
   }
-}
 
-function footprintFor(definition: ObjectDefinition): GridFootprint {
-  return definition.collisionFootprint.length > 0
-    ? definition.collisionFootprint
-    : [{ x: 0, y: 0 }];
+  private getFirstOccupyingObjectId(tileX: number, tileY: number): string | null {
+    const instanceIds = this.tileToInstances.get(tileKey(tileX, tileY));
+
+    if (!instanceIds || instanceIds.size === 0) {
+      return null;
+    }
+
+    return instanceIds.values().next().value ?? null;
+  }
 }
 
 function tileKey(tileX: number, tileY: number): string {

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { RENDER_DEPTHS } from '../../render/RenderLayers';
 import { IsoTransform } from '../IsoTransform';
-import { getMapDefinition } from './MapDefinitions';
+import { getMapDisplayName } from './MapDefinitions';
 import type { MapTransition } from './MapTypes';
 
 type AnchorEntry = {
@@ -29,7 +29,7 @@ export class MapTransitionVisualSystem {
       const entry = this.createAnchorEntry(
         worldPoint.x,
         worldPoint.y - 18,
-        transition.visualAnchor?.label ?? getMapDefinition(transition.targetMapId).displayName,
+        transition.visualAnchor?.label ?? getMapDisplayName(transition.targetMapId),
       );
 
       this.anchors.set(transition.id, entry);
