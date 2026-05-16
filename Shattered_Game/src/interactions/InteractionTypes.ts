@@ -1,5 +1,9 @@
 import type { GridFootprint } from '../objects/ObjectTypes';
-import type { PlayerInventoryDelta } from '../player/PlayerInventoryState';
+import type {
+  PlayerInventoryDelta,
+  PlayerItemDelta,
+  PlayerItemKey,
+} from '../player/PlayerInventoryState';
 import type {
   MapGenericDebugAnchor,
   MapNpcAnchor,
@@ -13,6 +17,7 @@ export type InteractionType =
   | 'resource_node'
   | 'npc'
   | 'workbench'
+  | 'placed_object'
   | 'generic_debug';
 
 export type InteractionTile = {
@@ -58,11 +63,18 @@ export type GenericDebugInteractionTarget = BaseInteractionTarget & {
   anchor: MapGenericDebugAnchor;
 };
 
+export type PlacedObjectInteractionTarget = BaseInteractionTarget & {
+  definition: InteractionDefinition & { interactionType: 'placed_object' };
+  placedObjectId: string;
+  placedObjectKind: 'placed_firestarter_set' | 'campfire';
+};
+
 export type InteractionTarget =
   | MapTransitionInteractionTarget
   | ResourceNodeInteractionTarget
   | NpcInteractionTarget
   | WorkbenchInteractionTarget
+  | PlacedObjectInteractionTarget
   | GenericDebugInteractionTarget;
 
 export type ActiveInteraction = {
@@ -81,6 +93,8 @@ export type InteractionResult = {
     targetSpawnId: string;
   };
   inventoryDelta?: PlayerInventoryDelta;
+  itemDelta?: PlayerItemDelta;
+  placementItemId?: PlayerItemKey;
   depleted?: boolean;
   createdObjectId?: string;
 };
@@ -90,6 +104,7 @@ export type InteractionHandlers = {
   onResourceNode: (target: ResourceNodeInteractionTarget) => InteractionResult;
   onNpc: (target: NpcInteractionTarget) => InteractionResult;
   onWorkbench: (target: WorkbenchInteractionTarget) => InteractionResult;
+  onPlacedObject: (target: PlacedObjectInteractionTarget) => InteractionResult;
   onGenericDebug: (target: GenericDebugInteractionTarget) => InteractionResult;
 };
 

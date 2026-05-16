@@ -1,4 +1,5 @@
 import type { GridFootprint } from '../../objects/ObjectTypes';
+import type { PlayerItemKey } from '../../player/PlayerInventoryState';
 import type { TileType } from '../IsoTilemapTypes';
 
 export type MapSpawnPoint = {
@@ -49,12 +50,9 @@ export type MapNpcAnchor = BaseMapInteractionAnchor & {
 export type MapWorkbenchAnchor = BaseMapInteractionAnchor & {
   interactionType: 'workbench';
   requiredWood?: number;
-  buildObjectDefinitionId: string;
-  buildTileX: number;
-  buildTileY: number;
+  craftedItemId?: PlayerItemKey;
   successMessage?: string;
   missingResourceMessage?: string;
-  alreadyBuiltMessage?: string;
 };
 
 export type MapGenericDebugAnchor = BaseMapInteractionAnchor & {

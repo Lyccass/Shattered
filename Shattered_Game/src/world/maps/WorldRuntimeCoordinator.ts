@@ -6,6 +6,8 @@ import { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import { ObjectRegistry } from '../../objects/ObjectRegistry';
 import { ObjectRenderer } from '../../objects/ObjectRenderer';
 import { CameraSystem } from '../../camera/CameraSystem';
+import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
+import { ItemRegistry } from '../../items/ItemRegistry';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
 import {
   createFootprintInteractionTiles,
@@ -16,19 +18,23 @@ import {
   type InteractionTarget,
   type MapTransitionInteractionTarget,
   type NpcInteractionTarget,
+  type PlacedObjectInteractionTarget,
   type ResourceNodeInteractionTarget,
   type WorkbenchInteractionTarget,
 } from '../../interactions/InteractionTypes';
+import { PlacementModeSystem, type PlacementPreviewState } from '../../interactions/PlacementModeSystem';
+import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem';
 import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import { PlayerController } from '../../player/PlayerController';
-import { PlayerInventoryState } from '../../player/PlayerInventoryState';
+import { PlayerInventoryState, type PlayerItemKey } from '../../player/PlayerInventoryState';
 import { MapLoader } from './MapLoader';
 import type { LoadedMapRuntime } from './MapRuntime';
 import { getMapDisplayName } from './MapDefinitions';
 import { MapTransitionSystem } from './MapTransitionSystem';
 import { MapTransitionVisualSystem } from './MapTransitionVisualSystem';
 import { getTransitionTiles } from './MapTransitionSystem';
+import { WorldSessionState } from '../session/WorldSessionState';
 import type {
   MapGenericDebugAnchor,
   MapNpcAnchor,
@@ -44,16 +50,21 @@ type WorldRuntimeBindings = {
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
   private readonly objectRegistry: ObjectRegistry;
+  private readonly itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+  private readonly worldSessionState = new WorldSessionState();
   private readonly mapTransitionSystem = new MapTransitionSystem();
   private readonly mapTransitionVisualSystem: MapTransitionVisualSystem;
   private readonly playerInventoryState = new PlayerInventoryState();
-  private readonly resourceNodeSystem = new ResourceNodeSystem();
+  private readonly resourceNodeSystem = new ResourceNodeSystem(this.worldSessionState);
   private readonly workbenchSystem = new WorkbenchSystem();
+  private readonly placedStructureSystem = new PlacedStructureSystem(this.worldSessionState);
+  private readonly placementModeSystem: PlacementModeSystem;
   private readonly interactionSystem = new InteractionSystem({
     onMapTransition: (target) => this.handleMapTransition(target),
     onResourceNode: (target) => this.handleResourceNode(target),
     onNpc: (target) => this.handleNpc(target),
     onWorkbench: (target) => this.handleWorkbench(target),
+    onPlacedObject: (target) => this.handlePlacedObject(target),
     onGenericDebug: (target) => this.handleGenericDebug(target),
   });
 
@@ -68,6 +79,7 @@ export class WorldRuntimeCoordinator {
     this.mapLoader = new MapLoader(scene);
     this.objectRegistry = new ObjectRegistry(OBJECT_DEFINITIONS);
     this.mapTransitionVisualSystem = new MapTransitionVisualSystem(scene);
+    this.placementModeSystem = new PlacementModeSystem(scene, this.itemRegistry);
   }
 
   loadMap(mapId: string, spawnId: string): LoadedMapRuntime {
@@ -118,6 +130,30 @@ export class WorldRuntimeCoordinator {
     return activeInteraction;
   }
 
+  updatePlayerRuntimeState(): void {
+    if (!this.bindings) {
+      return;
+    }
+
+    const nowMs = this.scene.time.now;
+    const resourceStateChanged = this.resourceNodeSystem.updateRuntimeState(
+      nowMs,
+      this.objectPlacementSystem,
+    );
+    const placedStateChanged = this.placedStructureSystem.updateRuntimeState(
+      nowMs,
+      this.objectPlacementSystem,
+    );
+
+    if (resourceStateChanged || placedStateChanged) {
+      this.rebuildInteractionTargets();
+    }
+
+    const feetTile = this.bindings.playerController.getFeetTile();
+    this.updateActiveInteraction(feetTile.x, feetTile.y);
+    this.placementModeSystem.updatePreview(this.bindings.playerController);
+  }
+
   triggerActiveInteraction(): InteractionResult | null {
     const result = this.interactionSystem.triggerActiveInteraction();
 
@@ -162,6 +198,76 @@ export class WorldRuntimeCoordinator {
     return this.playerInventoryState;
   }
 
+  getPlacementState(): PlacementPreviewState | null {
+    return this.placementModeSystem.getState();
+  }
+
+  isPlacementModeActive(): boolean {
+    return this.placementModeSystem.isActive();
+  }
+
+  startPlacementMode(itemId: PlayerItemKey = 'firestarter_set'): string {
+    if (!this.bindings || !this.currentRuntime) {
+      return 'Placement is unavailable right now.';
+    }
+
+    if (!this.playerInventoryState.hasItemAtLeast(itemId, 1)) {
+      return `You don't have a ${this.itemRegistry.get(itemId).displayName}.`;
+    }
+
+    const placementState = this.placementModeSystem.startPlacement(itemId);
+
+    if (!placementState) {
+      return `${this.itemRegistry.get(itemId).displayName} cannot be placed.`;
+    }
+
+    this.placementModeSystem.updatePreview(this.bindings.playerController);
+    return `Placing ${placementState.itemDisplayName}.`;
+  }
+
+  confirmPlacementMode(): InteractionResult | null {
+    const placementState = this.placementModeSystem.getState();
+
+    if (!placementState || !this.objectPlacementSystem) {
+      return null;
+    }
+
+    if (!placementState.valid) {
+      return {
+        ok: false,
+        interactionType: 'placed_object',
+        targetId: placementState.itemId,
+        message: placementState.invalidReason ?? `Can't place ${placementState.itemDisplayName} there.`,
+      };
+    }
+
+    const result = this.placedStructureSystem.placeItem(
+      placementState.itemId,
+      placementState.targetTileX,
+      placementState.targetTileY,
+      this.scene.time.now,
+      this.playerInventoryState,
+      this.itemRegistry,
+      this.objectPlacementSystem,
+    );
+
+    if (result.ok) {
+      this.placementModeSystem.cancelPlacement();
+      this.rebuildInteractionTargets();
+    }
+
+    return result;
+  }
+
+  cancelPlacementMode(): string | null {
+    if (!this.placementModeSystem.isActive()) {
+      return null;
+    }
+
+    this.placementModeSystem.cancelPlacement();
+    return 'Placement cancelled.';
+  }
+
   getIsoTilemap() {
     return this.getCurrentRuntime().isoTilemap;
   }
@@ -188,16 +294,23 @@ export class WorldRuntimeCoordinator {
 
   private configureInteractionRuntime(runtime: LoadedMapRuntime): void {
     const anchors = runtime.interactionAnchors;
+    const nowMs = this.scene.time.now;
     this.resourceNodeSystem.setMapNodes(
       runtime.definition.id,
       anchors.filter((anchor) => anchor.interactionType === 'resource_node'),
+      runtime.definition.objects,
+      nowMs,
       this.objectPlacementSystem,
     );
     this.workbenchSystem.setMapWorkbenches(
       runtime.definition.id,
       anchors.filter((anchor) => anchor.interactionType === 'workbench'),
-      this.objectPlacementSystem,
     );
+    this.placedStructureSystem.setCurrentMap(runtime.definition.id, nowMs, this.objectPlacementSystem);
+    if (this.objectPlacementSystem) {
+      this.placementModeSystem.bindRuntimeContext(runtime.isoTilemap.transform, this.objectPlacementSystem);
+    }
+    this.placementModeSystem.cancelPlacement();
     this.rebuildInteractionTargets();
     this.mapTransitionVisualSystem.setActiveTransition(null);
   }
@@ -213,6 +326,7 @@ export class WorldRuntimeCoordinator {
       ...this.createTransitionInteractionTargets(this.currentRuntime.transitions),
       ...this.resourceNodeSystem.createInteractionTargets(),
       ...this.workbenchSystem.createInteractionTargets(),
+      ...this.placedStructureSystem.createInteractionTargets(),
       ...this.createNpcInteractionTargets(
         interactionAnchors.filter((anchor) => anchor.interactionType === 'npc'),
       ),
@@ -307,6 +421,7 @@ export class WorldRuntimeCoordinator {
     return this.resourceNodeSystem.gatherNode(
       target.anchor.id,
       this.playerInventoryState,
+      this.scene.time.now,
       this.objectPlacementSystem,
     );
   }
@@ -321,8 +436,22 @@ export class WorldRuntimeCoordinator {
   }
 
   private handleWorkbench(target: WorkbenchInteractionTarget): InteractionResult {
-    return this.workbenchSystem.useWorkbench(
-      target.anchor.id,
+    return this.workbenchSystem.useWorkbench(target.anchor.id, this.playerInventoryState);
+  }
+
+  private handlePlacedObject(target: PlacedObjectInteractionTarget): InteractionResult {
+    if (!this.objectPlacementSystem) {
+      return {
+        ok: false,
+        interactionType: 'placed_object',
+        targetId: target.placedObjectId,
+        message: 'Nothing happens.',
+      };
+    }
+
+    return this.placedStructureSystem.interactWithPlacedObject(
+      target.placedObjectId,
+      this.scene.time.now,
       this.playerInventoryState,
       this.objectPlacementSystem,
     );

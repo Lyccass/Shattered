@@ -35,6 +35,9 @@ export function createHarborMap(): MapDefinition {
     { id: 'harbor_tree_02', definitionId: 'tree_dark', tileX: 8, tileY: 18 },
     { id: 'harbor_flowers_01', definitionId: 'flower_patch', tileX: 26, tileY: 16 },
     { id: 'harbor_notice_board_01', definitionId: 'notice_board', tileX: 18, tileY: 14 },
+    { id: 'harbor_driftwood_node_01', definitionId: 'driftwood_node', tileX: 10, tileY: 15 },
+    { id: 'harbor_stone_node_01', definitionId: 'stone_pile_node', tileX: 23, tileY: 13 },
+    { id: 'harbor_herb_node_01', definitionId: 'herb_patch_node', tileX: 25, tileY: 17 },
   ];
 
   const transitions: MapTransition[] = [
@@ -75,7 +78,34 @@ export function createHarborMap(): MapDefinition {
       interactionRangeTiles: 1,
       linkedObjectId: 'harbor_notice_board_01',
       promptLabel: 'Talk',
-      text: 'The wild coast has driftwood. Bring some home and try your workbench.',
+      text: 'The wild coast has driftwood and loose stone. Bring both home. Your workbench can turn that into a proper firestarter.',
+    },
+    {
+      id: 'harbor_driftwood_gather_01',
+      interactionType: 'resource_node',
+      tileX: 10,
+      tileY: 15,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'harbor_driftwood_node_01',
+      resourceNodeType: 'driftwood',
+    },
+    {
+      id: 'harbor_stone_gather_01',
+      interactionType: 'resource_node',
+      tileX: 23,
+      tileY: 13,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'harbor_stone_node_01',
+      resourceNodeType: 'stone_pile',
+    },
+    {
+      id: 'harbor_herb_gather_01',
+      interactionType: 'resource_node',
+      tileX: 25,
+      tileY: 17,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'harbor_herb_node_01',
+      resourceNodeType: 'herb_patch',
     },
   ];
 

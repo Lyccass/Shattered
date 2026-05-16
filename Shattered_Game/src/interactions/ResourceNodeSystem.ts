@@ -1,13 +1,17 @@
 import type { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
 import type { PlayerInventoryDelta, PlayerInventoryState, PlayerResourceKey } from '../player/PlayerInventoryState';
-import type { MapResourceNodeAnchor, ResourceNodeType } from '../world/maps/MapTypes';
+import type { MapPlacedObject, MapResourceNodeAnchor, ResourceNodeType } from '../world/maps/MapTypes';
+import { WorldSessionState } from '../world/session/WorldSessionState';
 import type { InteractionResult, ResourceNodeInteractionTarget } from './InteractionTypes';
 import { createSingleTileInteractionTiles } from './InteractionTypes';
 
 type ResourceNodeState = {
   mapId: string;
   anchor: MapResourceNodeAnchor;
+  linkedObjectDefinitionId?: string;
 };
+
+type ResourceNodeObjectSystem = Pick<ObjectPlacementSystem, 'getInstance' | 'placeObject' | 'removeObject'>;
 
 const RESOURCE_NODE_PRIORITIES: Record<ResourceNodeType, number> = {
   driftwood: 90,
@@ -21,43 +25,44 @@ const RESOURCE_NODE_PROMPTS: Record<ResourceNodeType, string> = {
   herb_patch: 'Press E: Gather Herbs',
 };
 
+const RESOURCE_RESPAWN_MS: Record<ResourceNodeType, number> = {
+  driftwood: 45_000,
+  stone_pile: 60_000,
+  herb_patch: 50_000,
+};
+
 export class ResourceNodeSystem {
-  private readonly depletedNodeIdsByMap = new Map<string, Set<string>>();
   private currentNodes = new Map<string, ResourceNodeState>();
+
+  constructor(private readonly sessionState: WorldSessionState) {}
 
   setMapNodes(
     mapId: string,
     anchors: MapResourceNodeAnchor[],
-    objectPlacementSystem?: Pick<ObjectPlacementSystem, 'removeObject'>,
+    mapObjects: MapPlacedObject[],
+    nowMs: number,
+    objectPlacementSystem?: ResourceNodeObjectSystem,
   ): void {
+    const objectsById = new Map(mapObjects.map((mapObject) => [mapObject.id, mapObject]));
     this.currentNodes = new Map(
       anchors.map((anchor) => [
         anchor.id,
         {
           mapId,
           anchor,
+          linkedObjectDefinitionId: anchor.linkedObjectId
+            ? objectsById.get(anchor.linkedObjectId)?.definitionId
+            : undefined,
         },
       ]),
     );
 
-    const depletedIds = this.getDepletedNodeIds(mapId);
-
-    if (!objectPlacementSystem) {
-      return;
-    }
-
-    depletedIds.forEach((nodeId) => {
-      const node = this.currentNodes.get(nodeId);
-
-      if (node?.anchor.linkedObjectId) {
-        objectPlacementSystem.removeObject(node.anchor.linkedObjectId);
-      }
-    });
+    this.updateRuntimeState(nowMs, objectPlacementSystem);
   }
 
   createInteractionTargets(): ResourceNodeInteractionTarget[] {
     return Array.from(this.currentNodes.values())
-      .filter((node) => !this.isNodeDepleted(node.mapId, node.anchor.id))
+      .filter((node) => this.getRespawnAt(node.mapId, node.anchor.id) === null)
       .map((node) => ({
         definition: {
           id: node.anchor.id,
@@ -71,9 +76,57 @@ export class ResourceNodeSystem {
       }));
   }
 
+  updateRuntimeState(
+    nowMs: number,
+    objectPlacementSystem?: ResourceNodeObjectSystem,
+  ): boolean {
+    let didChange = false;
+
+    for (const node of this.currentNodes.values()) {
+      const respawnAt = this.getRespawnAt(node.mapId, node.anchor.id);
+
+      if (respawnAt !== null && nowMs >= respawnAt) {
+        this.clearRespawnAt(node.mapId, node.anchor.id);
+        didChange = true;
+      }
+
+      if (!objectPlacementSystem || !node.anchor.linkedObjectId) {
+        continue;
+      }
+
+      const instance = objectPlacementSystem.getInstance(node.anchor.linkedObjectId);
+      const isAvailable = this.getRespawnAt(node.mapId, node.anchor.id) === null;
+
+      if (!isAvailable) {
+        if (instance) {
+          objectPlacementSystem.removeObject(node.anchor.linkedObjectId);
+        }
+        continue;
+      }
+
+      if (!instance && node.linkedObjectDefinitionId) {
+        const restored = objectPlacementSystem.placeObject(
+          node.linkedObjectDefinitionId,
+          node.anchor.tileX,
+          node.anchor.tileY,
+          node.anchor.linkedObjectId,
+        );
+
+        if (!restored) {
+          throw new Error(
+            `ResourceNodeSystem: failed to restore node "${node.anchor.id}" on map "${node.mapId}" at tile ${node.anchor.tileX},${node.anchor.tileY}. Suggested fix: ensure the resource node tile stays clear for runtime respawn.`,
+          );
+        }
+      }
+    }
+
+    return didChange;
+  }
+
   gatherNode(
     nodeId: string,
     inventory: PlayerInventoryState,
+    nowMs: number,
     objectPlacementSystem?: Pick<ObjectPlacementSystem, 'removeObject'>,
   ): InteractionResult {
     const node = this.currentNodes.get(nodeId);
@@ -87,7 +140,9 @@ export class ResourceNodeSystem {
       };
     }
 
-    if (this.isNodeDepleted(node.mapId, nodeId)) {
+    const respawnAt = this.getRespawnAt(node.mapId, nodeId);
+
+    if (respawnAt !== null && nowMs < respawnAt) {
       return {
         ok: false,
         interactionType: 'resource_node',
@@ -99,7 +154,11 @@ export class ResourceNodeSystem {
     const resourceKey = getInventoryResourceKey(node.anchor.resourceNodeType);
     const inventoryDelta: PlayerInventoryDelta = { [resourceKey]: 1 };
     inventory.addDelta(inventoryDelta);
-    this.getDepletedNodeIds(node.mapId).add(nodeId);
+    this.setRespawnAt(
+      node.mapId,
+      nodeId,
+      nowMs + RESOURCE_RESPAWN_MS[node.anchor.resourceNodeType],
+    );
 
     if (objectPlacementSystem && node.anchor.linkedObjectId) {
       objectPlacementSystem.removeObject(node.anchor.linkedObjectId);
@@ -115,14 +174,16 @@ export class ResourceNodeSystem {
     };
   }
 
-  private isNodeDepleted(mapId: string, nodeId: string): boolean {
-    return this.getDepletedNodeIds(mapId).has(nodeId);
+  private getRespawnAt(mapId: string, nodeId: string): number | null {
+    return this.sessionState.getResourceRespawnMap(mapId).get(nodeId) ?? null;
   }
 
-  private getDepletedNodeIds(mapId: string): Set<string> {
-    const depletedIds = this.depletedNodeIdsByMap.get(mapId) ?? new Set<string>();
-    this.depletedNodeIdsByMap.set(mapId, depletedIds);
-    return depletedIds;
+  private setRespawnAt(mapId: string, nodeId: string, respawnAtMs: number): void {
+    this.sessionState.getResourceRespawnMap(mapId).set(nodeId, respawnAtMs);
+  }
+
+  private clearRespawnAt(mapId: string, nodeId: string): void {
+    this.sessionState.getResourceRespawnMap(mapId).delete(nodeId);
   }
 }
 

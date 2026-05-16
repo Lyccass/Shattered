@@ -125,7 +125,25 @@ export const INTERACTION_OBJECT_DEFINITIONS: ObjectDefinition[] = [
     debug: { color: 0x3b82f6, label: 'herbs' },
   },
   {
-    id: 'campfire_built',
+    id: 'placed_firestarter_set',
+    displayName: 'Placed Firestarter Set',
+    category: 'crafted',
+    collisionFootprint: FOOTPRINT_1x1,
+    blocksMovement: false,
+    visual: {
+      parts: [
+        { shape: 'ellipse', width: 22, height: 8, localOffsetX: 0, localOffsetY: 2, color: 0x6b3f19, alpha: 0.85 },
+        { shape: 'rect', width: 4, height: 14, localOffsetX: -6, localOffsetY: -4, color: 0x9a6a39 },
+        { shape: 'rect', width: 4, height: 14, localOffsetX: 6, localOffsetY: -4, color: 0x9a6a39 },
+        { shape: 'rect', width: 3, height: 10, localOffsetX: 0, localOffsetY: -2, color: 0xc08457 },
+      ],
+    },
+    shadow: noShadow(),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0x3b82f6, label: 'firestarter' },
+  },
+  {
+    id: 'campfire',
     displayName: 'Campfire',
     category: 'crafted',
     collisionFootprint: FOOTPRINT_1x1,

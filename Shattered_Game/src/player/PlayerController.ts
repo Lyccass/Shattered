@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PlayerCollisionSystem } from './PlayerCollisionSystem';
+import { resolveFacingFromIntent, type PlayerFacingDirection } from './PlayerFacing';
 import { PlayerMovementSystem } from './PlayerMovementSystem';
 import { PlayerPositionSystem } from './PlayerPositionSystem';
 import { PlayerVisualSystem } from './PlayerVisualSystem';
@@ -16,6 +17,7 @@ export class PlayerController {
   private readonly movement: PlayerMovementSystem;
   private readonly position: PlayerPositionSystem;
   private readonly visuals: PlayerVisualSystem;
+  private facingDirection: PlayerFacingDirection = 'down';
 
   constructor(scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite, tilemap: IsoTilemap) {
     this.sprite = sprite;
@@ -53,6 +55,10 @@ export class PlayerController {
     return this.collision.getPlayerFeetTile(feetPoint.x, feetPoint.y);
   }
 
+  getFacingDirection(): PlayerFacingDirection {
+    return this.facingDirection;
+  }
+
   isFeetTileBlocked(): boolean {
     const feetPoint = this.getFeetPoint();
 
@@ -74,5 +80,9 @@ export class PlayerController {
     if (this.keys.right.isDown) this.movementIntent.x += 1;
     if (this.keys.up.isDown) this.movementIntent.y -= 1;
     if (this.keys.down.isDown) this.movementIntent.y += 1;
+
+    if (this.movementIntent.lengthSq() > 0) {
+      this.facingDirection = resolveFacingFromIntent(this.movementIntent, this.facingDirection);
+    }
   }
 }

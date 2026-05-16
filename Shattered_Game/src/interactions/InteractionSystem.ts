@@ -6,6 +6,7 @@ import type {
   InteractionTarget,
   MapTransitionInteractionTarget,
   NpcInteractionTarget,
+  PlacedObjectInteractionTarget,
   ResourceNodeInteractionTarget,
   WorkbenchInteractionTarget,
 } from './InteractionTypes';
@@ -72,6 +73,8 @@ export class InteractionSystem {
         return this.handlers.onNpc(target as NpcInteractionTarget);
       case 'workbench':
         return this.handlers.onWorkbench(target as WorkbenchInteractionTarget);
+      case 'placed_object':
+        return this.handlers.onPlacedObject(target as PlacedObjectInteractionTarget);
       case 'generic_debug':
         return this.handlers.onGenericDebug(target as GenericDebugInteractionTarget);
     }

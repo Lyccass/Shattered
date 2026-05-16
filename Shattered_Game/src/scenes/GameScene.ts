@@ -50,12 +50,13 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.playerController?.update(delta);
-    this.updateActiveInteractionState();
+    this.worldRuntimeCoordinator?.updatePlayerRuntimeState();
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     if (this.interactionPromptSystem && this.worldRuntimeCoordinator) {
       this.interactionPromptSystem.update(
         this.worldRuntimeCoordinator.getActiveInteraction(),
-        this.worldRuntimeCoordinator.getPlayerInventoryState().getCounts(),
+        this.worldRuntimeCoordinator.getPlayerInventoryState().getSnapshot(),
+        this.worldRuntimeCoordinator.getPlacementState(),
       );
     }
     this.debugOverlaySystem?.update();
@@ -90,7 +91,29 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-E', () => {
+      if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
+        this.tryConfirmPlacementMode();
+        return;
+      }
+
       this.tryTriggerActiveInteraction();
+    });
+
+    keyboard.on('keydown-SPACE', () => {
+      if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
+        this.tryConfirmPlacementMode();
+        return;
+      }
+
+      this.tryStartPlacementMode();
+    });
+
+    keyboard.on('keydown-ESC', () => {
+      const message = this.worldRuntimeCoordinator?.cancelPlacementMode();
+
+      if (message) {
+        this.interactionPromptSystem?.showFeedback(message);
+      }
     });
   }
 
@@ -102,7 +125,7 @@ export class GameScene extends Phaser.Scene {
     const loadedMap = this.worldRuntimeCoordinator.loadMap(mapId, spawnId);
     this.bindPlayerAndCamera(loadedMap);
     this.bindDebugOverlayToRuntime();
-    this.updateActiveInteractionState();
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
   private bindPlayerAndCamera(loadedMap: LoadedMapRuntime): void {
@@ -178,15 +201,6 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private updateActiveInteractionState(): void {
-    if (!this.playerController || !this.worldRuntimeCoordinator) {
-      return;
-    }
-
-    const feetTile = this.playerController.getFeetTile();
-    this.worldRuntimeCoordinator.updateActiveInteraction(feetTile.x, feetTile.y);
-  }
-
   private tryTriggerActiveInteraction(): void {
     if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
       return;
@@ -210,7 +224,37 @@ export class GameScene extends Phaser.Scene {
     if (result.transitionRequest) {
       this.bindDebugOverlayToRuntime();
     }
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+  }
 
-    this.updateActiveInteractionState();
+  private tryStartPlacementMode(): void {
+    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+      return;
+    }
+
+    this.interactionPromptSystem.showFeedback(this.worldRuntimeCoordinator.startPlacementMode());
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+  }
+
+  private tryConfirmPlacementMode(): void {
+    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+      return;
+    }
+
+    const now = this.time.now;
+
+    if (now - this.lastInteractionAt < 250) {
+      return;
+    }
+
+    const result = this.worldRuntimeCoordinator.confirmPlacementMode();
+
+    if (!result) {
+      return;
+    }
+
+    this.lastInteractionAt = now;
+    this.interactionPromptSystem.showFeedback(result.message);
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 }

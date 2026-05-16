@@ -60,7 +60,7 @@ export function validateMapDefinition(
   });
 
   (mapDefinition.interactionAnchors ?? []).forEach((interactionAnchor) => {
-    validateInteractionAnchor(mapDefinition, interactionAnchor, occupiedTiles, objectIds);
+    validateInteractionAnchor(mapDefinition, interactionAnchor, objectIds);
   });
 }
 
@@ -143,7 +143,6 @@ function validateTransition(
 function validateInteractionAnchor(
   mapDefinition: MapDefinition,
   interactionAnchor: MapInteractionAnchor,
-  occupiedTiles: Map<string, string>,
   objectIds: Set<string>,
 ): void {
   if (
@@ -165,33 +164,6 @@ function validateInteractionAnchor(
 
   if (interactionAnchor.interactionType !== 'workbench') {
     return;
-  }
-
-  const { buildTileX, buildTileY } = interactionAnchor;
-
-  if (
-    buildTileX < 0 ||
-    buildTileY < 0 ||
-    buildTileX >= mapDefinition.width ||
-    buildTileY >= mapDefinition.height
-  ) {
-    throw new Error(
-      `Map "${mapDefinition.id}": workbench "${interactionAnchor.id}" uses build tile ${buildTileX},${buildTileY} outside the map bounds. Suggested fix: move the build target tile inside the map.`,
-    );
-  }
-
-  if (mapDefinition.terrain[buildTileY][buildTileX] === 'water') {
-    throw new Error(
-      `Map "${mapDefinition.id}": workbench "${interactionAnchor.id}" uses build tile ${buildTileX},${buildTileY} on water. Suggested fix: move the build target tile onto walkable land.`,
-    );
-  }
-
-  const occupyingObjectId = occupiedTiles.get(tileKey(buildTileX, buildTileY));
-
-  if (occupyingObjectId) {
-    throw new Error(
-      `Map "${mapDefinition.id}": workbench "${interactionAnchor.id}" uses build tile ${buildTileX},${buildTileY} already occupied by object "${occupyingObjectId}". Suggested fix: move the build target tile onto a clear tile.`,
-    );
   }
 }
 

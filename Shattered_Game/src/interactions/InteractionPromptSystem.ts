@@ -1,30 +1,64 @@
 import Phaser from 'phaser';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
 import type { ActiveInteraction } from './InteractionTypes';
-import type { PlayerInventoryCounts } from '../player/PlayerInventoryState';
+import type { PlayerInventorySnapshot } from '../player/PlayerInventoryState';
+import type { PlacementPreviewState } from './PlacementModeSystem';
 
 const FEEDBACK_DURATION_MS = 2400;
 
 export class InteractionPromptSystem {
+  private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
   private readonly promptText: Phaser.GameObjects.Text;
   private readonly feedbackText: Phaser.GameObjects.Text;
   private readonly inventoryText: Phaser.GameObjects.Text;
   private feedbackExpiresAt = 0;
 
   constructor(private readonly scene: Phaser.Scene) {
+    this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
     this.promptText = this.createText(0, 0, 20);
     this.feedbackText = this.createText(0, 0, 16);
     this.inventoryText = this.createText(0, 0, 16);
+    this.scene.cameras.main.ignore([this.promptText, this.feedbackText, this.inventoryText]);
+    this.ignoreWorldForUiCamera();
     this.registerResizeHandler();
     this.layout();
   }
 
-  update(activeInteraction: ActiveInteraction | null, inventory: PlayerInventoryCounts): void {
-    this.promptText.setText(activeInteraction?.promptText ?? '');
-    this.promptText.setVisible(!!activeInteraction);
+  update(
+    activeInteraction: ActiveInteraction | null,
+    inventory: PlayerInventorySnapshot,
+    placementState: PlacementPreviewState | null,
+  ): void {
+    const promptText = placementState?.promptText ?? activeInteraction?.promptText ?? '';
+
+    this.promptText.setText(promptText);
+    this.promptText.setVisible(!!promptText);
     this.inventoryText.setText(
-      `Wood ${inventory.wood}   Stone ${inventory.stone}   Herb ${inventory.herb}`,
+      (() => {
+        const parts = [
+        `Wood ${inventory.resources.wood}`,
+        `Stone ${inventory.resources.stone}`,
+        `Herb ${inventory.resources.herb}`,
+        `Firestarter ${inventory.items.firestarter_set}`,
+        `Tea ${inventory.items.warm_tea}`,
+        ];
+
+        if (!placementState?.active && inventory.items.firestarter_set > 0) {
+          parts.push('[Space: place]');
+        }
+
+        return parts.join('   ');
+      })(),
     );
+
+    if (placementState?.active && placementState.invalidReason) {
+      this.feedbackText.setText(placementState.invalidReason);
+      this.feedbackText.setVisible(true);
+      this.feedbackExpiresAt = 0;
+    } else if (this.feedbackExpiresAt === 0) {
+      this.feedbackText.setVisible(false);
+      this.feedbackText.setText('');
+    }
 
     if (this.feedbackExpiresAt > 0 && this.scene.time.now >= this.feedbackExpiresAt) {
       this.feedbackText.setVisible(false);
@@ -64,9 +98,27 @@ export class InteractionPromptSystem {
   }
 
   private registerResizeHandler(): void {
-    this.scene.scale.on('resize', () => {
+    this.scene.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+      this.uiCamera.setViewport(0, 0, gameSize.width, gameSize.height);
       this.layout();
     });
+  }
+
+  private ignoreWorldForUiCamera(): void {
+    const isUiObject = (child: Phaser.GameObjects.GameObject): boolean =>
+      child === this.promptText || child === this.feedbackText || child === this.inventoryText;
+
+    const existing = this.scene.children.getChildren().filter((child) => !isUiObject(child));
+    this.uiCamera.ignore(existing);
+
+    this.scene.events.on(
+      Phaser.Scenes.Events.ADDED_TO_SCENE,
+      (child: Phaser.GameObjects.GameObject) => {
+        if (!isUiObject(child)) {
+          this.uiCamera.ignore(child);
+        }
+      },
+    );
   }
 
   private layout(): void {
@@ -79,8 +131,8 @@ export class InteractionPromptSystem {
     this.feedbackText.setPosition(width / 2, height - 92);
     this.feedbackText.setOrigin(0.5, 1);
 
-    this.inventoryText.setPosition(width - 16, 16);
-    this.inventoryText.setOrigin(1, 0);
+    this.inventoryText.setPosition(width - 16, height - 16);
+    this.inventoryText.setOrigin(1, 1);
     this.inventoryText.setVisible(true);
   }
 }

@@ -65,12 +65,9 @@ export function createHomeIslandMap(): MapDefinition {
       interactionRangeTiles: 1,
       linkedObjectId: 'home_workbench_01',
       requiredWood: 1,
-      buildObjectDefinitionId: 'campfire_built',
-      buildTileX: 16,
-      buildTileY: 17,
-      successMessage: 'You set a small campfire beside the bench.',
-      missingResourceMessage: 'You need at least 1 wood for this build.',
-      alreadyBuiltMessage: 'The workbench build spot is already in use.',
+      craftedItemId: 'firestarter_set',
+      successMessage: 'You tie together a rough firestarter set. Press Space to place it.',
+      missingResourceMessage: 'You need at least 1 wood for that.',
     },
   ];
 
