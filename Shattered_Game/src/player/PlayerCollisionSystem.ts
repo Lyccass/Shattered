@@ -3,7 +3,11 @@ import { PLAYER_CONFIG } from './PlayerConfig';
 import { IsoTilemap } from '../world/IsoTilemap';
 
 export class PlayerCollisionSystem {
-  constructor(private readonly tilemap: IsoTilemap) {}
+  constructor(private tilemap: IsoTilemap) {}
+
+  setTilemap(tilemap: IsoTilemap): void {
+    this.tilemap = tilemap;
+  }
 
   getFeetSamplePoints(feetWorldX: number, feetWorldY: number): Phaser.Math.Vector2[] {
     const radiusX = PLAYER_CONFIG.groundFootprintRadiusX;

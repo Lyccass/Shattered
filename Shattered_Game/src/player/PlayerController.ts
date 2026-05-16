@@ -59,6 +59,14 @@ export class PlayerController {
     return !this.collision.canOccupyAtFeet(feetPoint.x, feetPoint.y);
   }
 
+  setTilemap(tilemap: IsoTilemap): void {
+    this.collision.setTilemap(tilemap);
+  }
+
+  setWorldPosition(worldX: number, worldY: number): void {
+    this.sprite.setPosition(worldX, worldY);
+  }
+
   private readMovementIntent(): void {
     this.movementIntent.set(0, 0);
 

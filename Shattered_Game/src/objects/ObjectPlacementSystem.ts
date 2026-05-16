@@ -25,15 +25,24 @@ export class ObjectPlacementSystem {
     private readonly debugRenderer: ObjectDebugRenderer,
   ) {}
 
-  placeObject(definitionId: string, tileX: number, tileY: number): ObjectInstance | null {
+  placeObject(
+    definitionId: string,
+    tileX: number,
+    tileY: number,
+    instanceId?: string,
+  ): ObjectInstance | null {
     const definition = this.registry.get(definitionId);
 
     if (!this.canPlaceWithDefinition(definition, tileX, tileY)) {
       return null;
     }
 
+    if (instanceId && this.instances.has(instanceId)) {
+      throw new Error(`ObjectPlacementSystem: duplicate instance id "${instanceId}"`);
+    }
+
     const instance: ObjectInstance = {
-      id: `${definition.id}#${this.nextSequence++}`,
+      id: instanceId ?? `${definition.id}#${this.nextSequence++}`,
       definitionId: definition.id,
       tileX,
       tileY,
@@ -89,6 +98,17 @@ export class ObjectPlacementSystem {
 
   getInstances(): ObjectInstance[] {
     return Array.from(this.instances.values());
+  }
+
+  getInstanceCount(): number {
+    return this.instances.size;
+  }
+
+  clear(): void {
+    Array.from(this.instances.keys()).forEach((instanceId) => {
+      this.removeObject(instanceId);
+    });
+    this.tileToInstances.clear();
   }
 
   getObjectAtTile(tileX: number, tileY: number): ObjectInstance | undefined {

@@ -4,6 +4,7 @@ import { RENDER_DEPTHS } from '../render/RenderLayers';
 import { generateOrganicIsland } from './IslandGenerator';
 import { IsoTransform } from './IsoTransform';
 import { IsoTilemapChunkRenderer } from './IsoTilemapChunkRenderer';
+import type { TileType } from './IsoTilemapTypes';
 import { sampleTerrainNeighbours } from './terrain/TerrainNeighbourSampler';
 import { TerrainResolver } from './terrain/TerrainResolver';
 import type { ResolvedTerrainTile } from './terrain/TerrainTypes';
@@ -15,6 +16,7 @@ const MAP_MARGIN = 160;
 type IsoTilemapConfig = {
   width?: number;
   height?: number;
+  terrain?: TileType[][];
 };
 
 type WorldPoint = {
@@ -41,13 +43,23 @@ export class IsoTilemap {
   private readonly scene: Phaser.Scene;
   private readonly terrainResolver = new TerrainResolver();
   private readonly resolvedTileCache = new Map<string, ResolvedTerrainTile>();
+  private waterBackdrop?: Phaser.GameObjects.Rectangle;
   private renderer?: IsoTilemapChunkRenderer;
   private gridMode: GridMode = 'off';
 
   constructor(scene: Phaser.Scene, config: IsoTilemapConfig = {}) {
     this.scene = scene;
-    this.width = config.width ?? PROTOTYPE_SCALE.mapWidth;
-    this.height = config.height ?? PROTOTYPE_SCALE.mapHeight;
+    const terrain = config.terrain;
+
+    if (terrain) {
+      validateTerrainLayer(terrain);
+      this.width = terrain[0].length;
+      this.height = terrain.length;
+    } else {
+      this.width = config.width ?? PROTOTYPE_SCALE.mapWidth;
+      this.height = config.height ?? PROTOTYPE_SCALE.mapHeight;
+    }
+
     this.originX = (this.height * this.tileWidth) / 2 + MAP_MARGIN;
     this.originY = MAP_MARGIN;
     this.transform = new IsoTransform({
@@ -59,7 +71,7 @@ export class IsoTilemap {
     this.worldGrid = new WorldGrid(
       this.width,
       this.height,
-      generateOrganicIsland(this.width, this.height),
+      terrain ?? generateOrganicIsland(this.width, this.height),
     );
   }
 
@@ -67,6 +79,14 @@ export class IsoTilemap {
     this.createWaterBackdrop();
     this.createChunkRenderer();
     return this.getWorldBounds();
+  }
+
+  destroy(): void {
+    this.renderer?.destroy();
+    this.renderer = undefined;
+    this.waterBackdrop?.destroy();
+    this.waterBackdrop = undefined;
+    this.resolvedTileCache.clear();
   }
 
   // --- Coordinate facade (delegates to IsoTransform) ---
@@ -176,7 +196,8 @@ export class IsoTilemap {
 
   private createWaterBackdrop(): void {
     const bounds = this.getWorldBounds();
-    const backdrop = this.scene.add.rectangle(
+    this.waterBackdrop?.destroy();
+    this.waterBackdrop = this.scene.add.rectangle(
       bounds.centerX,
       bounds.centerY,
       bounds.width,
@@ -184,7 +205,7 @@ export class IsoTilemap {
       0x07111f,
       1,
     );
-    backdrop.setDepth(RENDER_DEPTHS.GROUND - 10);
+    this.waterBackdrop.setDepth(RENDER_DEPTHS.GROUND - 10);
   }
 
   private createChunkRenderer(): void {
@@ -210,4 +231,20 @@ export class IsoTilemap {
     const maxY = bounds.bottom + MAP_MARGIN;
     return new Phaser.Geom.Rectangle(minX, minY, maxX - minX, maxY - minY);
   }
+}
+
+function validateTerrainLayer(terrain: TileType[][]): void {
+  if (terrain.length === 0 || terrain[0].length === 0) {
+    throw new Error('IsoTilemap: terrain layer must not be empty');
+  }
+
+  const expectedWidth = terrain[0].length;
+
+  terrain.forEach((row, rowIndex) => {
+    if (row.length !== expectedWidth) {
+      throw new Error(
+        `IsoTilemap: terrain row ${rowIndex} has width ${row.length}, expected ${expectedWidth}`,
+      );
+    }
+  });
 }

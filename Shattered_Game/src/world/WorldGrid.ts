@@ -15,7 +15,7 @@ export class WorldGrid {
   constructor(width: number, height: number, tiles: TileType[][]) {
     this.width = width;
     this.height = height;
-    this.tiles = tiles;
+    this.tiles = tiles.map((row) => [...row]);
     this.terrainBlockedCount = this.countTerrainBlocked();
   }
 

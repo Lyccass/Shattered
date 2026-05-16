@@ -1,0 +1,77 @@
+import type { MapDefinition, MapPlacedObject, MapTransition } from './MapTypes';
+import { createSpawnPoints, fillTerrain, paintRect } from './MapBuilderUtils';
+
+export function createHarborMap(): MapDefinition {
+  const width = 38;
+  const height = 28;
+  const terrain = fillTerrain(width, height, 'water');
+
+  paintRect(terrain, 5, 5, 27, 16, 'sand');
+  paintRect(terrain, 8, 7, 22, 11, 'dirt');
+  paintRect(terrain, 13, 10, 10, 4, 'stone');
+  paintRect(terrain, 24, 15, 5, 3, 'grass');
+  paintRect(terrain, 6, 16, 4, 3, 'grass');
+
+  const spawnPoints = createSpawnPoints([
+    { id: 'default', tileX: 16, tileY: 15 },
+    { id: 'harbor', tileX: 16, tileY: 15 },
+    { id: 'dock', tileX: 8, tileY: 17 },
+    { id: 'wild_gate', tileX: 29, tileY: 10 },
+  ]);
+
+  const objects: MapPlacedObject[] = [
+    { id: 'harbor_barrel_01', definitionId: 'barrel', tileX: 14, tileY: 14 },
+    { id: 'harbor_barrel_02', definitionId: 'barrel', tileX: 15, tileY: 14 },
+    { id: 'harbor_fence_01', definitionId: 'fence_segment', tileX: 12, tileY: 12 },
+    { id: 'harbor_fence_02', definitionId: 'fence_segment', tileX: 13, tileY: 12 },
+    { id: 'harbor_log_01', definitionId: 'log', tileX: 11, tileY: 19 },
+    { id: 'harbor_rock_01', definitionId: 'small_rock', tileX: 24, tileY: 14 },
+    { id: 'harbor_tree_01', definitionId: 'tree_test', tileX: 27, tileY: 17 },
+    { id: 'harbor_tree_02', definitionId: 'tree_dark', tileX: 8, tileY: 18 },
+    { id: 'harbor_flowers_01', definitionId: 'flower_patch', tileX: 26, tileY: 16 },
+  ];
+
+  const transitions: MapTransition[] = [
+    {
+      id: 'harbor_to_home_dock',
+      fromTile: { tileX: 8, tileY: 17 },
+      triggerFootprint: [{ x: 0, y: 0 }, { x: 1, y: 0 }],
+      visualAnchor: {
+        tileX: 8,
+        tileY: 17,
+        label: 'Home',
+      },
+      targetMapId: 'test_home_island',
+      targetSpawnId: 'dock',
+      transitionType: 'ferry',
+    },
+    {
+      id: 'harbor_to_wild_ferry',
+      fromTile: { tileX: 29, tileY: 10 },
+      triggerFootprint: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
+      visualAnchor: {
+        tileX: 29,
+        tileY: 10,
+        label: 'Wild',
+      },
+      targetMapId: 'test_wild_island',
+      targetSpawnId: 'dock',
+      transitionType: 'ferry',
+    },
+  ];
+
+  return {
+    id: 'test_harbor',
+    displayName: 'Test Harbor',
+    width,
+    height,
+    terrain,
+    spawnPoints,
+    objects,
+    transitions,
+    metadata: {
+      handcrafted: true,
+      biome: 'harbor',
+    },
+  };
+}

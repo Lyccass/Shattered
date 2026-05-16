@@ -30,6 +30,12 @@ export class CameraSystem {
     return this.camera.zoom;
   }
 
+  setBounds(bounds: Phaser.Geom.Rectangle): void {
+    this.camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
+    this.camera.scrollX = this.camera.clampX(this.camera.scrollX);
+    this.camera.scrollY = this.camera.clampY(this.camera.scrollY);
+  }
+
   cycleZoom(): void {
     this.zoomIndex = (this.zoomIndex + 1) % this.zoomSteps.length;
     this.setZoom(this.zoomSteps[this.zoomIndex]);

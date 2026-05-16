@@ -5,6 +5,8 @@ import { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
 import { PlayerController } from '../player/PlayerController';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
 import { IsoTilemap } from '../world/IsoTilemap';
+import { MapLoader } from '../world/maps/MapLoader';
+import { MapTransitionSystem } from '../world/maps/MapTransitionSystem';
 import type { ResolvedTerrainTile } from '../world/terrain/TerrainTypes';
 
 type DebugOverlaySystemConfig = {
@@ -13,6 +15,8 @@ type DebugOverlaySystemConfig = {
   cameraSystem: CameraSystem;
   playerController: PlayerController;
   isoTilemap: IsoTilemap;
+  mapLoader?: MapLoader;
+  mapTransitionSystem?: MapTransitionSystem;
   objectPlacementSystem?: ObjectPlacementSystem;
   objectDebugRenderer?: ObjectDebugRenderer;
 };
@@ -21,9 +25,11 @@ export class DebugOverlaySystem {
   private readonly scene: Phaser.Scene;
   private readonly cameraSystem: CameraSystem;
   private readonly playerController: PlayerController;
-  private readonly isoTilemap: IsoTilemap;
-  private readonly objectPlacementSystem?: ObjectPlacementSystem;
-  private readonly objectDebugRenderer?: ObjectDebugRenderer;
+  private isoTilemap: IsoTilemap;
+  private mapLoader?: MapLoader;
+  private mapTransitionSystem?: MapTransitionSystem;
+  private objectPlacementSystem?: ObjectPlacementSystem;
+  private objectDebugRenderer?: ObjectDebugRenderer;
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
   private readonly zoomText: Phaser.GameObjects.Text;
   private readonly detailText: Phaser.GameObjects.Text;
@@ -36,6 +42,8 @@ export class DebugOverlaySystem {
     cameraSystem,
     playerController,
     isoTilemap,
+    mapLoader,
+    mapTransitionSystem,
     objectPlacementSystem,
     objectDebugRenderer,
   }: DebugOverlaySystemConfig) {
@@ -43,6 +51,8 @@ export class DebugOverlaySystem {
     this.cameraSystem = cameraSystem;
     this.playerController = playerController;
     this.isoTilemap = isoTilemap;
+    this.mapLoader = mapLoader;
+    this.mapTransitionSystem = mapTransitionSystem;
     this.objectPlacementSystem = objectPlacementSystem;
     this.objectDebugRenderer = objectDebugRenderer;
     this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
@@ -61,9 +71,14 @@ export class DebugOverlaySystem {
     const zoom = this.cameraSystem.getZoom();
     const gridMode = this.isoTilemap.getGridMode();
     const objectDebugOn = this.objectDebugRenderer?.isVisible() ?? false;
+    const currentMapId = this.mapLoader?.getCurrentMapId() ?? 'procedural';
+    const activeTransition = this.mapTransitionSystem?.getActiveTransition() ?? null;
+    const transitionPrompt = activeTransition
+      ? `  Press E -> ${activeTransition.targetMapId}:${activeTransition.targetSpawnId}`
+      : '';
 
     this.zoomText.setText(
-      `Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  [Z/Wheel] [G] [K] [O] [L] [X]`,
+      `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  [Z/Wheel] [G] [K] [O] [L]${transitionPrompt}`,
     );
 
     if (!this.isVisible) {
@@ -83,18 +98,21 @@ export class DebugOverlaySystem {
     const isMouseTileBlocked = !this.isoTilemap.isTileWalkable(mouseTile.x, mouseTile.y);
     const mouseTerrainFamily = this.isoTilemap.getTerrainFamilyAtTile(mouseTile.x, mouseTile.y);
     const mouseResolvedTerrain = this.isoTilemap.resolveTerrainTile(mouseTile.x, mouseTile.y);
+    const mouseTransition = this.mapTransitionSystem?.getTransitionAtTile(mouseTile.x, mouseTile.y) ?? null;
     const fps = this.scene.game.loop.actualFps;
 
     this.playerFeetMarker.setPosition(feetPoint.x, feetPoint.y);
     this.playerFeetMarker.setFillStyle(isPlayerFeetBlocked ? 0xff3b5c : 0xffff00, 1);
 
-    const objectInstanceCount = this.objectPlacementSystem?.getInstances().length ?? 0;
+    const objectInstanceCount = this.objectPlacementSystem?.getInstanceCount() ?? 0;
     const objectBlockedCount = this.isoTilemap.worldGrid.getObjectBlockedTileCount();
     const mouseTileObject = this.objectPlacementSystem?.getObjectAtTile(mouseTile.x, mouseTile.y);
     const mouseObjectLabel = mouseTileObject ? mouseTileObject.id : '—';
+    const currentSpawnId = this.mapLoader?.getCurrentSpawnId() ?? 'default';
 
     this.detailText.setText([
-      'Debug [K]   Toggle obj overlays [O]   Log placements [L]   Remove test object [X]',
+      'Debug [K]   Toggle obj overlays [O]   Log placements [L]',
+      `Map: ${currentMapId}   spawn: ${currentSpawnId}`,
       `Player: ${player.x.toFixed(1)}, ${player.y.toFixed(1)}`,
       `Player grid: ${playerGrid.x.toFixed(2)}, ${playerGrid.y.toFixed(2)}`,
       `Player feet tile: ${playerFeetTile.x}, ${playerFeetTile.y} ${isPlayerFeetBlocked ? 'BLOCKED' : 'walkable'}`,
@@ -108,6 +126,8 @@ export class DebugOverlaySystem {
       `Mouse terrain transform: ${this.formatTerrainTransform(mouseResolvedTerrain)}`,
       `Mouse transitions: ${this.formatTerrainTransitions(mouseResolvedTerrain)}`,
       `Mouse shoreline: ${this.formatTerrainTransitions(mouseResolvedTerrain, 'shoreline')}`,
+      `Mouse map transition: ${mouseTransition ? `${mouseTransition.id} -> ${mouseTransition.targetMapId}:${mouseTransition.targetSpawnId}` : 'none'}`,
+      `Active transition: ${activeTransition ? `${activeTransition.id} -> ${activeTransition.targetMapId}:${activeTransition.targetSpawnId} [E]` : 'none'}`,
       `Mouse tile object: ${mouseObjectLabel}`,
       `FPS: ${fps.toFixed(0)}`,
       `Zoom: ${zoom.toFixed(2)}x`,
@@ -241,5 +261,25 @@ export class DebugOverlaySystem {
         }
       },
     );
+  }
+
+  setWorldContext({
+    isoTilemap,
+    mapLoader,
+    mapTransitionSystem,
+    objectPlacementSystem,
+    objectDebugRenderer,
+  }: {
+    isoTilemap: IsoTilemap;
+    mapLoader?: MapLoader;
+    mapTransitionSystem?: MapTransitionSystem;
+    objectPlacementSystem?: ObjectPlacementSystem;
+    objectDebugRenderer?: ObjectDebugRenderer;
+  }): void {
+    this.isoTilemap = isoTilemap;
+    this.mapLoader = mapLoader;
+    this.mapTransitionSystem = mapTransitionSystem;
+    this.objectPlacementSystem = objectPlacementSystem;
+    this.objectDebugRenderer = objectDebugRenderer;
   }
 }
