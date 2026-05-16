@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { IsoTilemap } from '../IsoTilemap';
-import type { MapDefinition, MapTransition } from './MapTypes';
+import type { MapDefinition, MapInteractionAnchor, MapTransition } from './MapTypes';
 
 export type LoadedMapRuntime = {
   definition: MapDefinition;
@@ -8,4 +8,5 @@ export type LoadedMapRuntime = {
   worldBounds: Phaser.Geom.Rectangle;
   activeSpawnId: string;
   transitions: MapTransition[];
+  interactionAnchors: MapInteractionAnchor[];
 };

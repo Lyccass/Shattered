@@ -30,6 +30,7 @@ export class MapLoader {
       worldBounds,
       activeSpawnId,
       transitions: definition.transitions,
+      interactionAnchors: definition.interactionAnchors ?? [],
     };
 
     return this.currentRuntime;
@@ -58,6 +59,7 @@ export class MapLoader {
       },
       objects: [],
       transitions: [],
+      interactionAnchors: [],
       metadata: {
         procedural: true,
         generatedFrom: 'IslandGenerator',
@@ -77,6 +79,7 @@ export class MapLoader {
       worldBounds,
       activeSpawnId,
       transitions: proceduralDefinition.transitions,
+      interactionAnchors: proceduralDefinition.interactionAnchors ?? [],
     };
 
     return this.currentRuntime;

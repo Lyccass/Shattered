@@ -1,4 +1,9 @@
-import type { MapDefinition, MapPlacedObject, MapTransition } from './MapTypes';
+import type {
+  MapDefinition,
+  MapInteractionAnchor,
+  MapPlacedObject,
+  MapTransition,
+} from './MapTypes';
 import { createOvalIslandTerrain, createSpawnPoints, paintRect } from './MapBuilderUtils';
 
 export function createHomeIslandMap(): MapDefinition {
@@ -32,6 +37,7 @@ export function createHomeIslandMap(): MapDefinition {
     { id: 'home_log_01', definitionId: 'log', tileX: 27, tileY: 21 },
     { id: 'home_pebbles_01', definitionId: 'pebble_patch', tileX: 14, tileY: 15 },
     { id: 'home_flowers_01', definitionId: 'flower_patch', tileX: 17, tileY: 15 },
+    { id: 'home_workbench_01', definitionId: 'workbench_basic', tileX: 14, tileY: 17 },
   ];
 
   const transitions: MapTransition[] = [
@@ -50,6 +56,24 @@ export function createHomeIslandMap(): MapDefinition {
     },
   ];
 
+  const interactionAnchors: MapInteractionAnchor[] = [
+    {
+      id: 'home_workbench_use',
+      interactionType: 'workbench',
+      tileX: 14,
+      tileY: 17,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'home_workbench_01',
+      requiredWood: 1,
+      buildObjectDefinitionId: 'campfire_built',
+      buildTileX: 16,
+      buildTileY: 17,
+      successMessage: 'You set a small campfire beside the bench.',
+      missingResourceMessage: 'You need at least 1 wood for this build.',
+      alreadyBuiltMessage: 'The workbench build spot is already in use.',
+    },
+  ];
+
   return {
     id: 'test_home_island',
     displayName: 'Test Home Island',
@@ -59,6 +83,7 @@ export function createHomeIslandMap(): MapDefinition {
     spawnPoints,
     objects,
     transitions,
+    interactionAnchors,
     metadata: {
       handcrafted: true,
       biome: 'home_island',

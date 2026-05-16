@@ -6,7 +6,12 @@ import {
 } from '../../objects/ObjectPlacementPolicy';
 import { ObjectRegistry } from '../../objects/ObjectRegistry';
 import { generateOrganicIsland } from '../IslandGenerator';
-import type { MapDefinition, MapPlacedObject, MapTransition } from './MapTypes';
+import type {
+  MapDefinition,
+  MapInteractionAnchor,
+  MapPlacedObject,
+  MapTransition,
+} from './MapTypes';
 import { createSpawnPoints, paintRect } from './MapBuilderUtils';
 
 export function createWildIslandMap(): MapDefinition {
@@ -79,6 +84,7 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_flowers_00', 'flower_patch', 47, 136],
     ['wild_flowers_00b', 'flower_patch', 39, 134],
     ['wild_log_01', 'log', 42, 135],
+    ['wild_driftwood_node_01', 'driftwood_node', 38, 135],
 
     // North-west approach
     ['wild_tree_01', 'tree_01_4x', 66, 58],
@@ -117,6 +123,7 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_rock_06', 'medium_rock', 78, 90],
     ['wild_rock_07', 'small_rock', 104, 94],
     ['wild_rock_08', 'medium_rock', 94, 104],
+    ['wild_stone_node_01', 'stone_pile_node', 97, 91],
     ['wild_barrel_01', 'barrel', 95, 88],
     ['wild_barrel_02', 'barrel', 88, 96],
     ['wild_log_02', 'log', 93, 100],
@@ -130,6 +137,7 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_flowers_03', 'flower_patch', 98, 102],
     ['wild_flowers_04', 'flower_patch', 88, 84],
     ['wild_flowers_05', 'flower_patch', 106, 102],
+    ['wild_herb_node_01', 'herb_patch_node', 102, 106],
 
     // East woods
     ['wild_tree_20', 'tree_01_2x', 114, 104],
@@ -193,6 +201,36 @@ export function createWildIslandMap(): MapDefinition {
     },
   ];
 
+  const interactionAnchors: MapInteractionAnchor[] = [
+    {
+      id: 'wild_driftwood_gather_01',
+      interactionType: 'resource_node',
+      tileX: 38,
+      tileY: 135,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'wild_driftwood_node_01',
+      resourceNodeType: 'driftwood',
+    },
+    {
+      id: 'wild_stone_gather_01',
+      interactionType: 'resource_node',
+      tileX: 97,
+      tileY: 91,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'wild_stone_node_01',
+      resourceNodeType: 'stone_pile',
+    },
+    {
+      id: 'wild_herb_gather_01',
+      interactionType: 'resource_node',
+      tileX: 102,
+      tileY: 106,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'wild_herb_node_01',
+      resourceNodeType: 'herb_patch',
+    },
+  ];
+
   return {
     id: mapId,
     displayName: 'Test Wild Island',
@@ -202,6 +240,7 @@ export function createWildIslandMap(): MapDefinition {
     spawnPoints,
     objects,
     transitions,
+    interactionAnchors,
     metadata: {
       handcrafted: true,
       biome: 'wild_island',

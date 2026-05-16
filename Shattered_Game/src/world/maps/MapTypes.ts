@@ -24,6 +24,51 @@ export type MapTransitionVisualAnchor = {
   label?: string;
 };
 
+export type ResourceNodeType = 'driftwood' | 'stone_pile' | 'herb_patch';
+
+type BaseMapInteractionAnchor = {
+  id: string;
+  tileX: number;
+  tileY: number;
+  interactionRangeTiles?: number;
+  linkedObjectId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type MapResourceNodeAnchor = BaseMapInteractionAnchor & {
+  interactionType: 'resource_node';
+  resourceNodeType: ResourceNodeType;
+};
+
+export type MapNpcAnchor = BaseMapInteractionAnchor & {
+  interactionType: 'npc';
+  promptLabel?: string;
+  text: string;
+};
+
+export type MapWorkbenchAnchor = BaseMapInteractionAnchor & {
+  interactionType: 'workbench';
+  requiredWood?: number;
+  buildObjectDefinitionId: string;
+  buildTileX: number;
+  buildTileY: number;
+  successMessage?: string;
+  missingResourceMessage?: string;
+  alreadyBuiltMessage?: string;
+};
+
+export type MapGenericDebugAnchor = BaseMapInteractionAnchor & {
+  interactionType: 'generic_debug';
+  promptLabel?: string;
+  message: string;
+};
+
+export type MapInteractionAnchor =
+  | MapResourceNodeAnchor
+  | MapNpcAnchor
+  | MapWorkbenchAnchor
+  | MapGenericDebugAnchor;
+
 export type MapTransition = {
   id: string;
   fromTile: {
@@ -47,6 +92,7 @@ export type MapDefinition = {
   spawnPoints: Record<string, MapSpawnPoint>;
   objects: MapPlacedObject[];
   transitions: MapTransition[];
+  interactionAnchors?: MapInteractionAnchor[];
   metadata?: Record<string, unknown>;
 };
 

@@ -1,5 +1,6 @@
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { OBJECT_TEXTURES } from './ObjectAssets';
+import { INTERACTION_OBJECT_DEFINITIONS } from './InteractionObjectDefinitions';
 import type { GridFootprint, ObjectDefinition, ShadowDefinition } from './ObjectTypes';
 
 const TW = PROTOTYPE_SCALE.tileWidth;
@@ -364,4 +365,5 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     depth: DEFAULT_DEPTH,
     debug: { color: 0xef4444 },
   },
+  ...INTERACTION_OBJECT_DEFINITIONS,
 ];

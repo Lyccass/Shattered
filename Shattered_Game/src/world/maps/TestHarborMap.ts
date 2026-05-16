@@ -1,4 +1,9 @@
-import type { MapDefinition, MapPlacedObject, MapTransition } from './MapTypes';
+import type {
+  MapDefinition,
+  MapInteractionAnchor,
+  MapPlacedObject,
+  MapTransition,
+} from './MapTypes';
 import { createSpawnPoints, fillTerrain, paintRect } from './MapBuilderUtils';
 
 export function createHarborMap(): MapDefinition {
@@ -29,6 +34,7 @@ export function createHarborMap(): MapDefinition {
     { id: 'harbor_tree_01', definitionId: 'tree_test', tileX: 27, tileY: 17 },
     { id: 'harbor_tree_02', definitionId: 'tree_dark', tileX: 8, tileY: 18 },
     { id: 'harbor_flowers_01', definitionId: 'flower_patch', tileX: 26, tileY: 16 },
+    { id: 'harbor_notice_board_01', definitionId: 'notice_board', tileX: 18, tileY: 14 },
   ];
 
   const transitions: MapTransition[] = [
@@ -60,6 +66,19 @@ export function createHarborMap(): MapDefinition {
     },
   ];
 
+  const interactionAnchors: MapInteractionAnchor[] = [
+    {
+      id: 'harbor_notice_board_talk',
+      interactionType: 'npc',
+      tileX: 18,
+      tileY: 14,
+      interactionRangeTiles: 1,
+      linkedObjectId: 'harbor_notice_board_01',
+      promptLabel: 'Talk',
+      text: 'The wild coast has driftwood. Bring some home and try your workbench.',
+    },
+  ];
+
   return {
     id: 'test_harbor',
     displayName: 'Test Harbor',
@@ -69,6 +88,7 @@ export function createHarborMap(): MapDefinition {
     spawnPoints,
     objects,
     transitions,
+    interactionAnchors,
     metadata: {
       handcrafted: true,
       biome: 'harbor',

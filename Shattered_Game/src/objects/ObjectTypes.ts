@@ -18,7 +18,11 @@ export type ObjectCategory =
   | 'fence'
   | 'flora'
   | 'pebble'
-  | 'tree';
+  | 'tree'
+  | 'resource'
+  | 'workbench'
+  | 'npc'
+  | 'crafted';
 
 export type GridFootprint = ReadonlyArray<{ x: number; y: number }>;
 

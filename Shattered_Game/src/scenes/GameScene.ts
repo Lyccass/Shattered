@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CameraSystem } from '../camera/CameraSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
+import { InteractionPromptSystem } from '../interactions/InteractionPromptSystem';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
@@ -14,8 +15,9 @@ export class GameScene extends Phaser.Scene {
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
+  private interactionPromptSystem?: InteractionPromptSystem;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
-  private lastMapTransitionAt = 0;
+  private lastInteractionAt = 0;
 
   constructor() {
     super('GameScene');
@@ -34,7 +36,8 @@ export class GameScene extends Phaser.Scene {
     createTerrainRenderTextures(this);
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this);
-    this.initializeWorldRuntime('test_wild_island', 'dock');
+    this.initializeWorldRuntime('test_home_island', 'default');
+    this.interactionPromptSystem = new InteractionPromptSystem(this);
     this.registerDebugKeys();
 
     // Future system hooks:
@@ -47,8 +50,14 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.playerController?.update(delta);
-    this.updateActiveTransitionState();
+    this.updateActiveInteractionState();
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
+    if (this.interactionPromptSystem && this.worldRuntimeCoordinator) {
+      this.interactionPromptSystem.update(
+        this.worldRuntimeCoordinator.getActiveInteraction(),
+        this.worldRuntimeCoordinator.getPlayerInventoryState().getCounts(),
+      );
+    }
     this.debugOverlaySystem?.update();
   }
 
@@ -81,7 +90,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-E', () => {
-      this.tryTriggerActiveTransition();
+      this.tryTriggerActiveInteraction();
     });
   }
 
@@ -93,7 +102,7 @@ export class GameScene extends Phaser.Scene {
     const loadedMap = this.worldRuntimeCoordinator.loadMap(mapId, spawnId);
     this.bindPlayerAndCamera(loadedMap);
     this.bindDebugOverlayToRuntime();
-    this.updateActiveTransitionState();
+    this.updateActiveInteractionState();
   }
 
   private bindPlayerAndCamera(loadedMap: LoadedMapRuntime): void {
@@ -169,32 +178,39 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private updateActiveTransitionState(): void {
+  private updateActiveInteractionState(): void {
     if (!this.playerController || !this.worldRuntimeCoordinator) {
       return;
     }
 
     const feetTile = this.playerController.getFeetTile();
-    this.worldRuntimeCoordinator.updateActiveTransition(feetTile.x, feetTile.y);
+    this.worldRuntimeCoordinator.updateActiveInteraction(feetTile.x, feetTile.y);
   }
 
-  private tryTriggerActiveTransition(): void {
-    if (!this.worldRuntimeCoordinator) {
+  private tryTriggerActiveInteraction(): void {
+    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
       return;
     }
 
     const now = this.time.now;
 
-    if (now - this.lastMapTransitionAt < 250) {
+    if (now - this.lastInteractionAt < 250) {
       return;
     }
 
-    if (!this.worldRuntimeCoordinator.triggerActiveTransition()) {
+    const result = this.worldRuntimeCoordinator.triggerActiveInteraction();
+
+    if (!result) {
       return;
     }
 
-    this.lastMapTransitionAt = now;
-    this.bindDebugOverlayToRuntime();
-    this.updateActiveTransitionState();
+    this.lastInteractionAt = now;
+    this.interactionPromptSystem.showFeedback(result.message);
+
+    if (result.transitionRequest) {
+      this.bindDebugOverlayToRuntime();
+    }
+
+    this.updateActiveInteractionState();
   }
 }
