@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CameraSystem } from '../camera/CameraSystem';
+import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { ObjectDebugRenderer } from '../objects/ObjectDebugRenderer';
 import { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
 import { PlayerController } from '../player/PlayerController';
@@ -35,6 +36,7 @@ export class DebugOverlaySystem {
   private readonly detailText: Phaser.GameObjects.Text;
   private readonly playerFeetMarker: Phaser.GameObjects.Arc;
   private isVisible = false;
+  private nextDetailRefreshAt = 0;
 
   constructor({
     scene,
@@ -76,24 +78,34 @@ export class DebugOverlaySystem {
     const transitionPrompt = activeTransition
       ? `  Press E -> ${activeTransition.targetMapId}:${activeTransition.targetSpawnId}`
       : '';
+    const chunkStats = this.isoTilemap.getTerrainChunkStats();
 
     this.zoomText.setText(
-      `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  [Z/Wheel] [G] [K] [O] [L]${transitionPrompt}`,
+      `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Z/Wheel] [G] [C] [K] [O] [L]${transitionPrompt}`,
     );
 
     if (!this.isVisible) {
       return;
     }
 
-    const player = this.playerController.sprite;
     const feetPoint = this.playerController.getFeetPoint();
+    const isPlayerFeetBlocked = this.playerController.isFeetTileBlocked();
+    this.playerFeetMarker.setPosition(feetPoint.x, feetPoint.y);
+    this.playerFeetMarker.setFillStyle(isPlayerFeetBlocked ? 0xff3b5c : 0xffff00, 1);
+
+    const now = this.scene.time.now;
+    if (now < this.nextDetailRefreshAt) {
+      return;
+    }
+    this.nextDetailRefreshAt = now + PROTOTYPE_SCALE.debugOverlayRefreshMs;
+
+    const player = this.playerController.sprite;
     const playerGrid = this.playerController.getGridPosition();
     const pointer = this.scene.input.activePointer;
     const mouseWorld = this.scene.cameras.main.getWorldPoint(pointer.x, pointer.y);
     const mouseGrid = this.isoTilemap.transform.getMouseGridPosition(pointer, this.scene.cameras.main);
     const mouseTile = this.isoTilemap.transform.worldToTile(mouseWorld.x, mouseWorld.y);
     const playerFeetTile = this.playerController.getFeetTile();
-    const isPlayerFeetBlocked = this.playerController.isFeetTileBlocked();
     const isMouseGridWalkable = this.isoTilemap.isWorldGridWalkable(mouseGrid.x, mouseGrid.y);
     const isMouseTileBlocked = !this.isoTilemap.isTileWalkable(mouseTile.x, mouseTile.y);
     const mouseTerrainFamily = this.isoTilemap.getTerrainFamilyAtTile(mouseTile.x, mouseTile.y);
@@ -101,17 +113,22 @@ export class DebugOverlaySystem {
     const mouseTransition = this.mapTransitionSystem?.getTransitionAtTile(mouseTile.x, mouseTile.y) ?? null;
     const fps = this.scene.game.loop.actualFps;
 
-    this.playerFeetMarker.setPosition(feetPoint.x, feetPoint.y);
-    this.playerFeetMarker.setFillStyle(isPlayerFeetBlocked ? 0xff3b5c : 0xffff00, 1);
-
     const objectInstanceCount = this.objectPlacementSystem?.getInstanceCount() ?? 0;
     const objectBlockedCount = this.isoTilemap.worldGrid.getObjectBlockedTileCount();
     const mouseTileObject = this.objectPlacementSystem?.getObjectAtTile(mouseTile.x, mouseTile.y);
     const mouseObjectLabel = mouseTileObject ? mouseTileObject.id : '—';
     const currentSpawnId = this.mapLoader?.getCurrentSpawnId() ?? 'default';
+    const resolvedChunkStats = chunkStats ?? {
+      configuredChunkCount: 0,
+      materializedChunkCount: 0,
+      visibleChunkCount: 0,
+      cachedChunkCount: 0,
+      evictedChunkCount: 0,
+      chunkDebugEnabled: false,
+    };
 
     this.detailText.setText([
-      'Debug [K]   Toggle obj overlays [O]   Log placements [L]',
+      'Debug [K]   Toggle obj overlays [O]   Log placements [L]   Toggle chunk debug [C]',
       `Map: ${currentMapId}   spawn: ${currentSpawnId}`,
       `Player: ${player.x.toFixed(1)}, ${player.y.toFixed(1)}`,
       `Player grid: ${playerGrid.x.toFixed(2)}, ${playerGrid.y.toFixed(2)}`,
@@ -132,7 +149,8 @@ export class DebugOverlaySystem {
       `FPS: ${fps.toFixed(0)}`,
       `Zoom: ${zoom.toFixed(2)}x`,
       `Grid mode: ${gridMode}`,
-      `Map/chunks: ${this.isoTilemap.width}x${this.isoTilemap.height} / ${this.isoTilemap.getTerrainChunkCount()}`,
+      `Map/chunks: ${this.isoTilemap.width}x${this.isoTilemap.height} / configured ${resolvedChunkStats.configuredChunkCount} / visible ${resolvedChunkStats.visibleChunkCount} / cached ${resolvedChunkStats.cachedChunkCount} / materialized ${resolvedChunkStats.materializedChunkCount}`,
+      `Chunk debug: ${resolvedChunkStats.chunkDebugEnabled ? 'on' : 'off'}   evicted: ${resolvedChunkStats.evictedChunkCount}`,
       `Terrain-blocked tiles: ${this.isoTilemap.getTerrainBlockedTileCount()}`,
       `Object instances: ${objectInstanceCount}   object-blocked tiles: ${objectBlockedCount}`,
       `Object debug overlays: ${objectDebugOn ? 'on' : 'off'}`,

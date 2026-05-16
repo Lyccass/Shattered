@@ -3,11 +3,13 @@ import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
 import { generateOrganicIsland } from './IslandGenerator';
 import { IsoTransform } from './IsoTransform';
-import { IsoTilemapChunkRenderer } from './IsoTilemapChunkRenderer';
+import {
+  IsoTilemapChunkRenderer,
+  type TerrainChunkStats,
+} from './IsoTilemapChunkRenderer';
 import type { TileType } from './IsoTilemapTypes';
-import { sampleTerrainNeighbours } from './terrain/TerrainNeighbourSampler';
-import { TerrainResolver } from './terrain/TerrainResolver';
 import type { ResolvedTerrainTile } from './terrain/TerrainTypes';
+import { TerrainResolutionCache } from './terrain/TerrainResolutionCache';
 import type { GridMode } from './IsoTilemapTypes';
 import { WorldGrid } from './WorldGrid';
 
@@ -41,8 +43,7 @@ export class IsoTilemap {
   readonly worldGrid: WorldGrid;
 
   private readonly scene: Phaser.Scene;
-  private readonly terrainResolver = new TerrainResolver();
-  private readonly resolvedTileCache = new Map<string, ResolvedTerrainTile>();
+  private readonly terrainResolutionCache: TerrainResolutionCache;
   private waterBackdrop?: Phaser.GameObjects.Rectangle;
   private renderer?: IsoTilemapChunkRenderer;
   private gridMode: GridMode = 'off';
@@ -73,6 +74,7 @@ export class IsoTilemap {
       this.height,
       terrain ?? generateOrganicIsland(this.width, this.height),
     );
+    this.terrainResolutionCache = new TerrainResolutionCache(this.worldGrid);
   }
 
   render(): Phaser.Geom.Rectangle {
@@ -86,7 +88,7 @@ export class IsoTilemap {
     this.renderer = undefined;
     this.waterBackdrop?.destroy();
     this.waterBackdrop = undefined;
-    this.resolvedTileCache.clear();
+    this.terrainResolutionCache.clear();
   }
 
   // --- Coordinate facade (delegates to IsoTransform) ---
@@ -121,25 +123,7 @@ export class IsoTilemap {
   }
 
   resolveTerrainTile(tileX: number, tileY: number): ResolvedTerrainTile | null {
-    const family = this.worldGrid.getTile(tileX, tileY);
-
-    if (!family) {
-      return null;
-    }
-
-    const cacheKey = `${tileX},${tileY}`;
-    const cached = this.resolvedTileCache.get(cacheKey);
-    if (cached) return cached;
-
-    const result = this.terrainResolver.resolve({
-      family,
-      gridX: tileX,
-      gridY: tileY,
-      neighbours: sampleTerrainNeighbours(this.worldGrid, tileX, tileY),
-    });
-
-    this.resolvedTileCache.set(cacheKey, result);
-    return result;
+    return this.terrainResolutionCache.resolveTile(tileX, tileY);
   }
 
   // Unified walkability check — terrain and future object blocking both feed in here.
@@ -161,6 +145,14 @@ export class IsoTilemap {
 
   getTerrainChunkCount(): number {
     return this.renderer?.getChunkCount() ?? 0;
+  }
+
+  getTerrainChunkStats(): TerrainChunkStats | null {
+    return this.renderer?.getChunkStats() ?? null;
+  }
+
+  toggleChunkDebug(): boolean {
+    return this.renderer?.toggleChunkDebug() ?? false;
   }
 
   getSpawnPoint(): WorldPoint {
@@ -213,6 +205,7 @@ export class IsoTilemap {
       scene: this.scene,
       transform: this.transform,
       worldGrid: this.worldGrid,
+      terrainResolutionCache: this.terrainResolutionCache,
     });
     this.renderer.render();
   }

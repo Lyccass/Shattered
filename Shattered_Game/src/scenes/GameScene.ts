@@ -67,6 +67,10 @@ export class GameScene extends Phaser.Scene {
       this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode();
     });
 
+    keyboard.on('keydown-C', () => {
+      this.worldRuntimeCoordinator?.getIsoTilemap().toggleChunkDebug();
+    });
+
     // Object debug controls.
     keyboard.on('keydown-O', () => {
       this.worldRuntimeCoordinator?.getObjectDebugRenderer()?.toggle();
