@@ -1,4 +1,5 @@
 import type { ActiveEffectSnapshot } from '../effects/EffectTypes';
+import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
 import type { ChoiceMenuStateSnapshot } from '../interactions/ChoiceMenuTypes';
 import type { ActiveInteraction } from '../interactions/InteractionTypes';
 import type { PlacementPreviewState } from '../interactions/PlacementModeSystem';
@@ -47,7 +48,7 @@ export function formatHudPanelText(
   const hints = ['[I Inventory]', '[J Journal]', '[P Skills]'];
 
   if (inventory.items.firestarter_set > 0) {
-    hints.push('[Space Place]');
+    hints.push('[B Place]');
   }
 
   if (inventory.items.warm_tea > 0) {
@@ -163,4 +164,21 @@ export function formatSkillXpToastLines(delta: SkillXpDelta | undefined): string
   return (Object.entries(delta) as Array<[SkillId, number | undefined]>)
     .filter(([, amount]) => (amount ?? 0) > 0)
     .map(([skillId, amount]) => `+${amount} ${SKILL_SHORT_NAMES[skillId]} XP`);
+}
+
+export function formatCombatPanelText(snapshot: CombatUiSnapshot | null): string {
+  if (!snapshot?.active) {
+    return '';
+  }
+
+  const enemyLine = snapshot.enemy
+    ? `Enemy ${snapshot.enemy.name}   State ${snapshot.enemy.state}`
+    : 'Enemy none';
+
+  return [
+    '[Combat]',
+    `Hits ${snapshot.player.hitCount}/${snapshot.player.maxHitCount}   Stamina ${snapshot.player.stamina}/${snapshot.player.maxStamina}`,
+    enemyLine,
+    '[Space Dodge]',
+  ].join('\n');
 }

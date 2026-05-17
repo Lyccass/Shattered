@@ -158,7 +158,7 @@ export class PlacementModeSystem {
         ? undefined
         : describeItemPlacementFailure(itemPlacementEvaluation.failure),
       promptText: itemPlacementEvaluation.ok
-        ? `Place ${this.state.itemDisplayName} [E/Space confirm, Esc cancel]`
+        ? `Place ${this.state.itemDisplayName} [E confirm, Esc cancel]`
         : `Can't place ${this.state.itemDisplayName} here [Esc cancel]`,
     };
 

@@ -7,7 +7,7 @@ This slice extends the first interaction loop into a slightly fuller home cycle:
 3. Gather driftwood and stone.
 4. Return home.
 5. Use the workbench to craft a `firestarter_set`.
-6. Use `Space` to enter placement mode and place the `firestarter_set` on a valid nearby tile.
+6. Use `B` to enter placement mode and place the `firestarter_set` on a valid nearby tile.
 7. Interact with the placed firestarter while carrying stone to turn it into a campfire.
 
 ## Inventory Split
@@ -42,11 +42,11 @@ Flow:
 1. Craft the item at the home workbench.
 2. The item stays in the session inventory.
 3. A preview appears one tile in front of the player.
-4. `Space` enters placement mode when the player is ready.
-5. `E` or `Space` confirms placement.
+4. `B` enters placement mode when the player is ready.
+5. `E` confirms placement.
 6. `Escape` cancels placement.
 
-If the player cancels placement, `Space` can be used later to re-enter placement mode as long as a `firestarter_set` is still in inventory.
+If the player cancels placement, `B` can be used later to re-enter placement mode as long as a `firestarter_set` is still in inventory.
 
 ## Placement Mode
 

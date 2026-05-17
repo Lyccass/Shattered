@@ -13,7 +13,8 @@ export type MapZoneTag =
   | 'wilderness_camp'
   | 'town'
   | 'harbor'
-  | 'transition';
+  | 'transition'
+  | 'combat_sandbox';
 
 export type MapSpaceType = 'personal_island' | 'open_world';
 

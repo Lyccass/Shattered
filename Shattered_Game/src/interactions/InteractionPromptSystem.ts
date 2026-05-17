@@ -68,7 +68,7 @@ export class InteractionPromptSystem {
         hintParts.push('[J: journal]');
 
         if (!placementState?.active && inventory.items.firestarter_set > 0) {
-          hintParts.push('[Space: place]');
+          hintParts.push('[B: place]');
         }
 
         if (inventory.items.warm_tea > 0) {

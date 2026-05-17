@@ -1,7 +1,7 @@
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 
 export const PLAYER_CONFIG = {
-  movementSpeed: 240,
+  movementSpeed: 88,
   // The warrior PNG has transparent padding: visible pixels are centred around
   // x=26.5 in a 64px-wide frame. This origin makes sprite.x line up with the
   // character/feet centre instead of the raw texture centre.

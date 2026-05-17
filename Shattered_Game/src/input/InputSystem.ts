@@ -97,7 +97,7 @@ export class InputSystem {
         this.callbacks.onMenuConfirm();
       } else if (this.mode === 'placement') {
         this.callbacks.onPlacementConfirm();
-      } else {
+      } else if (this.mode === 'normal' || this.mode === 'combat') {
         this.callbacks.onInteract();
       }
     });
@@ -109,28 +109,20 @@ export class InputSystem {
       }
     });
 
-    // --- SPACE: cancel action / confirm placement / start placement ---
+    // --- SPACE: reserved for combat dodge ---
     this.on('SPACE', () => {
-      if (this.mode === 'menu') {
+      if (this.mode !== 'combat') {
         return;
       }
 
-      this.callbacks.onCancelAction();
-
-      if (this.mode === 'placement') {
-        this.callbacks.onPlacementConfirm();
-      } else {
-        this.callbacks.onStartPlacement();
-      }
+      this.callbacks.onCombatDodge();
     });
 
     // --- ESC: cancel active state ---
     this.on('ESC', () => {
-      if (this.callbacks.onCancelAction !== undefined) {
+      if (this.mode === 'action_progress') {
         this.callbacks.onCancelAction();
-      }
-
-      if (this.mode === 'menu') {
+      } else if (this.mode === 'menu') {
         this.callbacks.onMenuCancel();
       } else if (this.mode === 'placement') {
         this.callbacks.onPlacementCancel();
@@ -163,32 +155,35 @@ export class InputSystem {
       }
     });
 
+    // --- B: start placement (normal mode only) ---
+    this.on('B', () => {
+      if (this.mode === 'normal') {
+        this.callbacks.onStartPlacement();
+      }
+    });
+
     // --- T: use item (normal mode only) ---
     this.on('T', () => {
-      if (this.mode !== 'menu') {
-        this.callbacks.onCancelAction();
+      if (this.mode === 'normal') {
         this.callbacks.onUseItem('warm_tea');
       }
     });
 
-    // --- Panel toggles (all non-menu modes) ---
+    // --- Panel toggles (normal mode only) ---
     this.on('I', () => {
-      if (this.mode !== 'menu') {
-        this.callbacks.onCancelAction();
+      if (this.mode === 'normal') {
         this.callbacks.onToggleInventory();
       }
     });
 
     this.on('J', () => {
-      if (this.mode !== 'menu') {
-        this.callbacks.onCancelAction();
+      if (this.mode === 'normal') {
         this.callbacks.onToggleJournal();
       }
     });
 
     this.on('P', () => {
-      if (this.mode !== 'menu') {
-        this.callbacks.onCancelAction();
+      if (this.mode === 'normal') {
         this.callbacks.onToggleSkills();
       }
     });

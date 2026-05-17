@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { SfxSystem } from '../audio/SfxSystem';
 import { CameraSystem } from '../camera/CameraSystem';
+import { CombatSandboxSystem } from '../combat/CombatSandboxSystem';
+import { TelegraphSystem } from '../combat/TelegraphSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
 import { GameEventBus } from '../events/GameEventBus';
 import { InputSystem } from '../input/InputSystem';
@@ -24,6 +26,8 @@ export class GameScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Sprite;
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
+  private telegraphSystem?: TelegraphSystem;
+  private combatSandboxSystem?: CombatSandboxSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
   private uiManager?: UiManager;
   private sfxSystem?: SfxSystem;
@@ -49,7 +53,13 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     createTerrainRenderTextures(this);
 
+    this.telegraphSystem = new TelegraphSystem(this);
     this.sfxSystem = new SfxSystem(this, this.gameEventBus);
+    this.combatSandboxSystem = new CombatSandboxSystem(
+      this,
+      this.gameEventBus,
+      this.telegraphSystem,
+    );
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.initializeWorldRuntime('test_home_island', 'default');
     this.uiManager = new UiManager(this);
@@ -63,13 +73,22 @@ export class GameScene extends Phaser.Scene {
     this.inputSystem?.setMode(this.computeInputMode());
 
     if (this.inputSystem?.shouldProcessMovement() ?? true) {
-      this.playerController?.update(delta);
+      this.playerController?.update(delta, this.time.now);
     }
 
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     uiResults.forEach((result) => this.handleGameplayResult(result, { allowAutosave: true }));
+    const combatResults =
+      this.combatSandboxSystem && this.playerController
+        ? this.combatSandboxSystem.update(this.time.now, delta, this.playerController)
+        : [];
+    combatResults.forEach((result) => this.uiManager?.handleResult(result));
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
-    this.uiManager?.update(this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot());
+    this.telegraphSystem?.update(this.time.now);
+    this.uiManager?.update(
+      this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot(),
+      this.combatSandboxSystem?.getUiSnapshot(this.time.now) ?? null,
+    );
     this.debugOverlaySystem?.update();
   }
 
@@ -77,6 +96,7 @@ export class GameScene extends Phaser.Scene {
     if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) return 'menu';
     if (this.worldRuntimeCoordinator?.isPlacementModeActive()) return 'placement';
     if (this.worldRuntimeCoordinator?.isActionInProgress()) return 'action_progress';
+    if (this.combatSandboxSystem?.isCombatModeActive(this.time.now)) return 'combat';
     return 'normal';
   }
 
@@ -90,6 +110,10 @@ export class GameScene extends Phaser.Scene {
     this.inputSystem = undefined;
     this.debugOverlaySystem?.destroy();
     this.debugOverlaySystem = undefined;
+    this.combatSandboxSystem?.destroy();
+    this.combatSandboxSystem = undefined;
+    this.telegraphSystem?.destroy();
+    this.telegraphSystem = undefined;
     this.uiManager?.destroy();
     this.uiManager = undefined;
     this.sfxSystem?.destroy();
@@ -106,6 +130,7 @@ export class GameScene extends Phaser.Scene {
       onStartPlacement: () => this.tryStartPlacementMode(),
       onUseItem: (itemId) => this.tryUseItem(itemId),
       onCancelAction: () => this.cancelActiveActionForUi(),
+      onCombatDodge: () => this.tryCombatDodge(),
       onMenuMoveUp: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
       onMenuConfirm: () => this.tryConfirmChoiceMenu(),
@@ -140,7 +165,7 @@ export class GameScene extends Phaser.Scene {
 
     const loadedMap = this.worldRuntimeCoordinator.loadMap(mapId, spawnId);
     this.bindPlayerAndCamera(loadedMap);
-    this.bindDebugOverlayToRuntime();
+    this.bindRuntimeSupportSystems();
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
@@ -215,6 +240,23 @@ export class GameScene extends Phaser.Scene {
       objectPlacementSystem,
       objectDebugRenderer,
     });
+  }
+
+  private bindCombatSandboxToRuntime(): void {
+    if (!this.playerController || !this.worldRuntimeCoordinator || !this.combatSandboxSystem) {
+      return;
+    }
+
+    const runtime = this.worldRuntimeCoordinator.getCurrentRuntime();
+    this.combatSandboxSystem.setMapContext(runtime.definition.id, runtime.isoTilemap);
+    this.playerController.setExternalOccupancyValidator((feetWorldX, feetWorldY) =>
+      this.combatSandboxSystem?.canPlayerOccupy(feetWorldX, feetWorldY) ?? true,
+    );
+  }
+
+  private bindRuntimeSupportSystems(): void {
+    this.bindDebugOverlayToRuntime();
+    this.bindCombatSandboxToRuntime();
   }
 
   private tryTriggerActiveInteraction(): void {
@@ -367,7 +409,7 @@ export class GameScene extends Phaser.Scene {
           return;
         }
 
-        this.bindDebugOverlayToRuntime();
+        this.bindRuntimeSupportSystems();
         this.lastAutosaveAt = this.time.now;
         this.uiManager.showInfo(automatic ? 'Save loaded on startup.' : restoreResult.message);
         restoreResult.warnings.forEach((warning) => this.uiManager?.showInfo(warning));
@@ -411,7 +453,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager.handleResult(result);
 
     if (result.transitionRequest) {
-      this.bindDebugOverlayToRuntime();
+      this.bindRuntimeSupportSystems();
     }
 
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
@@ -440,6 +482,18 @@ export class GameScene extends Phaser.Scene {
       this.uiManager?.showInfo('Autosaved.');
     } else {
       this.uiManager?.showInfo(writeResult.error);
+    }
+  }
+
+  private tryCombatDodge(): void {
+    if (!this.combatSandboxSystem || !this.playerController) {
+      return;
+    }
+
+    const result = this.combatSandboxSystem.tryDodge(this.time.now, this.playerController);
+
+    if (result) {
+      this.uiManager?.handleResult(result);
     }
   }
 }

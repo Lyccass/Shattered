@@ -18,12 +18,13 @@ export class PlayerMovementSystem {
     sprite: Phaser.GameObjects.Sprite,
     intent: Phaser.Math.Vector2,
     deltaMs: number,
+    speedMultiplier = 1,
   ): void {
     if (intent.lengthSq() === 0) {
       return;
     }
 
-    const distance = PLAYER_CONFIG.movementSpeed * (deltaMs / 1000);
+    const distance = PLAYER_CONFIG.movementSpeed * speedMultiplier * (deltaMs / 1000);
     const movement = intent.clone().normalize().scale(distance);
 
     if (this.tryMove(sprite, movement.x, movement.y)) {
@@ -35,6 +36,43 @@ export class PlayerMovementSystem {
         return;
       }
     }
+  }
+
+  moveBy(
+    sprite: Phaser.GameObjects.Sprite,
+    deltaX: number,
+    deltaY: number,
+  ): boolean {
+    return this.tryMove(sprite, deltaX, deltaY);
+  }
+
+  moveDistance(
+    sprite: Phaser.GameObjects.Sprite,
+    intent: Phaser.Math.Vector2,
+    distance: number,
+    allowSlide = true,
+  ): boolean {
+    if (intent.lengthSq() === 0 || distance <= 0) {
+      return false;
+    }
+
+    const movement = intent.clone().normalize().scale(distance);
+
+    if (this.tryMove(sprite, movement.x, movement.y)) {
+      return true;
+    }
+
+    if (!allowSlide) {
+      return false;
+    }
+
+    for (const slide of this.getSlideCandidates(movement)) {
+      if (this.tryMove(sprite, slide.x, slide.y)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private getSlideCandidates(movement: Phaser.Math.Vector2): Phaser.Math.Vector2[] {

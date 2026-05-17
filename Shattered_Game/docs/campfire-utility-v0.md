@@ -7,7 +7,7 @@ Current loop:
 1. Gather `wood`, `stone`, and `herb`.
 2. Use the home workbench to craft a `firestarter_set`.
 3. Keep the crafted item in the small session inventory.
-4. Press `Space` to enter placement mode when ready.
+4. Press `B` to enter placement mode when ready.
 5. Place the `firestarter_set` on a valid nearby tile.
 6. Interact with the placed firestarter while carrying `stone` to light it.
 7. Interact with the active `campfire` while carrying `herb` to brew `warm_tea`.
@@ -51,7 +51,7 @@ The workbench recipe stays intentionally small:
 
 - `1 wood -> 1 firestarter_set`
 
-Crafting no longer forces placement mode immediately. The item goes into the session inventory first, and the player can choose when to place it by pressing `Space`.
+Crafting no longer forces placement mode immediately. The item goes into the session inventory first, and the player can choose when to place it by pressing `B`.
 
 ## Placement Flow
 
@@ -59,7 +59,7 @@ Placement is still player-facing rather than mouse-based:
 
 - the preview appears one tile in front of the player
 - facing comes from the last non-zero movement direction
-- `E` or `Space` confirms placement
+- `E` confirms placement
 - `Escape` cancels placement
 
 Placement only consumes the item after a valid placement succeeds.

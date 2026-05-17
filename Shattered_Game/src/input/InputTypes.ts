@@ -13,6 +13,7 @@ export type InputCallbacks = {
   onStartPlacement: () => void;
   onUseItem: (itemId: PlayerItemKey) => void;
   onCancelAction: () => void;
+  onCombatDodge: () => void;
 
   // Menu mode
   onMenuMoveUp: () => void;

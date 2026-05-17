@@ -7,7 +7,7 @@ Current playable flow:
 1. Gather `wood`, `stone`, and `herb`.
 2. Use the home workbench to craft a `firestarter_set`.
 3. Keep the crafted item in the small session inventory.
-4. Press `Space` to enter placement mode.
+4. Press `B` to enter placement mode.
 5. Place the `firestarter_set` only inside allowed build or camp zones.
 6. Light it with `stone` to create a temporary `campfire`.
 7. Use `herb` on the active campfire to brew `warm_tea`.

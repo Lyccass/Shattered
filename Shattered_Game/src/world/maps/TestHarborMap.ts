@@ -95,6 +95,14 @@ export function createHarborMap(): MapDefinition {
       height: 3,
       tags: ['transition'],
     },
+    {
+      id: 'harbor_combat_sandbox_zone',
+      tileX: 18,
+      tileY: 18,
+      width: 8,
+      height: 5,
+      tags: ['combat_sandbox'],
+    },
   ];
 
   const interactionAnchors: MapInteractionAnchor[] = [

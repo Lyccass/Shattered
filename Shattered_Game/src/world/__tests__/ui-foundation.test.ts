@@ -28,7 +28,7 @@ describe('UiFormatters', () => {
     expect(text).not.toContain('Firestarter 1');
     expect(text).toContain('Effects Warmth 59s');
     expect(text).toContain('[I Inventory]');
-    expect(text).toContain('[Space Place]');
+    expect(text).toContain('[B Place]');
     expect(text).toContain('[T Drink]');
   });
 

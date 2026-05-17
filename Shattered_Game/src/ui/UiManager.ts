@@ -1,7 +1,9 @@
 import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
+import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
 import { formatPromptPanelText, formatSkillXpToastLines } from './UiFormatters';
 import { ChoiceMenuPanel } from './ChoiceMenuPanel';
+import { CombatPanel } from './CombatPanel';
 import { HudPanel } from './HudPanel';
 import { InventoryPanel } from './InventoryPanel';
 import { JournalPanel } from './JournalPanel';
@@ -14,6 +16,7 @@ export class UiManager {
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
   private readonly promptPanel: PromptPanel;
   private readonly hudPanel: HudPanel;
+  private readonly combatPanel: CombatPanel;
   private readonly actionProgressPanel: ActionProgressPanel;
   private readonly inventoryPanel: InventoryPanel;
   private readonly choiceMenuPanel: ChoiceMenuPanel;
@@ -25,6 +28,7 @@ export class UiManager {
     this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
     this.promptPanel = new PromptPanel(scene);
     this.hudPanel = new HudPanel(scene);
+    this.combatPanel = new CombatPanel(scene);
     this.actionProgressPanel = new ActionProgressPanel(scene);
     this.inventoryPanel = new InventoryPanel(scene);
     this.choiceMenuPanel = new ChoiceMenuPanel(scene);
@@ -39,7 +43,7 @@ export class UiManager {
     this.layout();
   }
 
-  update(state: UiStateSnapshot): void {
+  update(state: UiStateSnapshot, combat: CombatUiSnapshot | null = null): void {
     this.promptPanel.update(
       state.choiceMenu || state.actionProgress
         ? ''
@@ -49,6 +53,7 @@ export class UiManager {
       state.inventory,
       state.activeEffects,
     );
+    this.combatPanel.update(combat);
     this.actionProgressPanel.update(state.actionProgress);
     this.inventoryPanel.update(
       state.inventory,
@@ -127,6 +132,7 @@ export class UiManager {
     const height = this.scene.scale.height;
     this.promptPanel.layout(width, height);
     this.hudPanel.layout(width, height);
+    this.combatPanel.layout(width, height);
     this.actionProgressPanel.layout(width, height);
     this.inventoryPanel.layout(width, height);
     this.choiceMenuPanel.layout(width, height);
@@ -139,6 +145,7 @@ export class UiManager {
     return [
       ...this.promptPanel.getDisplayObjects(),
       ...this.hudPanel.getDisplayObjects(),
+      ...this.combatPanel.getDisplayObjects(),
       ...this.actionProgressPanel.getDisplayObjects(),
       ...this.inventoryPanel.getDisplayObjects(),
       ...this.choiceMenuPanel.getDisplayObjects(),

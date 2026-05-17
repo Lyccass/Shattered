@@ -3,10 +3,18 @@ import { PLAYER_CONFIG } from './PlayerConfig';
 import { IsoTilemap } from '../world/IsoTilemap';
 
 export class PlayerCollisionSystem {
+  private occupancyValidator: ((feetWorldX: number, feetWorldY: number) => boolean) | null = null;
+
   constructor(private tilemap: IsoTilemap) {}
 
   setTilemap(tilemap: IsoTilemap): void {
     this.tilemap = tilemap;
+  }
+
+  setOccupancyValidator(
+    validator: ((feetWorldX: number, feetWorldY: number) => boolean) | null,
+  ): void {
+    this.occupancyValidator = validator;
   }
 
   getFeetSamplePoints(feetWorldX: number, feetWorldY: number): Phaser.Math.Vector2[] {
@@ -28,10 +36,20 @@ export class PlayerCollisionSystem {
     return this.tilemap.isTileWalkable(tile.x, tile.y);
   }
 
-  canOccupyAtFeet(feetWorldX: number, feetWorldY: number): boolean {
+  isTerrainWalkableAtFeet(feetWorldX: number, feetWorldY: number): boolean {
     return this.getFeetSamplePoints(feetWorldX, feetWorldY).every((point) =>
       this.isWorldPointWalkable(point.x, point.y),
     );
+  }
+
+  canOccupyAtFeet(feetWorldX: number, feetWorldY: number): boolean {
+    const terrainWalkable = this.isTerrainWalkableAtFeet(feetWorldX, feetWorldY);
+
+    if (!terrainWalkable) {
+      return false;
+    }
+
+    return this.occupancyValidator?.(feetWorldX, feetWorldY) ?? true;
   }
 
   getPlayerGridPosition(feetWorldX: number, feetWorldY: number): Phaser.Math.Vector2 {

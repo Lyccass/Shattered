@@ -86,7 +86,7 @@ export function createHomeIslandMap(): MapDefinition {
       linkedObjectId: 'home_workbench_01',
       requiredWood: 1,
       craftedItemId: 'firestarter_set',
-      successMessage: 'You tie together a rough firestarter set. Press Space to place it.',
+      successMessage: 'You tie together a rough firestarter set. Press B to place it.',
       missingResourceMessage: 'You need at least 1 wood for that.',
     },
   ];
