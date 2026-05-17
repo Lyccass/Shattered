@@ -193,15 +193,22 @@ describe('Contract board tasks and trade XP', () => {
     playerSessionState.getInventoryState().addItem('warm_tea', 1);
     system.setMapBoards('test_harbor', [boardAnchor]);
 
+    const accepted = system.selectContract(
+      'harbor_contract_board_01',
+      'warmth_for_the_dockhands',
+      playerSessionState,
+    );
     const result = system.selectContract(
       'harbor_contract_board_01',
       'warmth_for_the_dockhands',
       playerSessionState,
     );
 
+    expect(accepted.ok).toBe(true);
+    expect(accepted.message).toContain('Accepted');
     expect(result.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(0);
-    expect(playerSessionState.getCurrencySnapshot().copper).toBe(5);
+    expect(playerSessionState.getCurrencySnapshot().copper).toBe(55);
     expect(playerSessionState.getReputationSnapshot().harborReputation).toBe(1);
     expect(playerSessionState.getSkillProgressionSystem().getXp('trade')).toBe(10);
   });
@@ -212,15 +219,22 @@ describe('Contract board tasks and trade XP', () => {
     playerSessionState.getInventoryState().addItem('firestarter_set', 1);
     system.setMapBoards('test_harbor', [boardAnchor]);
 
+    const accepted = system.selectContract(
+      'harbor_contract_board_01',
+      'camp_supplies',
+      playerSessionState,
+    );
     const result = system.selectContract(
       'harbor_contract_board_01',
       'camp_supplies',
       playerSessionState,
     );
 
+    expect(accepted.ok).toBe(true);
+    expect(accepted.message).toContain('Accepted');
     expect(result.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(0);
-    expect(playerSessionState.getCurrencySnapshot().copper).toBe(3);
+    expect(playerSessionState.getCurrencySnapshot().copper).toBe(37);
     expect(playerSessionState.getSkillProgressionSystem().getXp('trade')).toBe(8);
   });
 });

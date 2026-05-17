@@ -1,12 +1,11 @@
 import Phaser from 'phaser';
 import { CameraSystem } from '../camera/CameraSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
-import { InteractionChoiceMenuSystem } from '../interactions/InteractionChoiceMenuSystem';
-import { InteractionPromptSystem } from '../interactions/InteractionPromptSystem';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
+import { UiManager } from '../ui/UiManager';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
 import { WorldRuntimeCoordinator } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
@@ -16,8 +15,7 @@ export class GameScene extends Phaser.Scene {
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
-  private interactionChoiceMenuSystem?: InteractionChoiceMenuSystem;
-  private interactionPromptSystem?: InteractionPromptSystem;
+  private uiManager?: UiManager;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private lastInteractionAt = 0;
 
@@ -39,8 +37,7 @@ export class GameScene extends Phaser.Scene {
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this);
     this.initializeWorldRuntime('test_home_island', 'default');
-    this.interactionChoiceMenuSystem = new InteractionChoiceMenuSystem(this);
-    this.interactionPromptSystem = new InteractionPromptSystem(this);
+    this.uiManager = new UiManager(this);
     this.registerDebugKeys();
 
     // Future system hooks:
@@ -57,22 +54,21 @@ export class GameScene extends Phaser.Scene {
     }
     this.worldRuntimeCoordinator?.updatePlayerRuntimeState();
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
-    if (this.interactionPromptSystem && this.worldRuntimeCoordinator) {
-      this.interactionPromptSystem.update(
-        this.worldRuntimeCoordinator.getActiveInteraction(),
-        this.worldRuntimeCoordinator.getPlayerInventoryState().getSnapshot(),
-        this.worldRuntimeCoordinator.getPlayerCurrencySnapshot(),
-        this.worldRuntimeCoordinator.getPlayerReputationSnapshot(),
-        this.worldRuntimeCoordinator.getPlayerSkillSnapshots(),
-        this.worldRuntimeCoordinator.getActiveTaskCount(),
-        this.worldRuntimeCoordinator.getTaskJournalEntries(),
-        this.worldRuntimeCoordinator.getPlayerActiveEffects(),
-        this.worldRuntimeCoordinator.getPlacementState(),
-      );
-    }
-    this.interactionChoiceMenuSystem?.update(
-      this.worldRuntimeCoordinator?.getChoiceMenuState() ?? null,
-    );
+    this.uiManager?.update(this.worldRuntimeCoordinator?.getUiState() ?? {
+      activeInteraction: null,
+      choiceMenu: null,
+      inventory: {
+        resources: { wood: 0, stone: 0, herb: 0 },
+        items: { firestarter_set: 0, wooden_marker: 0, camp_supplies: 0, warm_tea: 0 },
+      },
+      currency: { copper: 0, silver: 0, gold: 0, platinum: 0 },
+      reputation: { harborReputation: 0 },
+      skills: [],
+      activeTaskCount: 0,
+      journalEntries: [],
+      activeEffects: [],
+      placementState: null,
+    });
     this.debugOverlaySystem?.update();
   }
 
@@ -135,14 +131,14 @@ export class GameScene extends Phaser.Scene {
       const menuMessage = this.worldRuntimeCoordinator?.cancelChoiceMenu();
 
       if (menuMessage) {
-        this.interactionPromptSystem?.showFeedback(menuMessage);
+        this.uiManager?.showInfo(menuMessage);
         return;
       }
 
       const message = this.worldRuntimeCoordinator?.cancelPlacementMode();
 
       if (message) {
-        this.interactionPromptSystem?.showFeedback(message);
+        this.uiManager?.showInfo(message);
       }
     });
 
@@ -176,8 +172,16 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    keyboard.on('keydown-I', () => {
+      this.uiManager?.toggleInventory();
+    });
+
     keyboard.on('keydown-J', () => {
-      this.interactionPromptSystem?.toggleJournal();
+      this.uiManager?.toggleJournal();
+    });
+
+    keyboard.on('keydown-P', () => {
+      this.uiManager?.toggleSkills();
     });
   }
 
@@ -266,7 +270,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryTriggerActiveInteraction(): void {
-    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
@@ -283,7 +287,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastInteractionAt = now;
-    this.interactionPromptSystem.showFeedback(result.message);
+    this.uiManager.handleResult(result);
 
     if (result.transitionRequest) {
       this.bindDebugOverlayToRuntime();
@@ -292,16 +296,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryStartPlacementMode(): void {
-    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
-    this.interactionPromptSystem.showFeedback(this.worldRuntimeCoordinator.startPlacementMode());
+    this.uiManager.showInfo(this.worldRuntimeCoordinator.startPlacementMode());
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
   private tryConfirmPlacementMode(): void {
-    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
@@ -318,22 +322,22 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastInteractionAt = now;
-    this.interactionPromptSystem.showFeedback(result.message);
+    this.uiManager.handleResult(result);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
   private tryUseWarmTea(): void {
-    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
     const result = this.worldRuntimeCoordinator.useItem('warm_tea');
-    this.interactionPromptSystem.showFeedback(result.message);
+    this.uiManager.handleResult(result);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
   private tryConfirmChoiceMenu(): void {
-    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
@@ -343,7 +347,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.interactionPromptSystem.showFeedback(result.message);
+    this.uiManager.handleResult(result);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 }

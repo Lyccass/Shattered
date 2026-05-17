@@ -45,7 +45,7 @@ Current shipped contract:
 
 - `warmth_for_the_dockhands`
   - requires `1 warm_tea`
-  - rewards `5 copper`
+  - rewards `55 copper`
   - grants `1 harbor_reputation`
   - repeatable
 

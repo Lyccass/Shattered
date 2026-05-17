@@ -6,6 +6,7 @@ import type {
   PlayerItemKey,
 } from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
+import type { SkillXpDelta } from '../skills/SkillTypes';
 import type {
   MapContractBoardAnchor,
   MapGenericDebugAnchor,
@@ -110,6 +111,7 @@ export type InteractionResult = {
   createdObjectId?: string;
   currencyDelta?: Partial<CurrencySnapshot>;
   reputationDelta?: Partial<ReputationSnapshot>;
+  xpDelta?: SkillXpDelta;
 };
 
 export type InteractionHandlers = {

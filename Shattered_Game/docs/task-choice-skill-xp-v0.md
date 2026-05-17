@@ -68,7 +68,7 @@ The player can:
 - leave it active in the journal
 - complete it later once the requirements are met
 
-If the player already has the requirement when accepting, the contract can complete immediately.
+Accepting and turning in are always separate steps. Even if the player already has the required item, the first interaction only accepts the contract; a later interaction turns it in.
 
 ## Task journal
 

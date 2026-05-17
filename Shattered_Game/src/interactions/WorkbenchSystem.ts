@@ -59,7 +59,11 @@ export class WorkbenchSystem {
     return this.getRecipesForWorkbench(workbenchId).map((recipe) => ({
       id: recipe.id,
       label: recipe.displayName,
-      details: `${this.getRequirementSummary(recipe)} -> ${this.getOutputSummary(recipe)}`,
+      details: [
+        `Need: ${this.getRequirementSummary(recipe)}`,
+        `Makes: ${this.getOutputSummary(recipe)}`,
+        `XP: ${this.getXpRewardSummary(recipe)}`,
+      ].join('\n'),
       disabledReason: canCraftRecipe(recipe, playerSessionState.getInventoryState())
         ? undefined
         : this.getMissingResourceMessage(recipe),
@@ -116,6 +120,7 @@ export class WorkbenchSystem {
       inventoryDelta: this.getInventoryDelta(recipe),
       itemDelta: this.getItemDelta(recipe),
       placementItemId: craftedItemId,
+      xpDelta: recipe.xpRewards,
     };
   }
 
@@ -185,6 +190,16 @@ export class WorkbenchSystem {
   private getOutputSummary(recipe: RecipeDefinition): string {
     return recipe.outputs
       .map((output) => `${output.amount} ${output.id.replaceAll('_', ' ')}`)
+      .join(' + ');
+  }
+
+  private getXpRewardSummary(recipe: RecipeDefinition): string {
+    if (!recipe.xpRewards || Object.keys(recipe.xpRewards).length === 0) {
+      return 'none';
+    }
+
+    return Object.entries(recipe.xpRewards)
+      .map(([skillId, amount]) => `+${amount} ${skillId}`)
       .join(' + ');
   }
 }

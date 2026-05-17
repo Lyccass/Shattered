@@ -220,6 +220,7 @@ export class PlacedStructureSystem {
           message: 'You brew warm tea.',
           inventoryDelta: { herb: -1 },
           itemDelta: { warm_tea: 1 },
+          xpDelta: recipe.xpRewards,
         };
       }
 

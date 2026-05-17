@@ -36,8 +36,8 @@ describe('ContractBoardSystem', () => {
 
     const result = system.useBoard('harbor_contract_board_01', playerSessionState);
 
-    expect(result.ok).toBe(false);
-    expect(result.message).toContain('warm tea');
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain('Accepted');
     expect(playerSessionState.getCurrencySnapshot().copper).toBe(0);
   });
 
@@ -46,12 +46,15 @@ describe('ContractBoardSystem', () => {
     const playerSessionState = new PlayerSessionState();
     playerSessionState.getInventoryState().addItem('warm_tea', 1);
 
+    const accepted = system.useBoard('harbor_contract_board_01', playerSessionState);
     const result = system.useBoard('harbor_contract_board_01', playerSessionState);
 
+    expect(accepted.ok).toBe(true);
+    expect(accepted.message).toContain('Accepted');
     expect(result.ok).toBe(true);
     expect(result.message).toContain('Warmth for the Dockhands');
     expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(0);
-    expect(playerSessionState.getCurrencySnapshot().copper).toBe(5);
+    expect(playerSessionState.getCurrencySnapshot().copper).toBe(55);
     expect(playerSessionState.getReputationSnapshot().harborReputation).toBe(1);
   });
 
@@ -60,13 +63,23 @@ describe('ContractBoardSystem', () => {
     const playerSessionState = new PlayerSessionState();
     playerSessionState.getInventoryState().addItem('warm_tea', 2);
 
-    const first = system.useBoard('harbor_contract_board_01', playerSessionState);
-    const second = system.useBoard('harbor_contract_board_01', playerSessionState);
+    const firstAccept = system.useBoard('harbor_contract_board_01', playerSessionState);
+    const firstComplete = system.useBoard('harbor_contract_board_01', playerSessionState);
+    const secondAccept = system.useBoard('harbor_contract_board_01', playerSessionState);
+    const secondComplete = system.useBoard('harbor_contract_board_01', playerSessionState);
 
-    expect(first.ok).toBe(true);
-    expect(second.ok).toBe(true);
+    expect(firstAccept.ok).toBe(true);
+    expect(firstComplete.ok).toBe(true);
+    expect(secondAccept.ok).toBe(true);
+    expect(secondComplete.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(0);
-    expect(playerSessionState.getCurrencyState().getTotalCopperValue()).toBe(10);
+    expect(playerSessionState.getCurrencyState().getTotalCopperValue()).toBe(110);
+    expect(playerSessionState.getCurrencySnapshot()).toEqual({
+      copper: 10,
+      silver: 1,
+      gold: 0,
+      platinum: 0,
+    });
     expect(playerSessionState.getReputationSnapshot().harborReputation).toBe(2);
   });
 
@@ -89,9 +102,11 @@ describe('ContractBoardSystem', () => {
     const playerSessionState = new PlayerSessionState();
     playerSessionState.getInventoryState().addItem('firestarter_set', 2);
 
+    const firstAccept = system.useBoard('harbor_contract_board_01', playerSessionState);
     const first = system.useBoard('harbor_contract_board_01', playerSessionState);
     const second = system.useBoard('harbor_contract_board_01', playerSessionState);
 
+    expect(firstAccept.ok).toBe(true);
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(false);
     expect(second.message).toContain('No contracts are available');
@@ -120,6 +135,7 @@ describe('ContractBoardSystem', () => {
     expect(system.getAvailableContracts('harbor_contract_board_01', playerSessionState)).toHaveLength(1);
 
     playerSessionState.getInventoryState().addItem('firestarter_set', 1);
+    system.useBoard('harbor_contract_board_01', playerSessionState);
     system.useBoard('harbor_contract_board_01', playerSessionState);
 
     expect(system.getAvailableContracts('harbor_contract_board_01', playerSessionState)).toHaveLength(0);

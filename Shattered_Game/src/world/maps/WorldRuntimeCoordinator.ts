@@ -43,6 +43,7 @@ import { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { PlayerItemKey, PlayerInventoryState } from '../../player/PlayerInventoryState';
 import type { SkillSnapshot } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
+import type { UiStateSnapshot } from '../../ui/UiTypes';
 import { MapLoader } from './MapLoader';
 import type { LoadedMapRuntime } from './MapRuntime';
 import { getMapDisplayName } from './MapDefinitions';
@@ -266,6 +267,21 @@ export class WorldRuntimeCoordinator {
 
   getPlayerReputationSnapshot() {
     return this.playerSessionState.getReputationSnapshot();
+  }
+
+  getUiState(): UiStateSnapshot {
+    return {
+      activeInteraction: this.getActiveInteraction(),
+      choiceMenu: this.getChoiceMenuState(),
+      inventory: this.playerSessionState.getInventorySnapshot(),
+      currency: this.playerSessionState.getCurrencySnapshot(),
+      reputation: this.playerSessionState.getReputationSnapshot(),
+      skills: this.playerSessionState.getSkillSnapshots(),
+      activeTaskCount: this.getActiveTaskCount(),
+      journalEntries: this.getTaskJournalEntries(),
+      activeEffects: this.getPlayerActiveEffects(),
+      placementState: this.getPlacementState(),
+    };
   }
 
   getPlacementState(): PlacementPreviewState | null {

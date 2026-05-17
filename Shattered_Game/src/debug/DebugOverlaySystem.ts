@@ -95,7 +95,7 @@ export class DebugOverlaySystem {
 
     if (now >= this.nextBannerRefreshAt) {
       this.nextBannerRefreshAt = now + PROTOTYPE_SCALE.debugOverlayBannerRefreshMs;
-      const bannerText = `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Z/Wheel] [G] [C] [K] [O] [L]${transitionPrompt}`;
+      const bannerText = `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Tab] [Z/Wheel] [G] [C] [O] [L]${transitionPrompt}`;
 
       if (bannerText !== this.lastBannerText) {
         this.zoomText.setText(bannerText);
@@ -150,7 +150,7 @@ export class DebugOverlaySystem {
     };
 
     this.detailText.setText([
-      'Debug [K]   Toggle obj overlays [O]   Log placements [L]   Toggle chunk debug [C]',
+      'Debug [Tab]   Toggle obj overlays [O]   Log placements [L]   Toggle chunk debug [C]',
       `Map: ${currentMapId}   spawn: ${currentSpawnId}`,
       `Player: ${player.x.toFixed(1)}, ${player.y.toFixed(1)}`,
       `Player grid: ${playerGrid.x.toFixed(2)}, ${playerGrid.y.toFixed(2)}`,
@@ -253,6 +253,7 @@ export class DebugOverlaySystem {
 
     text.setScrollFactor(0);
     text.setDepth(RENDER_DEPTHS.UI);
+    text.setVisible(false);
 
     return text;
   }
@@ -314,7 +315,7 @@ export class DebugOverlaySystem {
   }
 
   private registerToggleKey(): void {
-    this.scene.input.keyboard?.on('keydown-K', (event: KeyboardEvent) => {
+    this.scene.input.keyboard?.on('keydown-TAB', (event: KeyboardEvent) => {
       event.preventDefault();
       this.setVisible(!this.isVisible);
     });
@@ -322,6 +323,7 @@ export class DebugOverlaySystem {
 
   private setVisible(isVisible: boolean): void {
     this.isVisible = isVisible;
+    this.zoomText.setVisible(isVisible);
     this.detailText.setVisible(isVisible);
     this.playerFeetMarker.setVisible(isVisible);
   }

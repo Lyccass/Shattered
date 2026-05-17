@@ -68,7 +68,10 @@ export class ContractBoardSystem {
     return this.getContractsForBoard(this.requireBoardState(boardId).anchor).map((contract) => ({
       id: contract.id,
       label: this.getContractLabel(contract, playerSessionState),
-      details: `${this.getRequirementSummary(contract)} -> ${this.getRewardSummary(contract)}`,
+      details: [
+        `Need: ${this.getRequirementSummary(contract)}`,
+        `Reward: ${this.getRewardSummary(contract)}`,
+      ].join('\n'),
       disabledReason: this.isContractAvailable(contract, playerSessionState)
         ? undefined
         : 'Completed',
@@ -99,12 +102,29 @@ export class ContractBoardSystem {
     }
 
     const availableContracts = this.getAvailableContracts(boardId, playerSessionState);
-    const completableContract = availableContracts.find((contract) =>
-      this.canCompleteContract(contract, playerSessionState),
+    const acceptedCompletableContract = availableContracts.find((contract) =>
+      playerSessionState.isContractAccepted(contract.id)
+      && this.canCompleteContract(contract, playerSessionState),
     );
 
-    if (completableContract) {
-      return this.selectContract(boardId, completableContract.id, playerSessionState);
+    if (acceptedCompletableContract) {
+      return this.selectContract(boardId, acceptedCompletableContract.id, playerSessionState);
+    }
+
+    const nextUnacceptedContract = availableContracts.find(
+      (contract) => !playerSessionState.isContractAccepted(contract.id),
+    );
+
+    if (nextUnacceptedContract) {
+      return this.selectContract(boardId, nextUnacceptedContract.id, playerSessionState);
+    }
+
+    const nextAcceptedContract = availableContracts.find((contract) =>
+      playerSessionState.isContractAccepted(contract.id),
+    );
+
+    if (nextAcceptedContract) {
+      return this.selectContract(boardId, nextAcceptedContract.id, playerSessionState);
     }
 
     const nextContract = availableContracts[0];
@@ -158,25 +178,23 @@ export class ContractBoardSystem {
 
     if (!wasAccepted) {
       playerSessionState.acceptContract(contract.id);
+      return {
+        ok: true,
+        interactionType: 'contract_board',
+        targetId: contract.id,
+        message: `Accepted ${contract.displayName}. Bring ${this.getRequirementSummary(contract)}.`,
+      };
     }
 
     if (this.canCompleteContract(contract, playerSessionState)) {
-      const completionResult = this.completeContract(contract, playerSessionState);
-
-      if (!wasAccepted) {
-        completionResult.message = `Accepted and completed ${contract.displayName}. ${completionResult.message.replace(`Completed ${contract.displayName}. `, '')}`;
-      }
-
-      return completionResult;
+      return this.completeContract(contract, playerSessionState);
     }
 
     return {
       ok: true,
       interactionType: 'contract_board',
       targetId: contract.id,
-      message: wasAccepted
-        ? `Still need ${this.getRequirementSummary(contract)}.`
-        : `Accepted ${contract.displayName}. Bring ${this.getRequirementSummary(contract)}.`,
+      message: `Still need ${this.getRequirementSummary(contract)}.`,
     };
   }
 
@@ -250,6 +268,7 @@ export class ContractBoardSystem {
       reputationDelta: contract.rewards.harborReputation
         ? { harborReputation: contract.rewards.harborReputation }
         : undefined,
+      xpDelta: contract.rewards.xpRewards,
     };
   }
 

@@ -9,7 +9,7 @@ export const CONTRACT_DEFINITIONS: ContractDefinition[] = [
       warm_tea: 1,
     },
     rewards: {
-      copper: 5,
+      copper: 55,
       harborReputation: 1,
       xpRewards: {
         trade: 10,
@@ -27,7 +27,7 @@ export const CONTRACT_DEFINITIONS: ContractDefinition[] = [
       firestarter_set: 1,
     },
     rewards: {
-      copper: 3,
+      copper: 37,
       harborReputation: 1,
       xpRewards: {
         trade: 8,

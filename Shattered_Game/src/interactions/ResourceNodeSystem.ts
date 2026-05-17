@@ -180,6 +180,7 @@ export class ResourceNodeSystem {
       message: `Gathered 1 ${resourceKey}.`,
       inventoryDelta,
       depleted: true,
+      xpDelta: { gathering: RESOURCE_XP_REWARDS[node.anchor.resourceNodeType] },
     };
   }
 
