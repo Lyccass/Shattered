@@ -65,6 +65,8 @@ export class InteractionPromptSystem {
         ];
         const hintParts: string[] = [];
 
+        hintParts.push('[J: journal]');
+
         if (!placementState?.active && inventory.items.firestarter_set > 0) {
           hintParts.push('[Space: place]');
         }
