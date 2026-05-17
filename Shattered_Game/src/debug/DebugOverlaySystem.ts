@@ -47,6 +47,22 @@ export class DebugOverlaySystem {
   private readonly recentFrameTimes = new Array<number>(DebugOverlaySystem.FRAME_TIME_SAMPLE_SIZE).fill(0);
   private recentFrameTimeCount = 0;
   private recentFrameTimeWriteIndex = 0;
+  private destroyed = false;
+
+  private readonly handleToggleKeydown = (event: KeyboardEvent): void => {
+    event.preventDefault();
+    this.setVisible(!this.isVisible);
+  };
+
+  private readonly handleResize = (gameSize: Phaser.Structs.Size): void => {
+    this.uiCamera.setViewport(0, 0, gameSize.width, gameSize.height);
+  };
+
+  private readonly handleAddedToScene = (child: Phaser.GameObjects.GameObject): void => {
+    if (!this.isUiObject(child)) {
+      this.uiCamera.ignore(child);
+    }
+  };
 
   constructor({
     scene,
@@ -80,6 +96,10 @@ export class DebugOverlaySystem {
   }
 
   update(): void {
+    if (this.destroyed) {
+      return;
+    }
+
     this.recordFrameTimeSample();
 
     const zoom = this.cameraSystem.getZoom();
@@ -315,10 +335,7 @@ export class DebugOverlaySystem {
   }
 
   private registerToggleKey(): void {
-    this.scene.input.keyboard?.on('keydown-TAB', (event: KeyboardEvent) => {
-      event.preventDefault();
-      this.setVisible(!this.isVisible);
-    });
+    this.scene.input.keyboard?.on('keydown-TAB', this.handleToggleKeydown);
   }
 
   private setVisible(isVisible: boolean): void {
@@ -329,29 +346,13 @@ export class DebugOverlaySystem {
   }
 
   private registerResizeHandler(): void {
-    this.scene.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      this.uiCamera.setViewport(0, 0, gameSize.width, gameSize.height);
-    });
+    this.scene.scale.on('resize', this.handleResize);
   }
 
   private ignoreWorldForUiCamera(): void {
-    const isUiObject = (child: Phaser.GameObjects.GameObject): boolean =>
-      child === this.zoomText || child === this.detailText;
-
-    const existing = this.scene.children.getChildren().filter((c) => !isUiObject(c));
+    const existing = this.scene.children.getChildren().filter((c) => !this.isUiObject(c));
     this.uiCamera.ignore(existing);
-
-    // Any world object added after construction (lazy terrain chunks, debug overlays)
-    // is also ignored. Phaser 3.90 fires ADDED_TO_SCENE on scene.events when an object
-    // enters the DisplayList — this is the only reliable hook for post-construction adds.
-    this.scene.events.on(
-      Phaser.Scenes.Events.ADDED_TO_SCENE,
-      (child: Phaser.GameObjects.GameObject) => {
-        if (!isUiObject(child)) {
-          this.uiCamera.ignore(child);
-        }
-      },
-    );
+    this.scene.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);
   }
 
   setWorldContext({
@@ -372,5 +373,24 @@ export class DebugOverlaySystem {
     this.mapTransitionSystem = mapTransitionSystem;
     this.objectPlacementSystem = objectPlacementSystem;
     this.objectDebugRenderer = objectDebugRenderer;
+  }
+
+  destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.destroyed = true;
+    this.scene.input.keyboard?.off('keydown-TAB', this.handleToggleKeydown);
+    this.scene.scale.off('resize', this.handleResize);
+    this.scene.events.off(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);
+    this.zoomText.destroy();
+    this.detailText.destroy();
+    this.playerFeetMarker.destroy();
+    this.scene.cameras.remove(this.uiCamera);
+  }
+
+  private isUiObject(child: Phaser.GameObjects.GameObject): boolean {
+    return child === this.zoomText || child === this.detailText;
   }
 }

@@ -93,6 +93,7 @@ export class WorldRuntimeCoordinator {
   private objectDebugRenderer?: ObjectDebugRenderer;
   private objectOcclusionSystem?: ObjectOcclusionSystem;
   private readonly pendingUiResults: InteractionResult[] = [];
+  private destroyed = false;
 
   private readonly actionFactory: InteractionActionFactory;
   private readonly uiAggregator: UiStateAggregator;
@@ -514,6 +515,32 @@ export class WorldRuntimeCoordinator {
 
   getObjectOcclusionSystem(): ObjectOcclusionSystem | undefined {
     return this.objectOcclusionSystem;
+  }
+
+  destroy(): void {
+    if (this.destroyed) {
+      return;
+    }
+
+    this.destroyed = true;
+    this.choiceMenuCoordinator.cancel();
+    this.actionProgressSystem.cancel();
+    this.pendingUiResults.length = 0;
+    this.placementModeSystem.destroy();
+    this.mapTransitionVisualSystem.clear();
+    this.mapTransitionSystem.setTransitions([]);
+    this.interactionSystem.setTargets([]);
+    this.objectPlacementSystem?.clear();
+    this.objectRenderer?.destroyAll();
+    this.objectDebugRenderer?.destroyAll();
+    this.objectRenderer = undefined;
+    this.objectDebugRenderer = undefined;
+    this.objectPlacementSystem = undefined;
+    this.objectOcclusionSystem = undefined;
+    this.mapLoader.destroyCurrentRuntime();
+    this.currentRuntime = undefined;
+    this.bindings = undefined;
+    this.worldSessionState.clearAll();
   }
 
   private updateActionProgress(deltaMs: number): void {

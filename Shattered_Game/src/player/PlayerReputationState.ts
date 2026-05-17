@@ -14,4 +14,20 @@ export class PlayerReputationState {
       harborReputation: this.harborReputation,
     };
   }
+
+  createSaveSnapshot(): Record<string, number> {
+    return this.getSnapshot();
+  }
+
+  restoreSaveSnapshot(snapshot: Record<string, number>): void {
+    this.harborReputation = sanitizeCount(snapshot.harborReputation);
+  }
+}
+
+function sanitizeCount(value: number | undefined): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value ?? 0));
 }

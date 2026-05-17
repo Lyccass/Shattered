@@ -95,4 +95,4 @@ No buffs, healing, stamina, cooking, or status effects are implemented yet.
 - cooking
 - light or fire VFX
 - permanent buildables
-- shared room or multiplayer state
+- shared world chunk runtime state or multiplayer sync

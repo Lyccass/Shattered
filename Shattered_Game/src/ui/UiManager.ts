@@ -93,6 +93,9 @@ export class UiManager {
 
   destroy(): void {
     this.scene.scale.off('resize', this.handleResize);
+    this.scene.events.off(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);
+    this.getDisplayObjects().forEach((displayObject) => displayObject.destroy());
+    this.scene.cameras.remove(this.uiCamera);
   }
 
   private readonly handleResize = (gameSize: Phaser.Structs.Size): void => {
@@ -111,14 +114,12 @@ export class UiManager {
     const existing = this.scene.children.getChildren().filter((child) => !isUiObject(child));
     this.uiCamera.ignore(existing);
 
-    this.scene.events.on(
-      Phaser.Scenes.Events.ADDED_TO_SCENE,
-      (child: Phaser.GameObjects.GameObject) => {
-        if (!isUiObject(child)) {
-          this.uiCamera.ignore(child);
-        }
-      },
-    );
+    this.handleAddedToScene = (child: Phaser.GameObjects.GameObject) => {
+      if (!isUiObject(child)) {
+        this.uiCamera.ignore(child);
+      }
+    };
+    this.scene.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);
   }
 
   private layout(): void {
@@ -146,4 +147,6 @@ export class UiManager {
       ...this.toastSystem.getDisplayObjects(),
     ];
   }
+
+  private handleAddedToScene: (child: Phaser.GameObjects.GameObject) => void = () => {};
 }

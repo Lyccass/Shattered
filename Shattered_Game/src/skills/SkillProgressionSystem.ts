@@ -47,4 +47,23 @@ export class SkillProgressionSystem {
       level: this.getLevel(skillId),
     }));
   }
+
+  createSaveSnapshot(): Record<string, number> {
+    return { ...this.xpBySkill };
+  }
+
+  restoreSaveSnapshot(snapshot: Record<string, number>): void {
+    (Object.keys(this.xpBySkill) as SkillId[]).forEach((skillId) => {
+      const value = snapshot[skillId];
+      this.xpBySkill[skillId] = sanitizeCount(value);
+    });
+  }
+}
+
+function sanitizeCount(value: number | undefined): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value ?? 0));
 }

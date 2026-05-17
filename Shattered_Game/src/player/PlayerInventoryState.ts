@@ -19,6 +19,11 @@ export type PlayerInventorySnapshot = {
   items: PlayerItemCounts;
 };
 
+export type PlayerInventorySaveSnapshot = {
+  resources: Record<string, number>;
+  items: Record<string, number>;
+};
+
 // Known keys used to build typed snapshots. When a new resource or item
 // is added via the generic API, add it here too.
 const KNOWN_RESOURCE_KEYS: PlayerResourceKey[] = ['wood', 'stone', 'herb'];
@@ -59,6 +64,26 @@ export class PlayerInventoryState {
       resources: this.getResourceCounts(),
       items: this.getItemCounts(),
     };
+  }
+
+  createSaveSnapshot(): PlayerInventorySaveSnapshot {
+    return {
+      resources: { ...this.resources },
+      items: { ...this.items },
+    };
+  }
+
+  restoreSaveSnapshot(snapshot: PlayerInventorySaveSnapshot): void {
+    resetStore(this.resources, KNOWN_RESOURCE_KEYS);
+    resetStore(this.items, KNOWN_ITEM_KEYS);
+
+    Object.entries(snapshot.resources).forEach(([id, amount]) => {
+      this.resources[id] = sanitizeCount(amount);
+    });
+
+    Object.entries(snapshot.items).forEach(([id, amount]) => {
+      this.items[id] = sanitizeCount(amount);
+    });
   }
 
   static emptySnapshot(): PlayerInventorySnapshot {
@@ -193,4 +218,22 @@ function buildTypedSnapshot<K extends string>(
   }
 
   return result;
+}
+
+function resetStore(store: Record<string, number>, knownKeys: string[]): void {
+  Object.keys(store).forEach((key) => {
+    delete store[key];
+  });
+
+  knownKeys.forEach((key) => {
+    store[key] = 0;
+  });
+}
+
+function sanitizeCount(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value));
 }

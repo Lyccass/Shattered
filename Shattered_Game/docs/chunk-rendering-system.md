@@ -77,4 +77,4 @@ Future work for true large-map streaming:
 - async region loading
 - map section boundaries and neighbouring region prefetch
 - editor-authored chunk metadata
-- server-driven room/region state
+- server-driven world-region/chunk runtime state

@@ -111,7 +111,8 @@ Placed firestarters and campfires are not stored in static map definitions.
 They live in runtime/session state so the project can later split them into:
 
 - player state
-- room state
+- world chunk state
+- instance state where needed
 - personal island state
 
 without rewriting static map data.

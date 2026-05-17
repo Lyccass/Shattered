@@ -13,6 +13,8 @@ const gameConfig: Phaser.Types.Core.GameConfig = {
     antialias: false,
     pixelArt: true,
     roundPixels: true,
+    powerPreference: 'high-performance',
+    desynchronized: true,
   },
   physics: {
     default: 'arcade',

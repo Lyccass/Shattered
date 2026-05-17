@@ -486,44 +486,35 @@ Hardcore/high-risk zones may have harsher rules, but they should be optional.
 
 ## 18. Multiplayer Structure
 
-The game should feel MMO-like without needing one massive seamless world at first.
+The player-facing goal is a seamless overworld: **The Wake should feel like one continuous OSRS-style worldmap**.
+
+That does **not** mean one giant always-loaded runtime object. Internally, the overworld should be split into authored regions and streamed chunks/cells, with sparse changed world state.
 
 Recommended structure:
 
+### Seamless Overworld
+
+- One continuous world coordinate space for players
+- Internally split into regions/chunks/cells
+- Shared public travel, gathering, events, NPCs, contracts, routes, and worldstate
+- Streamed or materialized around the player
+- Sparse changed chunk state rather than one giant world blob
+
 ### Personal Island
 
-- Instanced per player
-- Fully customizable
+- Player-owned space
+- Persistent layout/buildings later
+- Can still be instanced or specially hosted
 - Friends can visit
-- Some islands can be opened publicly
 - Shops and services can operate from islands
 
-### Shared Harbour Town
+### Special Instances
 
-- Main MMO social hub
-- Market
-- Contracts
-- Player stalls
-- Festivals
-- Group finding
-- NPCs
-- Public boards
-- Travel access
-
-### Shared Resource Islands
-
-- Public or sharded spaces
-- Multiple players visible
-- Gathering, events, monsters, secrets
-- Worldstate changes visible
-
-### Co-op Ruins / Dungeons
-
-- 1–5 players
-- Slow encounter combat
-- Bosses
-- Rare resources
-- Story discoveries
+- Dungeons
+- Boss arenas
+- Interiors if needed
+- Quest spaces
+- Private edit/build spaces if needed
 
 ### Guild Islands / Outposts
 
@@ -611,21 +602,24 @@ The project should not be built from raw WebGL or raw sockets from scratch. The 
 
 ## Recommended Architecture
 
-The world should be split into multiplayer rooms instead of one giant seamless MMO map.
+The main overworld should **not** be modelled as disconnected room hops.
 
-Recommended room types:
+Recommended structure:
 
-- `HomeIslandRoom`  
-  Personal island, building, farming, decorating, crafting, storage, friends visiting and player shops.
+- `WorldMap`
+  - the seamless player-facing overworld
+- `WorldRegion`
+  - authored region slices of the overworld
+- `WorldChunk` / `WorldCell`
+  - runtime materialization and sparse changed-state units
+- `PersonalIslandInstance`
+  - player-owned island space
+- `DungeonInstance`
+  - solo or group combat spaces
+- `InteriorInstance`
+  - optional private or special-purpose interiors
 
-- `HarborTownRoom`  
-  Shared MMO hub for markets, NPCs, quest boards, group finding, public events and social interaction.
-
-- `WorldIslandRoom`  
-  Shared wild islands for gathering, fishing, mining, exploration, light combat, worldstate events and dynamic quests.
-
-- `DungeonRoom`  
-  Solo or small-group combat areas for slower, deliberate encounters, ruins, bosses and rare materials.
+Visible map transitions are acceptable as prototype scaffolding or special-case travel, but they are not the final model for moving around the main overworld.
 
 The server should be authoritative for important gameplay decisions such as movement validation, combat results, inventories, crafting, markets, island saves and worldstate changes.
 
@@ -743,7 +737,7 @@ MVP worldstate example:
 
 Do not build these early:
 
-- Massive seamless open world
+- One giant always-loaded overworld object kept fully active in memory
 - Huge raid battles
 - Full PvP economy warfare
 - 50 skills
@@ -780,12 +774,12 @@ The game should not be built from raw WebGL and sockets unless there is a very s
 
 Use lightweight libraries, but keep the architecture code-first.
 
-Recommended room structure:
+Recommended runtime structure:
 
-- HomeIslandRoom
-- HarbourTownRoom
-- ResourceIslandRoom
-- DungeonRoom
+- WorldMap / WorldRegion / WorldChunk
+- PersonalIslandInstance
+- DungeonInstance
+- InteriorInstance
 - MarketService
 - WorldstateService
 - AccountService
@@ -802,4 +796,3 @@ Recommended room structure:
 > The world gives me mystery.  
 > The market connects us.  
 > The worldstate makes it alive.
-

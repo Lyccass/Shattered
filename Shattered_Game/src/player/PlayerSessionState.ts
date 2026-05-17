@@ -2,6 +2,7 @@ import { ConsumableEffectSystem } from '../effects/ConsumableEffectSystem';
 import { EFFECT_DEFINITIONS } from '../effects/EffectDefinitions';
 import { EffectRegistry } from '../effects/EffectRegistry';
 import type { ActiveEffectSnapshot } from '../effects/EffectTypes';
+import type { PlayerSaveState } from '../persistence/SaveTypes';
 import { PlayerCurrencyState, type CurrencySnapshot } from './PlayerCurrencyState';
 import { PlayerInventoryState, type PlayerInventorySnapshot } from './PlayerInventoryState';
 import { PlayerReputationState, type ReputationSnapshot } from './PlayerReputationState';
@@ -89,5 +90,47 @@ export class PlayerSessionState {
 
   update(nowMs: number): boolean {
     return this.effectSystem.update(nowMs);
+  }
+
+  createSaveState({
+    currentWorldId,
+    currentMapId,
+    playerTile,
+    nowMs,
+  }: {
+    currentWorldId: string;
+    currentMapId: string;
+    playerTile: { tileX: number; tileY: number };
+    nowMs: number;
+  }): PlayerSaveState {
+    const inventorySnapshot = this.inventoryState.createSaveSnapshot();
+
+    return {
+      currentWorldId,
+      currentMapId,
+      playerTile: {
+        tileX: Math.trunc(playerTile.tileX),
+        tileY: Math.trunc(playerTile.tileY),
+      },
+      resources: inventorySnapshot.resources,
+      items: inventorySnapshot.items,
+      currency: this.currencyState.createSaveSnapshot(),
+      reputation: this.reputationState.createSaveSnapshot(),
+      skillXp: this.skillProgressionSystem.createSaveSnapshot(),
+      journal: this.taskJournalState.createSaveSnapshot(),
+      activeEffects: this.effectSystem.createSaveSnapshot(nowMs),
+    };
+  }
+
+  restoreSaveState(snapshot: PlayerSaveState, nowMs: number): void {
+    this.inventoryState.restoreSaveSnapshot({
+      resources: snapshot.resources,
+      items: snapshot.items,
+    });
+    this.currencyState.restoreSaveSnapshot(snapshot.currency);
+    this.reputationState.restoreSaveSnapshot(snapshot.reputation);
+    this.skillProgressionSystem.restoreSaveSnapshot(snapshot.skillXp);
+    this.taskJournalState.restoreSaveSnapshot(snapshot.journal);
+    this.effectSystem.restoreSaveSnapshot(snapshot.activeEffects, nowMs);
   }
 }

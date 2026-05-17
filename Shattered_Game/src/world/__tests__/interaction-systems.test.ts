@@ -294,7 +294,7 @@ describe('ResourceNodeSystem', () => {
     expect(mapObjects).toEqual([
       { id: 'wild_herb_node_01', definitionId: 'herb_patch_node', tileX: 3, tileY: 3 },
     ]);
-    expect(sessionState.getResourceRespawnMap('test_wild_island').get('herb_01')).toBeGreaterThan(0);
+    expect(sessionState.getResourceRespawnAt('test_wild_island', 'herb_01')).toBeGreaterThan(0);
   });
 });
 

@@ -190,15 +190,15 @@ export class ResourceNodeSystem {
   }
 
   private getRespawnAt(mapId: string, nodeId: string): number | null {
-    return this.sessionState.getResourceRespawnMap(mapId).get(nodeId) ?? null;
+    return this.sessionState.getResourceRespawnAt(mapId, nodeId);
   }
 
   private setRespawnAt(mapId: string, nodeId: string, respawnAtMs: number): void {
-    this.sessionState.getResourceRespawnMap(mapId).set(nodeId, respawnAtMs);
+    this.sessionState.setResourceRespawnAt(mapId, nodeId, respawnAtMs);
   }
 
   private clearRespawnAt(mapId: string, nodeId: string): void {
-    this.sessionState.getResourceRespawnMap(mapId).delete(nodeId);
+    this.sessionState.clearResourceRespawnAt(mapId, nodeId);
   }
 }
 

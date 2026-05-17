@@ -67,7 +67,7 @@ export class PlacedStructureSystem {
       return;
     }
 
-    for (const placedObject of this.sessionState.getPlacedObjects(mapId)) {
+    for (const placedObject of this.sessionState.getPlacedObjectsSnapshot(mapId)) {
       if (objectPlacementSystem.getInstance(placedObject.id)) {
         continue;
       }
@@ -95,7 +95,7 @@ export class PlacedStructureSystem {
       return false;
     }
 
-    const objects = this.sessionState.getPlacedObjects(this.currentMapId);
+    const objects = this.sessionState.getPlacedObjectsSnapshot(this.currentMapId);
     const expiredObjects = objects.filter((o) => nowMs >= o.despawnAtMs);
 
     if (expiredObjects.length === 0) {
@@ -113,7 +113,7 @@ export class PlacedStructureSystem {
   createInteractionTargets(): PlacedObjectInteractionTarget[] {
     if (!this.currentMapId) return [];
 
-    return this.sessionState.getPlacedObjects(this.currentMapId).map((placedObject) => ({
+    return this.sessionState.getPlacedObjectsSnapshot(this.currentMapId).map((placedObject) => ({
       definition: {
         id: placedObject.id,
         interactionType: 'placed_object',
@@ -141,7 +141,7 @@ export class PlacedStructureSystem {
 
     if (!mapId) return null;
 
-    const placedObject = this.sessionState.getPlacedObjectById(mapId, placedObjectId);
+    const placedObject = this.sessionState.getPlacedObjectSnapshot(mapId, placedObjectId);
 
     if (!placedObject) return null;
 
@@ -270,7 +270,7 @@ export class PlacedStructureSystem {
       };
     }
 
-    const placedObject = this.sessionState.getPlacedObjectById(mapId, placedObjectId);
+    const placedObject = this.sessionState.getPlacedObjectSnapshot(mapId, placedObjectId);
 
     if (!placedObject) {
       return {
@@ -354,18 +354,18 @@ export class PlacedStructureSystem {
 
   getObjectsForCurrentMap(): RuntimePlacedObjectRecord[] {
     if (!this.currentMapId) return [];
-    return this.sessionState.getPlacedObjects(this.currentMapId);
+    return this.sessionState.getPlacedObjectsSnapshot(this.currentMapId);
   }
 
   getPlacedObjectState(placedObjectId: string): RuntimePlacedObjectRecord | undefined {
     if (!this.currentMapId) return undefined;
-    return this.sessionState.getPlacedObjectById(this.currentMapId, placedObjectId);
+    return this.sessionState.getPlacedObjectSnapshot(this.currentMapId, placedObjectId);
   }
 
   getActiveObjectCountForDefinition(objectDefinitionId: string): number {
     if (!this.currentMapId) return 0;
     return this.sessionState
-      .getPlacedObjects(this.currentMapId)
+      .getPlacedObjectsSnapshot(this.currentMapId)
       .filter((o) => o.objectDefinitionId === objectDefinitionId).length;
   }
 

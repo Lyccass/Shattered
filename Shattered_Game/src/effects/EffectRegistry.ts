@@ -18,4 +18,8 @@ export class EffectRegistry {
 
     return definition;
   }
+
+  has(effectId: string): effectId is EffectId {
+    return this.byId.has(effectId as EffectId);
+  }
 }

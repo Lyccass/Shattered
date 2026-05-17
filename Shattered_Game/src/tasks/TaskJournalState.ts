@@ -1,3 +1,5 @@
+import type { TaskJournalSaveState } from '../persistence/SaveTypes';
+
 export class TaskJournalState {
   private readonly acceptedContractIds = new Set<string>();
   private readonly completedNonRepeatableContractIds = new Set<string>();
@@ -36,4 +38,38 @@ export class TaskJournalState {
   getAcceptedContractIds(): string[] {
     return Array.from(this.acceptedContractIds);
   }
+
+  createSaveSnapshot(): TaskJournalSaveState {
+    return {
+      acceptedContractIds: Array.from(this.acceptedContractIds),
+      completedNonRepeatableContractIds: Array.from(this.completedNonRepeatableContractIds),
+      contractCompletionCounts: Object.fromEntries(this.contractCompletionCounts.entries()),
+    };
+  }
+
+  restoreSaveSnapshot(snapshot: TaskJournalSaveState): void {
+    this.acceptedContractIds.clear();
+    this.completedNonRepeatableContractIds.clear();
+    this.contractCompletionCounts.clear();
+
+    snapshot.acceptedContractIds.forEach((contractId) => {
+      this.acceptedContractIds.add(contractId);
+    });
+
+    snapshot.completedNonRepeatableContractIds.forEach((contractId) => {
+      this.completedNonRepeatableContractIds.add(contractId);
+    });
+
+    Object.entries(snapshot.contractCompletionCounts).forEach(([contractId, amount]) => {
+      this.contractCompletionCounts.set(contractId, sanitizeCount(amount));
+    });
+  }
+}
+
+function sanitizeCount(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor(value));
 }

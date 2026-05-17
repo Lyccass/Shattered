@@ -27,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private inputSystem?: InputSystem;
   private lastInteractionAt = 0;
+  private hasShutdown = false;
 
   constructor() {
     super('GameScene');
@@ -50,6 +51,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager = new UiManager(this);
     this.inputSystem = new InputSystem(this, this.buildInputCallbacks());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this.handleShutdown, this);
   }
 
   update(_time: number, delta: number): void {
@@ -74,10 +76,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleShutdown(): void {
+    if (this.hasShutdown) {
+      return;
+    }
+
+    this.hasShutdown = true;
     this.inputSystem?.destroy();
-    this.cameraSystem?.destroy();
+    this.inputSystem = undefined;
+    this.debugOverlaySystem?.destroy();
+    this.debugOverlaySystem = undefined;
     this.uiManager?.destroy();
+    this.uiManager = undefined;
     this.sfxSystem?.destroy();
+    this.sfxSystem = undefined;
+    this.worldRuntimeCoordinator?.destroy();
+    this.worldRuntimeCoordinator = undefined;
+    this.cameraSystem?.destroy();
+    this.cameraSystem = undefined;
   }
 
   private buildInputCallbacks(): InputCallbacks {

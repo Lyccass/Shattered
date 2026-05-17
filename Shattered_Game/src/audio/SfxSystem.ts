@@ -31,28 +31,46 @@ const SFX_TONES: Record<SfxEventId, SfxTone> = {
   map_transition: { frequency: 300, durationMs: 150, volume: 0.02, type: 'triangle' },
 };
 
+export type SfxSystemStatus = 'locked' | 'ready' | 'failed' | 'unsupported';
+
 export class SfxSystem {
   private audioContext: AudioContext | null = null;
+  private status: SfxSystemStatus = 'locked';
+  private failureReason: string | null = null;
+  private lastWarning: string | null = null;
   private readonly handleSfxEvent = (payload: SfxEventPayload) => {
     void this.play(payload.id);
   };
+  private readonly handleUnlockGesture = () => {
+    void this.unlockFromGesture();
+  };
 
   constructor(
-    _scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly eventBus: GameEventBus,
   ) {
     this.eventBus.onSfx(this.handleSfxEvent);
+    this.registerUnlockListeners();
   }
 
   destroy(): void {
     this.eventBus.offSfx(this.handleSfxEvent);
+    this.unregisterUnlockListeners();
+
+    if (this.audioContext) {
+      void this.audioContext.close().catch(() => undefined);
+      this.audioContext = null;
+    }
   }
 
   private async play(eventId: SfxEventId): Promise<void> {
     const tone = SFX_TONES[eventId];
-    const context = await this.ensureContext();
+    const context = await this.ensureContextReady('playback');
 
     if (!context) {
+      if (this.status === 'locked') {
+        this.warnOnce('Audio is locked. Click or tap the game once to enable sound.');
+      }
       return;
     }
 
@@ -72,30 +90,124 @@ export class SfxSystem {
     oscillator.stop(now + tone.durationMs / 1000);
   }
 
-  private async ensureContext(): Promise<AudioContext | null> {
+  getStatus(): SfxSystemStatus {
+    return this.status;
+  }
+
+  getFailureReason(): string | null {
+    return this.failureReason;
+  }
+
+  private async unlockFromGesture(): Promise<void> {
+    await this.ensureContextReady('gesture');
+  }
+
+  private async ensureContextReady(trigger: 'gesture' | 'playback'): Promise<AudioContext | null> {
+    const context = this.getOrCreateContext();
+
+    if (!context || this.status === 'failed' || this.status === 'unsupported') {
+      return null;
+    }
+
+    const resumedState = context.state;
+
+    if (resumedState === 'running') {
+      this.markReady();
+      return context;
+    }
+
+    try {
+      await context.resume();
+    } catch (error) {
+      if (trigger === 'gesture') {
+        this.warnOnce(this.formatResumeBlockedMessage(error));
+      }
+      return null;
+    }
+
+    if (context.state === 'running') {
+      this.markReady();
+      return context;
+    }
+
+    if (trigger === 'gesture') {
+      this.warnOnce('Audio is still locked. Click or tap the game once to enable sound.');
+    }
+
+    this.status = 'locked';
+    return null;
+  }
+
+  private getOrCreateContext(): AudioContext | null {
     if (!this.audioContext) {
       const extendedGlobal = globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext };
       const View = extendedGlobal.AudioContext ?? extendedGlobal.webkitAudioContext;
 
       if (!View) {
+        this.status = 'unsupported';
+        this.failureReason = 'Web Audio API is unavailable in this browser.';
+        this.unregisterUnlockListeners();
+        this.warnOnce(this.failureReason);
         return null;
       }
 
-      this.audioContext = new View();
-    }
-
-    if (this.audioContext.state === 'suspended') {
       try {
-        await this.audioContext.resume();
-      } catch {
+        this.audioContext = new View();
+      } catch (error) {
+        this.markFailed(this.formatResumeFailure(error));
         return null;
       }
-    }
-
-    if (this.audioContext.state !== 'running') {
-      return null;
     }
 
     return this.audioContext;
+  }
+
+  private registerUnlockListeners(): void {
+    this.scene.input.on('pointerdown', this.handleUnlockGesture);
+    this.scene.input.keyboard?.on('keydown', this.handleUnlockGesture);
+  }
+
+  private unregisterUnlockListeners(): void {
+    this.scene.input.off('pointerdown', this.handleUnlockGesture);
+    this.scene.input.keyboard?.off('keydown', this.handleUnlockGesture);
+  }
+
+  private markReady(): void {
+    this.status = 'ready';
+    this.failureReason = null;
+    this.unregisterUnlockListeners();
+  }
+
+  private markFailed(reason: string): null {
+    this.status = 'failed';
+    this.failureReason = reason;
+    this.unregisterUnlockListeners();
+    this.warnOnce(reason);
+    return null;
+  }
+
+  private formatResumeFailure(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return `Failed to start browser audio: ${error.message}`;
+    }
+
+    return 'Failed to start browser audio.';
+  }
+
+  private formatResumeBlockedMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+      return `Audio unlock was blocked. Click or tap the game once to enable sound. (${error.message})`;
+    }
+
+    return 'Audio unlock was blocked. Click or tap the game once to enable sound.';
+  }
+
+  private warnOnce(message: string): void {
+    if (this.lastWarning === message) {
+      return;
+    }
+
+    this.lastWarning = message;
+    console.warn(`[SfxSystem] ${message}`);
   }
 }
