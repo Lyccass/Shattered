@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
+import { SfxSystem } from '../audio/SfxSystem';
 import { CameraSystem } from '../camera/CameraSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
+import { GameEventBus } from '../events/GameEventBus';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
@@ -11,11 +13,13 @@ import { WorldRuntimeCoordinator } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
 
 export class GameScene extends Phaser.Scene {
+  private readonly gameEventBus = new GameEventBus();
   private player?: Phaser.GameObjects.Sprite;
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
   private uiManager?: UiManager;
+  private sfxSystem?: SfxSystem;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private lastInteractionAt = 0;
 
@@ -35,7 +39,8 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     createTerrainRenderTextures(this);
 
-    this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this);
+    this.sfxSystem = new SfxSystem(this, this.gameEventBus);
+    this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.initializeWorldRuntime('test_home_island', 'default');
     this.uiManager = new UiManager(this);
     this.registerDebugKeys();
@@ -52,7 +57,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
       this.playerController?.update(delta);
     }
-    this.worldRuntimeCoordinator?.updatePlayerRuntimeState();
+    const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
+    uiResults.forEach((result) => this.uiManager?.handleResult(result));
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     this.uiManager?.update(this.worldRuntimeCoordinator?.getUiState() ?? {
       activeInteraction: null,
@@ -68,6 +74,7 @@ export class GameScene extends Phaser.Scene {
       journalEntries: [],
       activeEffects: [],
       placementState: null,
+      actionProgress: null,
     });
     this.debugOverlaySystem?.update();
   }
@@ -119,6 +126,8 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
+      this.cancelActiveActionForUi();
+
       if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
         this.tryConfirmPlacementMode();
         return;
@@ -128,6 +137,10 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-ESC', () => {
+      if (this.cancelActiveActionForUi()) {
+        return;
+      }
+
       const menuMessage = this.worldRuntimeCoordinator?.cancelChoiceMenu();
 
       if (menuMessage) {
@@ -146,6 +159,8 @@ export class GameScene extends Phaser.Scene {
       if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
         return;
       }
+
+      this.cancelActiveActionForUi();
 
       this.tryUseWarmTea();
     });
@@ -173,14 +188,17 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-I', () => {
+      this.cancelActiveActionForUi();
       this.uiManager?.toggleInventory();
     });
 
     keyboard.on('keydown-J', () => {
+      this.cancelActiveActionForUi();
       this.uiManager?.toggleJournal();
     });
 
     keyboard.on('keydown-P', () => {
+      this.cancelActiveActionForUi();
       this.uiManager?.toggleSkills();
     });
   }
@@ -349,5 +367,16 @@ export class GameScene extends Phaser.Scene {
 
     this.uiManager.handleResult(result);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+  }
+
+  private cancelActiveActionForUi(): boolean {
+    const message = this.worldRuntimeCoordinator?.cancelActiveAction('Action cancelled.');
+
+    if (!message) {
+      return false;
+    }
+
+    this.uiManager?.showInfo(message);
+    return true;
   }
 }

@@ -12,8 +12,38 @@ export class CameraSystem {
   private readonly scene: Phaser.Scene;
   private readonly camera: Phaser.Cameras.Scene2D.Camera;
   private readonly zoomSteps = CAMERA_CONFIG.zoomSteps;
+
   private lastWheelAt = 0;
   private zoomIndex = 0;
+  private zoomTween?: Phaser.Tweens.Tween;
+
+  private readonly handlePostUpdate = (): void => {
+    this.snapCameraToPixelGrid();
+  };
+
+  private readonly handleWheel = (
+    _pointer: Phaser.Input.Pointer,
+    _objects: Phaser.GameObjects.GameObject[],
+    _deltaX: number,
+    deltaY: number,
+  ): void => {
+    const now = this.scene.time.now;
+
+    if (now - this.lastWheelAt < CAMERA_CONFIG.wheelCooldownMs) {
+      return;
+    }
+
+    this.lastWheelAt = now;
+
+    if (deltaY < 0) {
+      this.zoomIn();
+      return;
+    }
+
+    if (deltaY > 0) {
+      this.zoomOut();
+    }
+  };
 
   constructor({ scene, camera, bounds, followTarget }: CameraSystemConfig) {
     this.scene = scene;
@@ -21,9 +51,18 @@ export class CameraSystem {
 
     this.camera.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
     this.camera.startFollow(followTarget, true, CAMERA_CONFIG.followLerp, CAMERA_CONFIG.followLerp);
+    this.camera.setRoundPixels(true);
+
     this.registerWheelZoom();
     this.registerPixelSnap();
-    this.setZoom(CAMERA_CONFIG.defaultZoom);
+
+    this.setZoom(CAMERA_CONFIG.defaultZoom, false);
+  }
+
+  destroy(): void {
+    this.zoomTween?.stop();
+    this.scene.input.off('wheel', this.handleWheel);
+    this.scene.events.off(Phaser.Scenes.Events.POST_UPDATE, this.handlePostUpdate);
   }
 
   getZoom(): number {
@@ -51,50 +90,55 @@ export class CameraSystem {
     this.setZoom(this.zoomSteps[this.zoomIndex]);
   }
 
-  private setZoom(zoom: number): void {
+  private setZoom(zoom: number, smooth = true): void {
     const clampedZoom = Phaser.Math.Clamp(zoom, CAMERA_CONFIG.minZoom, CAMERA_CONFIG.maxZoom);
     this.zoomIndex = this.findClosestZoomIndex(clampedZoom);
 
-    // Use Phaser camera zoom so the visible world changes without resizing the canvas.
-    this.camera.setZoom(clampedZoom);
-    this.camera.setRoundPixels(true);
-    this.camera.scrollX = this.camera.clampX(this.camera.scrollX);
-    this.camera.scrollY = this.camera.clampY(this.camera.scrollY);
-  }
+    this.zoomTween?.stop();
 
-  private registerPixelSnap(): void {
-    this.scene.events.on(Phaser.Scenes.Events.POST_UPDATE, () => {
-      const zoom = this.camera.zoom;
+    if (!smooth) {
+      this.camera.setZoom(clampedZoom);
+      this.snapCameraToPixelGrid();
+      this.clampCameraScroll();
+      return;
+    }
 
-      // Snap scroll to screen-pixel increments. This keeps smooth follow from
-      // sampling isometric tile edges at unstable fractional positions.
-      this.camera.scrollX = Math.round(this.camera.scrollX * zoom) / zoom;
-      this.camera.scrollY = Math.round(this.camera.scrollY * zoom) / zoom;
+    this.zoomTween = this.scene.tweens.add({
+      targets: this.camera,
+      zoom: clampedZoom,
+      duration: CAMERA_CONFIG.zoomTweenMs,
+      ease: 'Sine.easeOut',
+      onUpdate: () => {
+        this.snapCameraToPixelGrid();
+        this.clampCameraScroll();
+      },
+      onComplete: () => {
+        this.camera.setZoom(clampedZoom);
+        this.snapCameraToPixelGrid();
+        this.clampCameraScroll();
+        this.zoomTween = undefined;
+      },
     });
   }
 
+  private registerPixelSnap(): void {
+    this.scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.handlePostUpdate);
+  }
+
   private registerWheelZoom(): void {
-    this.scene.input.on(
-      'wheel',
-      (_pointer: Phaser.Input.Pointer, _objects: Phaser.GameObjects.GameObject[], _deltaX: number, deltaY: number) => {
-        const now = this.scene.time.now;
+    this.scene.input.on('wheel', this.handleWheel);
+  }
 
-        if (now - this.lastWheelAt < CAMERA_CONFIG.wheelCooldownMs) {
-          return;
-        }
+  private snapCameraToPixelGrid(): void {
+    const zoom = this.camera.zoom;
 
-        this.lastWheelAt = now;
+    this.camera.scrollX = Math.round(this.camera.scrollX * zoom) / zoom;
+    this.camera.scrollY = Math.round(this.camera.scrollY * zoom) / zoom;
+  }
 
-        if (deltaY < 0) {
-          this.zoomIn();
-          return;
-        }
-
-        if (deltaY > 0) {
-          this.zoomOut();
-        }
-      },
-    );
+  private clampCameraScroll(): void {
+    this.camera.scrollX = this.camera.clampX(this.camera.scrollX);
+    this.camera.scrollY = this.camera.clampY(this.camera.scrollY);
   }
 
   private findClosestZoomIndex(zoom: number): number {

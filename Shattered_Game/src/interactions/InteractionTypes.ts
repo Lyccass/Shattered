@@ -7,6 +7,7 @@ import type {
 } from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
 import type { SkillXpDelta } from '../skills/SkillTypes';
+import type { ToastKind } from '../ui/ToastTypes';
 import type {
   MapContractBoardAnchor,
   MapGenericDebugAnchor,
@@ -112,6 +113,7 @@ export type InteractionResult = {
   currencyDelta?: Partial<CurrencySnapshot>;
   reputationDelta?: Partial<ReputationSnapshot>;
   xpDelta?: SkillXpDelta;
+  toastKind?: ToastKind;
 };
 
 export type InteractionHandlers = {

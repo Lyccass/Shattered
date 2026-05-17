@@ -274,6 +274,10 @@ export class PlacedStructureSystem {
     return [...this.currentObjects];
   }
 
+  getPlacedObjectState(placedObjectId: string): RuntimePlacedObjectRecord | null {
+    return this.currentObjects.find((placedObject) => placedObject.id === placedObjectId) ?? null;
+  }
+
   getActiveObjectCountForDefinition(objectDefinitionId: string): number {
     return this.currentObjects.filter(
       (placedObject) => placedObject.objectDefinitionId === objectDefinitionId,

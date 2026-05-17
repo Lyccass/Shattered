@@ -55,6 +55,10 @@ export class WorkbenchSystem {
     return this.recipeRegistry.listByStation(state.anchor.stationType ?? 'workbench');
   }
 
+  getRecipe(workbenchId: string, recipeId: string): RecipeDefinition | null {
+    return this.getRecipesForWorkbench(workbenchId).find((recipe) => recipe.id === recipeId) ?? null;
+  }
+
   getMenuOptions(workbenchId: string, playerSessionState: PlayerSessionState): ChoiceMenuOption[] {
     return this.getRecipesForWorkbench(workbenchId).map((recipe) => ({
       id: recipe.id,

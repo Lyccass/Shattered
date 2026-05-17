@@ -1,4 +1,10 @@
 import Phaser from 'phaser';
+import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
+import type {
+  ActionProgressDefinition,
+  ActionProgressSnapshot,
+} from '../../actions/ActionProgressTypes';
+import type { SfxEventId } from '../../audio/SfxTypes';
 import { CameraSystem } from '../../camera/CameraSystem';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
@@ -44,6 +50,7 @@ import type { PlayerItemKey, PlayerInventoryState } from '../../player/PlayerInv
 import type { SkillSnapshot } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
 import type { UiStateSnapshot } from '../../ui/UiTypes';
+import type { GameEventBus } from '../../events/GameEventBus';
 import { MapLoader } from './MapLoader';
 import type { LoadedMapRuntime } from './MapRuntime';
 import { getMapDisplayName } from './MapDefinitions';
@@ -55,6 +62,13 @@ import type {
   MapNpcAnchor,
   MapTransition,
 } from './MapTypes';
+
+const ACTION_DURATIONS_MS = {
+  gather: 600,
+  craft: 1000,
+  lightFirestarter: 1200,
+  brewTea: 1500,
+} as const;
 
 type WorldRuntimeBindings = {
   player: Phaser.GameObjects.Sprite;
@@ -95,6 +109,7 @@ export class WorldRuntimeCoordinator {
     this.playerSessionState.getEffectSystem(),
   );
   private readonly choiceMenuState = new ChoiceMenuState();
+  private readonly actionProgressSystem = new ActionProgressSystem();
   private readonly interactionSystem = new InteractionSystem({
     onMapTransition: (target) => this.handleMapTransition(target),
     onResourceNode: (target) => this.handleResourceNode(target),
@@ -112,8 +127,12 @@ export class WorldRuntimeCoordinator {
   private objectDebugRenderer?: ObjectDebugRenderer;
   private objectOcclusionSystem?: ObjectOcclusionSystem;
   private choiceMenuContext: ChoiceMenuContext | null = null;
+  private readonly pendingUiResults: InteractionResult[] = [];
 
-  constructor(private readonly scene: Phaser.Scene) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly eventBus: GameEventBus,
+  ) {
     this.mapLoader = new MapLoader(scene);
     this.objectRegistry = new ObjectRegistry(OBJECT_DEFINITIONS);
     this.mapTransitionVisualSystem = new MapTransitionVisualSystem(scene);
@@ -125,6 +144,7 @@ export class WorldRuntimeCoordinator {
     this.objectPlacementSystem?.clear();
     this.choiceMenuState.cancel();
     this.choiceMenuContext = null;
+    this.actionProgressSystem.cancel();
 
     const runtime = this.mapLoader.loadMap(mapId, spawnId);
     this.currentRuntime = runtime;
@@ -170,9 +190,9 @@ export class WorldRuntimeCoordinator {
     return activeInteraction;
   }
 
-  updatePlayerRuntimeState(): void {
+  updatePlayerRuntimeState(deltaMs = 0): InteractionResult[] {
     if (!this.bindings) {
-      return;
+      return [];
     }
 
     const nowMs = this.scene.time.now;
@@ -193,13 +213,56 @@ export class WorldRuntimeCoordinator {
     const feetTile = this.bindings.playerController.getFeetTile();
     this.updateActiveInteraction(feetTile.x, feetTile.y);
     this.placementModeSystem.updatePreview(this.bindings.playerController);
+    this.updateActionProgress(deltaMs);
+    return this.consumePendingUiResults();
   }
 
   triggerActiveInteraction(): InteractionResult | null {
     const activeInteraction = this.interactionSystem.getActiveInteraction();
+    const activeAction = this.actionProgressSystem.getSnapshot();
+
+    if (
+      activeAction
+      && activeInteraction
+      && (
+        activeAction.targetId !== activeInteraction.target.definition.id
+        || activeAction.interactionType !== activeInteraction.target.definition.interactionType
+      )
+    ) {
+      const cancelMessage = this.cancelActiveAction('Action cancelled.');
+
+      if (cancelMessage) {
+        this.queueInfoResult(cancelMessage);
+      }
+    }
 
     if (activeInteraction && this.tryOpenChoiceMenu(activeInteraction.target)) {
       return null;
+    }
+
+    if (activeInteraction?.target.definition.interactionType === 'resource_node') {
+      this.startTimedAction(this.createGatherAction(activeInteraction.target as ResourceNodeInteractionTarget));
+      return null;
+    }
+
+    if (activeInteraction?.target.definition.interactionType === 'workbench') {
+      const workbenchTarget = activeInteraction.target as WorkbenchInteractionTarget;
+      const recipes = this.workbenchSystem.getRecipesForWorkbench(workbenchTarget.anchor.id);
+
+      if (recipes.length === 1) {
+        this.startTimedAction(this.createWorkbenchCraftAction(workbenchTarget.anchor.id, recipes[0].id));
+        return null;
+      }
+    }
+
+    if (activeInteraction?.target.definition.interactionType === 'placed_object') {
+      const placedObjectTarget = activeInteraction.target as PlacedObjectInteractionTarget;
+      const action = this.createPlacedObjectAction(placedObjectTarget);
+
+      if (action) {
+        this.startTimedAction(action);
+        return null;
+      }
     }
 
     const result = this.interactionSystem.triggerActiveInteraction();
@@ -207,6 +270,8 @@ export class WorldRuntimeCoordinator {
     if (!result) {
       return null;
     }
+
+    this.emitInstantResultSfx(result);
 
     if (result.transitionRequest) {
       this.loadMap(result.transitionRequest.targetMapId, result.transitionRequest.targetSpawnId);
@@ -218,11 +283,14 @@ export class WorldRuntimeCoordinator {
   }
 
   useItem(itemId: PlayerItemKey): InteractionResult {
-    return this.itemUseSystem.useItem(
+    const result = this.itemUseSystem.useItem(
       itemId,
       this.playerSessionState.getInventoryState(),
       this.scene.time.now,
     );
+
+    this.emitInstantResultSfx(result);
+    return result;
   }
 
   getCurrentRuntime(): LoadedMapRuntime {
@@ -281,7 +349,12 @@ export class WorldRuntimeCoordinator {
       journalEntries: this.getTaskJournalEntries(),
       activeEffects: this.getPlayerActiveEffects(),
       placementState: this.getPlacementState(),
+      actionProgress: this.getActionProgressState(),
     };
+  }
+
+  getActionProgressState(): ActionProgressSnapshot | null {
+    return this.actionProgressSystem.getSnapshot();
   }
 
   getPlacementState(): PlacementPreviewState | null {
@@ -300,12 +373,31 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getAcceptedContractIds().length;
   }
 
+  consumePendingUiResults(): InteractionResult[] {
+    return this.pendingUiResults.splice(0);
+  }
+
   isPlacementModeActive(): boolean {
     return this.placementModeSystem.isActive();
   }
 
   isChoiceMenuOpen(): boolean {
     return this.choiceMenuState.isOpen();
+  }
+
+  isActionInProgress(): boolean {
+    return this.actionProgressSystem.isActive();
+  }
+
+  cancelActiveAction(reason = 'Action cancelled.'): string | null {
+    const outcome = this.actionProgressSystem.cancel(reason);
+
+    if (!outcome) {
+      return null;
+    }
+
+    this.eventBus.emitSfx(outcome.sfxEventId ?? 'action_cancelled');
+    return outcome.reason;
   }
 
   startPlacementMode(itemId: PlayerItemKey = 'firestarter_set'): string {
@@ -335,6 +427,7 @@ export class WorldRuntimeCoordinator {
     }
 
     if (!placementState.valid) {
+      this.eventBus.emitSfx('invalid_action');
       return {
         ok: false,
         interactionType: 'placed_object',
@@ -358,6 +451,8 @@ export class WorldRuntimeCoordinator {
       this.rebuildInteractionTargets();
     }
 
+    this.emitInstantResultSfx(result);
+
     return result;
   }
 
@@ -371,7 +466,13 @@ export class WorldRuntimeCoordinator {
   }
 
   moveChoiceMenuSelection(delta: number): ChoiceMenuStateSnapshot | null {
-    return this.choiceMenuState.moveSelection(delta);
+    const snapshot = this.choiceMenuState.moveSelection(delta);
+
+    if (snapshot) {
+      this.eventBus.emitSfx('menu_select');
+    }
+
+    return snapshot;
   }
 
   confirmChoiceMenu(): InteractionResult | null {
@@ -382,6 +483,7 @@ export class WorldRuntimeCoordinator {
     }
 
     if (selectedOption.disabledReason) {
+      this.eventBus.emitSfx('invalid_action');
       return {
         ok: false,
         interactionType: 'generic_debug',
@@ -393,12 +495,31 @@ export class WorldRuntimeCoordinator {
     let result: InteractionResult | null = null;
 
     if (this.choiceMenuContext?.kind === 'workbench') {
-      result = this.workbenchSystem.craftRecipe(
-        this.choiceMenuContext.workbenchId,
+      const workbenchId = this.choiceMenuContext.workbenchId;
+      const recipe = this.workbenchSystem.getRecipe(
+        workbenchId,
         selectedOption.id,
-        this.playerSessionState,
       );
-    } else if (this.choiceMenuContext?.kind === 'contract_board') {
+
+      if (!recipe) {
+        this.eventBus.emitSfx('invalid_action');
+        return {
+          ok: false,
+          interactionType: 'workbench',
+          targetId: selectedOption.id,
+          message: 'That recipe is not available here.',
+        };
+      }
+
+      this.eventBus.emitSfx('menu_confirm');
+      this.choiceMenuState.cancel();
+      this.choiceMenuContext = null;
+      this.startTimedAction(this.createWorkbenchCraftAction(workbenchId, recipe.id));
+      return null;
+    }
+
+    if (this.choiceMenuContext?.kind === 'contract_board') {
+      this.eventBus.emitSfx('menu_confirm');
       result = this.contractBoardSystem.selectContract(
         this.choiceMenuContext.boardId,
         selectedOption.id,
@@ -409,6 +530,7 @@ export class WorldRuntimeCoordinator {
     this.refreshChoiceMenu();
 
     if (result) {
+      this.emitInstantResultSfx(result);
       this.rebuildInteractionTargets();
     }
 
@@ -422,6 +544,7 @@ export class WorldRuntimeCoordinator {
 
     this.choiceMenuState.cancel();
     this.choiceMenuContext = null;
+    this.eventBus.emitSfx('menu_cancel');
     return 'Menu closed.';
   }
 
@@ -447,6 +570,257 @@ export class WorldRuntimeCoordinator {
 
   getObjectOcclusionSystem(): ObjectOcclusionSystem | undefined {
     return this.objectOcclusionSystem;
+  }
+
+  private updateActionProgress(deltaMs: number): void {
+    const outcome = this.actionProgressSystem.update(deltaMs);
+
+    if (!outcome) {
+      return;
+    }
+
+    if (outcome.kind === 'cancelled') {
+      this.eventBus.emitSfx(outcome.sfxEventId ?? 'action_cancelled');
+      this.queueInfoResult(outcome.reason);
+      return;
+    }
+
+    if (outcome.sfxEventId) {
+      this.eventBus.emitSfx(outcome.sfxEventId);
+    } else {
+      this.emitInstantResultSfx(outcome.result);
+    }
+
+    if (outcome.result.transitionRequest) {
+      this.loadMap(
+        outcome.result.transitionRequest.targetMapId,
+        outcome.result.transitionRequest.targetSpawnId,
+      );
+    } else {
+      this.rebuildInteractionTargets();
+    }
+
+    this.pendingUiResults.push(outcome.result);
+  }
+
+  private startTimedAction(action: ActionProgressDefinition): void {
+    const cancelledOutcome = this.actionProgressSystem.start(action);
+
+    if (cancelledOutcome) {
+      this.eventBus.emitSfx(cancelledOutcome.sfxEventId ?? 'action_cancelled');
+      this.queueInfoResult(cancelledOutcome.reason);
+    }
+
+    if (action.startSfxId) {
+      this.eventBus.emitSfx(action.startSfxId);
+    }
+  }
+
+  private queueInfoResult(message: string): void {
+    this.pendingUiResults.push({
+      ok: false,
+      interactionType: 'generic_debug',
+      targetId: 'action_progress',
+      message,
+      toastKind: 'info',
+    });
+  }
+
+  private emitInstantResultSfx(result: InteractionResult): void {
+    if (!result.ok) {
+      this.eventBus.emitSfx(
+        result.interactionType === 'workbench' ? 'craft_failed' : 'invalid_action',
+      );
+      return;
+    }
+
+    switch (result.interactionType) {
+      case 'map_transition':
+        this.eventBus.emitSfx('map_transition');
+        return;
+      case 'contract_board':
+        if (result.message.startsWith('Accepted ')) {
+          this.eventBus.emitSfx('contract_accepted');
+        } else if (result.message.startsWith('Completed ')) {
+          this.eventBus.emitSfx('contract_completed');
+        }
+        break;
+      case 'placed_object':
+        if (result.createdObjectId) {
+          this.eventBus.emitSfx('item_placed');
+        }
+        break;
+      case 'item_use':
+        this.eventBus.emitSfx('tea_consumed');
+        break;
+      default:
+        break;
+    }
+
+    if (result.xpDelta) {
+      this.eventBus.emitSfx('xp_gain');
+    }
+  }
+
+  private createGatherAction(target: ResourceNodeInteractionTarget): ActionProgressDefinition {
+    const anchor = this.resourceNodeSystem.getNodeAnchor(target.anchor.id) ?? target.anchor;
+
+    return {
+      actionId: `gather:${anchor.id}`,
+      label: `Gathering ${this.getResourceNodeDisplayName(anchor.resourceNodeType)}`,
+      durationMs: ACTION_DURATIONS_MS.gather,
+      interactionType: 'resource_node',
+      targetId: anchor.id,
+      canContinue: () => this.isTargetStillInRange('resource_node', anchor.id, target.definition.interactionRangeTiles),
+      onComplete: () => this.resourceNodeSystem.gatherNode(
+        anchor.id,
+        this.playerSessionState,
+        this.scene.time.now,
+        this.objectPlacementSystem,
+      ),
+      cancellationReason: 'Gathering cancelled.',
+      startSfxId: 'gather_start',
+      successSfxId: 'gather_success',
+      failureSfxId: 'invalid_action',
+      cancelSfxId: 'action_cancelled',
+    };
+  }
+
+  private createWorkbenchCraftAction(
+    workbenchId: string,
+    recipeId: string,
+  ): ActionProgressDefinition {
+    const recipe = this.workbenchSystem.getRecipe(workbenchId, recipeId);
+
+    if (!recipe) {
+      throw new Error(`WorldRuntimeCoordinator: unknown recipe "${recipeId}" for workbench "${workbenchId}"`);
+    }
+
+    return {
+      actionId: `craft:${workbenchId}:${recipe.id}`,
+      label: `Crafting ${recipe.displayName}`,
+      durationMs: ACTION_DURATIONS_MS.craft,
+      interactionType: 'workbench',
+      targetId: workbenchId,
+      canContinue: () => this.isTargetStillInRange('workbench', workbenchId, 1),
+      onComplete: () => this.workbenchSystem.craftRecipe(
+        workbenchId,
+        recipe.id,
+        this.playerSessionState,
+      ),
+      cancellationReason: 'Crafting cancelled.',
+      startSfxId: 'craft_start',
+      successSfxId: 'craft_success',
+      failureSfxId: 'craft_failed',
+      cancelSfxId: 'action_cancelled',
+    };
+  }
+
+  private createPlacedObjectAction(
+    target: PlacedObjectInteractionTarget,
+  ): ActionProgressDefinition | null {
+    const placedObject = this.placedStructureSystem.getPlacedObjectState(target.placedObjectId);
+
+    if (!placedObject) {
+      return null;
+    }
+
+    if (placedObject.kind === 'campfire') {
+      if (!this.playerSessionState.getInventoryState().hasAtLeast('herb', 1)) {
+        return null;
+      }
+
+      return {
+        actionId: `brew:${placedObject.id}`,
+        label: 'Brewing Warm Tea',
+        durationMs: ACTION_DURATIONS_MS.brewTea,
+        interactionType: 'placed_object',
+        targetId: placedObject.id,
+        canContinue: () => this.isTargetStillInRange('placed_object', placedObject.id, target.definition.interactionRangeTiles),
+        onComplete: () => this.placedStructureSystem.interactWithPlacedObject(
+          placedObject.id,
+          this.scene.time.now,
+          this.playerSessionState,
+          this.requireObjectPlacementSystem(),
+        ),
+        cancellationReason: 'Brewing cancelled.',
+        startSfxId: 'craft_start',
+        successSfxId: 'tea_brewed',
+        failureSfxId: 'invalid_action',
+        cancelSfxId: 'action_cancelled',
+      };
+    }
+
+    if (!this.playerSessionState.getInventoryState().hasAtLeast('stone', 1)) {
+      return null;
+    }
+
+    return {
+      actionId: `light:${placedObject.id}`,
+      label: 'Lighting Firestarter',
+      durationMs: ACTION_DURATIONS_MS.lightFirestarter,
+      interactionType: 'placed_object',
+      targetId: placedObject.id,
+      canContinue: () => this.isTargetStillInRange('placed_object', placedObject.id, target.definition.interactionRangeTiles),
+      onComplete: () => this.placedStructureSystem.interactWithPlacedObject(
+        placedObject.id,
+        this.scene.time.now,
+        this.playerSessionState,
+        this.requireObjectPlacementSystem(),
+      ),
+      cancellationReason: 'Lighting cancelled.',
+      startSfxId: 'craft_start',
+      successSfxId: 'fire_lit',
+      failureSfxId: 'invalid_action',
+      cancelSfxId: 'action_cancelled',
+    };
+  }
+
+  private isTargetStillInRange(
+    interactionType: InteractionResult['interactionType'],
+    targetId: string,
+    rangeTiles: number,
+  ): boolean {
+    if (!this.bindings) {
+      return false;
+    }
+
+    const target = this.interactionSystem
+      .getTargets()
+      .find((candidate) =>
+        candidate.definition.interactionType === interactionType
+        && candidate.definition.id === targetId,
+      );
+
+    if (!target) {
+      return false;
+    }
+
+    const feetTile = this.bindings.playerController.getFeetTile();
+    const distanceTiles = target.tiles.reduce((bestDistance, interactionTile) =>
+      Math.min(bestDistance, Math.abs(interactionTile.x - feetTile.x) + Math.abs(interactionTile.y - feetTile.y)),
+    Number.POSITIVE_INFINITY);
+
+    return distanceTiles <= rangeTiles;
+  }
+
+  private requireObjectPlacementSystem(): ObjectPlacementSystem {
+    if (!this.objectPlacementSystem) {
+      throw new Error('WorldRuntimeCoordinator: object placement system is unavailable');
+    }
+
+    return this.objectPlacementSystem;
+  }
+
+  private getResourceNodeDisplayName(resourceNodeType: ResourceNodeInteractionTarget['anchor']['resourceNodeType']): string {
+    switch (resourceNodeType) {
+      case 'driftwood':
+        return 'Driftwood';
+      case 'stone_pile':
+        return 'Stone';
+      case 'herb_patch':
+        return 'Herbs';
+    }
   }
 
   private configureInteractionRuntime(runtime: LoadedMapRuntime): void {
@@ -652,11 +1026,13 @@ export class WorldRuntimeCoordinator {
       );
 
       if (options.length > 1) {
+        this.cancelActiveAction('Action cancelled.');
         this.choiceMenuState.open('Workbench Recipes', options);
         this.choiceMenuContext = {
           kind: 'workbench',
           workbenchId: workbenchTarget.anchor.id,
         };
+        this.eventBus.emitSfx('menu_open');
         return true;
       }
     }
@@ -669,11 +1045,13 @@ export class WorldRuntimeCoordinator {
       );
 
       if (options.length > 1) {
+        this.cancelActiveAction('Action cancelled.');
         this.choiceMenuState.open('Harbor Contracts', options);
         this.choiceMenuContext = {
           kind: 'contract_board',
           boardId: contractBoardTarget.anchor.id,
         };
+        this.eventBus.emitSfx('menu_open');
         return true;
       }
     }

@@ -1,3 +1,4 @@
+import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
 import { formatPromptPanelText, formatSkillXpToastLines } from './UiFormatters';
 import { ChoiceMenuPanel } from './ChoiceMenuPanel';
@@ -13,6 +14,7 @@ export class UiManager {
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
   private readonly promptPanel: PromptPanel;
   private readonly hudPanel: HudPanel;
+  private readonly actionProgressPanel: ActionProgressPanel;
   private readonly inventoryPanel: InventoryPanel;
   private readonly choiceMenuPanel: ChoiceMenuPanel;
   private readonly journalPanel: JournalPanel;
@@ -23,6 +25,7 @@ export class UiManager {
     this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
     this.promptPanel = new PromptPanel(scene);
     this.hudPanel = new HudPanel(scene);
+    this.actionProgressPanel = new ActionProgressPanel(scene);
     this.inventoryPanel = new InventoryPanel(scene);
     this.choiceMenuPanel = new ChoiceMenuPanel(scene);
     this.journalPanel = new JournalPanel(scene);
@@ -38,7 +41,7 @@ export class UiManager {
 
   update(state: UiStateSnapshot): void {
     this.promptPanel.update(
-      state.choiceMenu
+      state.choiceMenu || state.actionProgress
         ? ''
         : formatPromptPanelText(state.activeInteraction, state.placementState),
     );
@@ -46,6 +49,7 @@ export class UiManager {
       state.inventory,
       state.activeEffects,
     );
+    this.actionProgressPanel.update(state.actionProgress);
     this.inventoryPanel.update(
       state.inventory,
       state.currency,
@@ -65,7 +69,7 @@ export class UiManager {
       return;
     }
 
-    this.toastSystem.push(result.message, result.ok ? 'success' : 'error');
+    this.toastSystem.push(result.message, result.toastKind ?? (result.ok ? 'success' : 'error'));
     formatSkillXpToastLines(result.xpDelta).forEach((line) => {
       this.toastSystem.push(line, 'reward');
     });
@@ -116,6 +120,7 @@ export class UiManager {
     const height = this.scene.scale.height;
     this.promptPanel.layout(width, height);
     this.hudPanel.layout(width, height);
+    this.actionProgressPanel.layout(width, height);
     this.inventoryPanel.layout(width, height);
     this.choiceMenuPanel.layout(width, height);
     this.journalPanel.layout(width, height);
@@ -127,6 +132,7 @@ export class UiManager {
     return [
       ...this.promptPanel.getDisplayObjects(),
       ...this.hudPanel.getDisplayObjects(),
+      ...this.actionProgressPanel.getDisplayObjects(),
       ...this.inventoryPanel.getDisplayObjects(),
       ...this.choiceMenuPanel.getDisplayObjects(),
       ...this.journalPanel.getDisplayObjects(),

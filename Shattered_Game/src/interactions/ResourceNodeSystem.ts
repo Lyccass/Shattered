@@ -83,6 +83,10 @@ export class ResourceNodeSystem {
       }));
   }
 
+  getNodeAnchor(nodeId: string): MapResourceNodeAnchor | null {
+    return this.currentNodes.get(nodeId)?.anchor ?? null;
+  }
+
   updateRuntimeState(
     nowMs: number,
     objectPlacementSystem?: ResourceNodeObjectSystem,
