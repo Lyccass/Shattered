@@ -3,11 +3,15 @@ import { SfxSystem } from '../audio/SfxSystem';
 import { CameraSystem } from '../camera/CameraSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
 import { GameEventBus } from '../events/GameEventBus';
+import { InputSystem } from '../input/InputSystem';
+import type { InputCallbacks, InputMode } from '../input/InputTypes';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
+import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { UiManager } from '../ui/UiManager';
+import { emptyUiStateSnapshot } from '../ui/UiTypes';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
 import { WorldRuntimeCoordinator } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
@@ -21,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   private uiManager?: UiManager;
   private sfxSystem?: SfxSystem;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
+  private inputSystem?: InputSystem;
   private lastInteractionAt = 0;
 
   constructor() {
@@ -43,164 +48,66 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.initializeWorldRuntime('test_home_island', 'default');
     this.uiManager = new UiManager(this);
-    this.registerDebugKeys();
-
-    // Future system hooks:
-    // - real isometric map rendering
-    // - island building
-    // - slow encounter-based combat
-    // - multiplayer rooms/layers
-    // - worldstate system
+    this.inputSystem = new InputSystem(this, this.buildInputCallbacks());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
   }
 
   update(_time: number, delta: number): void {
-    if (!this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
+    this.inputSystem?.setMode(this.computeInputMode());
+
+    if (this.inputSystem?.shouldProcessMovement() ?? true) {
       this.playerController?.update(delta);
     }
+
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     uiResults.forEach((result) => this.uiManager?.handleResult(result));
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
-    this.uiManager?.update(this.worldRuntimeCoordinator?.getUiState() ?? {
-      activeInteraction: null,
-      choiceMenu: null,
-      inventory: {
-        resources: { wood: 0, stone: 0, herb: 0 },
-        items: { firestarter_set: 0, wooden_marker: 0, camp_supplies: 0, warm_tea: 0 },
-      },
-      currency: { copper: 0, silver: 0, gold: 0, platinum: 0 },
-      reputation: { harborReputation: 0 },
-      skills: [],
-      activeTaskCount: 0,
-      journalEntries: [],
-      activeEffects: [],
-      placementState: null,
-      actionProgress: null,
-    });
+    this.uiManager?.update(this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot());
     this.debugOverlaySystem?.update();
   }
 
-  private registerDebugKeys(): void {
-    const keyboard = this.input.keyboard;
+  private computeInputMode(): InputMode {
+    if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) return 'menu';
+    if (this.worldRuntimeCoordinator?.isPlacementModeActive()) return 'placement';
+    if (this.worldRuntimeCoordinator?.isActionInProgress()) return 'action_progress';
+    return 'normal';
+  }
 
-    if (!keyboard) {
-      return;
-    }
+  private handleShutdown(): void {
+    this.inputSystem?.destroy();
+    this.cameraSystem?.destroy();
+    this.uiManager?.destroy();
+    this.sfxSystem?.destroy();
+  }
 
-    keyboard.on('keydown-Z', () => {
-      this.cameraSystem?.cycleZoom();
-    });
-
-    keyboard.on('keydown-G', () => {
-      this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode();
-    });
-
-    keyboard.on('keydown-C', () => {
-      this.worldRuntimeCoordinator?.getIsoTilemap().toggleChunkDebug();
-    });
-
-    // Object debug controls.
-    keyboard.on('keydown-O', () => {
-      this.worldRuntimeCoordinator?.getObjectDebugRenderer()?.toggle();
-    });
-
-    keyboard.on('keydown-L', () => {
-      this.worldRuntimeCoordinator?.getObjectPlacementSystem()?.debugLogPlacementInfo();
-    });
-
-    keyboard.on('keydown-E', () => {
-      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
-        this.tryConfirmChoiceMenu();
-        return;
-      }
-
-      if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
-        this.tryConfirmPlacementMode();
-        return;
-      }
-
-      this.tryTriggerActiveInteraction();
-    });
-
-    keyboard.on('keydown-SPACE', () => {
-      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
-        return;
-      }
-
-      this.cancelActiveActionForUi();
-
-      if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
-        this.tryConfirmPlacementMode();
-        return;
-      }
-
-      this.tryStartPlacementMode();
-    });
-
-    keyboard.on('keydown-ESC', () => {
-      if (this.cancelActiveActionForUi()) {
-        return;
-      }
-
-      const menuMessage = this.worldRuntimeCoordinator?.cancelChoiceMenu();
-
-      if (menuMessage) {
-        this.uiManager?.showInfo(menuMessage);
-        return;
-      }
-
-      const message = this.worldRuntimeCoordinator?.cancelPlacementMode();
-
-      if (message) {
-        this.uiManager?.showInfo(message);
-      }
-    });
-
-    keyboard.on('keydown-T', () => {
-      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
-        return;
-      }
-
-      this.cancelActiveActionForUi();
-
-      this.tryUseWarmTea();
-    });
-
-    keyboard.on('keydown-W', () => {
-      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1);
-    });
-
-    keyboard.on('keydown-UP', () => {
-      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1);
-    });
-
-    keyboard.on('keydown-S', () => {
-      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1);
-    });
-
-    keyboard.on('keydown-DOWN', () => {
-      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1);
-    });
-
-    keyboard.on('keydown-ENTER', () => {
-      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
-        this.tryConfirmChoiceMenu();
-      }
-    });
-
-    keyboard.on('keydown-I', () => {
-      this.cancelActiveActionForUi();
-      this.uiManager?.toggleInventory();
-    });
-
-    keyboard.on('keydown-J', () => {
-      this.cancelActiveActionForUi();
-      this.uiManager?.toggleJournal();
-    });
-
-    keyboard.on('keydown-P', () => {
-      this.cancelActiveActionForUi();
-      this.uiManager?.toggleSkills();
-    });
+  private buildInputCallbacks(): InputCallbacks {
+    return {
+      onInteract: () => this.tryTriggerActiveInteraction(),
+      onStartPlacement: () => this.tryStartPlacementMode(),
+      onUseItem: (itemId) => this.tryUseItem(itemId),
+      onCancelAction: () => this.cancelActiveActionForUi(),
+      onMenuMoveUp: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
+      onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
+      onMenuConfirm: () => this.tryConfirmChoiceMenu(),
+      onMenuCancel: () => {
+        const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
+        if (msg) this.uiManager?.showInfo(msg);
+      },
+      onPlacementConfirm: () => this.tryConfirmPlacementMode(),
+      onPlacementCancel: () => {
+        const msg = this.worldRuntimeCoordinator?.cancelPlacementMode();
+        if (msg) this.uiManager?.showInfo(msg);
+      },
+      onToggleInventory: () => this.uiManager?.toggleInventory(),
+      onToggleJournal: () => this.uiManager?.toggleJournal(),
+      onToggleSkills: () => this.uiManager?.toggleSkills(),
+      onDebugCycleZoom: () => this.cameraSystem?.cycleZoom(),
+      onDebugToggleGrid: () => this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode(),
+      onDebugToggleChunk: () => this.worldRuntimeCoordinator?.getIsoTilemap().toggleChunkDebug(),
+      onDebugToggleObjects: () => this.worldRuntimeCoordinator?.getObjectDebugRenderer()?.toggle(),
+      onDebugLogPlacement: () =>
+        this.worldRuntimeCoordinator?.getObjectPlacementSystem()?.debugLogPlacementInfo(),
+    };
   }
 
   private initializeWorldRuntime(mapId: string, spawnId: string): void {
@@ -344,12 +251,12 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
-  private tryUseWarmTea(): void {
+  private tryUseItem(itemId: PlayerItemKey): void {
     if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
-    const result = this.worldRuntimeCoordinator.useItem('warm_tea');
+    const result = this.worldRuntimeCoordinator.useItem(itemId);
     this.uiManager.handleResult(result);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }

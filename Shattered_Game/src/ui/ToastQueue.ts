@@ -1,4 +1,4 @@
-import type { ToastKind } from './UiTypes';
+import type { ToastKind } from './ToastTypes';
 
 export type ToastEntry = {
   id: number;

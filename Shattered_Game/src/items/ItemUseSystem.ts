@@ -40,6 +40,7 @@ export class ItemUseSystem {
 
     return {
       ok: true,
+      sfxId: 'tea_consumed',
       interactionType: 'item_use',
       targetId: itemId,
       message: itemDefinition.consumeMessage ?? `You use ${itemDefinition.displayName}.`,

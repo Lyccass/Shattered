@@ -1,0 +1,164 @@
+import Phaser from 'phaser';
+import type { InputCallbacks, InputMode } from './InputTypes';
+
+// Centralises all keyboard input and routes it based on the current mode.
+// GameScene calls setMode() each frame before delegating updates,
+// keeping input routing explicit and preventing dual-use key conflicts.
+export class InputSystem {
+  private mode: InputMode = 'normal';
+  private readonly keyboard: Phaser.Input.Keyboard.KeyboardPlugin;
+
+  private readonly keydownHandlers = new Map<string, () => void>();
+
+  constructor(
+    scene: Phaser.Scene,
+    private readonly callbacks: InputCallbacks,
+  ) {
+    const keyboard = scene.input.keyboard;
+
+    if (!keyboard) {
+      throw new Error('InputSystem: keyboard plugin is unavailable');
+    }
+
+    this.keyboard = keyboard;
+    this.register();
+  }
+
+  setMode(mode: InputMode): void {
+    this.mode = mode;
+  }
+
+  getMode(): InputMode {
+    return this.mode;
+  }
+
+  // Returns true when the player controller should process movement input.
+  shouldProcessMovement(): boolean {
+    return this.mode !== 'menu';
+  }
+
+  destroy(): void {
+    for (const [event, handler] of this.keydownHandlers) {
+      this.keyboard.off(event, handler);
+    }
+
+    this.keydownHandlers.clear();
+  }
+
+  private on(key: string, handler: () => void): void {
+    const event = `keydown-${key}`;
+    this.keyboard.on(event, handler);
+    this.keydownHandlers.set(event, handler);
+  }
+
+  private register(): void {
+    // --- Debug (always active) ---
+    this.on('Z', () => this.callbacks.onDebugCycleZoom());
+    this.on('G', () => this.callbacks.onDebugToggleGrid());
+    this.on('C', () => this.callbacks.onDebugToggleChunk());
+    this.on('O', () => this.callbacks.onDebugToggleObjects());
+    this.on('L', () => this.callbacks.onDebugLogPlacement());
+
+    // --- E: interact / confirm ---
+    this.on('E', () => {
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuConfirm();
+      } else if (this.mode === 'placement') {
+        this.callbacks.onPlacementConfirm();
+      } else {
+        this.callbacks.onInteract();
+      }
+    });
+
+    // --- ENTER: confirm choice menu ---
+    this.on('ENTER', () => {
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuConfirm();
+      }
+    });
+
+    // --- SPACE: cancel action / confirm placement / start placement ---
+    this.on('SPACE', () => {
+      if (this.mode === 'menu') {
+        return;
+      }
+
+      this.callbacks.onCancelAction();
+
+      if (this.mode === 'placement') {
+        this.callbacks.onPlacementConfirm();
+      } else {
+        this.callbacks.onStartPlacement();
+      }
+    });
+
+    // --- ESC: cancel active state ---
+    this.on('ESC', () => {
+      if (this.callbacks.onCancelAction !== undefined) {
+        this.callbacks.onCancelAction();
+      }
+
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuCancel();
+      } else if (this.mode === 'placement') {
+        this.callbacks.onPlacementCancel();
+      }
+    });
+
+    // --- W / UP: menu navigation up (only in menu mode) ---
+    this.on('W', () => {
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuMoveUp();
+      }
+    });
+
+    this.on('UP', () => {
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuMoveUp();
+      }
+    });
+
+    // --- S / DOWN: menu navigation down (only in menu mode) ---
+    this.on('S', () => {
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuMoveDown();
+      }
+    });
+
+    this.on('DOWN', () => {
+      if (this.mode === 'menu') {
+        this.callbacks.onMenuMoveDown();
+      }
+    });
+
+    // --- T: use item (normal mode only) ---
+    this.on('T', () => {
+      if (this.mode !== 'menu') {
+        this.callbacks.onCancelAction();
+        this.callbacks.onUseItem('warm_tea');
+      }
+    });
+
+    // --- Panel toggles (all non-menu modes) ---
+    this.on('I', () => {
+      if (this.mode !== 'menu') {
+        this.callbacks.onCancelAction();
+        this.callbacks.onToggleInventory();
+      }
+    });
+
+    this.on('J', () => {
+      if (this.mode !== 'menu') {
+        this.callbacks.onCancelAction();
+        this.callbacks.onToggleJournal();
+      }
+    });
+
+    this.on('P', () => {
+      if (this.mode !== 'menu') {
+        this.callbacks.onCancelAction();
+        this.callbacks.onToggleSkills();
+      }
+    });
+  }
+}

@@ -179,6 +179,7 @@ export class ResourceNodeSystem {
 
     return {
       ok: true,
+      sfxId: 'gather_success',
       interactionType: 'resource_node',
       targetId: nodeId,
       message: `Gathered 1 ${resourceKey}.`,

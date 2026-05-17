@@ -385,8 +385,8 @@ describe('PlacedStructureSystem', () => {
 
     expect(result.ok).toBe(true);
     expect(inventory.getItemCount('firestarter_set')).toBe(0);
-    expect(system.getCurrentObjects()).toHaveLength(1);
-    expect(system.getCurrentObjects()[0]?.kind).toBe('placed_firestarter_set');
+    expect(system.getObjectsForCurrentMap()).toHaveLength(1);
+    expect(system.getObjectsForCurrentMap()[0]?.kind).toBe('placed_firestarter_set');
   });
 
   it('invalid placement does not consume the item', () => {
@@ -412,7 +412,7 @@ describe('PlacedStructureSystem', () => {
 
     expect(result.ok).toBe(false);
     expect(inventory.getItemCount('firestarter_set')).toBe(1);
-    expect(system.getCurrentObjects()).toHaveLength(0);
+    expect(system.getObjectsForCurrentMap()).toHaveLength(0);
   });
 
   it('placed firestarter transforms into campfire when stone is available', () => {
@@ -461,7 +461,7 @@ describe('PlacedStructureSystem', () => {
 
     expect(result.ok).toBe(true);
     expect(inventory.getCount('stone')).toBe(0);
-    expect(system.getCurrentObjects()[0]?.kind).toBe('campfire');
+    expect(system.getObjectsForCurrentMap()[0]?.kind).toBe('campfire');
   });
 
   it('firestarter activation fails without stone', () => {
@@ -516,17 +516,15 @@ describe('PlacedStructureSystem', () => {
     }));
     const removeObject = vi.fn(() => true);
 
-    sessionState.setPlacedObjects('test_home_island', [
-      {
-        id: 'test_home_island:placed_firestarter_set:1',
-        mapId: 'test_home_island',
-        tileX: 16,
-        tileY: 17,
-        objectDefinitionId: 'campfire',
-        kind: 'campfire',
-        despawnAtMs: 90_000,
-      },
-    ]);
+    sessionState.addPlacedObject({
+      id: 'test_home_island:placed_firestarter_set:1',
+      mapId: 'test_home_island',
+      tileX: 16,
+      tileY: 17,
+      objectDefinitionId: 'campfire',
+      kind: 'campfire',
+      despawnAtMs: 90_000,
+    });
     system.setCurrentMap('test_home_island', 0, { getInstance, placeObject, removeObject });
 
     const result = system.interactWithPlacedObject(
@@ -556,17 +554,15 @@ describe('PlacedStructureSystem', () => {
     }));
     const removeObject = vi.fn(() => true);
 
-    sessionState.setPlacedObjects('test_home_island', [
-      {
-        id: 'test_home_island:placed_firestarter_set:1',
-        mapId: 'test_home_island',
-        tileX: 16,
-        tileY: 17,
-        objectDefinitionId: 'campfire',
-        kind: 'campfire',
-        despawnAtMs: 90_000,
-      },
-    ]);
+    sessionState.addPlacedObject({
+      id: 'test_home_island:placed_firestarter_set:1',
+      mapId: 'test_home_island',
+      tileX: 16,
+      tileY: 17,
+      objectDefinitionId: 'campfire',
+      kind: 'campfire',
+      despawnAtMs: 90_000,
+    });
     system.setCurrentMap('test_home_island', 0, { getInstance, placeObject, removeObject });
 
     const result = system.interactWithPlacedObject(
@@ -628,7 +624,7 @@ describe('PlacedStructureSystem', () => {
     const didChange = system.updateRuntimeState(100_001, { getInstance, placeObject, removeObject });
 
     expect(didChange).toBe(true);
-    expect(system.getCurrentObjects()).toHaveLength(0);
+    expect(system.getObjectsForCurrentMap()).toHaveLength(0);
     expect(removeObject).toHaveBeenCalledWith('test_home_island:placed_firestarter_set:1');
   });
 
@@ -640,17 +636,15 @@ describe('PlacedStructureSystem', () => {
     const placeObject = vi.fn(() => null);
     const removeObject = vi.fn(() => true);
 
-    sessionState.setPlacedObjects('test_home_island', [
-      {
-        id: 'test_home_island:campfire:1',
-        mapId: 'test_home_island',
-        tileX: 16,
-        tileY: 17,
-        objectDefinitionId: 'campfire',
-        kind: 'campfire',
-        despawnAtMs: 5_000,
-      },
-    ]);
+    sessionState.addPlacedObject({
+      id: 'test_home_island:campfire:1',
+      mapId: 'test_home_island',
+      tileX: 16,
+      tileY: 17,
+      objectDefinitionId: 'campfire',
+      kind: 'campfire',
+      despawnAtMs: 5_000,
+    });
     system.setCurrentMap('test_home_island', 10_000, { getInstance, placeObject, removeObject });
 
     const result = system.interactWithPlacedObject(
@@ -660,7 +654,7 @@ describe('PlacedStructureSystem', () => {
       { getInstance, placeObject, removeObject },
     );
 
-    expect(system.getCurrentObjects()).toHaveLength(0);
+    expect(system.getObjectsForCurrentMap()).toHaveLength(0);
     expect(result.ok).toBe(false);
     expect(result.message).toBe('Nothing happens.');
   });

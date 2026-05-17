@@ -1,3 +1,4 @@
+import type { SfxEventId } from '../audio/SfxTypes';
 import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import type { GridFootprint } from '../objects/ObjectTypes';
 import type {
@@ -101,6 +102,7 @@ export type InteractionResult = {
   interactionType: InteractionType;
   targetId: string;
   message: string;
+  sfxId?: SfxEventId;
   transitionRequest?: {
     targetMapId: string;
     targetSpawnId: string;

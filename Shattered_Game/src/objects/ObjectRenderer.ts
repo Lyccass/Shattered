@@ -51,6 +51,14 @@ export class ObjectRenderer {
     this.rendered.delete(instanceId);
   }
 
+  destroyAll(): void {
+    for (const entry of this.rendered.values()) {
+      entry.visual.destroy(true);
+    }
+
+    this.rendered.clear();
+  }
+
   getOcclusionTargets(): IterableIterator<ObjectOcclusionTarget> {
     return this.rendered.values();
   }

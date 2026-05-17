@@ -111,6 +111,12 @@ export class ObjectDebugRenderer {
     return this.visible;
   }
 
+  destroyAll(): void {
+    for (const instanceId of Array.from(this.entries.keys())) {
+      this.remove(instanceId);
+    }
+  }
+
   private createAnchor(entry: DebugEntry): Phaser.GameObjects.Arc {
     const anchor = this.scene.add.circle(entry.anchorX, entry.anchorY, 4, ANCHOR_COLOUR, 1);
     anchor.setStrokeStyle(1.5, 0x111111, 0.9);

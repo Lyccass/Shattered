@@ -2,6 +2,7 @@ import { applyRecipeToInventory, canCraftRecipe } from '../crafting/RecipeInvent
 import type { RecipeRegistry } from '../crafting/RecipeRegistry';
 import type { RecipeDefinition } from '../crafting/RecipeTypes';
 import type { ChoiceMenuOption } from './ChoiceMenuTypes';
+import type { ChoiceMenuHandler } from './ChoiceMenuCoordinator';
 import type { PlayerSessionState } from '../player/PlayerSessionState';
 import type { MapWorkbenchAnchor } from '../world/maps/MapTypes';
 import type { InteractionResult, WorkbenchInteractionTarget } from './InteractionTypes';
@@ -19,13 +20,7 @@ export class WorkbenchSystem {
 
   setMapWorkbenches(mapId: string, anchors: MapWorkbenchAnchor[]): void {
     this.currentWorkbenches = new Map(
-      anchors.map((anchor) => [
-        anchor.id,
-        {
-          mapId,
-          anchor,
-        },
-      ]),
+      anchors.map((anchor) => [anchor.id, { mapId, anchor }]),
     );
   }
 
@@ -74,6 +69,24 @@ export class WorkbenchSystem {
     }));
   }
 
+  // Returns a handler object for ChoiceMenuCoordinator so the coordinator
+  // does not need to know about workbench internals.
+  createMenuHandler(workbenchId: string): ChoiceMenuHandler {
+    return {
+      title: 'Workbench Recipes',
+      getOptions: (playerState) => this.getMenuOptions(workbenchId, playerState),
+      onConfirm: (optionId, _playerState) => {
+        const recipe = this.getRecipe(workbenchId, optionId);
+
+        if (!recipe) {
+          return { kind: 'none' };
+        }
+
+        return { kind: 'craft', workbenchId, recipeId: recipe.id };
+      },
+    };
+  }
+
   craftRecipe(
     workbenchId: string,
     recipeId: string,
@@ -84,6 +97,7 @@ export class WorkbenchSystem {
     if (!state) {
       return {
         ok: false,
+        sfxId: 'craft_failed',
         interactionType: 'workbench',
         targetId: workbenchId,
         message: 'Nothing happens.',
@@ -95,6 +109,7 @@ export class WorkbenchSystem {
     if (!recipe) {
       return {
         ok: false,
+        sfxId: 'craft_failed',
         interactionType: 'workbench',
         targetId: workbenchId,
         message: 'That recipe is not available here.',
@@ -106,6 +121,7 @@ export class WorkbenchSystem {
     if (!canCraftRecipe(recipe, inventory)) {
       return {
         ok: false,
+        sfxId: 'craft_failed',
         interactionType: 'workbench',
         targetId: workbenchId,
         message: this.getMissingResourceMessage(recipe),
@@ -118,6 +134,7 @@ export class WorkbenchSystem {
 
     return {
       ok: true,
+      sfxId: 'craft_success',
       interactionType: 'workbench',
       targetId: workbenchId,
       message: `You craft ${recipe.displayName}.`,
@@ -135,6 +152,7 @@ export class WorkbenchSystem {
     if (!recipe) {
       return {
         ok: false,
+        sfxId: 'craft_failed',
         interactionType: 'workbench',
         targetId: workbenchId,
         message: 'Nothing happens.',

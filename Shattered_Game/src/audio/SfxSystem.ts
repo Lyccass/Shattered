@@ -38,7 +38,7 @@ export class SfxSystem {
   };
 
   constructor(
-    private readonly scene: Phaser.Scene,
+    _scene: Phaser.Scene,
     private readonly eventBus: GameEventBus,
   ) {
     this.eventBus.onSfx(this.handleSfxEvent);
@@ -74,7 +74,8 @@ export class SfxSystem {
 
   private async ensureContext(): Promise<AudioContext | null> {
     if (!this.audioContext) {
-      const View = globalThis.AudioContext ?? globalThis.webkitAudioContext;
+      const extendedGlobal = globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext };
+      const View = extendedGlobal.AudioContext ?? extendedGlobal.webkitAudioContext;
 
       if (!View) {
         return null;
@@ -89,6 +90,10 @@ export class SfxSystem {
       } catch {
         return null;
       }
+    }
+
+    if (this.audioContext.state !== 'running') {
+      return null;
     }
 
     return this.audioContext;

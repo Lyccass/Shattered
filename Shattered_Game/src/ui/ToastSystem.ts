@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { createUiText } from './UiTextFactory';
 import { ToastQueue } from './ToastQueue';
-import type { ToastKind } from './UiTypes';
+import type { ToastKind } from './ToastTypes';
 
 const TOAST_DURATION_MS = 2200;
 const MAX_VISIBLE_TOASTS = 4;

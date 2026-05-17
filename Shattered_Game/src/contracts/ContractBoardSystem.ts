@@ -5,6 +5,7 @@ import type {
   PlayerInventoryDelta,
 } from '../player/PlayerInventoryState';
 import type { ChoiceMenuOption } from '../interactions/ChoiceMenuTypes';
+import type { ChoiceMenuHandler } from '../interactions/ChoiceMenuCoordinator';
 import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
 import type { MapContractBoardAnchor } from '../world/maps/MapTypes';
 import type {
@@ -62,6 +63,19 @@ export class ContractBoardSystem {
       contract,
       playerSessionState,
     ));
+  }
+
+  // Returns a handler for ChoiceMenuCoordinator so the coordinator does not
+  // need if-branches for each system type.
+  createMenuHandler(boardId: string): ChoiceMenuHandler {
+    return {
+      title: 'Harbor Contracts',
+      getOptions: (playerState) => this.getMenuOptions(boardId, playerState),
+      onConfirm: (optionId, playerState) => {
+        const result = this.selectContract(boardId, optionId, playerState);
+        return { kind: 'result', result };
+      },
+    };
   }
 
   getMenuOptions(boardId: string, playerSessionState: PlayerSessionState): ChoiceMenuOption[] {
@@ -180,6 +194,7 @@ export class ContractBoardSystem {
       playerSessionState.acceptContract(contract.id);
       return {
         ok: true,
+        sfxId: 'contract_accepted',
         interactionType: 'contract_board',
         targetId: contract.id,
         message: `Accepted ${contract.displayName}. Bring ${this.getRequirementSummary(contract)}.`,
@@ -255,6 +270,7 @@ export class ContractBoardSystem {
 
     return {
       ok: true,
+      sfxId: 'contract_completed',
       interactionType: 'contract_board',
       targetId: contract.id,
       message: this.getCompletionMessage(contract),

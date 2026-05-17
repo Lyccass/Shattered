@@ -91,11 +91,17 @@ export class UiManager {
     return this.skillPanel.toggle();
   }
 
+  destroy(): void {
+    this.scene.scale.off('resize', this.handleResize);
+  }
+
+  private readonly handleResize = (gameSize: Phaser.Structs.Size): void => {
+    this.uiCamera.setViewport(0, 0, gameSize.width, gameSize.height);
+    this.layout();
+  };
+
   private registerResizeHandler(): void {
-    this.scene.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
-      this.uiCamera.setViewport(0, 0, gameSize.width, gameSize.height);
-      this.layout();
-    });
+    this.scene.scale.on('resize', this.handleResize);
   }
 
   private ignoreWorldForUiCamera(uiObjects: Phaser.GameObjects.GameObject[]): void {

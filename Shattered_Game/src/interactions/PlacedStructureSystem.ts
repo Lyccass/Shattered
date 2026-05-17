@@ -1,3 +1,4 @@
+import type { SfxEventId } from '../audio/SfxTypes';
 import { applyRecipeToInventory, canCraftRecipe } from '../crafting/RecipeInventory';
 import type { RecipeRegistry } from '../crafting/RecipeRegistry';
 import type { ItemRegistry } from '../items/ItemRegistry';
@@ -27,12 +28,27 @@ type ObjectPlacementSystemLike = {
   removeObject(instanceId: string): boolean;
 };
 
+// Config returned to InteractionActionFactory so the placed-object
+// interaction checks (requires herb? requires stone?) live here, not in
+// the coordinator.
+export type PlacedObjectActionConfig = {
+  placedObjectId: string;
+  label: string;
+  durationMs: number;
+  startSfxId: SfxEventId;
+  successSfxId: SfxEventId;
+  failureSfxId: SfxEventId;
+  cancelSfxId: SfxEventId;
+  cancellationReason: string;
+};
+
 const DEFAULT_FIRESTARTER_DURATION_MS = 45_000;
 const CAMPFIRE_DESPAWN_MS = 90_000;
+const BREW_TEA_DURATION_MS = 1_500;
+const LIGHT_FIRESTARTER_DURATION_MS = 1_200;
 
 export class PlacedStructureSystem {
   private currentMapId: string | null = null;
-  private currentObjects: RuntimePlacedObjectRecord[] = [];
 
   constructor(
     private readonly sessionState: WorldSessionState,
@@ -45,16 +61,15 @@ export class PlacedStructureSystem {
     objectPlacementSystem?: PlacementObjectSystem,
   ): void {
     this.currentMapId = mapId;
-    this.currentObjects = this.sessionState.getPlacedObjects(mapId);
     this.updateRuntimeState(nowMs, objectPlacementSystem);
 
     if (!objectPlacementSystem) {
       return;
     }
 
-    this.currentObjects.forEach((placedObject) => {
+    for (const placedObject of this.sessionState.getPlacedObjects(mapId)) {
       if (objectPlacementSystem.getInstance(placedObject.id)) {
-        return;
+        continue;
       }
 
       const restored = objectPlacementSystem.placeObject(
@@ -69,7 +84,7 @@ export class PlacedStructureSystem {
           `PlacedStructureSystem: failed to restore runtime object "${placedObject.id}" (${placedObject.objectDefinitionId}) on map "${placedObject.mapId}" at tile ${placedObject.tileX},${placedObject.tileY}. Suggested fix: inspect runtime placement state for stale blocked tiles or invalid restores.`,
         );
       }
-    });
+    }
   }
 
   updateRuntimeState(
@@ -81,25 +96,24 @@ export class PlacedStructureSystem {
     }
 
     const objects = this.sessionState.getPlacedObjects(this.currentMapId);
-    const expiredObjects = objects.filter((placedObject) => nowMs >= placedObject.despawnAtMs);
+    const expiredObjects = objects.filter((o) => nowMs >= o.despawnAtMs);
 
     if (expiredObjects.length === 0) {
-      this.currentObjects = objects;
       return false;
     }
 
-    expiredObjects.forEach((placedObject) => {
+    for (const placedObject of expiredObjects) {
       objectPlacementSystem?.removeObject(placedObject.id);
-    });
+      this.sessionState.removePlacedObject(this.currentMapId, placedObject.id);
+    }
 
-    const remainingObjects = objects.filter((placedObject) => nowMs < placedObject.despawnAtMs);
-    this.sessionState.setPlacedObjects(this.currentMapId, remainingObjects);
-    this.currentObjects = remainingObjects;
     return true;
   }
 
   createInteractionTargets(): PlacedObjectInteractionTarget[] {
-    return this.currentObjects.map((placedObject) => ({
+    if (!this.currentMapId) return [];
+
+    return this.sessionState.getPlacedObjects(this.currentMapId).map((placedObject) => ({
       definition: {
         id: placedObject.id,
         interactionType: 'placed_object',
@@ -114,6 +128,55 @@ export class PlacedStructureSystem {
       placedObjectId: placedObject.id,
       placedObjectKind: placedObject.kind,
     }));
+  }
+
+  // Returns action config if the placed object can be interacted with given
+  // the current inventory. Returns null if action is not possible (missing
+  // ingredients) or the object does not exist.
+  getPlacedObjectActionConfig(
+    placedObjectId: string,
+    inventory: PlayerInventoryState,
+  ): PlacedObjectActionConfig | null {
+    const mapId = this.currentMapId;
+
+    if (!mapId) return null;
+
+    const placedObject = this.sessionState.getPlacedObjectById(mapId, placedObjectId);
+
+    if (!placedObject) return null;
+
+    if (placedObject.kind === 'campfire') {
+      if (!inventory.hasAtLeast('herb', 1)) {
+        return null;
+      }
+
+      return {
+        placedObjectId,
+        label: 'Brewing Warm Tea',
+        durationMs: BREW_TEA_DURATION_MS,
+        startSfxId: 'craft_start',
+        successSfxId: 'tea_brewed',
+        failureSfxId: 'invalid_action',
+        cancelSfxId: 'action_cancelled',
+        cancellationReason: 'Brewing cancelled.',
+      };
+    }
+
+    // placed_firestarter_set
+    if (!inventory.hasAtLeast('stone', 1)) {
+      return null;
+    }
+
+    return {
+      placedObjectId,
+      label: 'Lighting Firestarter',
+      durationMs: LIGHT_FIRESTARTER_DURATION_MS,
+      startSfxId: 'craft_start',
+      successSfxId: 'fire_lit',
+      failureSfxId: 'invalid_action',
+      cancelSfxId: 'action_cancelled',
+      cancellationReason: 'Lighting cancelled.',
+    };
   }
 
   placeItem(
@@ -132,6 +195,7 @@ export class PlacedStructureSystem {
     if (!placementObjectDefinitionId || itemDefinition.useMode !== 'place') {
       return {
         ok: false,
+        sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: itemId,
         message: `${itemDefinition.displayName} cannot be placed.`,
@@ -141,6 +205,7 @@ export class PlacedStructureSystem {
     if (!inventory.consumeItem(itemId, 1)) {
       return {
         ok: false,
+        sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: itemId,
         message: `You don't have a ${itemDefinition.displayName}.`,
@@ -159,13 +224,14 @@ export class PlacedStructureSystem {
       inventory.addItem(itemId, 1);
       return {
         ok: false,
+        sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: placedObjectId,
         message: `Couldn't place ${itemDefinition.displayName} there.`,
       };
     }
 
-    const placedObjectState: RuntimePlacedObjectRecord = {
+    this.sessionState.addPlacedObject({
       id: placedObjectId,
       mapId,
       tileX,
@@ -173,13 +239,11 @@ export class PlacedStructureSystem {
       objectDefinitionId: placementObjectDefinitionId,
       kind: 'placed_firestarter_set',
       despawnAtMs: nowMs + (itemDefinition.placementRules?.durationMs ?? DEFAULT_FIRESTARTER_DURATION_MS),
-    };
-
-    this.sessionState.getPlacedObjects(mapId).push(placedObjectState);
-    this.currentObjects = this.sessionState.getPlacedObjects(mapId);
+    });
 
     return {
       ok: true,
+      sfxId: 'item_placed',
       interactionType: 'placed_object',
       targetId: placedObjectId,
       message: `Placed ${itemDefinition.displayName}.`,
@@ -194,11 +258,24 @@ export class PlacedStructureSystem {
     playerSessionState: PlayerSessionState,
     objectPlacementSystem: PlacementObjectSystem,
   ): InteractionResult {
-    const placedObject = this.currentObjects.find((entry) => entry.id === placedObjectId);
+    const mapId = this.currentMapId;
+
+    if (!mapId) {
+      return {
+        ok: false,
+        sfxId: 'invalid_action',
+        interactionType: 'placed_object',
+        targetId: placedObjectId,
+        message: 'Nothing happens.',
+      };
+    }
+
+    const placedObject = this.sessionState.getPlacedObjectById(mapId, placedObjectId);
 
     if (!placedObject) {
       return {
         ok: false,
+        sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: placedObjectId,
         message: 'Nothing happens.',
@@ -215,6 +292,7 @@ export class PlacedStructureSystem {
         playerSessionState.getSkillProgressionSystem().addXpDelta(recipe.xpRewards ?? {});
         return {
           ok: true,
+          sfxId: 'tea_brewed',
           interactionType: 'placed_object',
           targetId: placedObjectId,
           message: 'You brew warm tea.',
@@ -235,6 +313,7 @@ export class PlacedStructureSystem {
     if (!inventory.hasAtLeast('stone', 1)) {
       return {
         ok: false,
+        sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: placedObjectId,
         message: 'Needs a sparkstone/stone.',
@@ -257,12 +336,15 @@ export class PlacedStructureSystem {
       );
     }
 
-    placedObject.kind = 'campfire';
-    placedObject.objectDefinitionId = 'campfire';
-    placedObject.despawnAtMs = nowMs + CAMPFIRE_DESPAWN_MS;
+    this.sessionState.updatePlacedObject(mapId, placedObjectId, {
+      kind: 'campfire',
+      objectDefinitionId: 'campfire',
+      despawnAtMs: nowMs + CAMPFIRE_DESPAWN_MS,
+    });
 
     return {
       ok: true,
+      sfxId: 'fire_lit',
       interactionType: 'placed_object',
       targetId: placedObjectId,
       message: 'The fire catches.',
@@ -270,18 +352,21 @@ export class PlacedStructureSystem {
     };
   }
 
-  getCurrentObjects(): RuntimePlacedObjectRecord[] {
-    return [...this.currentObjects];
+  getObjectsForCurrentMap(): RuntimePlacedObjectRecord[] {
+    if (!this.currentMapId) return [];
+    return this.sessionState.getPlacedObjects(this.currentMapId);
   }
 
-  getPlacedObjectState(placedObjectId: string): RuntimePlacedObjectRecord | null {
-    return this.currentObjects.find((placedObject) => placedObject.id === placedObjectId) ?? null;
+  getPlacedObjectState(placedObjectId: string): RuntimePlacedObjectRecord | undefined {
+    if (!this.currentMapId) return undefined;
+    return this.sessionState.getPlacedObjectById(this.currentMapId, placedObjectId);
   }
 
   getActiveObjectCountForDefinition(objectDefinitionId: string): number {
-    return this.currentObjects.filter(
-      (placedObject) => placedObject.objectDefinitionId === objectDefinitionId,
-    ).length;
+    if (!this.currentMapId) return 0;
+    return this.sessionState
+      .getPlacedObjects(this.currentMapId)
+      .filter((o) => o.objectDefinitionId === objectDefinitionId).length;
   }
 
   private requireCurrentMapId(): string {

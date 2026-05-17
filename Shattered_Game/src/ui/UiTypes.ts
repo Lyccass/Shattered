@@ -4,11 +4,10 @@ import type { ChoiceMenuStateSnapshot } from '../interactions/ChoiceMenuTypes';
 import type { ActiveInteraction, InteractionResult } from '../interactions/InteractionTypes';
 import type { PlacementPreviewState } from '../interactions/PlacementModeSystem';
 import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
-import type { PlayerInventorySnapshot } from '../player/PlayerInventoryState';
+import { PlayerInventoryState, type PlayerInventorySnapshot } from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
 import type { SkillId, SkillSnapshot } from '../skills/SkillTypes';
 import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
-import type { ToastKind } from './ToastTypes';
 
 export type UiStateSnapshot = {
   activeInteraction: ActiveInteraction | null;
@@ -23,6 +22,24 @@ export type UiStateSnapshot = {
   placementState: PlacementPreviewState | null;
   actionProgress: ActionProgressSnapshot | null;
 };
+
+// Use this instead of an inline object literal in GameScene/tests so that
+// adding a new UiStateSnapshot field does not create silent stale defaults.
+export function emptyUiStateSnapshot(): UiStateSnapshot {
+  return {
+    activeInteraction: null,
+    choiceMenu: null,
+    inventory: PlayerInventoryState.emptySnapshot(),
+    currency: { copper: 0, silver: 0, gold: 0, platinum: 0 },
+    reputation: { harborReputation: 0 },
+    skills: [],
+    activeTaskCount: 0,
+    journalEntries: [],
+    activeEffects: [],
+    placementState: null,
+    actionProgress: null,
+  };
+}
 
 export type UiHandledResult = Pick<InteractionResult, 'ok' | 'message' | 'xpDelta' | 'toastKind'>;
 

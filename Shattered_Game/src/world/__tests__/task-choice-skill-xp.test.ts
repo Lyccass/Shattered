@@ -123,17 +123,15 @@ describe('Gathering and campfire XP', () => {
     }));
     const removeObject = vi.fn(() => true);
 
-    sessionState.setPlacedObjects('test_home_island', [
-      {
-        id: 'test_home_island:campfire:1',
-        mapId: 'test_home_island',
-        tileX: 16,
-        tileY: 17,
-        objectDefinitionId: 'campfire',
-        kind: 'campfire',
-        despawnAtMs: 90_000,
-      },
-    ]);
+    sessionState.addPlacedObject({
+      id: 'test_home_island:campfire:1',
+      mapId: 'test_home_island',
+      tileX: 16,
+      tileY: 17,
+      objectDefinitionId: 'campfire',
+      kind: 'campfire',
+      despawnAtMs: 90_000,
+    });
     system.setCurrentMap('test_home_island', 0, { getInstance, placeObject, removeObject });
 
     const result = system.interactWithPlacedObject(
