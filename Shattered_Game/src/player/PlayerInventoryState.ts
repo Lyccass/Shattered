@@ -1,5 +1,9 @@
 export type PlayerResourceKey = 'wood' | 'stone' | 'herb';
-export type PlayerItemKey = 'firestarter_set' | 'warm_tea';
+export type PlayerItemKey =
+  | 'firestarter_set'
+  | 'wooden_marker'
+  | 'camp_supplies'
+  | 'warm_tea';
 
 export type PlayerInventoryCounts = Record<PlayerResourceKey, number>;
 export type PlayerItemCounts = Record<PlayerItemKey, number>;
@@ -20,6 +24,8 @@ const EMPTY_RESOURCE_COUNTS: PlayerInventoryCounts = {
 
 const EMPTY_ITEM_COUNTS: PlayerItemCounts = {
   firestarter_set: 0,
+  wooden_marker: 0,
+  camp_supplies: 0,
   warm_tea: 0,
 };
 

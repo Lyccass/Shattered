@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CameraSystem } from '../camera/CameraSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
+import { InteractionChoiceMenuSystem } from '../interactions/InteractionChoiceMenuSystem';
 import { InteractionPromptSystem } from '../interactions/InteractionPromptSystem';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
@@ -15,6 +16,7 @@ export class GameScene extends Phaser.Scene {
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
+  private interactionChoiceMenuSystem?: InteractionChoiceMenuSystem;
   private interactionPromptSystem?: InteractionPromptSystem;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private lastInteractionAt = 0;
@@ -37,6 +39,7 @@ export class GameScene extends Phaser.Scene {
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this);
     this.initializeWorldRuntime('test_home_island', 'default');
+    this.interactionChoiceMenuSystem = new InteractionChoiceMenuSystem(this);
     this.interactionPromptSystem = new InteractionPromptSystem(this);
     this.registerDebugKeys();
 
@@ -49,17 +52,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
-    this.playerController?.update(delta);
+    if (!this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
+      this.playerController?.update(delta);
+    }
     this.worldRuntimeCoordinator?.updatePlayerRuntimeState();
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     if (this.interactionPromptSystem && this.worldRuntimeCoordinator) {
       this.interactionPromptSystem.update(
         this.worldRuntimeCoordinator.getActiveInteraction(),
         this.worldRuntimeCoordinator.getPlayerInventoryState().getSnapshot(),
+        this.worldRuntimeCoordinator.getPlayerCurrencySnapshot(),
+        this.worldRuntimeCoordinator.getPlayerReputationSnapshot(),
+        this.worldRuntimeCoordinator.getPlayerSkillSnapshots(),
+        this.worldRuntimeCoordinator.getActiveTaskCount(),
+        this.worldRuntimeCoordinator.getTaskJournalEntries(),
         this.worldRuntimeCoordinator.getPlayerActiveEffects(),
         this.worldRuntimeCoordinator.getPlacementState(),
       );
     }
+    this.interactionChoiceMenuSystem?.update(
+      this.worldRuntimeCoordinator?.getChoiceMenuState() ?? null,
+    );
     this.debugOverlaySystem?.update();
   }
 
@@ -92,6 +105,11 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-E', () => {
+      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
+        this.tryConfirmChoiceMenu();
+        return;
+      }
+
       if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
         this.tryConfirmPlacementMode();
         return;
@@ -101,6 +119,10 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-SPACE', () => {
+      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
+        return;
+      }
+
       if (this.worldRuntimeCoordinator?.isPlacementModeActive()) {
         this.tryConfirmPlacementMode();
         return;
@@ -110,6 +132,13 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-ESC', () => {
+      const menuMessage = this.worldRuntimeCoordinator?.cancelChoiceMenu();
+
+      if (menuMessage) {
+        this.interactionPromptSystem?.showFeedback(menuMessage);
+        return;
+      }
+
       const message = this.worldRuntimeCoordinator?.cancelPlacementMode();
 
       if (message) {
@@ -118,7 +147,37 @@ export class GameScene extends Phaser.Scene {
     });
 
     keyboard.on('keydown-T', () => {
+      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
+        return;
+      }
+
       this.tryUseWarmTea();
+    });
+
+    keyboard.on('keydown-W', () => {
+      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1);
+    });
+
+    keyboard.on('keydown-UP', () => {
+      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1);
+    });
+
+    keyboard.on('keydown-S', () => {
+      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1);
+    });
+
+    keyboard.on('keydown-DOWN', () => {
+      this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1);
+    });
+
+    keyboard.on('keydown-ENTER', () => {
+      if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) {
+        this.tryConfirmChoiceMenu();
+      }
+    });
+
+    keyboard.on('keydown-J', () => {
+      this.interactionPromptSystem?.toggleJournal();
     });
   }
 
@@ -269,6 +328,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     const result = this.worldRuntimeCoordinator.useItem('warm_tea');
+    this.interactionPromptSystem.showFeedback(result.message);
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+  }
+
+  private tryConfirmChoiceMenu(): void {
+    if (!this.worldRuntimeCoordinator || !this.interactionPromptSystem) {
+      return;
+    }
+
+    const result = this.worldRuntimeCoordinator.confirmChoiceMenu();
+
+    if (!result) {
+      return;
+    }
+
     this.interactionPromptSystem.showFeedback(result.message);
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }

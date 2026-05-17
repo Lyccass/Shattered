@@ -2,6 +2,7 @@ import type {
   PlayerItemKey,
   PlayerResourceKey,
 } from '../player/PlayerInventoryState';
+import type { SkillXpDelta } from '../skills/SkillTypes';
 
 export type CraftingStationType = 'workbench' | 'campfire';
 
@@ -35,6 +36,7 @@ export type RecipeDefinition = {
   stationType: CraftingStationType;
   inputs: RecipeInput[];
   outputs: RecipeOutput[];
+  xpRewards?: SkillXpDelta;
   requiredActiveObjectType?: string;
   description: string;
 };

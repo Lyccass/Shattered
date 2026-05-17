@@ -262,6 +262,7 @@ export function createWildIslandMap(): MapDefinition {
   return {
     id: mapId,
     displayName: 'Test Wild Island',
+    spaceType: 'open_world',
     width,
     height,
     terrain,

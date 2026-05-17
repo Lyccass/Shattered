@@ -94,6 +94,7 @@ export function createHomeIslandMap(): MapDefinition {
   return {
     id: 'test_home_island',
     displayName: 'Test Home Island',
+    spaceType: 'personal_island',
     width,
     height,
     terrain,

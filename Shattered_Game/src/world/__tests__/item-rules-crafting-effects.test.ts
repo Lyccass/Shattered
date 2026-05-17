@@ -5,6 +5,7 @@ import { EFFECT_DEFINITIONS } from '../../effects/EffectDefinitions';
 import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { evaluateItemPlacement } from '../../items/ItemPlacementRules';
 import { ItemRegistry } from '../../items/ItemRegistry';
+import type { ItemDefinition } from '../../items/ItemTypes';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
 import { PlayerInventoryState } from '../../player/PlayerInventoryState';
 import type { MapZoneTag } from '../maps/MapTypes';
@@ -15,6 +16,7 @@ function createPlacementQuery(overrides: Partial<Parameters<typeof evaluateItemP
   return {
     tileX: 10,
     tileY: 10,
+    mapSpaceType: 'open_world' as const,
     zoneTags: [] as MapZoneTag[],
     activePlacedCount: 0,
     isTileInBounds: () => true,
@@ -29,11 +31,43 @@ function createPlacementQuery(overrides: Partial<Parameters<typeof evaluateItemP
 
 describe('evaluateItemPlacement', () => {
   const firestarter = itemRegistry.get('firestarter_set');
+  const personalOnlyFurniture: ItemDefinition = {
+    id: 'firestarter_set',
+    displayName: 'Test Furniture',
+    description: 'A test-only permanent placement item.',
+    category: 'placeable',
+    stackable: true,
+    useMode: 'place',
+    placementObjectDefinitionId: 'placed_firestarter_set',
+    placementRules: {
+      allowedSpaceTypes: ['personal_island'],
+      mustBeWalkable: true,
+      mustNotBeBlocked: true,
+    },
+  };
 
-  it('rejects firestarter placement outside allowed zones', () => {
+  it('allows firestarter placement in open world space', () => {
     const result = evaluateItemPlacement(
       firestarter,
-      createPlacementQuery({ zoneTags: [] }),
+      createPlacementQuery({ mapSpaceType: 'open_world', zoneTags: ['town', 'harbor'] }),
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows firestarter placement on a personal island too', () => {
+    const result = evaluateItemPlacement(
+      firestarter,
+      createPlacementQuery({ mapSpaceType: 'personal_island', zoneTags: ['personal_build'] }),
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects a personal-only furniture item in open world space', () => {
+    const result = evaluateItemPlacement(
+      personalOnlyFurniture,
+      createPlacementQuery({ mapSpaceType: 'open_world' }),
     );
 
     expect(result.ok).toBe(false);
@@ -42,34 +76,13 @@ describe('evaluateItemPlacement', () => {
     }
   });
 
-  it('allows firestarter placement in a personal_build zone', () => {
+  it('allows a personal-only furniture item on a personal island', () => {
     const result = evaluateItemPlacement(
-      firestarter,
-      createPlacementQuery({ zoneTags: ['personal_build'] }),
+      personalOnlyFurniture,
+      createPlacementQuery({ mapSpaceType: 'personal_island', zoneTags: ['personal_build'] }),
     );
 
     expect(result.ok).toBe(true);
-  });
-
-  it('allows firestarter placement in a wilderness_camp zone', () => {
-    const result = evaluateItemPlacement(
-      firestarter,
-      createPlacementQuery({ zoneTags: ['wilderness_camp'] }),
-    );
-
-    expect(result.ok).toBe(true);
-  });
-
-  it('rejects firestarter placement in a harbor/town zone', () => {
-    const result = evaluateItemPlacement(
-      firestarter,
-      createPlacementQuery({ zoneTags: ['town', 'harbor'] }),
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.failure.code).toBe('not_allowed_zone');
-    }
   });
 });
 

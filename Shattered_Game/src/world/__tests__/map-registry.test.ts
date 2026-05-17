@@ -14,6 +14,7 @@ describe('MapRegistry', () => {
         return {
           id: 'lazy_map',
           displayName: 'Lazy Map',
+          spaceType: 'open_world',
           width: 2,
           height: 2,
           terrain: [
@@ -50,6 +51,7 @@ describe('MapRegistry', () => {
       factory: () => ({
         id: 'known_map',
         displayName: 'Known Map',
+        spaceType: 'open_world',
         width: 1,
         height: 1,
         terrain: [['grass']],

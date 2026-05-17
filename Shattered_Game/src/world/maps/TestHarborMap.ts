@@ -99,14 +99,14 @@ export function createHarborMap(): MapDefinition {
 
   const interactionAnchors: MapInteractionAnchor[] = [
     {
-      id: 'harbor_notice_board_talk',
-      interactionType: 'npc',
+      id: 'harbor_contract_board_01',
+      interactionType: 'contract_board',
       tileX: 18,
       tileY: 14,
       interactionRangeTiles: 1,
       linkedObjectId: 'harbor_notice_board_01',
-      promptLabel: 'Talk',
-      text: 'The wild coast has driftwood and loose stone. Bring both home. Your workbench can turn that into a proper firestarter.',
+      promptLabel: 'Turn In Contract',
+      contractIds: ['warmth_for_the_dockhands', 'camp_supplies'],
     },
     {
       id: 'harbor_driftwood_gather_01',
@@ -140,6 +140,7 @@ export function createHarborMap(): MapDefinition {
   return {
     id: 'test_harbor',
     displayName: 'Test Harbor',
+    spaceType: 'open_world',
     width,
     height,
     terrain,

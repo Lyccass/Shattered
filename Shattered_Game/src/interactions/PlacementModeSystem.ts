@@ -11,7 +11,7 @@ import { getDynamicDepth, RENDER_DEPTHS } from '../render/RenderLayers';
 import type { IsoTransform } from '../world/IsoTransform';
 import type { WorldGrid } from '../world/WorldGrid';
 import { getTransitionFootprintTiles } from '../world/maps/MapTransitionSystem';
-import type { MapTransition } from '../world/maps/MapTypes';
+import type { MapSpaceType, MapTransition } from '../world/maps/MapTypes';
 import type { MapZoneIndex } from '../world/maps/MapZoneIndex';
 import type { ObjectPlacementEvaluation } from '../objects/ObjectPlacementPolicy';
 
@@ -39,6 +39,7 @@ export type PlacementPreviewState = {
 
 type PlacementRuntimeContext = {
   transform: IsoTransform;
+  mapSpaceType: MapSpaceType;
   worldGrid: Pick<
     WorldGrid,
     'isTileInBounds' | 'isTerrainBlocked' | 'isObjectBlocked' | 'isTileWalkable'
@@ -65,6 +66,7 @@ export class PlacementModeSystem {
 
   bindRuntimeContext(
     transform: IsoTransform,
+    mapSpaceType: MapSpaceType,
     worldGrid: PlacementRuntimeContext['worldGrid'],
     zoneIndex: MapZoneIndex,
     transitions: MapTransition[],
@@ -73,6 +75,7 @@ export class PlacementModeSystem {
   ): void {
     this.runtimeContext = {
       transform,
+      mapSpaceType,
       worldGrid,
       zoneIndex,
       transitions,
@@ -132,6 +135,7 @@ export class PlacementModeSystem {
     const itemPlacementEvaluation = evaluateItemPlacement(itemDefinition, {
       tileX: targetTile.x,
       tileY: targetTile.y,
+      mapSpaceType: this.runtimeContext.mapSpaceType,
       zoneTags: this.runtimeContext.zoneIndex.getTagsAtTile(targetTile.x, targetTile.y),
       activePlacedCount: this.runtimeContext.getActivePlacedCount(
         this.state.placementObjectDefinitionId,

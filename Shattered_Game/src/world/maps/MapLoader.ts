@@ -50,6 +50,7 @@ export class MapLoader {
     const proceduralDefinition: MapDefinition = {
       id: mapId,
       displayName: 'Procedural Debug Island',
+      spaceType: 'open_world',
       width,
       height,
       terrain: generateOrganicIsland(width, height),

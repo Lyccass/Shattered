@@ -1,5 +1,5 @@
 import type { ObjectPlacementEvaluation } from '../objects/ObjectPlacementPolicy';
-import type { MapZoneTag } from '../world/maps/MapTypes';
+import type { MapSpaceType, MapZoneTag } from '../world/maps/MapTypes';
 import type { ItemDefinition } from './ItemTypes';
 
 export type ItemPlacementFailureCode =
@@ -28,6 +28,7 @@ export type ItemPlacementEvaluation =
 export type ItemPlacementQuery = {
   tileX: number;
   tileY: number;
+  mapSpaceType: MapSpaceType;
   zoneTags: MapZoneTag[];
   activePlacedCount: number;
   isTileInBounds(tileX: number, tileY: number): boolean;
@@ -61,6 +62,32 @@ export function evaluateItemPlacement(
   }
 
   const rules = itemDefinition.placementRules;
+
+  if (rules?.allowedSpaceTypes && rules.allowedSpaceTypes.length > 0) {
+    const inAllowedSpace = rules.allowedSpaceTypes.includes(query.mapSpaceType);
+
+    if (!inAllowedSpace) {
+      return {
+        ok: false,
+        failure: {
+          code: 'not_allowed_zone',
+        },
+      };
+    }
+  }
+
+  if (rules?.forbiddenSpaceTypes && rules.forbiddenSpaceTypes.length > 0) {
+    const inForbiddenSpace = rules.forbiddenSpaceTypes.includes(query.mapSpaceType);
+
+    if (inForbiddenSpace) {
+      return {
+        ok: false,
+        failure: {
+          code: 'forbidden_zone',
+        },
+      };
+    }
+  }
 
   if (rules?.minTransitionDistanceTiles !== undefined) {
     if (query.isNearTransition(query.tileX, query.tileY, rules.minTransitionDistanceTiles)) {

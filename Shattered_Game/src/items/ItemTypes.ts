@@ -3,7 +3,7 @@ import type {
   PlayerItemKey,
   PlayerResourceKey,
 } from '../player/PlayerInventoryState';
-import type { MapZoneTag } from '../world/maps/MapTypes';
+import type { MapSpaceType, MapZoneTag } from '../world/maps/MapTypes';
 
 export type ItemId = PlayerResourceKey | PlayerItemKey;
 
@@ -12,6 +12,8 @@ export type ItemCategory = 'resource' | 'placeable' | 'consumable' | 'crafted';
 export type ItemUseMode = 'none' | 'place' | 'consume';
 
 export type PlacementRules = {
+  allowedSpaceTypes?: MapSpaceType[];
+  forbiddenSpaceTypes?: MapSpaceType[];
   allowedZoneTags?: MapZoneTag[];
   forbiddenZoneTags?: MapZoneTag[];
   mustBeWalkable?: boolean;

@@ -1,5 +1,6 @@
 import type { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
-import type { PlayerInventoryDelta, PlayerInventoryState, PlayerResourceKey } from '../player/PlayerInventoryState';
+import type { PlayerInventoryDelta, PlayerResourceKey } from '../player/PlayerInventoryState';
+import type { PlayerSessionState } from '../player/PlayerSessionState';
 import type { MapPlacedObject, MapResourceNodeAnchor, ResourceNodeType } from '../world/maps/MapTypes';
 import { WorldSessionState } from '../world/session/WorldSessionState';
 import type { InteractionResult, ResourceNodeInteractionTarget } from './InteractionTypes';
@@ -29,6 +30,12 @@ const RESOURCE_RESPAWN_MS: Record<ResourceNodeType, number> = {
   driftwood: 45_000,
   stone_pile: 60_000,
   herb_patch: 50_000,
+};
+
+const RESOURCE_XP_REWARDS: Record<ResourceNodeType, number> = {
+  driftwood: 5,
+  stone_pile: 5,
+  herb_patch: 5,
 };
 
 export class ResourceNodeSystem {
@@ -125,7 +132,7 @@ export class ResourceNodeSystem {
 
   gatherNode(
     nodeId: string,
-    inventory: PlayerInventoryState,
+    playerSessionState: PlayerSessionState,
     nowMs: number,
     objectPlacementSystem?: Pick<ObjectPlacementSystem, 'removeObject'>,
   ): InteractionResult {
@@ -153,7 +160,9 @@ export class ResourceNodeSystem {
 
     const resourceKey = getInventoryResourceKey(node.anchor.resourceNodeType);
     const inventoryDelta: PlayerInventoryDelta = { [resourceKey]: 1 };
+    const inventory = playerSessionState.getInventoryState();
     inventory.addDelta(inventoryDelta);
+    playerSessionState.getSkillProgressionSystem().addXp('gathering', RESOURCE_XP_REWARDS[node.anchor.resourceNodeType]);
     this.setRespawnAt(
       node.mapId,
       nodeId,

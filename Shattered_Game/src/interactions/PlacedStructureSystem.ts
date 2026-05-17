@@ -2,6 +2,7 @@ import { applyRecipeToInventory, canCraftRecipe } from '../crafting/RecipeInvent
 import type { RecipeRegistry } from '../crafting/RecipeRegistry';
 import type { ItemRegistry } from '../items/ItemRegistry';
 import type { PlayerInventoryState, PlayerItemKey } from '../player/PlayerInventoryState';
+import type { PlayerSessionState } from '../player/PlayerSessionState';
 import type { ObjectInstance } from '../objects/ObjectTypes';
 import {
   type RuntimePlacedObjectRecord,
@@ -190,7 +191,7 @@ export class PlacedStructureSystem {
   interactWithPlacedObject(
     placedObjectId: string,
     nowMs: number,
-    inventory: PlayerInventoryState,
+    playerSessionState: PlayerSessionState,
     objectPlacementSystem: PlacementObjectSystem,
   ): InteractionResult {
     const placedObject = this.currentObjects.find((entry) => entry.id === placedObjectId);
@@ -204,11 +205,14 @@ export class PlacedStructureSystem {
       };
     }
 
+    const inventory = playerSessionState.getInventoryState();
+
     if (placedObject.kind === 'campfire') {
       const recipe = this.requireCampfireRecipe();
 
       if (canCraftRecipe(recipe, inventory)) {
         applyRecipeToInventory(recipe, inventory);
+        playerSessionState.getSkillProgressionSystem().addXpDelta(recipe.xpRewards ?? {});
         return {
           ok: true,
           interactionType: 'placed_object',

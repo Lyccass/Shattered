@@ -80,6 +80,7 @@ function makeMapDefinition(overrides: Partial<MapDefinition> = {}): MapDefinitio
   return {
     id: 'test_map',
     displayName: 'Test Map',
+    spaceType: 'open_world',
     width: 4,
     height: 4,
     terrain: Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => 'grass' as const)),

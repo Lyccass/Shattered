@@ -20,6 +20,60 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
         amount: 1,
       },
     ],
+    xpRewards: {
+      crafting: 10,
+    },
+  },
+  {
+    id: 'workbench_wooden_marker',
+    displayName: 'Wooden Marker',
+    stationType: 'workbench',
+    description: 'A simple trail marker cut from spare wood.',
+    inputs: [
+      {
+        kind: 'resource',
+        id: 'wood',
+        amount: 2,
+      },
+    ],
+    outputs: [
+      {
+        kind: 'item',
+        id: 'wooden_marker',
+        amount: 1,
+      },
+    ],
+    xpRewards: {
+      crafting: 12,
+    },
+  },
+  {
+    id: 'workbench_camp_supplies',
+    displayName: 'Camp Supplies',
+    stationType: 'workbench',
+    description: 'Bundle wood and stone into a compact field kit.',
+    inputs: [
+      {
+        kind: 'resource',
+        id: 'wood',
+        amount: 1,
+      },
+      {
+        kind: 'resource',
+        id: 'stone',
+        amount: 1,
+      },
+    ],
+    outputs: [
+      {
+        kind: 'item',
+        id: 'camp_supplies',
+        amount: 1,
+      },
+    ],
+    xpRewards: {
+      crafting: 14,
+    },
   },
   {
     id: 'campfire_warm_tea',
@@ -41,5 +95,8 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
         amount: 1,
       },
     ],
+    xpRewards: {
+      survival: 8,
+    },
   },
 ];

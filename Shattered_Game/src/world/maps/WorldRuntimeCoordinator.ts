@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 import { CameraSystem } from '../../camera/CameraSystem';
+import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
+import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
+import { ContractRegistry } from '../../contracts/ContractRegistry';
 import { RECIPE_DEFINITIONS } from '../../crafting/RecipeDefinitions';
 import { RecipeRegistry } from '../../crafting/RecipeRegistry';
 import { OBJECT_DEFINITIONS } from '../../objects/ObjectDefinitions';
@@ -12,10 +15,13 @@ import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
+import { ChoiceMenuState } from '../../interactions/ChoiceMenuState';
+import type { ChoiceMenuStateSnapshot } from '../../interactions/ChoiceMenuTypes';
 import {
   createFootprintInteractionTiles,
   createSingleTileInteractionTiles,
   type ActiveInteraction,
+  type ContractBoardInteractionTarget,
   type GenericDebugInteractionTarget,
   type InteractionResult,
   type InteractionTarget,
@@ -35,6 +41,8 @@ import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import { PlayerController } from '../../player/PlayerController';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { PlayerItemKey, PlayerInventoryState } from '../../player/PlayerInventoryState';
+import type { SkillSnapshot } from '../../skills/SkillTypes';
+import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
 import { MapLoader } from './MapLoader';
 import type { LoadedMapRuntime } from './MapRuntime';
 import { getMapDisplayName } from './MapDefinitions';
@@ -53,10 +61,21 @@ type WorldRuntimeBindings = {
   cameraSystem: CameraSystem;
 };
 
+type ChoiceMenuContext =
+  | {
+      kind: 'workbench';
+      workbenchId: string;
+    }
+  | {
+      kind: 'contract_board';
+      boardId: string;
+    };
+
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
   private readonly objectRegistry: ObjectRegistry;
   private readonly itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+  private readonly contractRegistry = new ContractRegistry(CONTRACT_DEFINITIONS);
   private readonly recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
   private readonly worldSessionState = new WorldSessionState();
   private readonly playerSessionState = new PlayerSessionState();
@@ -64,6 +83,7 @@ export class WorldRuntimeCoordinator {
   private readonly mapTransitionVisualSystem: MapTransitionVisualSystem;
   private readonly resourceNodeSystem = new ResourceNodeSystem(this.worldSessionState);
   private readonly workbenchSystem = new WorkbenchSystem(this.recipeRegistry);
+  private readonly contractBoardSystem = new ContractBoardSystem(this.contractRegistry);
   private readonly placedStructureSystem = new PlacedStructureSystem(
     this.worldSessionState,
     this.recipeRegistry,
@@ -73,11 +93,13 @@ export class WorldRuntimeCoordinator {
     this.itemRegistry,
     this.playerSessionState.getEffectSystem(),
   );
+  private readonly choiceMenuState = new ChoiceMenuState();
   private readonly interactionSystem = new InteractionSystem({
     onMapTransition: (target) => this.handleMapTransition(target),
     onResourceNode: (target) => this.handleResourceNode(target),
     onNpc: (target) => this.handleNpc(target),
     onWorkbench: (target) => this.handleWorkbench(target),
+    onContractBoard: (target) => this.handleContractBoard(target),
     onPlacedObject: (target) => this.handlePlacedObject(target),
     onGenericDebug: (target) => this.handleGenericDebug(target),
   });
@@ -88,6 +110,7 @@ export class WorldRuntimeCoordinator {
   private objectPlacementSystem?: ObjectPlacementSystem;
   private objectDebugRenderer?: ObjectDebugRenderer;
   private objectOcclusionSystem?: ObjectOcclusionSystem;
+  private choiceMenuContext: ChoiceMenuContext | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.mapLoader = new MapLoader(scene);
@@ -99,6 +122,8 @@ export class WorldRuntimeCoordinator {
   loadMap(mapId: string, spawnId: string): LoadedMapRuntime {
     const objectDebugVisible = this.objectDebugRenderer?.isVisible() ?? false;
     this.objectPlacementSystem?.clear();
+    this.choiceMenuState.cancel();
+    this.choiceMenuContext = null;
 
     const runtime = this.mapLoader.loadMap(mapId, spawnId);
     this.currentRuntime = runtime;
@@ -170,6 +195,12 @@ export class WorldRuntimeCoordinator {
   }
 
   triggerActiveInteraction(): InteractionResult | null {
+    const activeInteraction = this.interactionSystem.getActiveInteraction();
+
+    if (activeInteraction && this.tryOpenChoiceMenu(activeInteraction.target)) {
+      return null;
+    }
+
     const result = this.interactionSystem.triggerActiveInteraction();
 
     if (!result) {
@@ -225,12 +256,40 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getActiveEffects(this.scene.time.now);
   }
 
+  getPlayerSkillSnapshots(): SkillSnapshot[] {
+    return this.playerSessionState.getSkillSnapshots();
+  }
+
+  getPlayerCurrencySnapshot() {
+    return this.playerSessionState.getCurrencySnapshot();
+  }
+
+  getPlayerReputationSnapshot() {
+    return this.playerSessionState.getReputationSnapshot();
+  }
+
   getPlacementState(): PlacementPreviewState | null {
     return this.placementModeSystem.getState();
   }
 
+  getChoiceMenuState(): ChoiceMenuStateSnapshot | null {
+    return this.choiceMenuState.getSnapshot();
+  }
+
+  getTaskJournalEntries(): TaskJournalEntry[] {
+    return this.contractBoardSystem.getJournalEntries(this.playerSessionState);
+  }
+
+  getActiveTaskCount(): number {
+    return this.playerSessionState.getAcceptedContractIds().length;
+  }
+
   isPlacementModeActive(): boolean {
     return this.placementModeSystem.isActive();
+  }
+
+  isChoiceMenuOpen(): boolean {
+    return this.choiceMenuState.isOpen();
   }
 
   startPlacementMode(itemId: PlayerItemKey = 'firestarter_set'): string {
@@ -295,6 +354,61 @@ export class WorldRuntimeCoordinator {
     return 'Placement cancelled.';
   }
 
+  moveChoiceMenuSelection(delta: number): ChoiceMenuStateSnapshot | null {
+    return this.choiceMenuState.moveSelection(delta);
+  }
+
+  confirmChoiceMenu(): InteractionResult | null {
+    const selectedOption = this.choiceMenuState.getSelectedOption();
+
+    if (!selectedOption) {
+      return null;
+    }
+
+    if (selectedOption.disabledReason) {
+      return {
+        ok: false,
+        interactionType: 'generic_debug',
+        targetId: selectedOption.id,
+        message: selectedOption.disabledReason,
+      };
+    }
+
+    let result: InteractionResult | null = null;
+
+    if (this.choiceMenuContext?.kind === 'workbench') {
+      result = this.workbenchSystem.craftRecipe(
+        this.choiceMenuContext.workbenchId,
+        selectedOption.id,
+        this.playerSessionState,
+      );
+    } else if (this.choiceMenuContext?.kind === 'contract_board') {
+      result = this.contractBoardSystem.selectContract(
+        this.choiceMenuContext.boardId,
+        selectedOption.id,
+        this.playerSessionState,
+      );
+    }
+
+    this.refreshChoiceMenu();
+
+    if (result) {
+      this.rebuildInteractionTargets();
+    }
+
+    return result;
+  }
+
+  cancelChoiceMenu(): string | null {
+    if (!this.choiceMenuState.isOpen()) {
+      return null;
+    }
+
+    this.choiceMenuState.cancel();
+    this.choiceMenuContext = null;
+    return 'Menu closed.';
+  }
+
   getIsoTilemap() {
     return this.getCurrentRuntime().isoTilemap;
   }
@@ -333,10 +447,15 @@ export class WorldRuntimeCoordinator {
       runtime.definition.id,
       anchors.filter((anchor) => anchor.interactionType === 'workbench'),
     );
+    this.contractBoardSystem.setMapBoards(
+      runtime.definition.id,
+      anchors.filter((anchor) => anchor.interactionType === 'contract_board'),
+    );
     this.placedStructureSystem.setCurrentMap(runtime.definition.id, nowMs, this.objectPlacementSystem);
     if (this.objectPlacementSystem) {
       this.placementModeSystem.bindRuntimeContext(
         runtime.isoTilemap.transform,
+        runtime.definition.spaceType,
         runtime.isoTilemap.worldGrid,
         runtime.zoneIndex,
         runtime.transitions,
@@ -360,6 +479,7 @@ export class WorldRuntimeCoordinator {
       ...this.createTransitionInteractionTargets(this.currentRuntime.transitions),
       ...this.resourceNodeSystem.createInteractionTargets(),
       ...this.workbenchSystem.createInteractionTargets(),
+      ...this.contractBoardSystem.createInteractionTargets(),
       ...this.placedStructureSystem.createInteractionTargets(),
       ...this.createNpcInteractionTargets(
         interactionAnchors.filter((anchor) => anchor.interactionType === 'npc'),
@@ -454,7 +574,7 @@ export class WorldRuntimeCoordinator {
   private handleResourceNode(target: ResourceNodeInteractionTarget): InteractionResult {
     return this.resourceNodeSystem.gatherNode(
       target.anchor.id,
-      this.playerSessionState.getInventoryState(),
+      this.playerSessionState,
       this.scene.time.now,
       this.objectPlacementSystem,
     );
@@ -472,8 +592,12 @@ export class WorldRuntimeCoordinator {
   private handleWorkbench(target: WorkbenchInteractionTarget): InteractionResult {
     return this.workbenchSystem.useWorkbench(
       target.anchor.id,
-      this.playerSessionState.getInventoryState(),
+      this.playerSessionState,
     );
+  }
+
+  private handleContractBoard(target: ContractBoardInteractionTarget): InteractionResult {
+    return this.contractBoardSystem.useBoard(target.anchor.id, this.playerSessionState);
   }
 
   private handlePlacedObject(target: PlacedObjectInteractionTarget): InteractionResult {
@@ -489,7 +613,7 @@ export class WorldRuntimeCoordinator {
     return this.placedStructureSystem.interactWithPlacedObject(
       target.placedObjectId,
       this.scene.time.now,
-      this.playerSessionState.getInventoryState(),
+      this.playerSessionState,
       this.objectPlacementSystem,
     );
   }
@@ -501,5 +625,78 @@ export class WorldRuntimeCoordinator {
       targetId: target.definition.id,
       message: target.anchor.message,
     };
+  }
+
+  private tryOpenChoiceMenu(target: InteractionTarget): boolean {
+    if (target.definition.interactionType === 'workbench') {
+      const workbenchTarget = target as WorkbenchInteractionTarget;
+      const options = this.workbenchSystem.getMenuOptions(
+        workbenchTarget.anchor.id,
+        this.playerSessionState,
+      );
+
+      if (options.length > 1) {
+        this.choiceMenuState.open('Workbench Recipes', options);
+        this.choiceMenuContext = {
+          kind: 'workbench',
+          workbenchId: workbenchTarget.anchor.id,
+        };
+        return true;
+      }
+    }
+
+    if (target.definition.interactionType === 'contract_board') {
+      const contractBoardTarget = target as ContractBoardInteractionTarget;
+      const options = this.contractBoardSystem.getMenuOptions(
+        contractBoardTarget.anchor.id,
+        this.playerSessionState,
+      );
+
+      if (options.length > 1) {
+        this.choiceMenuState.open('Harbor Contracts', options);
+        this.choiceMenuContext = {
+          kind: 'contract_board',
+          boardId: contractBoardTarget.anchor.id,
+        };
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private refreshChoiceMenu(): void {
+    if (!this.choiceMenuContext) {
+      return;
+    }
+
+    if (this.choiceMenuContext.kind === 'workbench') {
+      const options = this.workbenchSystem.getMenuOptions(
+        this.choiceMenuContext.workbenchId,
+        this.playerSessionState,
+      );
+
+      if (options.length === 0) {
+        this.choiceMenuState.cancel();
+        this.choiceMenuContext = null;
+        return;
+      }
+
+      this.choiceMenuState.open('Workbench Recipes', options);
+      return;
+    }
+
+    const options = this.contractBoardSystem.getMenuOptions(
+      this.choiceMenuContext.boardId,
+      this.playerSessionState,
+    );
+
+    if (options.length === 0) {
+      this.choiceMenuState.cancel();
+      this.choiceMenuContext = null;
+      return;
+    }
+
+    this.choiceMenuState.open('Harbor Contracts', options);
   }
 }

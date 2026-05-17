@@ -15,6 +15,8 @@ export type MapZoneTag =
   | 'harbor'
   | 'transition';
 
+export type MapSpaceType = 'personal_island' | 'open_world';
+
 export type MapZone = {
   id: string;
   tileX: number;
@@ -72,6 +74,12 @@ export type MapWorkbenchAnchor = BaseMapInteractionAnchor & {
   missingResourceMessage?: string;
 };
 
+export type MapContractBoardAnchor = BaseMapInteractionAnchor & {
+  interactionType: 'contract_board';
+  promptLabel?: string;
+  contractIds?: string[];
+};
+
 export type MapGenericDebugAnchor = BaseMapInteractionAnchor & {
   interactionType: 'generic_debug';
   promptLabel?: string;
@@ -82,6 +90,7 @@ export type MapInteractionAnchor =
   | MapResourceNodeAnchor
   | MapNpcAnchor
   | MapWorkbenchAnchor
+  | MapContractBoardAnchor
   | MapGenericDebugAnchor;
 
 export type MapTransition = {
@@ -101,6 +110,7 @@ export type MapTransition = {
 export type MapDefinition = {
   id: string;
   displayName: string;
+  spaceType: MapSpaceType;
   width: number;
   height: number;
   terrain: TileType[][];

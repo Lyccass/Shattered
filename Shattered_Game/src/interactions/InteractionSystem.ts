@@ -1,5 +1,6 @@
 import type {
   ActiveInteraction,
+  ContractBoardInteractionTarget,
   GenericDebugInteractionTarget,
   InteractionHandlers,
   InteractionResult,
@@ -73,6 +74,8 @@ export class InteractionSystem {
         return this.handlers.onNpc(target as NpcInteractionTarget);
       case 'workbench':
         return this.handlers.onWorkbench(target as WorkbenchInteractionTarget);
+      case 'contract_board':
+        return this.handlers.onContractBoard(target as ContractBoardInteractionTarget);
       case 'placed_object':
         return this.handlers.onPlacedObject(target as PlacedObjectInteractionTarget);
       case 'generic_debug':

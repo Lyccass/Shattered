@@ -1,10 +1,13 @@
+import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import type { GridFootprint } from '../objects/ObjectTypes';
 import type {
   PlayerInventoryDelta,
   PlayerItemDelta,
   PlayerItemKey,
 } from '../player/PlayerInventoryState';
+import type { ReputationSnapshot } from '../player/PlayerReputationState';
 import type {
+  MapContractBoardAnchor,
   MapGenericDebugAnchor,
   MapNpcAnchor,
   MapResourceNodeAnchor,
@@ -17,6 +20,7 @@ export type InteractionType =
   | 'resource_node'
   | 'npc'
   | 'workbench'
+  | 'contract_board'
   | 'placed_object'
   | 'item_use'
   | 'generic_debug';
@@ -59,6 +63,11 @@ export type WorkbenchInteractionTarget = BaseInteractionTarget & {
   anchor: MapWorkbenchAnchor;
 };
 
+export type ContractBoardInteractionTarget = BaseInteractionTarget & {
+  definition: InteractionDefinition & { interactionType: 'contract_board' };
+  anchor: MapContractBoardAnchor;
+};
+
 export type GenericDebugInteractionTarget = BaseInteractionTarget & {
   definition: InteractionDefinition & { interactionType: 'generic_debug' };
   anchor: MapGenericDebugAnchor;
@@ -75,6 +84,7 @@ export type InteractionTarget =
   | ResourceNodeInteractionTarget
   | NpcInteractionTarget
   | WorkbenchInteractionTarget
+  | ContractBoardInteractionTarget
   | PlacedObjectInteractionTarget
   | GenericDebugInteractionTarget;
 
@@ -98,6 +108,8 @@ export type InteractionResult = {
   placementItemId?: PlayerItemKey;
   depleted?: boolean;
   createdObjectId?: string;
+  currencyDelta?: Partial<CurrencySnapshot>;
+  reputationDelta?: Partial<ReputationSnapshot>;
 };
 
 export type InteractionHandlers = {
@@ -105,6 +117,7 @@ export type InteractionHandlers = {
   onResourceNode: (target: ResourceNodeInteractionTarget) => InteractionResult;
   onNpc: (target: NpcInteractionTarget) => InteractionResult;
   onWorkbench: (target: WorkbenchInteractionTarget) => InteractionResult;
+  onContractBoard: (target: ContractBoardInteractionTarget) => InteractionResult;
   onPlacedObject: (target: PlacedObjectInteractionTarget) => InteractionResult;
   onGenericDebug: (target: GenericDebugInteractionTarget) => InteractionResult;
 };
