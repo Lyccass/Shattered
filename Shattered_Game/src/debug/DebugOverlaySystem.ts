@@ -115,7 +115,7 @@ export class DebugOverlaySystem {
 
     if (now >= this.nextBannerRefreshAt) {
       this.nextBannerRefreshAt = now + PROTOTYPE_SCALE.debugOverlayBannerRefreshMs;
-      const bannerText = `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Tab] [Z/Wheel] [G] [C] [O] [L]${transitionPrompt}`;
+      const bannerText = `Map: ${currentMapId}  Zoom: ${zoom.toFixed(2)}x  Grid: ${gridMode}  ObjDbg: ${objectDebugOn ? 'on' : 'off'}  ChunkDbg: ${chunkStats?.chunkDebugEnabled ? 'on' : 'off'}  [Tab] [Z/Wheel] [G] [C] [O] [M]${transitionPrompt}`;
 
       if (bannerText !== this.lastBannerText) {
         this.zoomText.setText(bannerText);
@@ -170,7 +170,7 @@ export class DebugOverlaySystem {
     };
 
     this.detailText.setText([
-      'Debug [Tab]   Toggle obj overlays [O]   Log placements [L]   Toggle chunk debug [C]',
+      'Debug [Tab]   Toggle obj overlays [O]   Log placements [M]   Toggle chunk debug [C]',
       `Map: ${currentMapId}   spawn: ${currentSpawnId}`,
       `Player: ${player.x.toFixed(1)}, ${player.y.toFixed(1)}`,
       `Player grid: ${playerGrid.x.toFixed(2)}, ${playerGrid.y.toFixed(2)}`,

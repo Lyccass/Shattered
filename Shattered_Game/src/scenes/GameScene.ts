@@ -6,6 +6,7 @@ import { GameEventBus } from '../events/GameEventBus';
 import { InputSystem } from '../input/InputSystem';
 import type { InputCallbacks, InputMode } from '../input/InputTypes';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
+import { LocalSaveService } from '../persistence/LocalSaveService';
 import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
@@ -15,9 +16,11 @@ import { emptyUiStateSnapshot } from '../ui/UiTypes';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
 import { WorldRuntimeCoordinator } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
+import type { InteractionResult } from '../interactions/InteractionTypes';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
+  private readonly localSaveService = new LocalSaveService();
   private player?: Phaser.GameObjects.Sprite;
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
@@ -27,6 +30,7 @@ export class GameScene extends Phaser.Scene {
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private inputSystem?: InputSystem;
   private lastInteractionAt = 0;
+  private lastAutosaveAt = 0;
   private hasShutdown = false;
 
   constructor() {
@@ -52,6 +56,7 @@ export class GameScene extends Phaser.Scene {
     this.inputSystem = new InputSystem(this, this.buildInputCallbacks());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     this.events.once(Phaser.Scenes.Events.DESTROY, this.handleShutdown, this);
+    this.tryAutoLoadSave();
   }
 
   update(_time: number, delta: number): void {
@@ -62,7 +67,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
-    uiResults.forEach((result) => this.uiManager?.handleResult(result));
+    uiResults.forEach((result) => this.handleGameplayResult(result, { allowAutosave: true }));
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     this.uiManager?.update(this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot());
     this.debugOverlaySystem?.update();
@@ -116,6 +121,9 @@ export class GameScene extends Phaser.Scene {
       onToggleInventory: () => this.uiManager?.toggleInventory(),
       onToggleJournal: () => this.uiManager?.toggleJournal(),
       onToggleSkills: () => this.uiManager?.toggleSkills(),
+      onSaveNow: () => this.saveNow(),
+      onLoadSave: () => this.loadSavedGame(),
+      onClearSave: () => this.clearSavedGame(),
       onDebugCycleZoom: () => this.cameraSystem?.cycleZoom(),
       onDebugToggleGrid: () => this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode(),
       onDebugToggleChunk: () => this.worldRuntimeCoordinator?.getIsoTilemap().toggleChunkDebug(),
@@ -227,12 +235,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastInteractionAt = now;
-    this.uiManager.handleResult(result);
-
-    if (result.transitionRequest) {
-      this.bindDebugOverlayToRuntime();
-    }
-    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+    this.handleGameplayResult(result, { allowAutosave: true });
   }
 
   private tryStartPlacementMode(): void {
@@ -262,8 +265,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastInteractionAt = now;
-    this.uiManager.handleResult(result);
-    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+    this.handleGameplayResult(result, { allowAutosave: false });
   }
 
   private tryUseItem(itemId: PlayerItemKey): void {
@@ -272,8 +274,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const result = this.worldRuntimeCoordinator.useItem(itemId);
-    this.uiManager.handleResult(result);
-    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+    this.handleGameplayResult(result, { allowAutosave: false });
   }
 
   private tryConfirmChoiceMenu(): void {
@@ -287,8 +288,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.uiManager.handleResult(result);
-    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+    this.handleGameplayResult(result, { allowAutosave: true });
   }
 
   private cancelActiveActionForUi(): boolean {
@@ -300,5 +300,146 @@ export class GameScene extends Phaser.Scene {
 
     this.uiManager?.showInfo(message);
     return true;
+  }
+
+  private tryAutoLoadSave(): void {
+    const loadResult = this.localSaveService.load();
+
+    if (loadResult.status === 'no_save') {
+      return;
+    }
+
+    this.applyLoadResult(loadResult, true);
+  }
+
+  private saveNow(): void {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) {
+      return;
+    }
+
+    const saveGame = this.worldRuntimeCoordinator.createPrototypeSaveSnapshot(this.time.now);
+    const result = this.localSaveService.save(saveGame);
+
+    if (!result.ok) {
+      this.uiManager.showInfo(result.error);
+      return;
+    }
+
+    this.lastAutosaveAt = this.time.now;
+    this.uiManager.showInfo('Game saved.');
+  }
+
+  private loadSavedGame(): void {
+    this.applyLoadResult(this.localSaveService.load(), false);
+  }
+
+  private clearSavedGame(): void {
+    if (!this.uiManager) {
+      return;
+    }
+
+    if (!this.localSaveService.hasSave()) {
+      this.uiManager.showInfo('No save found.');
+      return;
+    }
+
+    const cleared = this.localSaveService.clearSave();
+    this.uiManager.showInfo(cleared ? 'Save cleared.' : 'Save could not be cleared.');
+  }
+
+  private applyLoadResult(
+    loadResult: ReturnType<LocalSaveService['load']>,
+    automatic: boolean,
+  ): void {
+    if (!this.uiManager || !this.worldRuntimeCoordinator) {
+      return;
+    }
+
+    switch (loadResult.status) {
+      case 'success': {
+        const restoreResult = this.worldRuntimeCoordinator.restorePrototypeSaveSnapshot(
+          loadResult.saveGame,
+          this.time.now,
+        );
+
+        if (!restoreResult.ok) {
+          this.uiManager.showInfo(`Save load failed. ${restoreResult.message}`);
+          return;
+        }
+
+        this.bindDebugOverlayToRuntime();
+        this.lastAutosaveAt = this.time.now;
+        this.uiManager.showInfo(automatic ? 'Save loaded on startup.' : restoreResult.message);
+        restoreResult.warnings.forEach((warning) => this.uiManager?.showInfo(warning));
+        return;
+      }
+
+      case 'no_save':
+        if (!automatic) {
+          this.uiManager.showInfo('No save found.');
+        }
+        return;
+
+      case 'invalid_json':
+        this.uiManager.showInfo(`Save invalid. ${loadResult.error}`);
+        return;
+
+      case 'unsupported_version':
+        this.uiManager.showInfo(
+          `Save version ${loadResult.version ?? 'unknown'} is unsupported.`,
+        );
+        return;
+
+      case 'validation_failed':
+        this.uiManager.showInfo(`Save invalid. ${loadResult.error}`);
+        return;
+
+      case 'storage_unavailable':
+        this.uiManager.showInfo(loadResult.error);
+        return;
+    }
+  }
+
+  private handleGameplayResult(
+    result: InteractionResult | null,
+    { allowAutosave }: { allowAutosave: boolean },
+  ): void {
+    if (!result || !this.uiManager || !this.worldRuntimeCoordinator) {
+      return;
+    }
+
+    this.uiManager.handleResult(result);
+
+    if (result.transitionRequest) {
+      this.bindDebugOverlayToRuntime();
+    }
+
+    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+
+    if (allowAutosave) {
+      this.maybeAutosaveForResult(result);
+    }
+  }
+
+  private maybeAutosaveForResult(result: InteractionResult): void {
+    if (!this.worldRuntimeCoordinator) {
+      return;
+    }
+
+    const shouldAutosave = Boolean(result.transitionRequest) || result.sfxId === 'contract_completed';
+
+    if (!shouldAutosave || this.time.now - this.lastAutosaveAt < 5_000) {
+      return;
+    }
+
+    const saveGame = this.worldRuntimeCoordinator.createPrototypeSaveSnapshot(this.time.now);
+    const writeResult = this.localSaveService.save(saveGame);
+
+    if (writeResult.ok) {
+      this.lastAutosaveAt = this.time.now;
+      this.uiManager?.showInfo('Autosaved.');
+    } else {
+      this.uiManager?.showInfo(writeResult.error);
+    }
   }
 }

@@ -29,6 +29,11 @@ export type InputCallbacks = {
   onToggleJournal: () => void;
   onToggleSkills: () => void;
 
+  // Local persistence controls
+  onSaveNow: () => void;
+  onLoadSave: () => void;
+  onClearSave: () => void;
+
   // Debug (always active)
   onDebugCycleZoom: () => void;
   onDebugToggleGrid: () => void;

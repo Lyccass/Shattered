@@ -8,7 +8,8 @@ export class InputSystem {
   private mode: InputMode = 'normal';
   private readonly keyboard: Phaser.Input.Keyboard.KeyboardPlugin;
 
-  private readonly keydownHandlers = new Map<string, () => void>();
+  private readonly keydownHandlers = new Map<string, (event: KeyboardEvent) => void>();
+  private readonly rawKeydownHandlers: Array<(event: KeyboardEvent) => void> = [];
 
   constructor(
     scene: Phaser.Scene,
@@ -43,12 +44,43 @@ export class InputSystem {
     }
 
     this.keydownHandlers.clear();
+
+    this.rawKeydownHandlers.forEach((handler) => {
+      this.keyboard.off('keydown', handler);
+    });
+    this.rawKeydownHandlers.length = 0;
   }
 
   private on(key: string, handler: () => void): void {
     const event = `keydown-${key}`;
-    this.keyboard.on(event, handler);
-    this.keydownHandlers.set(event, handler);
+    const wrapped = (keyboardEvent: KeyboardEvent) => {
+      if (keyboardEvent.altKey || keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
+        return;
+      }
+
+      handler();
+    };
+
+    this.keyboard.on(event, wrapped);
+    this.keydownHandlers.set(event, wrapped);
+  }
+
+  private onAltCombo(code: string, handler: () => void): void {
+    const wrapped = (keyboardEvent: KeyboardEvent) => {
+      if (!keyboardEvent.altKey || keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
+        return;
+      }
+
+      if (keyboardEvent.code !== code) {
+        return;
+      }
+
+      keyboardEvent.preventDefault();
+      handler();
+    };
+
+    this.keyboard.on('keydown', wrapped);
+    this.rawKeydownHandlers.push(wrapped);
   }
 
   private register(): void {
@@ -57,7 +89,7 @@ export class InputSystem {
     this.on('G', () => this.callbacks.onDebugToggleGrid());
     this.on('C', () => this.callbacks.onDebugToggleChunk());
     this.on('O', () => this.callbacks.onDebugToggleObjects());
-    this.on('L', () => this.callbacks.onDebugLogPlacement());
+    this.on('M', () => this.callbacks.onDebugLogPlacement());
 
     // --- E: interact / confirm ---
     this.on('E', () => {
@@ -159,6 +191,19 @@ export class InputSystem {
         this.callbacks.onCancelAction();
         this.callbacks.onToggleSkills();
       }
+    });
+
+    // --- Local persistence controls ---
+    this.onAltCombo('KeyV', () => {
+      this.callbacks.onSaveNow();
+    });
+
+    this.onAltCombo('KeyL', () => {
+      this.callbacks.onLoadSave();
+    });
+
+    this.onAltCombo('KeyR', () => {
+      this.callbacks.onClearSave();
     });
   }
 }

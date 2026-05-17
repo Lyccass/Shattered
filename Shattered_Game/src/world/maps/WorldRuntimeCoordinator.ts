@@ -16,6 +16,12 @@ import { ObjectRenderer } from '../../objects/ObjectRenderer';
 import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
+import {
+  createPrototypeSaveV1,
+  restorePrototypeSaveV1,
+} from '../../persistence/PrototypeSaveV1';
+import { resolvePrototypeRestoreMap, resolvePrototypeRestoreTile } from '../../persistence/RestoreSafety';
+import type { PlayerTileSaveState, SaveGameV1 } from '../../persistence/SaveTypes';
 import { ChoiceMenuCoordinator } from '../../interactions/ChoiceMenuCoordinator';
 import { InteractionActionFactory } from '../../interactions/InteractionActionFactory';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
@@ -52,12 +58,19 @@ import { WorldSessionState } from '../session/WorldSessionState';
 import { buildDebugTargets, buildNpcTargets, buildTransitionTargets } from './InteractionTargetBuilders';
 import { WorldActionBroker } from './WorldActionBroker';
 import { WorldInteractionHandlers } from './WorldInteractionHandlers';
+import { hasMapDefinition } from './MapDefinitions';
 
 type WorldRuntimeBindings = {
   player: Phaser.GameObjects.Sprite;
   playerController: PlayerController;
   cameraSystem: CameraSystem;
 };
+
+type RestorePrototypeSaveResult =
+  | { ok: true; message: string; warnings: string[] }
+  | { ok: false; message: string };
+
+const DEFAULT_PROTOTYPE_RESTORE_MAP_ID = 'test_home_island';
 
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
@@ -335,6 +348,72 @@ export class WorldRuntimeCoordinator {
 
   getCurrentSpawnWorldPoint(): Phaser.Math.Vector2 {
     return this.mapLoader.getCurrentSpawnWorldPoint();
+  }
+
+  createPrototypeSaveSnapshot(nowMs: number): SaveGameV1 {
+    const playerTile = this.getCurrentPlayerTileSnapshot();
+
+    return createPrototypeSaveV1({
+      playerSessionState: this.playerSessionState,
+      worldSessionState: this.worldSessionState,
+      currentMapId: this.getCurrentMapId(),
+      playerTile,
+      nowMs,
+    });
+  }
+
+  restorePrototypeSaveSnapshot(saveGame: SaveGameV1, nowMs: number): RestorePrototypeSaveResult {
+    try {
+      const mapResolution = resolvePrototypeRestoreMap({
+        savedMapId: saveGame.playerState.currentMapId,
+        defaultMapId: DEFAULT_PROTOTYPE_RESTORE_MAP_ID,
+        hasMap: hasMapDefinition,
+      });
+      const warnings = mapResolution.warningMessage ? [mapResolution.warningMessage] : [];
+
+      this.loadMap(mapResolution.mapId, 'default');
+
+      const restore = restorePrototypeSaveV1(saveGame, {
+        playerSessionState: this.playerSessionState,
+        worldSessionState: this.worldSessionState,
+        nowMs,
+      });
+
+      if (!restore.ok) {
+        return {
+          ok: false,
+          message: restore.error,
+        };
+      }
+
+      const tileResolution = resolvePrototypeRestoreTile({
+        savedTile: saveGame.playerState.playerTile,
+        isTileValid: (tile) => this.isRestorablePlayerTile(tile),
+      });
+
+      if (tileResolution.warningMessage) {
+        warnings.push(tileResolution.warningMessage);
+      }
+
+      if (tileResolution.playerTile) {
+        this.setPlayerToTile(tileResolution.playerTile);
+      } else {
+        this.recenterCameraOnPlayer();
+      }
+
+      this.updatePlayerRuntimeState();
+
+      return {
+        ok: true,
+        message: 'Save loaded.',
+        warnings,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : 'Failed to restore saved game.',
+      };
+    }
   }
 
   getActiveInteraction(): ActiveInteraction | null {
@@ -665,7 +744,7 @@ export class WorldRuntimeCoordinator {
     this.bindings.playerController.setTilemap(this.currentRuntime.isoTilemap);
     this.bindings.playerController.setWorldPosition(spawnPoint.x, spawnPoint.y);
     this.bindings.cameraSystem.setBounds(this.currentRuntime.worldBounds);
-    this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
+    this.recenterCameraOnPlayer();
     this.objectOcclusionSystem = new ObjectOcclusionSystem(this.objectRenderer, this.bindings.player);
   }
 
@@ -683,5 +762,49 @@ export class WorldRuntimeCoordinator {
     }
 
     return false;
+  }
+
+  private getCurrentPlayerTileSnapshot(): PlayerTileSaveState {
+    if (this.bindings) {
+      const feetTile = this.bindings.playerController.getFeetTile();
+
+      return {
+        tileX: feetTile.x,
+        tileY: feetTile.y,
+      };
+    }
+
+    const spawnPoint = this.mapLoader.getCurrentSpawnPoint();
+    return {
+      tileX: spawnPoint.tileX,
+      tileY: spawnPoint.tileY,
+    };
+  }
+
+  private isRestorablePlayerTile(tile: PlayerTileSaveState): boolean {
+    if (!this.currentRuntime) {
+      return false;
+    }
+
+    return this.currentRuntime.isoTilemap.isTileInBounds(tile.tileX, tile.tileY)
+      && this.currentRuntime.isoTilemap.isTileWalkable(tile.tileX, tile.tileY);
+  }
+
+  private setPlayerToTile(tile: PlayerTileSaveState): void {
+    if (!this.bindings || !this.currentRuntime) {
+      return;
+    }
+
+    const point = this.currentRuntime.isoTilemap.getTileCenterWorld(tile.tileX, tile.tileY);
+    this.bindings.playerController.setWorldPosition(point.x, point.y);
+    this.recenterCameraOnPlayer();
+  }
+
+  private recenterCameraOnPlayer(): void {
+    if (!this.bindings) {
+      return;
+    }
+
+    this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
   }
 }
