@@ -9,7 +9,11 @@ import { InputSystem } from '../input/InputSystem';
 import type { InputCallbacks, InputMode } from '../input/InputTypes';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import { LocalSaveService } from '../persistence/LocalSaveService';
-import { PLAYER_ASSET_PATH, PLAYER_TEXTURE_KEY } from '../player/PlayerAssets';
+import {
+  createPlayerAnimations,
+  PLAYER_TEXTURE_KEY,
+  preloadPlayerAssets,
+} from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
 import type { PlayerItemKey } from '../player/PlayerInventoryState';
@@ -42,16 +46,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    if (!this.textures.exists(PLAYER_TEXTURE_KEY)) {
-      this.load.image(PLAYER_TEXTURE_KEY, PLAYER_ASSET_PATH);
-    }
-
+    preloadPlayerAssets(this);
     preloadTerrainAssets(this);
     preloadObjectAssets(this);
   }
 
   create(): void {
     createTerrainRenderTextures(this);
+    createPlayerAnimations(this);
 
     this.telegraphSystem = new TelegraphSystem(this);
     this.sfxSystem = new SfxSystem(this, this.gameEventBus);
@@ -518,6 +520,7 @@ export class GameScene extends Phaser.Scene {
     const pointer = this.input.activePointer;
     const targetWorldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
     const targetWorldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
+    this.playerController.setHorizontalFacingFromTarget(targetWorldX);
     const result = this.combatSandboxSystem.tryPlayerLightAttack(
       this.time.now,
       this.playerController,

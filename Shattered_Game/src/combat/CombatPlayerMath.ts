@@ -1,11 +1,13 @@
 import {
+  doesCircleIntersectRotatedRectangle,
   isPointInsideRotatedRectangle,
 } from './EnemyAttackMath';
 import type { TelegraphShape } from './TelegraphTypes';
 import type { PlayerFacingDirection } from '../player/PlayerFacing';
 
-export const PLAYER_LIGHT_ATTACK_LENGTH_WORLD = 55;
-export const PLAYER_LIGHT_ATTACK_WIDTH_WORLD = 13;
+export const PLAYER_LIGHT_ATTACK_LENGTH_WORLD = 76;
+export const PLAYER_LIGHT_ATTACK_WIDTH_WORLD = 10;
+export const PLAYER_LIGHT_ATTACK_START_OFFSET_WORLD = 22;
 const PLAYER_GUARD_HALF_ANGLE_RAD = (130 * Math.PI) / 180 / 2;
 
 export function facingDirectionToRotationRad(facing: PlayerFacingDirection): number {
@@ -74,6 +76,28 @@ export function isEnemyInsidePlayerLightAttackByRotation(
   );
 }
 
+export function doesEnemyHitCircleIntersectPlayerLightAttackByRotation(
+  playerWorldX: number,
+  playerWorldY: number,
+  rotationRad: number,
+  enemyWorldX: number,
+  enemyWorldY: number,
+  enemyHitRadius: number,
+): boolean {
+  const hitbox = getPlayerLightAttackHitboxByRotation(playerWorldX, playerWorldY, rotationRad);
+
+  return doesCircleIntersectRotatedRectangle(
+    enemyWorldX,
+    enemyWorldY,
+    enemyHitRadius,
+    hitbox.worldX,
+    hitbox.worldY,
+    hitbox.width,
+    hitbox.height,
+    hitbox.rotationRad,
+  );
+}
+
 export function getPlayerLightAttackHitbox(
   playerWorldX: number,
   playerWorldY: number,
@@ -102,7 +126,7 @@ export function getPlayerLightAttackHitboxByRotation(
   rotationRad: number;
   shape: TelegraphShape;
 } {
-  const centerOffset = PLAYER_LIGHT_ATTACK_LENGTH_WORLD / 2;
+  const centerOffset = PLAYER_LIGHT_ATTACK_START_OFFSET_WORLD + PLAYER_LIGHT_ATTACK_LENGTH_WORLD / 2;
   const worldX = playerWorldX + Math.cos(rotationRad) * centerOffset;
   const worldY = playerWorldY + Math.sin(rotationRad) * centerOffset;
 

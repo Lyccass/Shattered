@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { computeEnemyBlockingRadius } from './EnemyMetrics';
+import { computeEnemyBlockingRadius, computeEnemyHitRadius } from './EnemyMetrics';
 import { getDynamicDepth } from '../render/RenderLayers';
 import { EnemyRegistry } from './EnemyRegistry';
 import {
@@ -179,6 +179,26 @@ export class EnemySystem {
       worldX: this.runtimeState.worldX,
       worldY: this.runtimeState.worldY,
       radius: blockingRadius,
+    };
+  }
+
+  getHitCircle(): { worldX: number; worldY: number; radius: number } | null {
+    if (!this.runtimeState || !this.definition || !this.tilemap) {
+      return null;
+    }
+
+    if (this.runtimeState.currentState === 'dead') {
+      return null;
+    }
+
+    return {
+      worldX: this.runtimeState.worldX,
+      worldY: this.runtimeState.worldY,
+      radius: computeEnemyHitRadius(
+        this.definition.collisionRadiusTiles,
+        this.tilemap.tileWidth,
+        this.tilemap.tileHeight,
+      ),
     };
   }
 

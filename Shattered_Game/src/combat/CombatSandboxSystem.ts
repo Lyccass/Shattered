@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { resolveCombatDodgeDirection } from './CombatDodge';
 import {
+  doesEnemyHitCircleIntersectPlayerLightAttackByRotation,
   getPlayerLightAttackHitbox,
   getPlayerLightAttackHitboxByRotation,
   getPlayerLightAttackSlash,
@@ -41,6 +42,7 @@ export class CombatSandboxSystem {
   private currentTilemap: IsoTilemap | null = null;
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
   private playerAttackAimRad: number | null = null;
+  private playerAttackHitResolved = false;
 
   constructor(
     scene: Phaser.Scene,
@@ -59,6 +61,7 @@ export class CombatSandboxSystem {
     this.playerCombatState.setGuardHeld(false);
     this.lastPlayerAttackPhase = 'idle';
     this.playerAttackAimRad = null;
+    this.playerAttackHitResolved = false;
     this.clearPlayerAttackTelegraphs();
   }
 
@@ -75,6 +78,7 @@ export class CombatSandboxSystem {
       this.playerCombatState.setGuardHeld(false);
       playerController.setMovementSpeedMultiplier(1);
       this.playerAttackAimRad = null;
+      this.playerAttackHitResolved = false;
       this.clearPlayerAttackTelegraphs();
       return [];
     }
@@ -106,7 +110,8 @@ export class CombatSandboxSystem {
 
     const results: UiHandledResult[] = [];
     this.resolveEnemyAttackEvents(nowMs, playerController, events, results);
-    this.resolvePlayerLightAttack(nowMs, playerController, results);
+    this.resolvePlayerLightAttackActivation();
+    this.resolvePlayerLightAttackHit(nowMs, playerController, results);
 
     if (this.playerCombatState.consumeRecoveredFromDowned()) {
       this.enemySystem.forceReset();
@@ -192,11 +197,7 @@ export class CombatSandboxSystem {
     }
 
     this.playerAttackAimRad = attackAimRad;
-    playerController.requestCombatVisualState(
-      'attack_windup',
-      nowMs,
-      CombatSandboxSystem.PLAYER_ATTACK_WINDUP_MS,
-    );
+    this.playerAttackHitResolved = false;
     return null;
   }
 
@@ -339,46 +340,61 @@ export class CombatSandboxSystem {
     });
   }
 
-  private resolvePlayerLightAttack(
+  private resolvePlayerLightAttackActivation(): void {
+    if (!this.playerCombatState.consumePendingLightAttackActivation()) {
+      return;
+    }
+  }
+
+  private resolvePlayerLightAttackHit(
     nowMs: number,
     playerController: PlayerController,
     results: UiHandledResult[],
   ): void {
-    if (!this.playerCombatState.consumePendingLightAttackActivation()) {
+    if (this.playerAttackHitResolved) {
       return;
     }
 
-    playerController.requestCombatVisualState(
-      'attack_active',
-      nowMs,
-      CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
-    );
+    const snapshot = this.playerCombatState.getSnapshot(nowMs);
+
+    if (snapshot.lightAttackPhase !== 'active') {
+      return;
+    }
 
     const enemyPosition = this.enemySystem.getWorldPosition();
+    const enemyHitCircle = this.enemySystem.getHitCircle();
     const playerFeet = playerController.getFeetPoint();
+    const attackAimRad = this.playerAttackAimRad ?? resolvePlayerAttackAimRad(
+      playerFeet.x,
+      playerFeet.y,
+      playerController.getFacingDirection(),
+      null,
+      null,
+    );
 
     if (
       !enemyPosition
-      || !isEnemyInsidePlayerLightAttackByRotation(
-        playerFeet.x,
-        playerFeet.y,
-        this.playerAttackAimRad ?? resolvePlayerAttackAimRad(
+      || !(
+        isEnemyInsidePlayerLightAttackByRotation(
           playerFeet.x,
           playerFeet.y,
-          playerController.getFacingDirection(),
-          null,
-          null,
-        ),
-        enemyPosition.x,
-        enemyPosition.y,
+          attackAimRad,
+          enemyPosition.x,
+          enemyPosition.y,
+        )
+        || (
+          enemyHitCircle !== null
+          && doesEnemyHitCircleIntersectPlayerLightAttackByRotation(
+            playerFeet.x,
+            playerFeet.y,
+            attackAimRad,
+            enemyHitCircle.worldX,
+            enemyHitCircle.worldY,
+            enemyHitCircle.radius,
+          )
+        )
       )
     ) {
-      this.emitSfx('combat_miss');
-      results.push({
-        ok: true,
-        message: 'Your strike missed.',
-        toastKind: 'info',
-      });
       return;
     }
 
@@ -391,6 +407,7 @@ export class CombatSandboxSystem {
       return;
     }
 
+    this.playerAttackHitResolved = true;
     this.emitSfx(outcome.killed ? 'enemy_down' : 'player_attack');
     results.push({
       ok: true,
@@ -431,10 +448,12 @@ export class CombatSandboxSystem {
           nowMs,
           CombatSandboxSystem.PLAYER_ATTACK_RECOVERY_MS,
         );
+        this.playerAttackHitResolved = false;
         this.clearPlayerAttackTelegraphs();
         break;
       default:
         this.playerAttackAimRad = null;
+        this.playerAttackHitResolved = false;
         this.clearPlayerAttackTelegraphs();
         break;
     }
@@ -499,6 +518,8 @@ export class CombatSandboxSystem {
       startedAtMs: nowMs,
       warningColor: 0xeab308,
       fadeOutMs: CombatSandboxSystem.PLAYER_ATTACK_WINDUP_MS,
+      strokeAlpha: 0,
+      fillAlphaMultiplier: 0.32,
     });
   }
 
@@ -529,6 +550,8 @@ export class CombatSandboxSystem {
       startedAtMs: nowMs,
       warningColor: 0xfacc15,
       fadeOutMs: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
+      strokeAlpha: 0,
+      fillAlphaMultiplier: 0.42,
     });
 
     this.telegraphSystem.showTelegraph({

@@ -15,3 +15,12 @@ export function computeEnemyBlockingRadius(
 
   return enemyRadius + playerRadius + contactMargin;
 }
+
+export function computeEnemyHitRadius(
+  collisionRadiusTiles: number,
+  tileWidth: number,
+  tileHeight: number,
+): number {
+  const tileScale = Math.max(tileWidth, tileHeight) * 0.5;
+  return collisionRadiusTiles * tileScale;
+}

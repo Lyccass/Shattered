@@ -53,9 +53,11 @@ export class TelegraphSystem {
 
     telegraphs.forEach((telegraph) => {
       const color = telegraph.warningColor ?? 0xef4444;
+      const strokeAlpha = telegraph.strokeAlpha ?? telegraph.alpha;
+      const fillAlpha = telegraph.alpha * (telegraph.fillAlphaMultiplier ?? 0.18);
       maxDepthY = Math.max(maxDepthY, telegraph.worldY);
-      this.graphics.lineStyle(2, color, telegraph.alpha);
-      this.graphics.fillStyle(color, telegraph.alpha * 0.18);
+      this.graphics.lineStyle(2, color, strokeAlpha);
+      this.graphics.fillStyle(color, fillAlpha);
 
       switch (telegraph.shape.kind) {
         case 'circle':

@@ -14,6 +14,8 @@ export type TelegraphDefinition = {
   startedAtMs: number;
   warningColor?: number;
   fadeOutMs?: number;
+  strokeAlpha?: number;
+  fillAlphaMultiplier?: number;
 };
 
 export type TelegraphSnapshot = TelegraphDefinition & {

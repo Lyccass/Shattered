@@ -28,6 +28,7 @@ export class PlayerController {
   private readonly position: PlayerPositionSystem;
   private readonly visuals: PlayerVisualSystem;
   private facingDirection: PlayerFacingDirection = 'down';
+  private horizontalFacing: 'left' | 'right' = 'right';
   private movementSpeedMultiplier = 1;
   private dodgeMotion: ActiveDodgeMotion | null = null;
   private lastSafeSpriteX: number;
@@ -74,7 +75,14 @@ export class PlayerController {
 
       this.recoverIfBlocked();
       this.captureSafePosition();
-      this.visuals.update(this.getFeetPoint().y, nowMs, true);
+      this.visuals.update(
+        this.getFeetPoint().y,
+        nowMs,
+        true,
+        false,
+        this.facingDirection,
+        this.horizontalFacing,
+      );
       return;
     }
 
@@ -82,7 +90,14 @@ export class PlayerController {
     this.movement.move(this.sprite, this.movementIntent, delta, movementSpeedMultiplier);
     this.recoverIfBlocked();
     this.captureSafePosition();
-    this.visuals.update(this.getFeetPoint().y, nowMs, this.movementIntent.lengthSq() > 0);
+    this.visuals.update(
+      this.getFeetPoint().y,
+      nowMs,
+      this.movementIntent.lengthSq() > 0,
+      this.movementIntent.lengthSq() > 0 && movementSpeedMultiplier > 1.01,
+      this.facingDirection,
+      this.horizontalFacing,
+    );
   }
 
   getFeetPoint(): Phaser.Math.Vector2 {
@@ -103,6 +118,18 @@ export class PlayerController {
 
   getFacingDirection(): PlayerFacingDirection {
     return this.facingDirection;
+  }
+
+  setHorizontalFacingFromTarget(targetWorldX: number | null): void {
+    if (targetWorldX === null) {
+      return;
+    }
+
+    if (targetWorldX < this.sprite.x - 2) {
+      this.horizontalFacing = 'left';
+    } else if (targetWorldX > this.sprite.x + 2) {
+      this.horizontalFacing = 'right';
+    }
   }
 
   getMovementIntent(): Phaser.Math.Vector2 {
@@ -217,6 +244,12 @@ export class PlayerController {
 
     if (this.movementIntent.lengthSq() > 0) {
       this.facingDirection = resolveFacingFromIntent(this.movementIntent, this.facingDirection);
+
+      if (this.movementIntent.x < 0) {
+        this.horizontalFacing = 'left';
+      } else if (this.movementIntent.x > 0) {
+        this.horizontalFacing = 'right';
+      }
     }
   }
 
