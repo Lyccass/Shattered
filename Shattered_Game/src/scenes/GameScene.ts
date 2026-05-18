@@ -131,6 +131,7 @@ export class GameScene extends Phaser.Scene {
       onUseItem: (itemId) => this.tryUseItem(itemId),
       onCancelAction: () => this.cancelActiveActionForUi(),
       onCombatDodge: () => this.tryCombatDodge(),
+      onToggleSprint: () => this.tryToggleSprint(),
       onMenuMoveUp: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
       onMenuConfirm: () => this.tryConfirmChoiceMenu(),
@@ -491,6 +492,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     const result = this.combatSandboxSystem.tryDodge(this.time.now, this.playerController);
+
+    if (result) {
+      this.uiManager?.handleResult(result);
+    }
+  }
+
+  private tryToggleSprint(): void {
+    const result = this.combatSandboxSystem?.toggleSprint();
 
     if (result) {
       this.uiManager?.handleResult(result);

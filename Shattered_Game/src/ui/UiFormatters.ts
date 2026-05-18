@@ -47,6 +47,8 @@ export function formatHudPanelText(
 
   const hints = ['[I Inventory]', '[J Journal]', '[P Skills]'];
 
+  hints.push('[Shift Sprint]', '[Space Dodge]');
+
   if (inventory.items.firestarter_set > 0) {
     hints.push('[B Place]');
   }
@@ -167,18 +169,24 @@ export function formatSkillXpToastLines(delta: SkillXpDelta | undefined): string
 }
 
 export function formatCombatPanelText(snapshot: CombatUiSnapshot | null): string {
-  if (!snapshot?.active) {
+  if (!snapshot) {
     return '';
   }
 
-  const enemyLine = snapshot.enemy
-    ? `Enemy ${snapshot.enemy.name}   State ${snapshot.enemy.state}`
-    : 'Enemy none';
+  const movementLine = snapshot.player.isSprinting ? 'Sprint on' : 'Sprint off';
+  const lines = [
+    '[Stats]',
+    `Stamina ${snapshot.player.stamina}/${snapshot.player.maxStamina}   ${movementLine}`,
+    `Combat ${snapshot.active ? 'active' : 'idle'}`,
+  ];
 
-  return [
-    '[Combat]',
-    `Hits ${snapshot.player.hitCount}/${snapshot.player.maxHitCount}   Stamina ${snapshot.player.stamina}/${snapshot.player.maxStamina}`,
-    enemyLine,
-    '[Space Dodge]',
-  ].join('\n');
+  if (snapshot.active) {
+    const enemyLine = snapshot.enemy
+      ? `Enemy ${snapshot.enemy.name}   State ${snapshot.enemy.state}${snapshot.enemy.activeAttackName ? `   Attack ${snapshot.enemy.activeAttackName}` : ''}`
+      : 'Enemy none';
+    lines.push(`Hits ${snapshot.player.hitCount}/${snapshot.player.maxHitCount}`);
+    lines.push(enemyLine);
+  }
+
+  return lines.join('\n');
 }

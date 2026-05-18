@@ -1,5 +1,6 @@
 export type TelegraphShape =
   | { kind: 'circle'; radius: number }
+  | { kind: 'ellipse'; radiusX: number; radiusY: number }
   | { kind: 'rectangle'; width: number; height: number; rotationRad?: number }
   | { kind: 'line'; length: number; thickness: number; rotationRad?: number }
   | { kind: 'polygon'; points: Array<{ x: number; y: number }> };

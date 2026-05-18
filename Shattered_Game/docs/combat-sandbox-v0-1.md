@@ -24,7 +24,7 @@ Input priority now works like this:
 
 That means a map transition can still be used while combat mode is active. Combat no longer swallows the player’s ability to leave the area.
 
-`Space` remains reserved for dodge in combat mode only.
+`Space` is now the general dodge key. Combat still changes the surrounding rules and threat context, but dodge itself is no longer locked behind combat mode.
 
 ## Smooth Dodge
 
@@ -48,7 +48,7 @@ Dodge direction uses:
 
 Current rule for diagonal input:
 
-- choose the dominant axis
+- dodge diagonally when two movement keys are pressed together
 
 So the expected behaviour is:
 
@@ -56,6 +56,7 @@ So the expected behaviour is:
 - `S` dodges down
 - `A` dodges left
 - `D` dodges right
+- `W+D`, `W+A`, `S+D`, `S+A` dodge diagonally
 - no input dodges in facing direction
 
 The sandbox uses the same world-space movement convention as normal movement instead of mixing tile-adjacent logic into dodge targeting.
@@ -90,9 +91,24 @@ The telegraph still shows the danger zone on the ground.
 
 The slower, more deliberate movement speed is now the default prototype movement speed everywhere.
 
-That means the sandbox is no longer using a special combat-only slow effect. Later, proper walking / running / sprint logic can layer on top of this without making combat feel like a sudden rules change.
+That means the sandbox is no longer using a special combat-only slow effect. Later, proper walking / running logic can layer on top of this without making combat feel like a sudden rules change.
 
 Dodge itself is controlled separately through dodge duration and dodge travel distance.
+
+## Stamina and Sprint
+
+Stamina now exists as a general mobility stat instead of only a combat readout.
+
+Current prototype behaviour:
+
+- `Shift` toggles sprint on
+- pressing `Shift` again toggles sprint off
+- sprint also turns off automatically when stamina is emptied
+- out-of-combat sprint drains slowly
+- in-combat sprint drains faster
+- stamina regenerates faster out of combat than in combat
+- dodge has a short cooldown between uses
+- dodge still costs stamina whether combat is active or not
 
 ## What Is Still Not Implemented
 

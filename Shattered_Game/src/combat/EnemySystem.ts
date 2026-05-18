@@ -83,11 +83,19 @@ export class EnemySystem {
       return null;
     }
 
+    const runtimeState = this.runtimeState;
+    const definition = this.definition;
+
+    const activeAttack = runtimeState.currentAttackId
+      ? definition.attacks.find((attack) => attack.id === runtimeState.currentAttackId) ?? null
+      : null;
+
     return {
-      name: this.definition.displayName,
-      state: this.runtimeState.currentState,
-      health: this.runtimeState.health,
-      maxHealth: this.definition.maxHealth,
+      name: definition.displayName,
+      state: runtimeState.currentState,
+      health: runtimeState.health,
+      maxHealth: definition.maxHealth,
+      activeAttackName: activeAttack?.displayName ?? null,
     };
   }
 

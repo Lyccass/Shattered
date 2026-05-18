@@ -43,6 +43,7 @@ function createInputHarness() {
     onUseItem: vi.fn(),
     onCancelAction: vi.fn(),
     onCombatDodge: vi.fn(),
+    onToggleSprint: vi.fn(),
     onMenuMoveUp: vi.fn(),
     onMenuMoveDown: vi.fn(),
     onMenuConfirm: vi.fn(),
@@ -67,6 +68,7 @@ function createInputHarness() {
     onUseItem: calls.onUseItem,
     onCancelAction: calls.onCancelAction,
     onCombatDodge: calls.onCombatDodge,
+    onToggleSprint: calls.onToggleSprint,
     onMenuMoveUp: calls.onMenuMoveUp,
     onMenuMoveDown: calls.onMenuMoveDown,
     onMenuConfirm: calls.onMenuConfirm,
@@ -96,7 +98,7 @@ function createInputHarness() {
 }
 
 describe('Combat foundation input routing', () => {
-  it('no longer uses Space to start placement in normal mode', () => {
+  it('uses Space for dodge in normal mode instead of placement', () => {
     const { keyboard, callbacks, system } = createInputHarness();
 
     system.setMode('normal');
@@ -104,7 +106,7 @@ describe('Combat foundation input routing', () => {
 
     expect(callbacks.onStartPlacement).not.toHaveBeenCalled();
     expect(callbacks.onCancelAction).not.toHaveBeenCalled();
-    expect(callbacks.onCombatDodge).not.toHaveBeenCalled();
+    expect(callbacks.onCombatDodge).toHaveBeenCalledTimes(1);
   });
 
   it('starts placement with B in normal mode', () => {
@@ -142,20 +144,38 @@ describe('Combat foundation input routing', () => {
     system.setMode('menu');
     keyboard.emit('keydown-W');
     keyboard.emit('keydown-E');
+    keyboard.emit('keydown-SPACE');
+    keyboard.emit('keydown-SHIFT');
     expect(callbacks.onMenuMoveUp).toHaveBeenCalledTimes(1);
     expect(callbacks.onMenuConfirm).toHaveBeenCalledTimes(1);
+    expect(callbacks.onCombatDodge).not.toHaveBeenCalled();
+    expect(callbacks.onToggleSprint).not.toHaveBeenCalled();
 
     system.setMode('action_progress');
     keyboard.emit('keydown-E');
+    keyboard.emit('keydown-SPACE');
     keyboard.emit('keydown-ESC');
     expect(callbacks.onInteract).not.toHaveBeenCalled();
     expect(callbacks.onCancelAction).toHaveBeenCalledTimes(1);
+    expect(callbacks.onCombatDodge).not.toHaveBeenCalled();
+
+    system.setMode('placement');
+    keyboard.emit('keydown-SPACE');
+    keyboard.emit('keydown-SHIFT');
+    expect(callbacks.onCombatDodge).not.toHaveBeenCalled();
+    expect(callbacks.onToggleSprint).not.toHaveBeenCalled();
 
     system.setMode('combat');
     keyboard.emit('keydown-E');
     keyboard.emit('keydown-SPACE');
+    keyboard.emit('keydown-SHIFT');
     expect(callbacks.onInteract).toHaveBeenCalledTimes(1);
     expect(callbacks.onCombatDodge).toHaveBeenCalledTimes(1);
+    expect(callbacks.onToggleSprint).toHaveBeenCalledTimes(1);
+
+    system.setMode('normal');
+    keyboard.emit('keydown-SHIFT');
+    expect(callbacks.onToggleSprint).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -14,6 +14,7 @@ export type InputCallbacks = {
   onUseItem: (itemId: PlayerItemKey) => void;
   onCancelAction: () => void;
   onCombatDodge: () => void;
+  onToggleSprint: () => void;
 
   // Menu mode
   onMenuMoveUp: () => void;

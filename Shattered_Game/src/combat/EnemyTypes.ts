@@ -13,7 +13,24 @@ export type EnemyStateId =
 
 export type EnemyTelegraphShapeDefinition =
   | { kind: 'circle'; radiusTiles: number }
+  | { kind: 'ellipse'; radiusXTiles: number; radiusYTiles: number }
   | { kind: 'rectangle'; widthTiles: number; heightTiles: number };
+
+export type EnemyAttackTelegraphDefinition =
+  | { kind: 'ellipse'; radiusXTiles: number; radiusYTiles: number }
+  | { kind: 'cone'; rangeTiles: number; angleDeg: number }
+  | { kind: 'rectangle'; widthTiles: number; lengthTiles: number };
+
+export type EnemyAttackDefinition = {
+  id: string;
+  displayName: string;
+  kind: 'jump' | 'cone' | 'stab' | 'pulse';
+  minRangeTiles: number;
+  maxRangeTiles: number;
+  timing: AttackTimingDefinition;
+  telegraph: EnemyAttackTelegraphDefinition;
+  cooldownMs: number;
+};
 
 export type EnemyDefinition = {
   id: string;
@@ -21,12 +38,9 @@ export type EnemyDefinition = {
   maxHealth: number;
   moveSpeed: number;
   collisionRadiusTiles: number;
-  attackRangeTiles: number;
   aggroRangeTiles: number;
   leashRangeTiles: number;
-  attackTiming: AttackTimingDefinition;
-  telegraphShape: EnemyTelegraphShapeDefinition;
-  attackCooldownMs: number;
+  attacks: EnemyAttackDefinition[];
 };
 
 export type EnemySpawnDefinition = {
@@ -49,7 +63,12 @@ export type EnemyRuntimeState = {
   worldY: number;
   currentState: EnemyStateId;
   health: number;
-  cooldownEndsAtMs: number;
+  facingRad: number;
+  currentAttackId: string | null;
+  attackTargetWorldX: number | null;
+  attackTargetWorldY: number | null;
+  attackRotationRad: number | null;
+  attackCooldownEndsAtMs: Record<string, number>;
   phaseEndsAtMs: number | null;
   telegraphId: string | null;
 };
@@ -59,4 +78,5 @@ export type EnemyUiSnapshot = {
   state: EnemyStateId;
   health: number;
   maxHealth: number;
+  activeAttackName: string | null;
 };

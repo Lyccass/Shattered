@@ -109,13 +109,22 @@ export class InputSystem {
       }
     });
 
-    // --- SPACE: reserved for combat dodge ---
+    // --- SPACE: dodge in normal/combat modes ---
     this.on('SPACE', () => {
-      if (this.mode !== 'combat') {
+      if (this.mode !== 'normal' && this.mode !== 'combat') {
         return;
       }
 
       this.callbacks.onCombatDodge();
+    });
+
+    // --- SHIFT: sprint toggle in normal/combat modes ---
+    this.on('SHIFT', () => {
+      if (this.mode !== 'normal' && this.mode !== 'combat') {
+        return;
+      }
+
+      this.callbacks.onToggleSprint();
     });
 
     // --- ESC: cancel active state ---

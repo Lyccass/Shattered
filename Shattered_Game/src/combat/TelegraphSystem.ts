@@ -63,6 +63,21 @@ export class TelegraphSystem {
           this.graphics.strokeCircle(telegraph.worldX, telegraph.worldY, telegraph.shape.radius);
           break;
 
+        case 'ellipse':
+          this.graphics.fillEllipse(
+            telegraph.worldX,
+            telegraph.worldY,
+            telegraph.shape.radiusX * 2,
+            telegraph.shape.radiusY * 2,
+          );
+          this.graphics.strokeEllipse(
+            telegraph.worldX,
+            telegraph.worldY,
+            telegraph.shape.radiusX * 2,
+            telegraph.shape.radiusY * 2,
+          );
+          break;
+
         case 'rectangle': {
           const points = createRotatedRectanglePoints(
             telegraph.worldX,

@@ -14,6 +14,8 @@ import type { GameEventBus } from '../events/GameEventBus';
 export class CombatSandboxSystem {
   private static readonly DODGE_DURATION_MS = 250;
   private static readonly DODGE_DISTANCE_WORLD = 58;
+  private static readonly SPRINT_DODGE_DISTANCE_MULTIPLIER = 1.45;
+  private static readonly SPRINT_SPEED_MULTIPLIER = 2;
 
   private readonly playerCombatState = new PlayerCombatState();
   private readonly enemySystem: EnemySystem;
@@ -35,7 +37,11 @@ export class CombatSandboxSystem {
   }
 
   update(nowMs: number, deltaMs: number, playerController: PlayerController): UiHandledResult[] {
-    this.playerCombatState.update(nowMs, deltaMs);
+    this.playerCombatState.update(
+      nowMs,
+      deltaMs,
+      playerController.getMovementIntent().lengthSq() > 0,
+    );
 
     if (!this.currentTilemap) {
       this.playerCombatState.leaveCombat();
@@ -45,13 +51,18 @@ export class CombatSandboxSystem {
 
     const feetPoint = playerController.getFeetPoint();
     const combatActive = this.enemySystem.isCombatActive(feetPoint.x, feetPoint.y);
+    const playerSnapshot = this.playerCombatState.getSnapshot(nowMs);
 
     if (combatActive) {
       this.playerCombatState.enterCombat();
     } else {
       this.playerCombatState.leaveCombat();
     }
-    playerController.setMovementSpeedMultiplier(1);
+    playerController.setMovementSpeedMultiplier(
+      playerSnapshot.isSprinting
+        ? CombatSandboxSystem.SPRINT_SPEED_MULTIPLIER
+        : 1,
+    );
 
     const events = this.enemySystem.update(
       nowMs,
@@ -96,7 +107,7 @@ export class CombatSandboxSystem {
   }
 
   tryDodge(nowMs: number, playerController: PlayerController): UiHandledResult | null {
-    if (!this.currentTilemap || !this.playerCombatState.getSnapshot(nowMs).combatModeActive) {
+    if (!this.currentTilemap) {
       return null;
     }
 
@@ -108,7 +119,9 @@ export class CombatSandboxSystem {
       playerController.getMovementIntent(),
       playerController.getFacingDirection(),
     );
-    const dodgeDistance = CombatSandboxSystem.DODGE_DISTANCE_WORLD;
+    const dodgeDistance = this.playerCombatState.getSnapshot(nowMs).isSprinting
+      ? CombatSandboxSystem.DODGE_DISTANCE_WORLD * CombatSandboxSystem.SPRINT_DODGE_DISTANCE_MULTIPLIER
+      : CombatSandboxSystem.DODGE_DISTANCE_WORLD;
     const dodgeDelta = playerController.resolveDodgeTarget(direction, dodgeDistance);
 
     if (!dodgeDelta) {
@@ -145,14 +158,30 @@ export class CombatSandboxSystem {
   }
 
   getUiSnapshot(nowMs: number): CombatUiSnapshot | null {
-    if (!this.playerCombatState.getSnapshot(nowMs).combatModeActive) {
+    if (!this.currentTilemap) {
       return null;
     }
 
     return {
-      active: true,
+      active: this.playerCombatState.getSnapshot(nowMs).combatModeActive,
       player: this.playerCombatState.getSnapshot(nowMs),
-      enemy: this.enemySystem.getUiSnapshot(),
+      enemy: this.playerCombatState.getSnapshot(nowMs).combatModeActive
+        ? this.enemySystem.getUiSnapshot()
+        : null,
+    };
+  }
+
+  toggleSprint(): UiHandledResult | null {
+    const result = this.playerCombatState.toggleSprint();
+
+    if (result.ok || !result.reason) {
+      return null;
+    }
+
+    return {
+      ok: false,
+      message: result.reason,
+      toastKind: 'error',
     };
   }
 

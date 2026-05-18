@@ -1,6 +1,13 @@
 import { computeEnemyBlockingRadius } from './EnemyMetrics';
+import {
+  buildConeTelegraphPolygon,
+  isPointInsideCone,
+  isPointInsideEllipse,
+  isPointInsideRotatedRectangle,
+} from './EnemyAttackMath';
 import type { TelegraphShape } from './TelegraphTypes';
 import type {
+  EnemyAttackDefinition,
   EnemyDefinition,
   EnemyRuntimeState,
   EnemySpawnDefinition,
@@ -21,6 +28,7 @@ export type EnemyUpdateEvent =
     }
   | {
       kind: 'attack_result';
+      attackId: string;
       hit: boolean;
       reason: 'hit' | 'outside' | 'invulnerable';
     };
@@ -58,7 +66,14 @@ export function createEnemyRuntimeState(
     worldY: originWorldY,
     currentState: 'idle',
     health: definition.maxHealth,
-    cooldownEndsAtMs: 0,
+    facingRad: 0,
+    currentAttackId: null,
+    attackTargetWorldX: null,
+    attackTargetWorldY: null,
+    attackRotationRad: null,
+    attackCooldownEndsAtMs: Object.fromEntries(
+      definition.attacks.map((attack) => [attack.id, 0]),
+    ),
     phaseEndsAtMs: null,
     telegraphId: null,
   };
@@ -69,18 +84,28 @@ export function advanceEnemyStateMachine(
   state: EnemyRuntimeState,
   context: UpdateContext,
 ): AdvanceResult {
-  const nextState = { ...state };
+  const nextState = { ...state, attackCooldownEndsAtMs: { ...state.attackCooldownEndsAtMs } };
   const events: EnemyUpdateEvent[] = [];
-  const distanceToPlayer = distance(nextState.worldX, nextState.worldY, context.playerWorldX, context.playerWorldY);
-  const distanceToOrigin = distance(nextState.worldX, nextState.worldY, nextState.originWorldX, nextState.originWorldY);
+  const distanceToPlayer = distance(
+    nextState.worldX,
+    nextState.worldY,
+    context.playerWorldX,
+    context.playerWorldY,
+  );
+  const distanceToOrigin = distance(
+    nextState.worldX,
+    nextState.worldY,
+    nextState.originWorldX,
+    nextState.originWorldY,
+  );
   const minimumBodySpacingWorld = computeEnemyBlockingRadius(
     definition.collisionRadiusTiles,
     context.tileWidth,
     context.tileHeight,
   );
-  const attackRangeWorld = definition.attackRangeTiles * Math.max(context.tileWidth, context.tileHeight) * 0.5;
   const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth;
   const leashRangeWorld = definition.leashRangeTiles * context.tileWidth;
+  nextState.facingRad = angleTo(nextState.worldX, nextState.worldY, context.playerWorldX, context.playerWorldY);
 
   switch (nextState.currentState) {
     case 'idle':
@@ -89,16 +114,20 @@ export function advanceEnemyStateMachine(
       }
       break;
 
-    case 'aggro':
-      if (distanceToPlayer <= attackRangeWorld && context.nowMs >= nextState.cooldownEndsAtMs) {
-        enterWindup(nextState, definition, context, events);
+    case 'aggro': {
+      const selectedAttack = selectAttack(definition, nextState, context, distanceToPlayer);
+
+      if (selectedAttack) {
+        enterWindup(nextState, selectedAttack, context, events);
       } else {
         nextState.currentState = 'approach';
       }
       break;
+    }
 
-    case 'approach':
+    case 'approach': {
       if (distanceToOrigin > leashRangeWorld && distanceToPlayer > aggroRangeWorld) {
+        clearAttackState(nextState);
         nextState.currentState = 'reset';
         break;
       }
@@ -111,15 +140,31 @@ export function advanceEnemyStateMachine(
         context.deltaMs,
         minimumBodySpacingWorld,
       );
+      nextState.facingRad = angleTo(nextState.worldX, nextState.worldY, context.playerWorldX, context.playerWorldY);
 
-      if (distance(nextState.worldX, nextState.worldY, context.playerWorldX, context.playerWorldY) <= attackRangeWorld
-        && context.nowMs >= nextState.cooldownEndsAtMs) {
-        enterWindup(nextState, definition, context, events);
+      const selectedAttack = selectAttack(
+        definition,
+        nextState,
+        context,
+        distance(nextState.worldX, nextState.worldY, context.playerWorldX, context.playerWorldY),
+      );
+
+      if (selectedAttack) {
+        enterWindup(nextState, selectedAttack, context, events);
       }
       break;
+    }
 
     case 'windup':
       if ((nextState.phaseEndsAtMs ?? 0) <= context.nowMs) {
+        const attack = getCurrentAttack(definition, nextState);
+
+        if (!attack) {
+          clearAttackState(nextState);
+          nextState.currentState = 'aggro';
+          break;
+        }
+
         if (nextState.telegraphId) {
           events.push({
             kind: 'telegraph_remove',
@@ -128,31 +173,50 @@ export function advanceEnemyStateMachine(
           nextState.telegraphId = null;
         }
 
-        const hitResult = evaluateAttackHit(definition, nextState, context);
+        if (attack.kind === 'jump'
+          && nextState.attackTargetWorldX !== null
+          && nextState.attackTargetWorldY !== null) {
+          nextState.worldX = nextState.attackTargetWorldX;
+          nextState.worldY = nextState.attackTargetWorldY;
+        }
+
+        const hitResult = evaluateAttackHit(attack, nextState, context);
         events.push({
           kind: 'attack_result',
+          attackId: attack.id,
           hit: hitResult.hit,
           reason: hitResult.reason,
         });
         nextState.currentState = 'active';
-        nextState.phaseEndsAtMs = context.nowMs + definition.attackTiming.activeMs;
+        nextState.phaseEndsAtMs = context.nowMs + attack.timing.activeMs;
       }
       break;
 
-    case 'active':
-      if ((nextState.phaseEndsAtMs ?? 0) <= context.nowMs) {
+    case 'active': {
+      const attack = getCurrentAttack(definition, nextState);
+
+      if (!attack || (nextState.phaseEndsAtMs ?? 0) <= context.nowMs) {
         nextState.currentState = 'recovery';
-        nextState.phaseEndsAtMs = context.nowMs + definition.attackTiming.recoveryMs;
+        nextState.phaseEndsAtMs = context.nowMs + (attack?.timing.recoveryMs ?? 0);
       }
       break;
+    }
 
-    case 'recovery':
+    case 'recovery': {
+      const attack = getCurrentAttack(definition, nextState);
+
       if ((nextState.phaseEndsAtMs ?? 0) <= context.nowMs) {
         nextState.currentState = 'aggro';
         nextState.phaseEndsAtMs = null;
-        nextState.cooldownEndsAtMs = context.nowMs + definition.attackCooldownMs;
+
+        if (attack) {
+          nextState.attackCooldownEndsAtMs[attack.id] = context.nowMs + attack.cooldownMs;
+        }
+
+        clearAttackState(nextState);
       }
       break;
+    }
 
     case 'reset':
       moveToward(
@@ -162,6 +226,7 @@ export function advanceEnemyStateMachine(
         definition.moveSpeed,
         context.deltaMs,
       );
+      nextState.facingRad = angleTo(nextState.worldX, nextState.worldY, nextState.originWorldX, nextState.originWorldY);
 
       if (distance(nextState.worldX, nextState.worldY, nextState.originWorldX, nextState.originWorldY) <= 2) {
         nextState.worldX = nextState.originWorldX;
@@ -181,51 +246,116 @@ export function advanceEnemyStateMachine(
   };
 }
 
+function selectAttack(
+  definition: EnemyDefinition,
+  state: EnemyRuntimeState,
+  context: UpdateContext,
+  distanceToPlayer: number,
+): EnemyAttackDefinition | null {
+  const readyAttacks = definition.attacks.filter((attack) => {
+    const distanceTiles = worldDistanceToTiles(distanceToPlayer, context.tileWidth, context.tileHeight);
+    return distanceTiles >= attack.minRangeTiles
+      && distanceTiles <= attack.maxRangeTiles
+      && context.nowMs >= (state.attackCooldownEndsAtMs[attack.id] ?? 0);
+  });
+
+  if (readyAttacks.length === 0) {
+    return null;
+  }
+
+  const stab = readyAttacks.find((attack) => attack.kind === 'stab');
+  const cone = readyAttacks.find((attack) => attack.kind === 'cone');
+  const jump = readyAttacks.find((attack) => attack.kind === 'jump');
+
+  return stab ?? cone ?? jump ?? readyAttacks[0] ?? null;
+}
+
 function enterWindup(
   state: EnemyRuntimeState,
-  definition: EnemyDefinition,
+  attack: EnemyAttackDefinition,
   context: UpdateContext,
   events: EnemyUpdateEvent[],
 ): void {
   state.currentState = 'windup';
-  state.phaseEndsAtMs = context.nowMs + definition.attackTiming.windupMs;
-  state.telegraphId = `${state.id}:telegraph`;
+  state.phaseEndsAtMs = context.nowMs + attack.timing.windupMs;
+  state.currentAttackId = attack.id;
+  state.telegraphId = `${state.id}:${attack.id}:telegraph`;
+
+  const telegraph = buildAttackTelegraph(state, attack, context);
+  state.attackTargetWorldX = telegraph.worldX;
+  state.attackTargetWorldY = telegraph.worldY;
+  state.attackRotationRad = telegraph.rotationRad;
+
   events.push({
     kind: 'telegraph_show',
     telegraphId: state.telegraphId,
-    worldX: state.worldX,
-    worldY: state.worldY,
-    shape: buildTelegraphShape(definition, context.tileWidth, context.tileHeight),
-    durationMs: definition.attackTiming.windupMs,
+    worldX: telegraph.worldX,
+    worldY: telegraph.worldY,
+    shape: telegraph.shape,
+    durationMs: attack.timing.windupMs,
   });
+
+  if (attack.kind === 'jump') {
+    state.facingRad = angleTo(state.worldX, state.worldY, telegraph.worldX, telegraph.worldY);
+  }
 }
 
-function buildTelegraphShape(
-  definition: EnemyDefinition,
-  tileWidth: number,
-  tileHeight: number,
-): TelegraphShape {
-  switch (definition.telegraphShape.kind) {
-    case 'circle':
+function buildAttackTelegraph(
+  state: EnemyRuntimeState,
+  attack: EnemyAttackDefinition,
+  context: UpdateContext,
+): { worldX: number; worldY: number; rotationRad: number; shape: TelegraphShape } {
+  const attackRotation = angleTo(state.worldX, state.worldY, context.playerWorldX, context.playerWorldY);
+
+  switch (attack.telegraph.kind) {
+    case 'ellipse':
       return {
-        kind: 'circle',
-        radius: definition.telegraphShape.radiusTiles * Math.max(tileWidth, tileHeight) * 0.5,
+        worldX: context.playerWorldX,
+        worldY: context.playerWorldY,
+        rotationRad: attackRotation,
+        shape: {
+          kind: 'ellipse',
+          radiusX: tilesToWorldX(attack.telegraph.radiusXTiles, context.tileWidth),
+          radiusY: tilesToWorldY(attack.telegraph.radiusYTiles, context.tileHeight),
+        },
       };
-    case 'rectangle':
+
+    case 'cone': {
+      const rangeWorld = tilesToWorldRange(attack.telegraph.rangeTiles, context.tileWidth, context.tileHeight);
+      const angleRad = PhaserMathDegToRad(attack.telegraph.angleDeg);
       return {
-        kind: 'rectangle',
-        width: definition.telegraphShape.widthTiles * tileWidth,
-        height: definition.telegraphShape.heightTiles * tileHeight,
+        worldX: state.worldX,
+        worldY: state.worldY,
+        rotationRad: attackRotation,
+        shape: buildConeTelegraphPolygon(rangeWorld, angleRad, attackRotation),
       };
+    }
+
+    case 'rectangle': {
+      const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
+      const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const centerOffset = lengthWorld / 2;
+      return {
+        worldX: state.worldX + Math.cos(attackRotation) * centerOffset,
+        worldY: state.worldY + Math.sin(attackRotation) * centerOffset,
+        rotationRad: attackRotation,
+        shape: {
+          kind: 'rectangle',
+          width: lengthWorld,
+          height: widthWorld,
+          rotationRad: attackRotation,
+        },
+      };
+    }
   }
 }
 
 function evaluateAttackHit(
-  definition: EnemyDefinition,
+  attack: EnemyAttackDefinition,
   state: EnemyRuntimeState,
   context: UpdateContext,
 ): { hit: boolean; reason: 'hit' | 'outside' | 'invulnerable' } {
-  const inShape = isPointInsideTelegraph(definition, state, context);
+  const inShape = isPointInsideAttack(attack, state, context);
 
   if (!inShape) {
     return { hit: false, reason: 'outside' };
@@ -238,24 +368,70 @@ function evaluateAttackHit(
   return { hit: true, reason: 'hit' };
 }
 
-function isPointInsideTelegraph(
-  definition: EnemyDefinition,
+function isPointInsideAttack(
+  attack: EnemyAttackDefinition,
   state: EnemyRuntimeState,
   context: UpdateContext,
 ): boolean {
-  switch (definition.telegraphShape.kind) {
-    case 'circle': {
-      const radius = definition.telegraphShape.radiusTiles * Math.max(context.tileWidth, context.tileHeight) * 0.5;
-      return distance(state.worldX, state.worldY, context.playerWorldX, context.playerWorldY) <= radius;
-    }
+  switch (attack.telegraph.kind) {
+    case 'ellipse':
+      return isPointInsideEllipse(
+        context.playerWorldX,
+        context.playerWorldY,
+        state.attackTargetWorldX ?? context.playerWorldX,
+        state.attackTargetWorldY ?? context.playerWorldY,
+        tilesToWorldX(attack.telegraph.radiusXTiles, context.tileWidth),
+        tilesToWorldY(attack.telegraph.radiusYTiles, context.tileHeight),
+      );
+
+    case 'cone':
+      return isPointInsideCone(
+        context.playerWorldX,
+        context.playerWorldY,
+        state.worldX,
+        state.worldY,
+        state.attackRotationRad ?? state.facingRad,
+        tilesToWorldRange(attack.telegraph.rangeTiles, context.tileWidth, context.tileHeight),
+        PhaserMathDegToRad(attack.telegraph.angleDeg),
+      );
 
     case 'rectangle': {
-      const halfWidth = (definition.telegraphShape.widthTiles * context.tileWidth) / 2;
-      const halfHeight = (definition.telegraphShape.heightTiles * context.tileHeight) / 2;
-      return Math.abs(context.playerWorldX - state.worldX) <= halfWidth
-        && Math.abs(context.playerWorldY - state.worldY) <= halfHeight;
+      const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
+      const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const centerOffset = lengthWorld / 2;
+      const rotationRad = state.attackRotationRad ?? state.facingRad;
+      const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
+      const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
+      return isPointInsideRotatedRectangle(
+        context.playerWorldX,
+        context.playerWorldY,
+        centerX,
+        centerY,
+        lengthWorld,
+        widthWorld,
+        rotationRad,
+      );
     }
   }
+}
+
+function getCurrentAttack(
+  definition: EnemyDefinition,
+  state: EnemyRuntimeState,
+): EnemyAttackDefinition | null {
+  if (!state.currentAttackId) {
+    return null;
+  }
+
+  return definition.attacks.find((attack) => attack.id === state.currentAttackId) ?? null;
+}
+
+function clearAttackState(state: EnemyRuntimeState): void {
+  state.currentAttackId = null;
+  state.attackTargetWorldX = null;
+  state.attackTargetWorldY = null;
+  state.attackRotationRad = null;
+  state.telegraphId = null;
 }
 
 function moveToward(
@@ -290,4 +466,29 @@ function moveToward(
 
 function distance(ax: number, ay: number, bx: number, by: number): number {
   return Math.hypot(ax - bx, ay - by);
+}
+
+function angleTo(ax: number, ay: number, bx: number, by: number): number {
+  return Math.atan2(by - ay, bx - ax);
+}
+
+function tilesToWorldRange(tiles: number, tileWidth: number, tileHeight: number): number {
+  return tiles * Math.max(tileWidth, tileHeight) * 0.5;
+}
+
+function tilesToWorldX(tiles: number, tileWidth: number): number {
+  return tiles * tileWidth * 0.5;
+}
+
+function tilesToWorldY(tiles: number, tileHeight: number): number {
+  return tiles * tileHeight;
+}
+
+function worldDistanceToTiles(distance: number, tileWidth: number, tileHeight: number): number {
+  const scale = Math.max(tileWidth, tileHeight) * 0.5;
+  return scale <= 0 ? 0 : distance / scale;
+}
+
+function PhaserMathDegToRad(degrees: number): number {
+  return (degrees * Math.PI) / 180;
 }
