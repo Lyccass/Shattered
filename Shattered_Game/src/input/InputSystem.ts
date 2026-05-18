@@ -7,9 +7,12 @@ import type { InputCallbacks, InputMode } from './InputTypes';
 export class InputSystem {
   private mode: InputMode = 'normal';
   private readonly keyboard: Phaser.Input.Keyboard.KeyboardPlugin;
+  private readonly sceneInput: Phaser.Input.InputPlugin;
 
   private readonly keydownHandlers = new Map<string, (event: KeyboardEvent) => void>();
+  private readonly keyupHandlers = new Map<string, (event: KeyboardEvent) => void>();
   private readonly rawKeydownHandlers: Array<(event: KeyboardEvent) => void> = [];
+  private readonly pointerDownHandlers: Array<(pointer: Phaser.Input.Pointer) => void> = [];
 
   constructor(
     scene: Phaser.Scene,
@@ -22,6 +25,7 @@ export class InputSystem {
     }
 
     this.keyboard = keyboard;
+    this.sceneInput = scene.input;
     this.register();
   }
 
@@ -45,10 +49,21 @@ export class InputSystem {
 
     this.keydownHandlers.clear();
 
+    for (const [event, handler] of this.keyupHandlers) {
+      this.keyboard.off(event, handler);
+    }
+
+    this.keyupHandlers.clear();
+
     this.rawKeydownHandlers.forEach((handler) => {
       this.keyboard.off('keydown', handler);
     });
     this.rawKeydownHandlers.length = 0;
+
+    this.pointerDownHandlers.forEach((handler) => {
+      this.sceneInput.off('pointerdown', handler);
+    });
+    this.pointerDownHandlers.length = 0;
   }
 
   private on(key: string, handler: () => void): void {
@@ -81,6 +96,21 @@ export class InputSystem {
 
     this.keyboard.on('keydown', wrapped);
     this.rawKeydownHandlers.push(wrapped);
+  }
+
+  private onKeyUp(key: string, handler: () => void): void {
+    const event = `keyup-${key}`;
+    const wrapped = () => {
+      handler();
+    };
+
+    this.keyboard.on(event, wrapped);
+    this.keyupHandlers.set(event, wrapped);
+  }
+
+  private onPointerDown(handler: (pointer: Phaser.Input.Pointer) => void): void {
+    this.sceneInput.on('pointerdown', handler);
+    this.pointerDownHandlers.push(handler);
   }
 
   private register(): void {
@@ -125,6 +155,40 @@ export class InputSystem {
       }
 
       this.callbacks.onToggleSprint();
+    });
+
+    // --- Q held: guard in combat mode ---
+    this.on('Q', () => {
+      if (this.mode !== 'combat') {
+        return;
+      }
+
+      this.callbacks.onGuardStart();
+    });
+
+    this.onKeyUp('Q', () => {
+      this.callbacks.onGuardEnd();
+    });
+
+    // --- F / LMB: light attack in combat mode ---
+    this.on('F', () => {
+      if (this.mode !== 'combat') {
+        return;
+      }
+
+      this.callbacks.onPlayerLightAttack();
+    });
+
+    this.onPointerDown((pointer) => {
+      if (this.mode !== 'combat') {
+        return;
+      }
+
+      if (pointer.button !== 0 && !pointer.leftButtonDown()) {
+        return;
+      }
+
+      this.callbacks.onPlayerLightAttack();
     });
 
     // --- ESC: cancel active state ---

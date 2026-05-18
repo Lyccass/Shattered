@@ -27,6 +27,7 @@ export type EnemyAttackDefinition = {
   kind: 'jump' | 'cone' | 'stab' | 'pulse';
   minRangeTiles: number;
   maxRangeTiles: number;
+  damage: number;
   timing: AttackTimingDefinition;
   telegraph: EnemyAttackTelegraphDefinition;
   cooldownMs: number;
@@ -69,6 +70,7 @@ export type EnemyRuntimeState = {
   attackTargetWorldY: number | null;
   attackRotationRad: number | null;
   attackCooldownEndsAtMs: Record<string, number>;
+  phaseStartedAtMs: number | null;
   phaseEndsAtMs: number | null;
   telegraphId: string | null;
 };

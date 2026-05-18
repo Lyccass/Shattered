@@ -1,208 +1,106 @@
 import Phaser from 'phaser';
 import type { GameEventBus } from '../events/GameEventBus';
+import { AudioUnlockGate } from './AudioUnlockGate';
+import type { AudioDiagnosticsSnapshot, AudioPlaybackBackend, AudioSystemStatus } from './AudioTypes';
+import { GeneratedToneBackend } from './GeneratedToneBackend';
+import { DEFAULT_SFX_REGISTRY, type SfxRegistry } from './SfxRegistry';
 import type { SfxEventId, SfxEventPayload } from './SfxTypes';
 
-type SfxTone = {
-  frequency: number;
-  durationMs: number;
-  volume: number;
-  type: OscillatorType;
-};
-
-const SFX_TONES: Record<SfxEventId, SfxTone> = {
-  menu_open: { frequency: 420, durationMs: 55, volume: 0.018, type: 'triangle' },
-  menu_select: { frequency: 500, durationMs: 40, volume: 0.015, type: 'triangle' },
-  menu_confirm: { frequency: 640, durationMs: 70, volume: 0.02, type: 'square' },
-  menu_cancel: { frequency: 260, durationMs: 70, volume: 0.02, type: 'sawtooth' },
-  gather_start: { frequency: 320, durationMs: 60, volume: 0.018, type: 'triangle' },
-  gather_success: { frequency: 560, durationMs: 90, volume: 0.022, type: 'triangle' },
-  craft_start: { frequency: 360, durationMs: 70, volume: 0.018, type: 'square' },
-  craft_success: { frequency: 690, durationMs: 110, volume: 0.024, type: 'square' },
-  craft_failed: { frequency: 180, durationMs: 120, volume: 0.02, type: 'sawtooth' },
-  action_cancelled: { frequency: 210, durationMs: 85, volume: 0.018, type: 'triangle' },
-  item_placed: { frequency: 430, durationMs: 75, volume: 0.018, type: 'square' },
-  fire_lit: { frequency: 740, durationMs: 130, volume: 0.024, type: 'triangle' },
-  tea_brewed: { frequency: 620, durationMs: 120, volume: 0.022, type: 'triangle' },
-  tea_consumed: { frequency: 520, durationMs: 90, volume: 0.02, type: 'triangle' },
-  dodge: { frequency: 680, durationMs: 80, volume: 0.02, type: 'triangle' },
-  combat_hit: { frequency: 160, durationMs: 110, volume: 0.024, type: 'sawtooth' },
-  combat_miss: { frequency: 420, durationMs: 90, volume: 0.018, type: 'triangle' },
-  contract_accepted: { frequency: 450, durationMs: 90, volume: 0.019, type: 'square' },
-  contract_completed: { frequency: 780, durationMs: 140, volume: 0.024, type: 'square' },
-  xp_gain: { frequency: 860, durationMs: 80, volume: 0.015, type: 'triangle' },
-  invalid_action: { frequency: 150, durationMs: 100, volume: 0.018, type: 'sawtooth' },
-  map_transition: { frequency: 300, durationMs: 150, volume: 0.02, type: 'triangle' },
-};
-
-export type SfxSystemStatus = 'locked' | 'ready' | 'failed' | 'unsupported';
+export type SfxSystemStatus = AudioSystemStatus;
 
 export class SfxSystem {
-  private audioContext: AudioContext | null = null;
-  private status: SfxSystemStatus = 'locked';
-  private failureReason: string | null = null;
+  private readonly registry: SfxRegistry;
+  private readonly backend: AudioPlaybackBackend;
+  private readonly unlockGate: AudioUnlockGate;
+  private readonly pendingEventIds: SfxEventId[] = [];
+  private lastEventId: SfxEventId | null = null;
   private lastWarning: string | null = null;
   private readonly handleSfxEvent = (payload: SfxEventPayload) => {
     void this.play(payload.id);
   };
-  private readonly handleUnlockGesture = () => {
-    void this.unlockFromGesture();
-  };
 
   constructor(
-    private readonly scene: Phaser.Scene,
+    scene: Phaser.Scene,
     private readonly eventBus: GameEventBus,
+    registry: SfxRegistry = DEFAULT_SFX_REGISTRY,
+    backend: AudioPlaybackBackend = new GeneratedToneBackend(),
   ) {
+    this.registry = registry;
+    this.backend = backend;
+    this.unlockGate = new AudioUnlockGate(scene, (context) => {
+      this.flushPending(context);
+    });
     this.eventBus.onSfx(this.handleSfxEvent);
-    this.registerUnlockListeners();
   }
 
   destroy(): void {
     this.eventBus.offSfx(this.handleSfxEvent);
-    this.unregisterUnlockListeners();
+    this.unlockGate.destroy();
+    this.backend.reset();
+  }
 
-    if (this.audioContext) {
-      void this.audioContext.close().catch(() => undefined);
-      this.audioContext = null;
-    }
+  getStatus(): SfxSystemStatus {
+    return this.unlockGate.getStatus();
+  }
+
+  getFailureReason(): string | null {
+    return this.unlockGate.getFailureReason();
+  }
+
+  getDiagnostics(): AudioDiagnosticsSnapshot {
+    return {
+      status: this.unlockGate.getStatus(),
+      backendName: this.backend.name,
+      contextState: this.unlockGate.getContextState(),
+      pendingCount: this.pendingEventIds.length,
+      lastEventId: this.lastEventId,
+      failureReason: this.unlockGate.getFailureReason(),
+    };
   }
 
   private async play(eventId: SfxEventId): Promise<void> {
-    const tone = SFX_TONES[eventId];
-    const context = await this.ensureContextReady('playback');
+    this.lastEventId = eventId;
+    const context = await this.unlockGate.ensureReady('playback');
 
     if (!context) {
-      if (this.status === 'locked') {
+      if (this.unlockGate.getStatus() === 'locked') {
+        this.queuePending(eventId);
         this.warnOnce('Audio is locked. Click or tap the game once to enable sound.');
       }
       return;
     }
 
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-
-    oscillator.type = tone.type;
-    oscillator.frequency.setValueAtTime(tone.frequency, now);
-
-    gain.gain.setValueAtTime(tone.volume, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.durationMs / 1000);
-
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-    oscillator.stop(now + tone.durationMs / 1000);
+    this.playNow(context, eventId, context.currentTime);
   }
 
-  getStatus(): SfxSystemStatus {
-    return this.status;
-  }
+  private playNow(context: AudioContext, eventId: SfxEventId, startTime: number): void {
+    const definition = this.registry.get(eventId);
 
-  getFailureReason(): string | null {
-    return this.failureReason;
-  }
-
-  private async unlockFromGesture(): Promise<void> {
-    await this.ensureContextReady('gesture');
-  }
-
-  private async ensureContextReady(trigger: 'gesture' | 'playback'): Promise<AudioContext | null> {
-    const context = this.getOrCreateContext();
-
-    if (!context || this.status === 'failed' || this.status === 'unsupported') {
-      return null;
+    if (!this.backend.supports(definition)) {
+      this.warnOnce(`No audio backend can play SFX id "${eventId}".`);
+      return;
     }
 
-    const resumedState = context.state;
-
-    if (resumedState === 'running') {
-      this.markReady();
-      return context;
-    }
-
-    try {
-      await context.resume();
-    } catch (error) {
-      if (trigger === 'gesture') {
-        this.warnOnce(this.formatResumeBlockedMessage(error));
-      }
-      return null;
-    }
-
-    if (context.state === 'running') {
-      this.markReady();
-      return context;
-    }
-
-    if (trigger === 'gesture') {
-      this.warnOnce('Audio is still locked. Click or tap the game once to enable sound.');
-    }
-
-    this.status = 'locked';
-    return null;
+    this.backend.play(context, eventId, definition, startTime);
   }
 
-  private getOrCreateContext(): AudioContext | null {
-    if (!this.audioContext) {
-      const extendedGlobal = globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext };
-      const View = extendedGlobal.AudioContext ?? extendedGlobal.webkitAudioContext;
-
-      if (!View) {
-        this.status = 'unsupported';
-        this.failureReason = 'Web Audio API is unavailable in this browser.';
-        this.unregisterUnlockListeners();
-        this.warnOnce(this.failureReason);
-        return null;
-      }
-
-      try {
-        this.audioContext = new View();
-      } catch (error) {
-        this.markFailed(this.formatResumeFailure(error));
-        return null;
-      }
+  private queuePending(eventId: SfxEventId): void {
+    if (this.pendingEventIds.length >= 8) {
+      return;
     }
 
-    return this.audioContext;
+    this.pendingEventIds.push(eventId);
   }
 
-  private registerUnlockListeners(): void {
-    this.scene.input.on('pointerdown', this.handleUnlockGesture);
-    this.scene.input.keyboard?.on('keydown', this.handleUnlockGesture);
-  }
-
-  private unregisterUnlockListeners(): void {
-    this.scene.input.off('pointerdown', this.handleUnlockGesture);
-    this.scene.input.keyboard?.off('keydown', this.handleUnlockGesture);
-  }
-
-  private markReady(): void {
-    this.status = 'ready';
-    this.failureReason = null;
-    this.unregisterUnlockListeners();
-  }
-
-  private markFailed(reason: string): null {
-    this.status = 'failed';
-    this.failureReason = reason;
-    this.unregisterUnlockListeners();
-    this.warnOnce(reason);
-    return null;
-  }
-
-  private formatResumeFailure(error: unknown): string {
-    if (error instanceof Error && error.message) {
-      return `Failed to start browser audio: ${error.message}`;
+  private flushPending(context: AudioContext): void {
+    if (this.pendingEventIds.length === 0) {
+      return;
     }
 
-    return 'Failed to start browser audio.';
-  }
-
-  private formatResumeBlockedMessage(error: unknown): string {
-    if (error instanceof Error && error.message) {
-      return `Audio unlock was blocked. Click or tap the game once to enable sound. (${error.message})`;
-    }
-
-    return 'Audio unlock was blocked. Click or tap the game once to enable sound.';
+    const queued = this.pendingEventIds.splice(0, this.pendingEventIds.length);
+    queued.forEach((eventId, index) => {
+      this.playNow(context, eventId, context.currentTime + (index * 18) / 1000);
+    });
   }
 
   private warnOnce(message: string): void {

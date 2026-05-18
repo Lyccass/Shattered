@@ -35,8 +35,32 @@ class FakeKeyboardPlugin {
   }
 }
 
+class FakeInputPlugin {
+  keyboard = new FakeKeyboardPlugin();
+  private readonly handlers = new Map<string, Set<(pointer: { button: number; leftButtonDown: () => boolean }) => void>>();
+
+  on(event: string, handler: (pointer: { button: number; leftButtonDown: () => boolean }) => void): void {
+    const set = this.handlers.get(event) ?? new Set<(pointer: { button: number; leftButtonDown: () => boolean }) => void>();
+    set.add(handler);
+    this.handlers.set(event, set);
+  }
+
+  off(event: string, handler: (pointer: { button: number; leftButtonDown: () => boolean }) => void): void {
+    this.handlers.get(event)?.delete(handler);
+  }
+
+  emitPointerDown(button = 0): void {
+    const pointer = {
+      button,
+      leftButtonDown: () => button === 0,
+    };
+    this.handlers.get('pointerdown')?.forEach((handler) => handler(pointer));
+  }
+}
+
 function createInputHarness() {
-  const keyboard = new FakeKeyboardPlugin();
+  const input = new FakeInputPlugin();
+  const keyboard = input.keyboard;
   const calls = {
     onInteract: vi.fn(),
     onStartPlacement: vi.fn(),
@@ -44,6 +68,9 @@ function createInputHarness() {
     onCancelAction: vi.fn(),
     onCombatDodge: vi.fn(),
     onToggleSprint: vi.fn(),
+    onGuardStart: vi.fn(),
+    onGuardEnd: vi.fn(),
+    onPlayerLightAttack: vi.fn(),
     onMenuMoveUp: vi.fn(),
     onMenuMoveDown: vi.fn(),
     onMenuConfirm: vi.fn(),
@@ -69,6 +96,9 @@ function createInputHarness() {
     onCancelAction: calls.onCancelAction,
     onCombatDodge: calls.onCombatDodge,
     onToggleSprint: calls.onToggleSprint,
+    onGuardStart: calls.onGuardStart,
+    onGuardEnd: calls.onGuardEnd,
+    onPlayerLightAttack: calls.onPlayerLightAttack,
     onMenuMoveUp: calls.onMenuMoveUp,
     onMenuMoveDown: calls.onMenuMoveDown,
     onMenuConfirm: calls.onMenuConfirm,
@@ -88,13 +118,11 @@ function createInputHarness() {
     onDebugLogPlacement: calls.onDebugLogPlacement,
   };
   const scene = {
-    input: {
-      keyboard,
-    },
+    input,
   } as never;
   const system = new InputSystem(scene, callbacks);
 
-  return { keyboard, callbacks: calls, system };
+  return { input, keyboard, callbacks: calls, system };
 }
 
 describe('Combat foundation input routing', () => {
@@ -139,7 +167,7 @@ describe('Combat foundation input routing', () => {
   });
 
   it('routes menu, action-progress, and combat modes explicitly', () => {
-    const { keyboard, callbacks, system } = createInputHarness();
+    const { input, keyboard, callbacks, system } = createInputHarness();
 
     system.setMode('menu');
     keyboard.emit('keydown-W');
@@ -169,13 +197,42 @@ describe('Combat foundation input routing', () => {
     keyboard.emit('keydown-E');
     keyboard.emit('keydown-SPACE');
     keyboard.emit('keydown-SHIFT');
+    keyboard.emit('keydown-Q');
+    keyboard.emit('keyup-Q');
+    keyboard.emit('keydown-F');
+    input.emitPointerDown();
     expect(callbacks.onInteract).toHaveBeenCalledTimes(1);
     expect(callbacks.onCombatDodge).toHaveBeenCalledTimes(1);
     expect(callbacks.onToggleSprint).toHaveBeenCalledTimes(1);
+    expect(callbacks.onGuardStart).toHaveBeenCalledTimes(1);
+    expect(callbacks.onGuardEnd).toHaveBeenCalledTimes(1);
+    expect(callbacks.onPlayerLightAttack).toHaveBeenCalledTimes(2);
 
     system.setMode('normal');
     keyboard.emit('keydown-SHIFT');
     expect(callbacks.onToggleSprint).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not route dodge or attack in menu, placement, or action-progress modes', () => {
+    const { input, keyboard, callbacks, system } = createInputHarness();
+
+    system.setMode('menu');
+    keyboard.emit('keydown-SPACE');
+    keyboard.emit('keydown-F');
+    keyboard.emit('keydown-Q');
+    input.emitPointerDown();
+
+    system.setMode('placement');
+    keyboard.emit('keydown-SPACE');
+    keyboard.emit('keydown-F');
+
+    system.setMode('action_progress');
+    keyboard.emit('keydown-SPACE');
+    keyboard.emit('keydown-F');
+
+    expect(callbacks.onCombatDodge).not.toHaveBeenCalled();
+    expect(callbacks.onPlayerLightAttack).not.toHaveBeenCalled();
+    expect(callbacks.onGuardStart).not.toHaveBeenCalled();
   });
 });
 

@@ -132,6 +132,9 @@ export class GameScene extends Phaser.Scene {
       onCancelAction: () => this.cancelActiveActionForUi(),
       onCombatDodge: () => this.tryCombatDodge(),
       onToggleSprint: () => this.tryToggleSprint(),
+      onGuardStart: () => this.combatSandboxSystem?.setGuardHeld(true),
+      onGuardEnd: () => this.combatSandboxSystem?.setGuardHeld(false),
+      onPlayerLightAttack: () => this.tryPlayerLightAttack(),
       onMenuMoveUp: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
       onMenuConfirm: () => this.tryConfirmChoiceMenu(),
@@ -230,6 +233,7 @@ export class GameScene extends Phaser.Scene {
         mapTransitionSystem,
         objectPlacementSystem,
         objectDebugRenderer,
+        getAudioDiagnostics: () => this.sfxSystem?.getDiagnostics() ?? null,
       });
       return;
     }
@@ -500,6 +504,26 @@ export class GameScene extends Phaser.Scene {
 
   private tryToggleSprint(): void {
     const result = this.combatSandboxSystem?.toggleSprint();
+
+    if (result) {
+      this.uiManager?.handleResult(result);
+    }
+  }
+
+  private tryPlayerLightAttack(): void {
+    if (!this.combatSandboxSystem || !this.playerController) {
+      return;
+    }
+
+    const pointer = this.input.activePointer;
+    const targetWorldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
+    const targetWorldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
+    const result = this.combatSandboxSystem.tryPlayerLightAttack(
+      this.time.now,
+      this.playerController,
+      targetWorldX,
+      targetWorldY,
+    );
 
     if (result) {
       this.uiManager?.handleResult(result);

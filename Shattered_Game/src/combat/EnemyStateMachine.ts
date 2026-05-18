@@ -29,6 +29,7 @@ export type EnemyUpdateEvent =
   | {
       kind: 'attack_result';
       attackId: string;
+      damage: number;
       hit: boolean;
       reason: 'hit' | 'outside' | 'invulnerable';
     };
@@ -74,6 +75,7 @@ export function createEnemyRuntimeState(
     attackCooldownEndsAtMs: Object.fromEntries(
       definition.attacks.map((attack) => [attack.id, 0]),
     ),
+    phaseStartedAtMs: null,
     phaseEndsAtMs: null,
     telegraphId: null,
   };
@@ -184,10 +186,12 @@ export function advanceEnemyStateMachine(
         events.push({
           kind: 'attack_result',
           attackId: attack.id,
+          damage: attack.damage,
           hit: hitResult.hit,
           reason: hitResult.reason,
         });
         nextState.currentState = 'active';
+        nextState.phaseStartedAtMs = context.nowMs;
         nextState.phaseEndsAtMs = context.nowMs + attack.timing.activeMs;
       }
       break;
@@ -197,6 +201,7 @@ export function advanceEnemyStateMachine(
 
       if (!attack || (nextState.phaseEndsAtMs ?? 0) <= context.nowMs) {
         nextState.currentState = 'recovery';
+        nextState.phaseStartedAtMs = context.nowMs;
         nextState.phaseEndsAtMs = context.nowMs + (attack?.timing.recoveryMs ?? 0);
       }
       break;
@@ -207,6 +212,7 @@ export function advanceEnemyStateMachine(
 
       if ((nextState.phaseEndsAtMs ?? 0) <= context.nowMs) {
         nextState.currentState = 'aggro';
+        nextState.phaseStartedAtMs = null;
         nextState.phaseEndsAtMs = null;
 
         if (attack) {
@@ -277,6 +283,7 @@ function enterWindup(
   events: EnemyUpdateEvent[],
 ): void {
   state.currentState = 'windup';
+  state.phaseStartedAtMs = context.nowMs;
   state.phaseEndsAtMs = context.nowMs + attack.timing.windupMs;
   state.currentAttackId = attack.id;
   state.telegraphId = `${state.id}:${attack.id}:telegraph`;
@@ -431,6 +438,7 @@ function clearAttackState(state: EnemyRuntimeState): void {
   state.attackTargetWorldX = null;
   state.attackTargetWorldY = null;
   state.attackRotationRad = null;
+  state.phaseStartedAtMs = null;
   state.telegraphId = null;
 }
 

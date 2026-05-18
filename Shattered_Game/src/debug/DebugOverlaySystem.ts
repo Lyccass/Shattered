@@ -9,6 +9,7 @@ import { IsoTilemap } from '../world/IsoTilemap';
 import { MapLoader } from '../world/maps/MapLoader';
 import { MapTransitionSystem } from '../world/maps/MapTransitionSystem';
 import type { ResolvedTerrainTile } from '../world/terrain/TerrainTypes';
+import type { AudioDiagnosticsSnapshot } from '../audio/AudioTypes';
 
 type DebugOverlaySystemConfig = {
   scene: Phaser.Scene;
@@ -20,6 +21,7 @@ type DebugOverlaySystemConfig = {
   mapTransitionSystem?: MapTransitionSystem;
   objectPlacementSystem?: ObjectPlacementSystem;
   objectDebugRenderer?: ObjectDebugRenderer;
+  getAudioDiagnostics?: () => AudioDiagnosticsSnapshot | null;
 };
 
 export class DebugOverlaySystem {
@@ -34,6 +36,7 @@ export class DebugOverlaySystem {
   private mapTransitionSystem?: MapTransitionSystem;
   private objectPlacementSystem?: ObjectPlacementSystem;
   private objectDebugRenderer?: ObjectDebugRenderer;
+  private getAudioDiagnostics?: () => AudioDiagnosticsSnapshot | null;
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
   private readonly zoomText: Phaser.GameObjects.Text;
   private readonly detailText: Phaser.GameObjects.Text;
@@ -74,6 +77,7 @@ export class DebugOverlaySystem {
     mapTransitionSystem,
     objectPlacementSystem,
     objectDebugRenderer,
+    getAudioDiagnostics,
   }: DebugOverlaySystemConfig) {
     this.scene = scene;
     this.cameraSystem = cameraSystem;
@@ -83,6 +87,7 @@ export class DebugOverlaySystem {
     this.mapTransitionSystem = mapTransitionSystem;
     this.objectPlacementSystem = objectPlacementSystem;
     this.objectDebugRenderer = objectDebugRenderer;
+    this.getAudioDiagnostics = getAudioDiagnostics;
     this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
     this.zoomText = this.createText(16, 16);
     this.detailText = this.createText(16, 56);
@@ -157,6 +162,7 @@ export class DebugOverlaySystem {
     const mouseTileObject = this.objectPlacementSystem?.getObjectAtTile(mouseTile.x, mouseTile.y);
     const mouseObjectLabel = mouseTileObject ? mouseTileObject.id : '—';
     const currentSpawnId = this.mapLoader?.getCurrentSpawnId() ?? 'default';
+    const audioDiagnostics = this.getAudioDiagnostics?.() ?? null;
     const resolvedChunkStats = chunkStats ?? {
       configuredChunkCount: 0,
       materializedChunkCount: 0,
@@ -197,6 +203,7 @@ export class DebugOverlaySystem {
       `Terrain-blocked tiles: ${this.isoTilemap.getTerrainBlockedTileCount()}`,
       `Object instances: ${objectInstanceCount}   object-blocked tiles: ${objectBlockedCount}`,
       `Object debug overlays: ${objectDebugOn ? 'on' : 'off'}`,
+      `Audio: ${audioDiagnostics ? `${audioDiagnostics.status} / ${audioDiagnostics.contextState} / ${audioDiagnostics.backendName} / queued ${audioDiagnostics.pendingCount}${audioDiagnostics.lastEventId ? ` / last ${audioDiagnostics.lastEventId}` : ''}${audioDiagnostics.failureReason ? ` / ${audioDiagnostics.failureReason}` : ''}` : 'unavailable'}`,
       'Legend:',
       'chunk debug = green logical chunk, orange bleed margin',
       'yellow dot = player feet/depth anchor',

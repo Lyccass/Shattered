@@ -3,6 +3,11 @@ import { computeEnemyBlockingRadius } from './EnemyMetrics';
 import { getDynamicDepth } from '../render/RenderLayers';
 import { EnemyRegistry } from './EnemyRegistry';
 import {
+  applyEnemyDamage,
+  resetEnemyRuntimeState,
+  shouldRespawnEnemy,
+} from './EnemyRuntimeStateUtils';
+import {
   advanceEnemyStateMachine,
   createEnemyRuntimeState,
   type EnemyUpdateEvent,
@@ -13,9 +18,12 @@ import type { TelegraphSystem } from './TelegraphSystem';
 import type { IsoTilemap } from '../world/IsoTilemap';
 
 export class EnemySystem {
+  private static readonly DEATH_RESET_DELAY_MS = 1_800;
+
   private readonly enemyRegistry = new EnemyRegistry(ENEMY_DEFINITIONS);
   private runtimeState: EnemyRuntimeState | null = null;
   private definition: EnemyDefinition | null = null;
+  private shadow: Phaser.GameObjects.Ellipse | null = null;
   private visual: Phaser.GameObjects.Ellipse | null = null;
   private activeMapId: string | null = null;
   private tilemap: IsoTilemap | null = null;
@@ -37,6 +45,7 @@ export class EnemySystem {
     this.definition = this.enemyRegistry.get(spawn.definitionId);
     const origin = tilemap.getTileCenterWorld(spawn.tileX, spawn.tileY);
     this.runtimeState = createEnemyRuntimeState(this.definition, spawn, origin.x, origin.y);
+    this.shadow = this.scene.add.ellipse(origin.x, origin.y - 4, 28, 12, 0x020617, 0.2);
     this.visual = this.scene.add.ellipse(origin.x, origin.y - 18, 28, 36, 0x7f1d1d, 0.95);
     this.visual.setStrokeStyle(2, 0x111827, 0.85);
   }
@@ -52,6 +61,12 @@ export class EnemySystem {
       return [];
     }
 
+    if (shouldRespawnEnemy(this.runtimeState, nowMs)) {
+      this.resetRuntimeState();
+      this.applyVisualState(this.runtimeState, nowMs);
+      return [];
+    }
+
     const result = advanceEnemyStateMachine(this.definition, this.runtimeState, {
       nowMs,
       deltaMs,
@@ -63,9 +78,46 @@ export class EnemySystem {
     });
 
     this.runtimeState = result.state;
-    this.applyVisualState(result.state);
+    this.applyVisualState(result.state, nowMs);
     this.applyTelegraphEvents(result.events, nowMs);
     return result.events;
+  }
+
+  applyDamage(amount: number, nowMs: number): { hit: boolean; killed: boolean; currentHp: number } {
+    if (!this.runtimeState || !this.definition || this.runtimeState.currentState === 'dead') {
+      return { hit: false, killed: false, currentHp: this.runtimeState?.health ?? 0 };
+    }
+
+    const telegraphId = this.runtimeState.telegraphId;
+    const result = applyEnemyDamage(
+      this.runtimeState,
+      amount,
+      nowMs,
+      EnemySystem.DEATH_RESET_DELAY_MS,
+    );
+    this.runtimeState = result.state;
+
+    if (!result.killed) {
+      return result;
+    }
+
+    if (telegraphId) {
+      this.telegraphSystem.removeTelegraph(telegraphId);
+    }
+    this.applyVisualState(this.runtimeState, nowMs);
+    return result;
+  }
+
+  isInPunishWindow(): boolean {
+    return this.runtimeState?.currentState === 'recovery';
+  }
+
+  getWorldPosition(): { x: number; y: number } | null {
+    if (!this.runtimeState) {
+      return null;
+    }
+
+    return { x: this.runtimeState.worldX, y: this.runtimeState.worldY };
   }
 
   isCombatActive(playerWorldX: number, playerWorldY: number): boolean {
@@ -134,19 +186,48 @@ export class EnemySystem {
     return this.activeMapId;
   }
 
+  forceReset(): void {
+    this.resetRuntimeState();
+  }
+
   destroy(): void {
     this.clearRuntime();
     this.activeMapId = null;
     this.tilemap = null;
   }
 
-  private applyVisualState(state: EnemyRuntimeState): void {
+  private applyVisualState(state: EnemyRuntimeState, nowMs: number): void {
     if (!this.visual) {
       return;
     }
 
-    this.visual.setPosition(state.worldX, state.worldY - 18);
-    this.visual.setScale(1);
+    const definition = this.definition;
+    const activeAttack = definition && state.currentAttackId
+      ? definition.attacks.find((attack) => attack.id === state.currentAttackId) ?? null
+      : null;
+    const phaseProgress = getPhaseProgress(state, nowMs);
+    let lift = 0;
+    let scaleX = 1;
+    let scaleY = 1;
+
+    if (activeAttack?.kind === 'jump') {
+      if (state.currentState === 'windup') {
+        lift = 22 * easeOut(phaseProgress);
+        scaleX = 1.02 + 0.08 * phaseProgress;
+        scaleY = 1 - 0.12 * phaseProgress;
+      } else if (state.currentState === 'active') {
+        lift = 24 * (1 - phaseProgress);
+        scaleX = 1.1 - 0.06 * phaseProgress;
+        scaleY = 0.9 + 0.08 * phaseProgress;
+      }
+    }
+
+    this.shadow?.setPosition(state.worldX, state.worldY - 4);
+    this.shadow?.setScale(Math.max(0.7, 1 - lift / 40), Math.max(0.6, 1 - lift / 46));
+    this.shadow?.setDepth(getDynamicDepth(state.worldY, 4));
+
+    this.visual.setPosition(state.worldX, state.worldY - 18 - lift);
+    this.visual.setScale(scaleX, scaleY);
     this.visual.setFillStyle(0x7f1d1d, 0.95);
     this.visual.setDepth(getDynamicDepth(state.worldY, 8));
 
@@ -162,6 +243,10 @@ export class EnemySystem {
       case 'recovery':
         this.visual.setFillStyle(0xfb7185, 0.95);
         this.visual.setScale(0.96);
+        break;
+      case 'dead':
+        this.visual.setFillStyle(0x6b7280, 0.82);
+        this.visual.setScale(0.9);
         break;
       default:
         break;
@@ -196,7 +281,34 @@ export class EnemySystem {
 
     this.runtimeState = null;
     this.definition = null;
+    this.shadow?.destroy();
+    this.shadow = null;
     this.visual?.destroy();
     this.visual = null;
   }
+
+  private resetRuntimeState(): void {
+    if (!this.runtimeState || !this.definition) {
+      return;
+    }
+
+    if (this.runtimeState.telegraphId) {
+      this.telegraphSystem.removeTelegraph(this.runtimeState.telegraphId);
+    }
+
+    this.runtimeState = resetEnemyRuntimeState(this.runtimeState, this.definition);
+  }
+}
+
+function getPhaseProgress(state: EnemyRuntimeState, nowMs: number): number {
+  if (state.phaseStartedAtMs === null || state.phaseEndsAtMs === null) {
+    return 0;
+  }
+
+  const duration = Math.max(1, state.phaseEndsAtMs - state.phaseStartedAtMs);
+  return Phaser.Math.Clamp((nowMs - state.phaseStartedAtMs) / duration, 0, 1);
+}
+
+function easeOut(t: number): number {
+  return 1 - (1 - t) * (1 - t);
 }

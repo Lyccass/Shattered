@@ -40,6 +40,26 @@ export function isPointInsideRotatedRectangle(
   return Math.abs(local.x) <= width / 2 && Math.abs(local.y) <= height / 2;
 }
 
+export function doesCircleIntersectRotatedRectangle(
+  circleX: number,
+  circleY: number,
+  radius: number,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  rotationRad: number,
+): boolean {
+  const local = rotateIntoLocal(circleX - centerX, circleY - centerY, rotationRad);
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const clampedX = clamp(local.x, -halfWidth, halfWidth);
+  const clampedY = clamp(local.y, -halfHeight, halfHeight);
+  const dx = local.x - clampedX;
+  const dy = local.y - clampedY;
+  return dx * dx + dy * dy <= radius * radius;
+}
+
 export function isPointInsideCone(
   pointX: number,
   pointY: number,
@@ -92,4 +112,8 @@ function rotateIntoLocal(x: number, y: number, rotationRad: number): { x: number
     x: x * cos - y * sin,
     y: x * sin + y * cos,
   };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
 }
