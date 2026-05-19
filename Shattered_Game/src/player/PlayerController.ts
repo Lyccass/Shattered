@@ -182,13 +182,12 @@ export class PlayerController {
 
   getCombatHitEllipse(): { centerX: number; centerY: number; radiusX: number; radiusY: number } {
     const bounds = this.sprite.getBounds();
-    const feet = this.getFeetPoint();
-    const radiusX = Math.max(6, bounds.width * 0.17);
-    const radiusY = Math.max(9, bounds.height * 0.19);
+    const radiusX = Math.max(10, bounds.width * 0.30);
+    const radiusY = Math.max(14, bounds.height * 0.28);
 
     return {
       centerX: bounds.x + bounds.width / 2,
-      centerY: feet.y - radiusY,
+      centerY: bounds.y + bounds.height * 0.50,
       radiusX,
       radiusY,
     };
@@ -408,6 +407,14 @@ export class PlayerController {
   }
 
   private readMovementIntent(nowMs: number): boolean {
+    // Block all movement during windup and active — attack interrupts movement
+    if (this.isAttackMovementBlocked(nowMs)) {
+      this.clickMoveTarget = null;
+      this.clickMoveWaypoints = [];
+      this.movementIntent.set(0, 0);
+      return false;
+    }
+
     const attackFacingLocked = this.isAttackFacingLocked(nowMs);
     const clickMoveIntent = this.computeClickMoveIntent();
     const usingClickMove = clickMoveIntent.lengthSq() > 0;
@@ -461,6 +468,11 @@ export class PlayerController {
   private isAttackFacingLocked(nowMs: number): boolean {
     const state = this.visuals.getCombatState(nowMs);
     return state === 'attack_windup' || state === 'attack_active' || state === 'attack_recovery';
+  }
+
+  private isAttackMovementBlocked(nowMs: number): boolean {
+    const state = this.visuals.getCombatState(nowMs);
+    return state === 'attack_windup' || state === 'attack_active';
   }
 
   private recoverIfBlocked(): void {

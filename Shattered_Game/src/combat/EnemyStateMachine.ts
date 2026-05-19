@@ -2,6 +2,7 @@ import { computeEnemyBlockingRadius } from './EnemyMetrics';
 import { findGridPath } from '../world/GridPathfinder';
 import {
   buildConeTelegraphPolygon,
+  isPointInsideCircle,
   isPointInsideCone,
   isPointInsideEllipse,
   isPointInsideRotatedRectangle,
@@ -92,6 +93,10 @@ export function createEnemyRuntimeState(
     phaseEndsAtMs: null,
     telegraphId: null,
     attackResolved: false,
+    jumpOriginWorldX: null,
+    jumpOriginWorldY: null,
+    jumpLandingWorldX: null,
+    jumpLandingWorldY: null,
   };
 }
 
@@ -200,8 +205,10 @@ export function advanceEnemyStateMachine(
             nextState.attackTargetWorldY,
             context,
           );
-          nextState.worldX = landingPoint.x;
-          nextState.worldY = landingPoint.y;
+          nextState.jumpOriginWorldX = nextState.worldX;
+          nextState.jumpOriginWorldY = nextState.worldY;
+          nextState.jumpLandingWorldX = landingPoint.x;
+          nextState.jumpLandingWorldY = landingPoint.y;
         }
 
         nextState.currentState = 'active';
@@ -216,6 +223,19 @@ export function advanceEnemyStateMachine(
 
     case 'active': {
       const attack = getCurrentAttack(definition, nextState);
+
+      if (attack?.kind === 'jump'
+        && nextState.jumpOriginWorldX !== null
+        && nextState.jumpLandingWorldX !== null
+        && nextState.jumpOriginWorldY !== null
+        && nextState.jumpLandingWorldY !== null
+        && nextState.phaseStartedAtMs !== null
+        && nextState.phaseEndsAtMs !== null) {
+        const duration = Math.max(1, nextState.phaseEndsAtMs - nextState.phaseStartedAtMs);
+        const t = Math.min(1, (context.nowMs - nextState.phaseStartedAtMs) / duration);
+        nextState.worldX = lerp(nextState.jumpOriginWorldX, nextState.jumpLandingWorldX, t);
+        nextState.worldY = lerp(nextState.jumpOriginWorldY, nextState.jumpLandingWorldY, t);
+      }
 
       if (!attack) {
         nextState.currentState = 'recovery';
@@ -379,6 +399,24 @@ function buildAttackTelegraph(
   const attackRotation = angleTo(state.worldX, state.worldY, context.playerWorldX, context.playerWorldY);
 
   switch (attack.telegraph.kind) {
+    case 'circle': {
+      const worldX = context.playerWorldX;
+      const worldY = context.playerWorldY;
+      const rotationRad = attackRotation;
+      const radius = tilesToWorldX(attack.telegraph.radiusTiles, context.tileWidth);
+      return {
+        worldX,
+        worldY,
+        rotationRad,
+        shape: { kind: 'circle', radius },
+        tiles: buildAttackTargetTiles(
+          attack,
+          { ...state, attackTargetWorldX: worldX, attackTargetWorldY: worldY, attackRotationRad: rotationRad },
+          context,
+        ),
+      };
+    }
+
     case 'ellipse': {
       const worldX = context.playerWorldX;
       const worldY = context.playerWorldY;
@@ -458,6 +496,26 @@ function buildAttackTelegraph(
         ),
       };
     }
+
+    case 'line': {
+      const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
+      const thickness = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const centerOffset = lengthWorld / 2;
+      const worldX = state.worldX + Math.cos(attackRotation) * centerOffset;
+      const worldY = state.worldY + Math.sin(attackRotation) * centerOffset;
+      const rotationRad = attackRotation;
+      return {
+        worldX,
+        worldY,
+        rotationRad,
+        shape: { kind: 'line', length: lengthWorld, thickness, rotationRad: attackRotation },
+        tiles: buildAttackTargetTiles(
+          attack,
+          { ...state, attackTargetWorldX: worldX, attackTargetWorldY: worldY, attackRotationRad: rotationRad },
+          context,
+        ),
+      };
+    }
   }
 }
 
@@ -489,6 +547,13 @@ function isPointInsideAttackAtPoint(
   pointY: number,
 ): boolean {
   switch (attack.telegraph.kind) {
+    case 'circle': {
+      const radius = tilesToWorldX(attack.telegraph.radiusTiles, context.tileWidth);
+      const centerX = state.attackTargetWorldX ?? context.playerWorldX;
+      const centerY = state.attackTargetWorldY ?? context.playerWorldY;
+      return isPointInsideCircle(pointX, pointY, centerX, centerY, radius);
+    }
+
     case 'ellipse':
       return isPointInsideEllipse(
         pointX,
@@ -527,6 +592,16 @@ function isPointInsideAttackAtPoint(
         rotationRad,
       );
     }
+
+    case 'line': {
+      const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
+      const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const rotationRad = state.attackRotationRad ?? state.facingRad;
+      const centerOffset = lengthWorld / 2;
+      const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
+      const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
+      return isPointInsideRotatedRectangle(pointX, pointY, centerX, centerY, lengthWorld, widthWorld, rotationRad);
+    }
   }
 }
 
@@ -550,6 +625,10 @@ function clearAttackState(state: EnemyRuntimeState): void {
   state.phaseStartedAtMs = null;
   state.telegraphId = null;
   state.attackResolved = false;
+  state.jumpOriginWorldX = null;
+  state.jumpOriginWorldY = null;
+  state.jumpLandingWorldX = null;
+  state.jumpLandingWorldY = null;
 }
 
 function buildAttackTargetTiles(
@@ -594,6 +673,15 @@ function getAttackTileBounds(
   context: UpdateContext,
 ): { minTileX: number; minTileY: number; maxTileX: number; maxTileY: number } {
   switch (attack.telegraph.kind) {
+    case 'circle': {
+      const centerX = state.attackTargetWorldX ?? context.playerWorldX;
+      const centerY = state.attackTargetWorldY ?? context.playerWorldY;
+      const radius = tilesToWorldX(attack.telegraph.radiusTiles, context.tileWidth);
+      const min = context.worldToTile(centerX - radius, centerY - radius);
+      const max = context.worldToTile(centerX + radius, centerY + radius);
+      return normalizeTileBounds(min.x, min.y, max.x, max.y);
+    }
+
     case 'ellipse': {
       const centerX = state.attackTargetWorldX ?? context.playerWorldX;
       const centerY = state.attackTargetWorldY ?? context.playerWorldY;
@@ -612,6 +700,25 @@ function getAttackTileBounds(
     }
 
     case 'rectangle': {
+      const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
+      const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const rotationRad = state.attackRotationRad ?? state.facingRad;
+      const centerOffset = lengthWorld / 2;
+      const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
+      const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
+      const corners = getRotatedRectangleCorners(centerX, centerY, lengthWorld, widthWorld, rotationRad);
+      const tileBounds = corners.map((corner) => context.worldToTile(corner.x, corner.y));
+      const tileXs = tileBounds.map((tile) => tile.x);
+      const tileYs = tileBounds.map((tile) => tile.y);
+      return normalizeTileBounds(
+        Math.min(...tileXs),
+        Math.min(...tileYs),
+        Math.max(...tileXs),
+        Math.max(...tileYs),
+      );
+    }
+
+    case 'line': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
       const rotationRad = state.attackRotationRad ?? state.facingRad;
@@ -693,11 +800,12 @@ function moveToward(
         pathWaypoint.isFinal ? stopDistance : 0,
         context,
       );
-      return;
     }
+    // When context is provided but no valid path exists, stay put rather than walking through terrain.
+    return;
   }
 
-  moveTowardPoint(state, targetX, targetY, moveSpeed, deltaMs, stopDistance, context);
+  moveTowardPoint(state, targetX, targetY, moveSpeed, deltaMs, stopDistance);
 }
 
 function resolveApproachTarget(
@@ -898,6 +1006,10 @@ function worldDistanceToTiles(distance: number, tileWidth: number, tileHeight: n
 
 function PhaserMathDegToRad(degrees: number): number {
   return (degrees * Math.PI) / 180;
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
 function hashStringToOrbitDirection(value: string): -1 | 1 {

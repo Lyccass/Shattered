@@ -209,7 +209,8 @@ export class InputSystem {
 
       if (this.mode === 'combat') {
         if (pointer.button === 0 || pointer.leftButtonDown()) {
-          this.callbacks.onMoveToPointer(worldX, worldY);
+          // Try to interact with whatever was clicked first; falls back to reposition if nothing there
+          this.callbacks.onPointerInteract(worldX, worldY);
           return;
         }
 

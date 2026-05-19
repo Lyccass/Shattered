@@ -330,9 +330,9 @@ describe('PlayerCombatState', () => {
     expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
     expect(state.getSnapshot(1_000).stamina).toBe(88);
 
-    state.update(1_220, 220, false);
+    state.update(1_320, 320, false);
     expect(state.consumePendingLightAttackActivation()).toBe(true);
-    expect(state.getSnapshot(1_220).lightAttackPhase).toBe('active');
+    expect(state.getSnapshot(1_320).lightAttackPhase).toBe('active');
   });
 
   it('refunds light-attack stamina on hit response', () => {
@@ -349,19 +349,19 @@ describe('PlayerCombatState', () => {
     const state = new PlayerCombatState();
 
     expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
-    state.update(1_220, 220, false);
+    state.update(1_320, 320, false);
     state.consumePendingLightAttackActivation();
-    state.update(1_380, 160, false);
+    state.update(1_520, 200, false);
 
-    expect(state.getSnapshot(1_380).lightAttackPhase).toBe('recovery');
-    expect(state.tryStartLightAttack(1_380)).toEqual({
+    expect(state.getSnapshot(1_520).lightAttackPhase).toBe('recovery');
+    expect(state.tryStartLightAttack(1_520)).toEqual({
       ok: false,
       reason: 'Still recovering.',
     });
 
-    state.update(1_800, 420, false);
-    expect(state.getSnapshot(1_800).lightAttackPhase).toBe('idle');
-    expect(state.tryStartLightAttack(1_800)).toEqual({ ok: true });
+    state.update(2_100, 580, false);
+    expect(state.getSnapshot(2_100).lightAttackPhase).toBe('idle');
+    expect(state.tryStartLightAttack(2_100)).toEqual({ ok: true });
   });
 
   it('restores the player safely after being downed', () => {
@@ -517,7 +517,7 @@ describe('EnemyStateMachine', () => {
     expect(result.state.currentState).toBe('recovery');
   });
 
-  it('creates an ellipse telegraph for jump attacks', () => {
+  it('creates a circle telegraph for jump attacks', () => {
     const aggroState = {
       ...createBaseState('enemy_jump'),
       currentState: 'aggro' as const,
@@ -530,7 +530,7 @@ describe('EnemyStateMachine', () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: 'telegraph_show',
-          shape: expect.objectContaining({ kind: 'ellipse' }),
+          shape: expect.objectContaining({ kind: 'circle' }),
           tiles: expect.any(Array),
         }),
       ]),

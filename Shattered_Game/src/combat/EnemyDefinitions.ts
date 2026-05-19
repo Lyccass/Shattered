@@ -24,9 +24,8 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
           recoveryMs: 1_100,
         },
         telegraph: {
-          kind: 'ellipse',
-          radiusXTiles: 2.75,
-          radiusYTiles: 1.75,
+          kind: 'circle',
+          radiusTiles: 2.2,
         },
         cooldownMs: 3_600,
         globalCooldownMs: 2_800,
@@ -53,10 +52,10 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
       },
       {
         id: 'wretch_stab',
-        displayName: 'Stab Attack',
+        displayName: 'Bite Attack',
         kind: 'stab',
         minRangeTiles: 0,
-        maxRangeTiles: 2.45,
+        maxRangeTiles: 2.0,
         damage: 1,
         timing: {
           windupMs: 900,
@@ -64,9 +63,9 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
           recoveryMs: 900,
         },
         telegraph: {
-          kind: 'rectangle',
-          widthTiles: 1,
-          lengthTiles: 4.1,
+          kind: 'line',
+          lengthTiles: 2.4,
+          widthTiles: 0.5,
         },
         cooldownMs: 2_000,
         globalCooldownMs: 1_700,

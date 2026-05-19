@@ -17,9 +17,11 @@ export type EnemyTelegraphShapeDefinition =
   | { kind: 'rectangle'; widthTiles: number; heightTiles: number };
 
 export type EnemyAttackTelegraphDefinition =
+  | { kind: 'circle'; radiusTiles: number }
   | { kind: 'ellipse'; radiusXTiles: number; radiusYTiles: number }
   | { kind: 'cone'; rangeTiles: number; angleDeg: number }
-  | { kind: 'rectangle'; widthTiles: number; lengthTiles: number };
+  | { kind: 'rectangle'; widthTiles: number; lengthTiles: number }
+  | { kind: 'line'; lengthTiles: number; widthTiles: number };
 
 export type EnemyAttackDefinition = {
   id: string;
@@ -78,6 +80,10 @@ export type EnemyRuntimeState = {
   phaseEndsAtMs: number | null;
   telegraphId: string | null;
   attackResolved: boolean;
+  jumpOriginWorldX: number | null;
+  jumpOriginWorldY: number | null;
+  jumpLandingWorldX: number | null;
+  jumpLandingWorldY: number | null;
 };
 
 export type EnemyUiSnapshot = {

@@ -266,8 +266,8 @@ describe('Combat foundation input routing', () => {
     expect(callbacks.onGuardStart).toHaveBeenCalledTimes(1);
     expect(callbacks.onGuardEnd).toHaveBeenCalledTimes(1);
     expect(callbacks.onPlayerLightAttack).toHaveBeenCalledTimes(2);
-    expect(callbacks.onMoveToPointer).toHaveBeenCalledWith(150, 250);
-    expect(callbacks.onPointerInteract).not.toHaveBeenCalled();
+    expect(callbacks.onPointerInteract).toHaveBeenCalledWith(150, 250);
+    expect(callbacks.onMoveToPointer).not.toHaveBeenCalled();
     expect(callbacks.onPointerContext).not.toHaveBeenCalled();
     expect(callbacks.onToggleControlMode).toHaveBeenCalledTimes(1);
 

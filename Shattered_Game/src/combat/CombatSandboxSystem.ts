@@ -29,9 +29,9 @@ export class CombatSandboxSystem {
   private static readonly SPRINT_DODGE_DISTANCE_MULTIPLIER = 1.45;
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
   private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
-  private static readonly PLAYER_ATTACK_WINDUP_MS = 220;
-  private static readonly PLAYER_ATTACK_ACTIVE_MS = 160;
-  private static readonly PLAYER_ATTACK_RECOVERY_MS = 420;
+  private static readonly PLAYER_ATTACK_WINDUP_MS = 320;
+  private static readonly PLAYER_ATTACK_ACTIVE_MS = 200;
+  private static readonly PLAYER_ATTACK_RECOVERY_MS = 580;
   private static readonly PLAYER_ATTACK_WINDUP_TELEGRAPH_ID = 'player_light_attack_windup';
   private static readonly PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID = 'player_light_attack_active';
   private static readonly PLAYER_ATTACK_SLASH_TELEGRAPH_ID = 'player_light_attack_slash';
@@ -183,6 +183,12 @@ export class CombatSandboxSystem {
         toastKind: 'error',
       };
     }
+
+    // Immediately clear any in-flight attack telegraphs so the cancel is visually instant
+    this.lastPlayerAttackPhase = 'idle';
+    this.playerAttackAimRad = null;
+    this.playerAttackHitResolved = false;
+    this.clearPlayerAttackTelegraphs();
 
     playerController.startDodgeMotion(
       direction,

@@ -81,9 +81,12 @@ export class EnemySystem {
 
     if (shouldRespawnEnemy(this.runtimeState, nowMs)) {
       this.resetRuntimeState();
-      this.applyVisualState(this.runtimeState, nowMs);
+      this.applyVisualState(this.runtimeState, nowMs, false);
       return [];
     }
+
+    const prevX = this.runtimeState.worldX;
+    const prevY = this.runtimeState.worldY;
 
     const result = advanceEnemyStateMachine(this.definition, this.runtimeState, {
       nowMs,
@@ -103,8 +106,9 @@ export class EnemySystem {
       isTileWalkable: (tileX, tileY) => this.tilemap!.isTileWalkable(tileX, tileY),
     });
 
+    const isActuallyMoving = Math.hypot(result.state.worldX - prevX, result.state.worldY - prevY) > 0.5;
     this.runtimeState = result.state;
-    this.applyVisualState(result.state, nowMs);
+    this.applyVisualState(result.state, nowMs, isActuallyMoving);
     this.applyTelegraphEvents(result.events, nowMs);
     return result.events;
   }
@@ -130,7 +134,7 @@ export class EnemySystem {
     if (telegraphId) {
       this.telegraphSystem.removeTelegraph(telegraphId);
     }
-    this.applyVisualState(this.runtimeState, nowMs);
+    this.applyVisualState(this.runtimeState, nowMs, false);
     return result;
   }
 
@@ -248,9 +252,9 @@ export class EnemySystem {
 
     return {
       centerX: bounds.x + bounds.width / 2,
-      centerY: bounds.y + bounds.height * 0.62,
-      radiusX: Math.max(8, bounds.width * 0.18),
-      radiusY: Math.max(8, bounds.height * 0.16),
+      centerY: bounds.y + bounds.height * 0.52,
+      radiusX: Math.max(16, bounds.width * 0.40),
+      radiusY: Math.max(12, bounds.height * 0.24),
     };
   }
 
@@ -279,7 +283,7 @@ export class EnemySystem {
     this.tilemap = null;
   }
 
-  private applyVisualState(state: EnemyRuntimeState, nowMs: number): void {
+  private applyVisualState(state: EnemyRuntimeState, nowMs: number, isActuallyMoving: boolean): void {
     if (!this.visual) {
       return;
     }
@@ -295,27 +299,35 @@ export class EnemySystem {
 
     if (activeAttack?.kind === 'jump') {
       if (state.currentState === 'windup') {
-        lift = 22 * easeOut(phaseProgress);
-        scaleX = 1.02 + 0.08 * phaseProgress;
-        scaleY = 1 - 0.12 * phaseProgress;
+        // Crouch and tense during windup
+        lift = 8 * easeOut(phaseProgress);
+        scaleX = 1.0 + 0.06 * phaseProgress;
+        scaleY = 1.0 - 0.08 * phaseProgress;
       } else if (state.currentState === 'active') {
-        lift = 24 * (1 - phaseProgress);
-        scaleX = 1.1 - 0.06 * phaseProgress;
-        scaleY = 0.9 + 0.08 * phaseProgress;
+        // Parabolic arc: peaks at midpoint, returns to ground at landing
+        const arc = 4 * phaseProgress * (1 - phaseProgress);
+        lift = 44 * arc;
+        scaleX = 1.08;
+        scaleY = 0.94;
+      } else if (state.currentState === 'recovery') {
+        // Landing squash at start of recovery, normalises quickly
+        const squash = Math.max(0, 1 - phaseProgress * 5);
+        scaleX = 1.0 + 0.28 * squash;
+        scaleY = 1.0 - 0.22 * squash;
       }
     }
 
     this.shadow?.setPosition(state.worldX, state.worldY - 4);
-    this.shadow?.setScale(Math.max(0.7, 1 - lift / 40), Math.max(0.6, 1 - lift / 46));
+    this.shadow?.setScale(Math.max(0.7, 1 - lift / 50), Math.max(0.6, 1 - lift / 58));
     this.shadow?.setDepth(getDynamicDepth(state.worldY, 4));
 
     this.visual.setPosition(state.worldX, state.worldY - 8 - lift);
     this.visual.setScale(scaleX, scaleY);
-    this.visual.setFlipX(Math.cos(state.facingRad) < 0);
+    this.visual.setFlipX(Math.cos(state.facingRad) > 0);
     this.visual.clearTint();
     this.visual.setDepth(getDynamicDepth(state.worldY, 8));
 
-    const animationKey = resolveEnemyAnimationKey(state.currentState);
+    const animationKey = resolveEnemyAnimationKey(state.currentState, isActuallyMoving, activeAttack?.kind ?? null);
 
     if (animationKey !== this.currentAnimationKey) {
       this.visual.play(animationKey);
@@ -325,15 +337,15 @@ export class EnemySystem {
     switch (state.currentState) {
       case 'windup':
         this.visual.setTint(0xf59e0b);
-        this.visual.setScale(1.08);
+        this.visual.setScale(scaleX * 1.08, scaleY * 1.08);
         break;
       case 'active':
-        this.visual.setTint(0xdc2626);
-        this.visual.setScale(1.12);
+        this.visual.setTint(activeAttack?.kind === 'jump' ? 0xffffff : 0xdc2626);
+        this.visual.setScale(scaleX * 1.12, scaleY * 1.12);
         break;
       case 'recovery':
         this.visual.setTint(0xfb7185);
-        this.visual.setScale(0.96);
+        this.visual.setScale(scaleX * 0.96, scaleY * 0.96);
         break;
       case 'dead':
         this.visual.setTint(0x6b7280);
@@ -344,27 +356,15 @@ export class EnemySystem {
     }
   }
 
-  private applyTelegraphEvents(events: EnemyUpdateEvent[], nowMs: number): void {
+  private applyTelegraphEvents(events: EnemyUpdateEvent[], _nowMs: number): void {
     events.forEach((event) => {
       if (event.kind === 'telegraph_show') {
         if (event.tiles && event.tiles.length > 0) {
-          this.renderAttackTiles(event.tiles);
-        } else {
-          this.telegraphSystem.showTelegraph({
-            id: event.telegraphId,
-            worldX: event.worldX,
-            worldY: event.worldY,
-            shape: event.shape,
-            durationMs: event.durationMs,
-            startedAtMs: nowMs,
-            warningColor: 0xef4444,
-            fadeOutMs: event.durationMs,
-          });
+          this.renderAttackTiles(event.tiles, event.shape.kind);
         }
       }
 
       if (event.kind === 'telegraph_remove') {
-        this.telegraphSystem.removeTelegraph(event.telegraphId);
         this.clearAttackTiles();
       }
     });
@@ -398,15 +398,15 @@ export class EnemySystem {
     this.runtimeState = resetEnemyRuntimeState(this.runtimeState, this.definition);
   }
 
-  private renderAttackTiles(tiles: Array<{ x: number; y: number }>): void {
+  private renderAttackTiles(tiles: Array<{ x: number; y: number }>, shapeKind?: string): void {
     if (!this.tilemap || tiles.length === 0) {
       this.clearAttackTiles();
       return;
     }
 
+    const color = resolveAttackColor(shapeKind ?? '');
     this.attackTileGraphics.clear();
-    this.attackTileGraphics.lineStyle(2, 0xef4444, 0.9);
-    this.attackTileGraphics.fillStyle(0xef4444, 0.22);
+    this.attackTileGraphics.fillStyle(color, 0.32);
     let maxDepthY = 0;
 
     tiles.forEach((tile) => {
@@ -417,7 +417,6 @@ export class EnemySystem {
       points.slice(1).forEach((point) => this.attackTileGraphics.lineTo(point.x, point.y));
       this.attackTileGraphics.closePath();
       this.attackTileGraphics.fillPath();
-      this.attackTileGraphics.strokePath();
     });
 
     this.attackTileGraphics.setDepth(getDynamicDepth(maxDepthY, 324));
@@ -430,18 +429,37 @@ export class EnemySystem {
   }
 }
 
-function resolveEnemyAnimationKey(state: EnemyRuntimeState['currentState']): string {
+function resolveAttackColor(shapeKind: string): number {
+  switch (shapeKind) {
+    case 'circle':
+      return 0xf97316; // orange — jump slam
+    case 'cone':
+    case 'polygon':
+      return 0xfbbf24; // amber — swipe cone
+    case 'line':
+      return 0xf43f5e; // rose — bite lunge
+    default:
+      return 0xf97316;
+  }
+}
+
+function resolveEnemyAnimationKey(
+  state: EnemyRuntimeState['currentState'],
+  isActuallyMoving: boolean,
+  activeAttackKind: string | null,
+): string {
   switch (state) {
     case 'approach':
     case 'reset':
-      return ENEMY_WOLF_RUN_ANIMATION_KEY;
+      return isActuallyMoving ? ENEMY_WOLF_RUN_ANIMATION_KEY : ENEMY_WOLF_IDLE_ANIMATION_KEY;
     case 'windup':
       return ENEMY_WOLF_WINDUP_ANIMATION_KEY;
     case 'active':
-      return ENEMY_WOLF_ATTACK_ANIMATION_KEY;
+      return activeAttackKind === 'jump' ? ENEMY_WOLF_RUN_ANIMATION_KEY : ENEMY_WOLF_ATTACK_ANIMATION_KEY;
     case 'dead':
       return ENEMY_WOLF_DEATH_ANIMATION_KEY;
     case 'idle':
+    case 'aggro':
     case 'recovery':
     case 'hurt':
     default:

@@ -45,9 +45,9 @@ const DODGE_DURATION_MS = 250;
 const DODGE_INVULNERABILITY_MS = 250;
 const DODGE_COOLDOWN_MS = 450;
 const LIGHT_ATTACK_COST = 12;
-const LIGHT_ATTACK_WINDUP_MS = 220;
-const LIGHT_ATTACK_ACTIVE_MS = 160;
-const LIGHT_ATTACK_RECOVERY_MS = 420;
+const LIGHT_ATTACK_WINDUP_MS = 320;
+const LIGHT_ATTACK_ACTIVE_MS = 200;
+const LIGHT_ATTACK_RECOVERY_MS = 580;
 const GUARD_STAMINA_COST_PER_DAMAGE = 10;
 const GUARD_BREAK_DURATION_MS = 650;
 const DOWNED_RECOVERY_MS = 1_500;
@@ -172,13 +172,7 @@ export class PlayerCombatState {
       };
     }
 
-    if (this.isAttacking()) {
-      return {
-        ok: false,
-        reason: 'Still recovering.',
-      };
-    }
-
+    // Dodge has highest priority — check cooldown and stamina before cancelling the attack
     if (nowMs < this.dodgeCooldownEndsAtMs) {
       return {
         ok: false,
@@ -193,6 +187,11 @@ export class PlayerCombatState {
         ok: false,
         reason: 'Too exhausted to dodge.',
       };
+    }
+
+    // Cancel any in-progress attack (windup, active, or recovery) — dodge overrides all
+    if (this.lightAttack !== null) {
+      this.lightAttack = null;
     }
 
     this.guardHeld = false;
