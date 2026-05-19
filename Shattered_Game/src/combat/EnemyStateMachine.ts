@@ -24,6 +24,7 @@ export type EnemyUpdateEvent =
       shape: TelegraphShape;
       tiles?: Array<{ x: number; y: number }>;
       durationMs: number;
+      attackKind: string;
     }
   | {
       kind: 'telegraph_remove';
@@ -35,6 +36,9 @@ export type EnemyUpdateEvent =
       damage: number;
       hit: boolean;
       reason: 'hit' | 'outside' | 'invulnerable';
+      knockbackDirX?: number;
+      knockbackDirY?: number;
+      knockbackDistanceWorld?: number;
     };
 
 type UpdateContext = {
@@ -43,7 +47,6 @@ type UpdateContext = {
   playerWorldX: number;
   playerWorldY: number;
   playerInvulnerable: boolean;
-  playerHitPoints: Array<{ x: number; y: number }>;
   playerOccupiedTiles: Array<{ x: number; y: number }>;
   tileWidth: number;
   tileHeight: number;
@@ -154,6 +157,8 @@ export function advanceEnemyStateMachine(
       }
 
       const approachTarget = resolveApproachTarget(nextState, context);
+      const preApproachX = nextState.worldX;
+      const preApproachY = nextState.worldY;
 
       moveToward(
         nextState,
@@ -164,6 +169,20 @@ export function advanceEnemyStateMachine(
         minimumBodySpacingWorld,
         context,
       );
+
+      // Orbit target was blocked — try moving directly toward the player instead
+      if (nextState.worldX === preApproachX && nextState.worldY === preApproachY) {
+        moveToward(
+          nextState,
+          context.playerWorldX,
+          context.playerWorldY,
+          definition.moveSpeed,
+          context.deltaMs,
+          minimumBodySpacingWorld,
+          context,
+        );
+      }
+
       nextState.facingRad = angleTo(nextState.worldX, nextState.worldY, context.playerWorldX, context.playerWorldY);
 
       const selectedAttack = selectAttack(
@@ -249,12 +268,20 @@ export function advanceEnemyStateMachine(
         const hitResult = evaluateAttackHit(nextState, context);
 
         if (hitResult.reason !== 'outside') {
+          const knockbackFields = attack.knockback && hitResult.hit
+            ? {
+                knockbackDirX: Math.cos(nextState.facingRad),
+                knockbackDirY: Math.sin(nextState.facingRad),
+                knockbackDistanceWorld: attack.knockback.forceTiles * context.tileWidth * 0.5,
+              }
+            : {};
           events.push({
             kind: 'attack_result',
             attackId: attack.id,
             damage: attack.damage,
             hit: hitResult.hit,
             reason: hitResult.reason,
+            ...knockbackFields,
           });
           nextState.attackResolved = true;
         }
@@ -378,6 +405,7 @@ function enterWindup(
     shape: telegraph.shape,
     tiles: telegraph.tiles,
     durationMs: attack.timing.windupMs,
+    attackKind: attack.kind,
   });
 
   if (attack.kind === 'jump') {

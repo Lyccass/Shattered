@@ -34,6 +34,7 @@ export type EnemyAttackDefinition = {
   telegraph: EnemyAttackTelegraphDefinition;
   cooldownMs: number;
   globalCooldownMs: number;
+  knockback?: { forceTiles: number };
 };
 
 export type EnemyDefinition = {

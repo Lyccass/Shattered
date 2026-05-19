@@ -33,6 +33,7 @@ export class EnemySystem {
   private definition: EnemyDefinition | null = null;
   private shadow: Phaser.GameObjects.Ellipse | null = null;
   private visual: Phaser.GameObjects.Sprite | null = null;
+  private healthBarGraphics: Phaser.GameObjects.Graphics | null = null;
   private readonly attackTileGraphics: Phaser.GameObjects.Graphics;
   private currentAnimationKey: string | null = null;
   private activeMapId: string | null = null;
@@ -60,6 +61,7 @@ export class EnemySystem {
     this.runtimeState = createEnemyRuntimeState(this.definition, spawn, origin.x, origin.y);
     this.shadow = this.scene.add.ellipse(origin.x, origin.y - 4, 28, 12, 0x020617, 0.2);
     this.visual = this.scene.add.sprite(origin.x, origin.y - 8, ENEMY_WOLF_IDLE_SHEET_KEY, 0);
+    this.healthBarGraphics = this.scene.add.graphics();
     this.visual.setOrigin(0.5, 0.72);
     this.visual.setScale(1.2);
     this.visual.play(ENEMY_WOLF_IDLE_ANIMATION_KEY);
@@ -72,7 +74,6 @@ export class EnemySystem {
     playerWorldX: number,
     playerWorldY: number,
     playerInvulnerable: boolean,
-    playerHitPoints: Array<{ x: number; y: number }>,
     playerOccupiedTiles: Array<{ x: number; y: number }>,
   ): EnemyUpdateEvent[] {
     if (!this.runtimeState || !this.definition || !this.tilemap) {
@@ -94,7 +95,6 @@ export class EnemySystem {
       playerWorldX,
       playerWorldY,
       playerInvulnerable,
-      playerHitPoints,
       playerOccupiedTiles,
       tileWidth: this.tilemap.tileWidth,
       tileHeight: this.tilemap.tileHeight,
@@ -215,6 +215,11 @@ export class EnemySystem {
     return { x: tile.x, y: tile.y };
   }
 
+  getOccupiedTiles(): Array<{ x: number; y: number }> {
+    const tile = this.getOccupiedTile();
+    return tile ? [tile] : [];
+  }
+
   getOccupiedTileSamples(): Array<{ x: number; y: number }> {
     if (!this.tilemap) {
       return [];
@@ -241,31 +246,6 @@ export class EnemySystem {
       ...corners.map((point) => ({ x: point.x, y: point.y })),
       ...edgeMidpoints,
     ];
-  }
-
-  getCombatHitEllipse(): { centerX: number; centerY: number; radiusX: number; radiusY: number } | null {
-    if (!this.visual || !this.runtimeState || this.runtimeState.currentState === 'dead') {
-      return null;
-    }
-
-    const bounds = this.visual.getBounds();
-
-    return {
-      centerX: bounds.x + bounds.width / 2,
-      centerY: bounds.y + bounds.height * 0.52,
-      radiusX: Math.max(16, bounds.width * 0.40),
-      radiusY: Math.max(12, bounds.height * 0.24),
-    };
-  }
-
-  getCombatHitboxPoints(): Array<{ x: number; y: number }> {
-    const ellipse = this.getCombatHitEllipse();
-
-    if (!ellipse) {
-      return [];
-    }
-
-    return getEllipseSamplePoints(ellipse);
   }
 
   getActiveMapId(): string | null {
@@ -354,13 +334,53 @@ export class EnemySystem {
       default:
         break;
     }
+
+    this.updateHealthBar(state, lift);
+  }
+
+  private updateHealthBar(state: EnemyRuntimeState, lift: number): void {
+    if (!this.healthBarGraphics || !this.definition) {
+      return;
+    }
+
+    if (state.currentState === 'dead') {
+      this.healthBarGraphics.setVisible(false);
+      return;
+    }
+
+    const maxHp = this.definition.maxHealth;
+    const pct = maxHp > 0 ? Math.max(0, state.health / maxHp) : 0;
+    const barW = 40;
+    const barH = 4;
+    const x = state.worldX - barW / 2;
+    const y = state.worldY - 8 - lift - 60;
+
+    this.healthBarGraphics.clear();
+
+    // Missing health — dark red background
+    this.healthBarGraphics.fillStyle(0x7f1d1d, 0.92);
+    this.healthBarGraphics.fillRect(x, y, barW, barH);
+
+    // Current health — green fill
+    if (pct > 0) {
+      const filledW = Math.round(barW * pct);
+      this.healthBarGraphics.fillStyle(0x22c55e, 1);
+      this.healthBarGraphics.fillRect(x, y, filledW, barH);
+    }
+
+    // Thin border
+    this.healthBarGraphics.lineStyle(1, 0x000000, 0.55);
+    this.healthBarGraphics.strokeRect(x, y, barW, barH);
+
+    this.healthBarGraphics.setDepth(getDynamicDepth(state.worldY, 16));
+    this.healthBarGraphics.setVisible(true);
   }
 
   private applyTelegraphEvents(events: EnemyUpdateEvent[], _nowMs: number): void {
     events.forEach((event) => {
       if (event.kind === 'telegraph_show') {
         if (event.tiles && event.tiles.length > 0) {
-          this.renderAttackTiles(event.tiles, event.shape.kind);
+          this.renderAttackTiles(event.tiles, event.attackKind);
         }
       }
 
@@ -382,6 +402,8 @@ export class EnemySystem {
     this.shadow = null;
     this.visual?.destroy();
     this.visual = null;
+    this.healthBarGraphics?.destroy();
+    this.healthBarGraphics = null;
     this.currentAnimationKey = null;
   }
 
@@ -429,15 +451,14 @@ export class EnemySystem {
   }
 }
 
-function resolveAttackColor(shapeKind: string): number {
-  switch (shapeKind) {
-    case 'circle':
-      return 0xf97316; // orange — jump slam
+function resolveAttackColor(attackKind: string): number {
+  switch (attackKind) {
+    case 'jump':
+      return 0xf97316; // orange — leap
+    case 'stab':
+      return 0xfbbf24; // amber — swipe
     case 'cone':
-    case 'polygon':
-      return 0xfbbf24; // amber — swipe cone
-    case 'line':
-      return 0xf43f5e; // rose — bite lunge
+      return 0xa855f7; // violet — roar
     default:
       return 0xf97316;
   }
@@ -480,30 +501,3 @@ function easeOut(t: number): number {
   return 1 - (1 - t) * (1 - t);
 }
 
-function getEllipseSamplePoints(
-  ellipse: { centerX: number; centerY: number; radiusX: number; radiusY: number },
-): Array<{ x: number; y: number }> {
-  return [
-    { x: ellipse.centerX, y: ellipse.centerY },
-    { x: ellipse.centerX - ellipse.radiusX, y: ellipse.centerY },
-    { x: ellipse.centerX + ellipse.radiusX, y: ellipse.centerY },
-    { x: ellipse.centerX, y: ellipse.centerY - ellipse.radiusY },
-    { x: ellipse.centerX, y: ellipse.centerY + ellipse.radiusY },
-    {
-      x: ellipse.centerX - ellipse.radiusX * 0.7,
-      y: ellipse.centerY - ellipse.radiusY * 0.7,
-    },
-    {
-      x: ellipse.centerX + ellipse.radiusX * 0.7,
-      y: ellipse.centerY - ellipse.radiusY * 0.7,
-    },
-    {
-      x: ellipse.centerX - ellipse.radiusX * 0.7,
-      y: ellipse.centerY + ellipse.radiusY * 0.7,
-    },
-    {
-      x: ellipse.centerX + ellipse.radiusX * 0.7,
-      y: ellipse.centerY + ellipse.radiusY * 0.7,
-    },
-  ];
-}

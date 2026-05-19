@@ -128,73 +128,17 @@ export class PlayerController {
 
   getFootprintTiles(): Array<{ x: number; y: number }> {
     const feet = this.getFeetPoint();
-    const keys = new Set<string>();
-    const tiles: Array<{ x: number; y: number }> = [];
+    const tile = this.tilemap.transform.worldToTile(feet.x, feet.y);
 
-    this.collision.getFeetSamplePoints(feet.x, feet.y).forEach((point) => {
-      const tile = this.tilemap.transform.worldToTile(point.x, point.y);
-      const key = `${tile.x},${tile.y}`;
+    if (!this.tilemap.isTileInBounds(tile.x, tile.y)) {
+      return [];
+    }
 
-      if (keys.has(key) || !this.tilemap.isTileInBounds(tile.x, tile.y)) {
-        return;
-      }
-
-      keys.add(key);
-      tiles.push({ x: tile.x, y: tile.y });
-    });
-
-    return tiles;
+    return [{ x: tile.x, y: tile.y }];
   }
 
-  getFootprintSamplePoints(): Array<{ x: number; y: number }> {
-    const seen = new Set<string>();
-    const samples: Array<{ x: number; y: number }> = [];
-
-    this.getFootprintTiles().forEach((tile) => {
-      const center = this.tilemap.getTileCenterWorld(tile.x, tile.y);
-      const corners = this.tilemap.transform.getTileDiamondPoints(tile.x, tile.y);
-      const edgeMidpoints = corners.map((corner, index) => {
-        const next = corners[(index + 1) % corners.length];
-        return {
-          x: (corner.x + next.x) / 2,
-          y: (corner.y + next.y) / 2,
-        };
-      });
-
-      [
-        { x: center.x, y: center.y },
-        ...corners.map((point) => ({ x: point.x, y: point.y })),
-        ...edgeMidpoints,
-      ].forEach((point) => {
-        const key = `${Math.round(point.x * 100) / 100},${Math.round(point.y * 100) / 100}`;
-
-        if (seen.has(key)) {
-          return;
-        }
-
-        seen.add(key);
-        samples.push(point);
-      });
-    });
-
-    return samples;
-  }
-
-  getCombatHitEllipse(): { centerX: number; centerY: number; radiusX: number; radiusY: number } {
-    const bounds = this.sprite.getBounds();
-    const radiusX = Math.max(10, bounds.width * 0.30);
-    const radiusY = Math.max(14, bounds.height * 0.28);
-
-    return {
-      centerX: bounds.x + bounds.width / 2,
-      centerY: bounds.y + bounds.height * 0.50,
-      radiusX,
-      radiusY,
-    };
-  }
-
-  getCombatHitboxPoints(): Array<{ x: number; y: number }> {
-    return getEllipseSamplePoints(this.getCombatHitEllipse());
+  getDodgeDirection(): Phaser.Math.Vector2 | null {
+    return this.dodgeMotion ? this.dodgeMotion.direction.clone() : null;
   }
 
   getFacingDirection(): PlayerFacingDirection {
@@ -498,30 +442,3 @@ export class PlayerController {
   }
 }
 
-function getEllipseSamplePoints(
-  ellipse: { centerX: number; centerY: number; radiusX: number; radiusY: number },
-): Array<{ x: number; y: number }> {
-  return [
-    { x: ellipse.centerX, y: ellipse.centerY },
-    { x: ellipse.centerX - ellipse.radiusX, y: ellipse.centerY },
-    { x: ellipse.centerX + ellipse.radiusX, y: ellipse.centerY },
-    { x: ellipse.centerX, y: ellipse.centerY - ellipse.radiusY },
-    { x: ellipse.centerX, y: ellipse.centerY + ellipse.radiusY },
-    {
-      x: ellipse.centerX - ellipse.radiusX * 0.7,
-      y: ellipse.centerY - ellipse.radiusY * 0.7,
-    },
-    {
-      x: ellipse.centerX + ellipse.radiusX * 0.7,
-      y: ellipse.centerY - ellipse.radiusY * 0.7,
-    },
-    {
-      x: ellipse.centerX - ellipse.radiusX * 0.7,
-      y: ellipse.centerY + ellipse.radiusY * 0.7,
-    },
-    {
-      x: ellipse.centerX + ellipse.radiusX * 0.7,
-      y: ellipse.centerY + ellipse.radiusY * 0.7,
-    },
-  ];
-}

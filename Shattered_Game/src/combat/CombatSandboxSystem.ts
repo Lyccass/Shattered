@@ -6,11 +6,15 @@ import {
   getPlayerLightAttackSlash,
   getPlayerLightAttackSlashByRotation,
   isAttackerInsideGuardFront,
-  PLAYER_LIGHT_ATTACK_LENGTH_WORLD,
-  PLAYER_LIGHT_ATTACK_WIDTH_WORLD,
   resolvePlayerAttackAimRad,
 } from './CombatPlayerMath';
 import type { PlayerAttackPhase } from './PlayerCombatState';
+import {
+  DODGE_DURATION_MS,
+  LIGHT_ATTACK_WINDUP_MS,
+  LIGHT_ATTACK_ACTIVE_MS,
+  LIGHT_ATTACK_RECOVERY_MS,
+} from './PlayerCombatState';
 import type { SfxEventId } from '../audio/SfxTypes';
 import type { UiHandledResult } from '../ui/UiTypes';
 import { COMBAT_SANDBOX_SPAWNS } from './CombatSandboxDefinitions';
@@ -24,14 +28,11 @@ import type { TelegraphSystem } from './TelegraphSystem';
 import type { GameEventBus } from '../events/GameEventBus';
 
 export class CombatSandboxSystem {
-  private static readonly DODGE_DURATION_MS = 250;
   private static readonly DODGE_DISTANCE_WORLD = 58;
   private static readonly SPRINT_DODGE_DISTANCE_MULTIPLIER = 1.45;
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
   private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
-  private static readonly PLAYER_ATTACK_WINDUP_MS = 320;
-  private static readonly PLAYER_ATTACK_ACTIVE_MS = 200;
-  private static readonly PLAYER_ATTACK_RECOVERY_MS = 580;
+  private static readonly MAX_REPOSITION_RANGE_WORLD = 192; // ~3 tile-widths — beyond this the attack just misses
   private static readonly PLAYER_ATTACK_WINDUP_TELEGRAPH_ID = 'player_light_attack_windup';
   private static readonly PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID = 'player_light_attack_active';
   private static readonly PLAYER_ATTACK_SLASH_TELEGRAPH_ID = 'player_light_attack_slash';
@@ -44,6 +45,7 @@ export class CombatSandboxSystem {
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
   private playerAttackAimRad: number | null = null;
   private playerAttackHitResolved = false;
+  private currentDodgeTileCount = 2;
 
   constructor(
     scene: Phaser.Scene,
@@ -87,7 +89,6 @@ export class CombatSandboxSystem {
     }
 
     const feetPoint = playerController.getFeetPoint();
-    const playerHitPoints = playerController.getCombatHitboxPoints();
     const playerOccupiedTiles = playerController.getFootprintTiles();
     const combatActive = this.enemySystem.isCombatActive(feetPoint.x, feetPoint.y);
 
@@ -110,11 +111,10 @@ export class CombatSandboxSystem {
       feetPoint.x,
       feetPoint.y,
       this.playerCombatState.isInvulnerable(nowMs),
-      playerHitPoints,
       playerOccupiedTiles,
     );
     this.resolvePlayerEnemyOverlap(playerController);
-    this.syncDebugHitboxes(playerController);
+    this.syncDebugHitboxes(nowMs, playerController);
 
     const results: UiHandledResult[] = [];
     this.resolveEnemyAttackEvents(nowMs, playerController, events, results);
@@ -144,7 +144,9 @@ export class CombatSandboxSystem {
 
     const enemyPosition = this.enemySystem.getWorldPosition();
     const playerFeet = playerController.getFeetPoint();
-    const pointerDirection =
+    // Use raw mouse direction when available — gives smooth free-angle dodge toward pointer.
+    // Fall back to 8-directional resolution from movement/facing when no pointer.
+    const pointerDelta =
       targetWorldX !== null
       && targetWorldY !== null
       && Math.hypot(targetWorldX - playerFeet.x, targetWorldY - playerFeet.y) > 0.001
@@ -153,8 +155,8 @@ export class CombatSandboxSystem {
             y: targetWorldY - playerFeet.y,
           }
         : null;
-    const direction = resolveClickMovementDodgeDirection({
-      currentMoveDirection: pointerDirection ?? playerController.getCurrentMoveDirection(),
+    const direction = pointerDelta ?? resolveClickMovementDodgeDirection({
+      currentMoveDirection: playerController.getCurrentMoveDirection(),
       awayFromEnemyDirection: enemyPosition
         ? {
             x: playerFeet.x - enemyPosition.x,
@@ -164,9 +166,11 @@ export class CombatSandboxSystem {
       lastMovementDirection: playerController.getLastMovementDirection(),
       facing: playerController.getFacingDirection(),
     });
-    const dodgeDistance = this.playerCombatState.getSnapshot(nowMs).isSprinting
+    const isSprinting = this.playerCombatState.getSnapshot(nowMs).isSprinting;
+    const dodgeDistance = isSprinting
       ? CombatSandboxSystem.DODGE_DISTANCE_WORLD * CombatSandboxSystem.SPRINT_DODGE_DISTANCE_MULTIPLIER
       : CombatSandboxSystem.DODGE_DISTANCE_WORLD;
+    this.currentDodgeTileCount = isSprinting ? 3 : 2;
     const dodgeDelta = playerController.resolveDodgeTarget(direction, dodgeDistance);
 
     if (!dodgeDelta) {
@@ -193,12 +197,12 @@ export class CombatSandboxSystem {
     playerController.startDodgeMotion(
       direction,
       Math.hypot(dodgeDelta.x, dodgeDelta.y),
-      CombatSandboxSystem.DODGE_DURATION_MS,
+      DODGE_DURATION_MS,
     );
     playerController.requestCombatVisualState(
       'dodge',
       nowMs,
-      CombatSandboxSystem.DODGE_DURATION_MS,
+      DODGE_DURATION_MS,
     );
     this.emitSfx('dodge');
     return null;
@@ -233,7 +237,7 @@ export class CombatSandboxSystem {
       };
     }
 
-    this.playerAttackAimRad = attackAimRad;
+    this.playerAttackAimRad = this.tryRepositionForAttack(playerController, attackAimRad);
     this.playerAttackHitResolved = false;
     return null;
   }
@@ -284,6 +288,81 @@ export class CombatSandboxSystem {
     this.clearPlayerAttackTelegraphs();
     this.debugHitboxGraphics.destroy();
     this.enemySystem.destroy();
+  }
+
+  // If the aimed attack wouldn't cover the enemy tile, step the player into the nearest
+  // valid attacking position (1 or 2 tiles behind the enemy along the snapped direction).
+  // Returns the final aim angle to store — either the original or the updated one.
+  private tryRepositionForAttack(
+    playerController: PlayerController,
+    attackAimRad: number,
+  ): number {
+    if (!this.currentTilemap) {
+      return attackAimRad;
+    }
+
+    const enemyTile = this.enemySystem.getOccupiedTile();
+
+    if (!enemyTile) {
+      return attackAimRad;
+    }
+
+    const feet = playerController.getFeetPoint();
+    const attackTiles = collectTilesCoveredByPlayerAttack(
+      this.currentTilemap,
+      feet.x,
+      feet.y,
+      attackAimRad,
+    );
+
+    if (attackTiles.some((t) => t.x === enemyTile.x && t.y === enemyTile.y)) {
+      return attackAimRad;
+    }
+
+    const enemyCenter = this.currentTilemap.getTileCenterWorld(enemyTile.x, enemyTile.y);
+    const distToEnemy = Math.hypot(enemyCenter.x - feet.x, enemyCenter.y - feet.y);
+
+    if (distToEnemy > CombatSandboxSystem.MAX_REPOSITION_RANGE_WORLD) {
+      return attackAimRad;
+    }
+
+    const aimTowardEnemy = Math.atan2(enemyCenter.y - feet.y, enemyCenter.x - feet.x);
+    const [dgx, dgy] = snapToIsometricGridDirection(
+      aimTowardEnemy,
+      this.currentTilemap.tileWidth,
+      this.currentTilemap.tileHeight,
+    );
+
+    // Prefer step=1 (closer to enemy) then step=2 (further back)
+    for (const step of [1, 2]) {
+      const candidateTileX = enemyTile.x - dgx * step;
+      const candidateTileY = enemyTile.y - dgy * step;
+
+      if (!this.currentTilemap.isTileInBounds(candidateTileX, candidateTileY)) {
+        continue;
+      }
+
+      if (!this.currentTilemap.isTileWalkable(candidateTileX, candidateTileY)) {
+        continue;
+      }
+
+      const candidateCenter = this.currentTilemap.getTileCenterWorld(candidateTileX, candidateTileY);
+      const repositionDist = Math.hypot(candidateCenter.x - feet.x, candidateCenter.y - feet.y);
+
+      if (repositionDist > CombatSandboxSystem.MAX_REPOSITION_RANGE_WORLD) {
+        continue;
+      }
+
+      if (!playerController.canOccupyFeetPosition(candidateCenter.x, candidateCenter.y)) {
+        continue;
+      }
+
+      playerController.setFeetWorldPosition(candidateCenter.x, candidateCenter.y);
+      playerController.setFacingFromTarget(enemyCenter.x, enemyCenter.y);
+      return aimTowardEnemy;
+    }
+
+    return attackAimRad;
   }
 
   private emitSfx(id: SfxEventId): void {
@@ -349,6 +428,14 @@ export class CombatSandboxSystem {
             message: 'Blocked.',
             toastKind: 'info',
           });
+          // Roar pushes through the guard at reduced force
+          if (event.knockbackDirX !== undefined && event.knockbackDistanceWorld) {
+            playerController.startDodgeMotion(
+              { x: event.knockbackDirX, y: event.knockbackDirY ?? 0 },
+              event.knockbackDistanceWorld * 0.55,
+              280,
+            );
+          }
           return;
 
         case 'guard_broken':
@@ -374,6 +461,13 @@ export class CombatSandboxSystem {
             message: resolution.wasDowned ? 'Downed.' : 'Hit!',
             toastKind: 'error',
           });
+          if (event.knockbackDirX !== undefined && event.knockbackDistanceWorld) {
+            playerController.startDodgeMotion(
+              { x: event.knockbackDirX, y: event.knockbackDirY ?? 0 },
+              event.knockbackDistanceWorld,
+              300,
+            );
+          }
       }
     });
   }
@@ -399,7 +493,7 @@ export class CombatSandboxSystem {
       return;
     }
 
-    const enemyTile = this.enemySystem.getOccupiedTile();
+    const enemyTiles = this.enemySystem.getOccupiedTiles();
     const playerFeet = playerController.getFeetPoint();
     const attackAimRad = this.playerAttackAimRad ?? resolvePlayerAttackAimRad(
       playerFeet.x,
@@ -418,8 +512,8 @@ export class CombatSandboxSystem {
       : [];
 
     if (
-      !enemyTile
-      || !attackTiles.some((tile) => tile.x === enemyTile.x && tile.y === enemyTile.y)
+      !enemyTiles.length
+      || !attackTiles.some((at) => enemyTiles.some((et) => et.x === at.x && et.y === at.y))
     ) {
       return;
     }
@@ -457,7 +551,7 @@ export class CombatSandboxSystem {
         playerController.requestCombatVisualState(
           'attack_windup',
           nowMs,
-          CombatSandboxSystem.PLAYER_ATTACK_WINDUP_MS,
+          LIGHT_ATTACK_WINDUP_MS,
         );
         this.showPlayerAttackWindupTelegraph(nowMs, playerController);
         break;
@@ -465,7 +559,7 @@ export class CombatSandboxSystem {
         playerController.requestCombatVisualState(
           'attack_active',
           nowMs,
-          CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
+          LIGHT_ATTACK_ACTIVE_MS,
         );
         this.showPlayerAttackActiveTelegraph(nowMs, playerController);
         break;
@@ -473,7 +567,7 @@ export class CombatSandboxSystem {
         playerController.requestCombatVisualState(
           'attack_recovery',
           nowMs,
-          CombatSandboxSystem.PLAYER_ATTACK_RECOVERY_MS,
+          LIGHT_ATTACK_RECOVERY_MS,
         );
         this.playerAttackHitResolved = false;
         this.clearPlayerAttackTelegraphs();
@@ -551,10 +645,10 @@ export class CombatSandboxSystem {
       worldX: hitbox.worldX,
       worldY: hitbox.worldY,
       shape: hitbox.shape,
-      durationMs: CombatSandboxSystem.PLAYER_ATTACK_WINDUP_MS,
+      durationMs: LIGHT_ATTACK_WINDUP_MS,
       startedAtMs: nowMs,
       warningColor: 0xeab308,
-      fadeOutMs: CombatSandboxSystem.PLAYER_ATTACK_WINDUP_MS,
+      fadeOutMs: LIGHT_ATTACK_WINDUP_MS,
       strokeAlpha: 0,
       fillAlphaMultiplier: 0.32,
     });
@@ -583,10 +677,10 @@ export class CombatSandboxSystem {
       worldX: hitbox.worldX,
       worldY: hitbox.worldY,
       shape: hitbox.shape,
-      durationMs: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
+      durationMs: LIGHT_ATTACK_ACTIVE_MS,
       startedAtMs: nowMs,
       warningColor: 0xfacc15,
-      fadeOutMs: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
+      fadeOutMs: LIGHT_ATTACK_ACTIVE_MS,
       strokeAlpha: 0,
       fillAlphaMultiplier: 0.42,
     });
@@ -596,10 +690,10 @@ export class CombatSandboxSystem {
       worldX: slash.worldX,
       worldY: slash.worldY,
       shape: slash.shape,
-      durationMs: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
+      durationMs: LIGHT_ATTACK_ACTIVE_MS,
       startedAtMs: nowMs,
       warningColor: 0xfacc15,
-      fadeOutMs: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_MS,
+      fadeOutMs: LIGHT_ATTACK_ACTIVE_MS,
     });
   }
 
@@ -609,158 +703,162 @@ export class CombatSandboxSystem {
     this.telegraphSystem.removeTelegraph(CombatSandboxSystem.PLAYER_ATTACK_SLASH_TELEGRAPH_ID);
   }
 
-  private syncDebugHitboxes(playerController: PlayerController): void {
+  private syncDebugHitboxes(nowMs: number, playerController: PlayerController): void {
+    if (!this.currentTilemap) {
+      this.debugHitboxGraphics.clear();
+      return;
+    }
+
     this.debugHitboxGraphics.clear();
 
-    drawEllipseHitbox(
+    // Player footprint tiles (cyan)
+    drawTileSet(
       this.debugHitboxGraphics,
-      playerController.getCombatHitEllipse(),
+      this.currentTilemap,
+      playerController.getFootprintTiles(),
       0x38bdf8,
-      0.16,
+      0.28,
       0.9,
     );
 
-    const enemyEllipse = this.enemySystem.getCombatHitEllipse();
+    // Enemy body tiles (red)
+    drawTileSet(
+      this.debugHitboxGraphics,
+      this.currentTilemap,
+      this.enemySystem.getOccupiedTiles(),
+      0xef4444,
+      0.28,
+      0.9,
+    );
 
-    if (enemyEllipse) {
-      drawEllipseHitbox(
-        this.debugHitboxGraphics,
-        enemyEllipse,
-        0xef4444,
-        0.14,
-        0.9,
+    // Dodge preview tiles (green) — shown while actively dodging
+    const dodgeDir = playerController.getDodgeDirection();
+
+    if (dodgeDir) {
+      const feet = playerController.getFeetPoint();
+      const playerTile = this.currentTilemap.transform.worldToTile(feet.x, feet.y);
+      const [dgx, dgy] = snapToIsometricGridDirection(
+        Math.atan2(dodgeDir.y, dodgeDir.x),
+        this.currentTilemap.tileWidth,
+        this.currentTilemap.tileHeight,
       );
+      const dodgeTiles: Array<{ x: number; y: number }> = [];
+
+      for (let step = 1; step <= this.currentDodgeTileCount; step++) {
+        const tx = playerTile.x + dgx * step;
+        const ty = playerTile.y + dgy * step;
+
+        if (this.currentTilemap.isTileInBounds(tx, ty)) {
+          dodgeTiles.push({ x: tx, y: ty });
+        }
+      }
+
+      drawTileSet(this.debugHitboxGraphics, this.currentTilemap, dodgeTiles, 0x22c55e, 0.30, 0.9);
+    }
+
+    // Player attack tiles — windup preview (blue) or active (yellow)
+    const snapshot = this.playerCombatState.getSnapshot(nowMs);
+    const phase = snapshot.lightAttackPhase;
+
+    if ((phase === 'windup' || phase === 'active') && this.playerAttackAimRad !== null) {
+      const feet = playerController.getFeetPoint();
+      const tiles = collectTilesCoveredByPlayerAttack(this.currentTilemap, feet.x, feet.y, this.playerAttackAimRad);
+      const fillAlpha = phase === 'active' ? 0.52 : 0.22;
+      const strokeAlpha = phase === 'active' ? 0.9 : 0.55;
+      const color = phase === 'active' ? 0xfacc15 : 0x38bdf8;
+
+      drawTileSet(this.debugHitboxGraphics, this.currentTilemap, tiles, color, fillAlpha, strokeAlpha);
     }
   }
 }
 
-function drawEllipseHitbox(
+function drawTileSet(
   graphics: Phaser.GameObjects.Graphics,
-  ellipse: { centerX: number; centerY: number; radiusX: number; radiusY: number },
+  tilemap: IsoTilemap,
+  tiles: Array<{ x: number; y: number }>,
   color: number,
   fillAlpha: number,
   strokeAlpha: number,
 ): void {
   graphics.lineStyle(2, color, strokeAlpha);
   graphics.fillStyle(color, fillAlpha);
-  graphics.fillEllipse(
-    ellipse.centerX,
-    ellipse.centerY,
-    ellipse.radiusX * 2,
-    ellipse.radiusY * 2,
-  );
-  graphics.strokeEllipse(
-    ellipse.centerX,
-    ellipse.centerY,
-    ellipse.radiusX * 2,
-    ellipse.radiusY * 2,
-  );
+
+  for (const tile of tiles) {
+    const points = tilemap.transform.getTileDiamondPoints(tile.x, tile.y);
+    graphics.beginPath();
+    graphics.moveTo(points[0].x, points[0].y);
+    points.slice(1).forEach((p) => graphics.lineTo(p.x, p.y));
+    graphics.closePath();
+    graphics.fillPath();
+    graphics.strokePath();
+  }
 }
 
+// Snap a world-space angle to the nearest of the 8 isometric grid directions.
+// Returns [dgx, dgy] — each component is -1, 0, or +1.
+// The 8 world-space displacements per grid step (tileWidth=64, tileHeight=32):
+//   N(-1,-1)=(0,-th)  NE(0,-1)=(hw,-hh)  E(1,-1)=(tw,0)   SE(1,0)=(hw,hh)
+//   S(1,1)=(0,th)     SW(0,1)=(-hw,hh)   W(-1,1)=(-tw,0)  NW(-1,0)=(-hw,-hh)
+function snapToIsometricGridDirection(
+  rotationRad: number,
+  tileWidth: number,
+  tileHeight: number,
+): [number, number] {
+  const hw = tileWidth / 2;
+  const hh = tileHeight / 2;
+  const tw = tileWidth;
+  const th = tileHeight;
+
+  const dirs: Array<[number, number, number, number]> = [
+    [-1, -1,   0, -th],
+    [ 0, -1,  hw, -hh],
+    [ 1, -1,  tw,   0],
+    [ 1,  0,  hw,  hh],
+    [ 1,  1,   0,  th],
+    [ 0,  1, -hw,  hh],
+    [-1,  1, -tw,   0],
+    [-1,  0, -hw, -hh],
+  ];
+
+  const dx = Math.cos(rotationRad);
+  const dy = Math.sin(rotationRad);
+  let bestDot = -Infinity;
+  let bestDgx = 0;
+  let bestDgy = -1;
+
+  for (const [dgx, dgy, wx, wy] of dirs) {
+    const len = Math.hypot(wx, wy);
+    const dot = (dx * wx + dy * wy) / len;
+
+    if (dot > bestDot) {
+      bestDot = dot;
+      bestDgx = dgx;
+      bestDgy = dgy;
+    }
+  }
+
+  return [bestDgx, bestDgy];
+}
+
+// Returns the player's tile + up to 2 tiles ahead in the snapped grid direction.
 function collectTilesCoveredByPlayerAttack(
   tilemap: IsoTilemap,
   playerFeetX: number,
   playerFeetY: number,
   rotationRad: number,
 ): Array<{ x: number; y: number }> {
-  const centerOffset = 22 + PLAYER_LIGHT_ATTACK_LENGTH_WORLD / 2;
-  const centerX = playerFeetX + Math.cos(rotationRad) * centerOffset;
-  const centerY = playerFeetY + Math.sin(rotationRad) * centerOffset;
-  const corners = getRotatedRectangleCorners(
-    centerX,
-    centerY,
-    PLAYER_LIGHT_ATTACK_LENGTH_WORLD,
-    PLAYER_LIGHT_ATTACK_WIDTH_WORLD,
-    rotationRad,
-  );
-  const tileBounds = corners.map((corner) => tilemap.transform.worldToTile(corner.x, corner.y));
-  const tileXs = tileBounds.map((tile) => tile.x);
-  const tileYs = tileBounds.map((tile) => tile.y);
+  const playerTile = tilemap.transform.worldToTile(playerFeetX, playerFeetY);
+  const [dgx, dgy] = snapToIsometricGridDirection(rotationRad, tilemap.tileWidth, tilemap.tileHeight);
   const tiles: Array<{ x: number; y: number }> = [];
 
-  for (let tileY = Math.min(...tileYs); tileY <= Math.max(...tileYs); tileY += 1) {
-    for (let tileX = Math.min(...tileXs); tileX <= Math.max(...tileXs); tileX += 1) {
-      if (!tilemap.isTileInBounds(tileX, tileY)) {
-        continue;
-      }
+  for (let step = 0; step <= 2; step++) {
+    const tx = playerTile.x + dgx * step;
+    const ty = playerTile.y + dgy * step;
 
-      const samples = getTileSamplePoints(tilemap, tileX, tileY);
-
-      if (samples.some((point) => pointInsideRotatedRectangle(
-        point.x,
-        point.y,
-        centerX,
-        centerY,
-        PLAYER_LIGHT_ATTACK_LENGTH_WORLD,
-        PLAYER_LIGHT_ATTACK_WIDTH_WORLD,
-        rotationRad,
-      ))) {
-        tiles.push({ x: tileX, y: tileY });
-      }
+    if (tilemap.isTileInBounds(tx, ty)) {
+      tiles.push({ x: tx, y: ty });
     }
   }
 
   return tiles;
-}
-
-function getTileSamplePoints(
-  tilemap: IsoTilemap,
-  tileX: number,
-  tileY: number,
-): Array<{ x: number; y: number }> {
-  const center = tilemap.getTileCenterWorld(tileX, tileY);
-  const corners = tilemap.transform.getTileDiamondPoints(tileX, tileY);
-  const edgeMidpoints = corners.map((corner, index) => {
-    const next = corners[(index + 1) % corners.length];
-    return {
-      x: (corner.x + next.x) / 2,
-      y: (corner.y + next.y) / 2,
-    };
-  });
-
-  return [
-    { x: center.x, y: center.y },
-    ...corners.map((point) => ({ x: point.x, y: point.y })),
-    ...edgeMidpoints,
-  ];
-}
-
-function pointInsideRotatedRectangle(
-  pointX: number,
-  pointY: number,
-  centerX: number,
-  centerY: number,
-  width: number,
-  height: number,
-  rotationRad: number,
-): boolean {
-  const cos = Math.cos(-rotationRad);
-  const sin = Math.sin(-rotationRad);
-  const localX = (pointX - centerX) * cos - (pointY - centerY) * sin;
-  const localY = (pointX - centerX) * sin + (pointY - centerY) * cos;
-  return Math.abs(localX) <= width / 2 && Math.abs(localY) <= height / 2;
-}
-
-function getRotatedRectangleCorners(
-  centerX: number,
-  centerY: number,
-  width: number,
-  height: number,
-  rotationRad: number,
-): Array<{ x: number; y: number }> {
-  const halfWidth = width / 2;
-  const halfHeight = height / 2;
-  const localCorners = [
-    { x: -halfWidth, y: -halfHeight },
-    { x: halfWidth, y: -halfHeight },
-    { x: halfWidth, y: halfHeight },
-    { x: -halfWidth, y: halfHeight },
-  ];
-  const cos = Math.cos(rotationRad);
-  const sin = Math.sin(rotationRad);
-
-  return localCorners.map((corner) => ({
-    x: centerX + corner.x * cos - corner.y * sin,
-    y: centerY + corner.x * sin + corner.y * cos,
-  }));
 }

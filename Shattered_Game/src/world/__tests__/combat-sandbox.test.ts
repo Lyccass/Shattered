@@ -467,8 +467,8 @@ describe('EnemyStateMachine', () => {
 
   it('starts the training enemy with 5 HP and data-driven damage values', () => {
     expect(definition.maxHealth).toBe(5);
-    expect(definition.attacks.find((attack) => attack.id === 'wretch_stab')?.damage).toBe(1);
-    expect(definition.attacks.find((attack) => attack.id === 'wretch_cone')?.damage).toBe(1);
+    expect(definition.attacks.find((attack) => attack.id === 'wretch_swipe')?.damage).toBe(1);
+    expect(definition.attacks.find((attack) => attack.id === 'wretch_roar')?.damage).toBe(1);
     expect(definition.attacks.find((attack) => attack.id === 'wretch_jump')?.damage).toBe(2);
   });
 
@@ -489,17 +489,17 @@ describe('EnemyStateMachine', () => {
 
   it('progresses from windup to active to recovery', () => {
     const state = createBaseState();
-    const stabAttack = definition.attacks.find((attack) => attack.id === 'wretch_stab');
+    const swipeAttack = definition.attacks.find((attack) => attack.id === 'wretch_swipe');
 
-    expect(stabAttack).toBeDefined();
-    const stabTiming = stabAttack!.timing;
+    expect(swipeAttack).toBeDefined();
+    const stabTiming = swipeAttack!.timing;
 
     let result = advanceEnemyStateMachine(definition, state, buildUpdateContext(0, 24, 0));
     result.state.currentState = 'aggro';
 
     result = advanceEnemyStateMachine(definition, result.state, buildUpdateContext(100, 24, 0));
     expect(result.state.currentState).toBe('windup');
-    expect(result.state.currentAttackId).toBe('wretch_stab');
+    expect(result.state.currentAttackId).toBe('wretch_swipe');
     expect(result.events.some((event) => event.kind === 'telegraph_show')).toBe(true);
 
     result = advanceEnemyStateMachine(
@@ -537,42 +537,46 @@ describe('EnemyStateMachine', () => {
     );
   });
 
-  it('can select jump, cone, and stab based on range and cooldown', () => {
+  it('can select leap, roar, and swipe based on range and cooldown', () => {
+    // Jump/leap: player at 80 world units = 5 tiles — in leap range (4.5–9.5)
     const jumpResult = advanceEnemyStateMachine(definition, {
       ...createBaseState('enemy_jump_select'),
       currentState: 'aggro',
     }, buildUpdateContext(100, 80, 0));
     expect(jumpResult.state.currentAttackId).toBe('wretch_jump');
 
-    const coneResult = advanceEnemyStateMachine(definition, {
-      ...createBaseState('enemy_cone_select'),
+    // Roar: player at 52 world units = 3.25 tiles — in roar range (0–3.5), outside swipe (0–2.8)
+    const roarResult = advanceEnemyStateMachine(definition, {
+      ...createBaseState('enemy_roar_select'),
       currentState: 'aggro',
-    }, buildUpdateContext(100, 40, 0));
-    expect(coneResult.state.currentAttackId).toBe('wretch_cone');
+    }, buildUpdateContext(100, 52, 0));
+    expect(roarResult.state.currentAttackId).toBe('wretch_roar');
 
-    const stabState = createBaseState('enemy_stab_select');
-    stabState.attackCooldownEndsAtMs.wretch_stab = 1_000;
-    const fallbackCone = advanceEnemyStateMachine(definition, {
-      ...stabState,
+    // Swipe on cooldown — roar should fire instead at 1.5 tiles
+    const swipeState = createBaseState('enemy_swipe_select');
+    swipeState.attackCooldownEndsAtMs.wretch_swipe = 1_000;
+    const fallbackRoar = advanceEnemyStateMachine(definition, {
+      ...swipeState,
       currentState: 'aggro',
     }, buildUpdateContext(100, 24, 0));
-    expect(fallbackCone.state.currentAttackId).toBe('wretch_cone');
+    expect(fallbackRoar.state.currentAttackId).toBe('wretch_roar');
 
-    const stabResult = advanceEnemyStateMachine(definition, {
-      ...createBaseState('enemy_stab_ready'),
+    // Swipe ready: player at 24 world units = 1.5 tiles — swipe fires first
+    const swipeResult = advanceEnemyStateMachine(definition, {
+      ...createBaseState('enemy_swipe_ready'),
       currentState: 'aggro',
     }, buildUpdateContext(100, 24, 0));
-    expect(stabResult.state.currentAttackId).toBe('wretch_stab');
+    expect(swipeResult.state.currentAttackId).toBe('wretch_swipe');
   });
 
   it('waits for the active window before resolving a hit', () => {
     const windupState = {
       ...createBaseState('enemy_02'),
       currentState: 'windup' as const,
-      currentAttackId: 'wretch_stab',
+      currentAttackId: 'wretch_swipe',
       phaseStartedAtMs: 0,
       phaseEndsAtMs: 100,
-      telegraphId: 'enemy_02:wretch_stab:telegraph',
+      telegraphId: 'enemy_02:wretch_swipe:telegraph',
       attackRotationRad: 0,
     };
 
@@ -581,7 +585,7 @@ describe('EnemyStateMachine', () => {
     expect(result.state.currentState).toBe('active');
     expect(result.events).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_stab', damage: 1, hit: true }),
+        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_swipe', damage: 1, hit: true }),
       ]),
     );
 
@@ -589,19 +593,19 @@ describe('EnemyStateMachine', () => {
 
     expect(activeResult.events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_stab', damage: 1, hit: true }),
+        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_swipe', damage: 1, hit: true }),
       ]),
     );
   });
 
-  it('hits when the player is inside the cone attack shape', () => {
+  it('hits when the player is inside the roar cone shape', () => {
     const windupState = {
       ...createBaseState('enemy_03'),
       currentState: 'windup' as const,
-      currentAttackId: 'wretch_cone',
+      currentAttackId: 'wretch_roar',
       phaseStartedAtMs: 0,
       phaseEndsAtMs: 100,
-      telegraphId: 'enemy_03:wretch_cone:telegraph',
+      telegraphId: 'enemy_03:wretch_roar:telegraph',
       attackRotationRad: 0,
     };
 
@@ -611,29 +615,29 @@ describe('EnemyStateMachine', () => {
 
     expect(result.events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_cone', damage: 1, hit: true }),
+        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_roar', damage: 1, hit: true }),
       ]),
     );
   });
 
-  it('misses when the player is outside the cone attack shape', () => {
+  it('misses when the player is outside the roar cone shape', () => {
     const windupState = {
       ...createBaseState('enemy_04'),
       currentState: 'windup' as const,
-      currentAttackId: 'wretch_cone',
+      currentAttackId: 'wretch_roar',
       phaseStartedAtMs: 0,
       phaseEndsAtMs: 100,
-      telegraphId: 'enemy_04:wretch_cone:telegraph',
+      telegraphId: 'enemy_04:wretch_roar:telegraph',
       attackRotationRad: 0,
     };
 
     const activeState = advanceEnemyStateMachine(definition, windupState, buildUpdateContext(120, 0, 30));
-
-    const result = advanceEnemyStateMachine(definition, activeState.state, buildUpdateContext(450, 0, 30));
+    // roar activeMs=350, so phase ends at 120+350=470 — sample past that
+    const result = advanceEnemyStateMachine(definition, activeState.state, buildUpdateContext(500, 0, 30));
 
     expect(result.events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_cone', damage: 1, hit: false, reason: 'outside' }),
+        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_roar', damage: 1, hit: false, reason: 'outside' }),
       ]),
     );
   });
@@ -666,10 +670,10 @@ describe('EnemyStateMachine', () => {
     const windupState = {
       ...createBaseState('enemy_06'),
       currentState: 'windup' as const,
-      currentAttackId: 'wretch_stab',
+      currentAttackId: 'wretch_swipe',
       phaseStartedAtMs: 0,
       phaseEndsAtMs: 100,
-      telegraphId: 'enemy_06:wretch_stab:telegraph',
+      telegraphId: 'enemy_06:wretch_swipe:telegraph',
       attackRotationRad: 0,
     };
 
@@ -679,7 +683,7 @@ describe('EnemyStateMachine', () => {
 
     expect(result.events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_stab', damage: 1, hit: false, reason: 'invulnerable' }),
+        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_swipe', damage: 1, hit: false, reason: 'invulnerable' }),
       ]),
     );
   });
