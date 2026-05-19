@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceDodgeMotion,
   createDodgeMotion,
+  resolveClickMovementDodgeDirection,
   resolveCombatDodgeDirection,
   resolveReachableDodgeTarget,
 } from '../../combat/CombatDodge';
@@ -16,6 +17,7 @@ import {
   createEnemyRuntimeState,
 } from '../../combat/EnemyStateMachine';
 import {
+  doesEnemyHitEllipseIntersectPlayerLightAttackByRotation,
   getPlayerLightAttackHitbox,
   getPlayerLightAttackSlash,
 } from '../../combat/CombatPlayerMath';
@@ -62,6 +64,36 @@ describe('CombatDodge', () => {
 
     expect(target).toEqual({ x: 20, y: 0 });
   });
+
+  it('prefers click-move direction, then enemy push-away, then last movement, then facing', () => {
+    expect(resolveClickMovementDodgeDirection({
+      currentMoveDirection: { x: 5, y: 2 },
+      awayFromEnemyDirection: { x: -2, y: 0 },
+      lastMovementDirection: { x: 0, y: -1 },
+      facing: 'down',
+    })).toEqual({ x: 1, y: 1 });
+
+    expect(resolveClickMovementDodgeDirection({
+      currentMoveDirection: null,
+      awayFromEnemyDirection: { x: -2, y: 0 },
+      lastMovementDirection: { x: 0, y: -1 },
+      facing: 'down',
+    })).toEqual({ x: -1, y: 0 });
+
+    expect(resolveClickMovementDodgeDirection({
+      currentMoveDirection: null,
+      awayFromEnemyDirection: null,
+      lastMovementDirection: { x: 0, y: -3 },
+      facing: 'down',
+    })).toEqual({ x: 0, y: -1 });
+
+    expect(resolveClickMovementDodgeDirection({
+      currentMoveDirection: null,
+      awayFromEnemyDirection: null,
+      lastMovementDirection: null,
+      facing: 'left',
+    })).toEqual({ x: -1, y: 0 });
+  });
 });
 
 describe('Player light attack indicator math', () => {
@@ -84,6 +116,36 @@ describe('Player light attack indicator math', () => {
         kind: 'line',
       }),
     );
+  });
+
+  it('registers an overlap when the enemy body ellipse is inside the visible stab lane', () => {
+    expect(
+      doesEnemyHitEllipseIntersectPlayerLightAttackByRotation(
+        100,
+        50,
+        0,
+        {
+          centerX: 156,
+          centerY: 50,
+          radiusX: 14,
+          radiusY: 18,
+        },
+      ),
+    ).toBe(true);
+
+    expect(
+      doesEnemyHitEllipseIntersectPlayerLightAttackByRotation(
+        100,
+        50,
+        0,
+        {
+          centerX: 156,
+          centerY: 72,
+          radiusX: 10,
+          radiusY: 10,
+        },
+      ),
+    ).toBe(false);
   });
 });
 
@@ -108,8 +170,25 @@ describe('PlayerCombatState', () => {
     const state = new PlayerCombatState();
 
     expect(state.tryStartDodge(1_000)).toEqual({ ok: true });
-    expect(state.getSnapshot(1_000).stamina).toBe(75);
+    expect(state.getSnapshot(1_000).stamina).toBe(85);
     expect(state.getSnapshot(1_050).isDodging).toBe(true);
+  });
+
+  it('uses more stamina when dodging while sprinting', () => {
+    const state = new PlayerCombatState();
+
+    expect(state.toggleSprint()).toEqual({ ok: true, active: true });
+    expect(state.tryStartDodge(1_000)).toEqual({ ok: true });
+    expect(state.getSnapshot(1_000).stamina).toBe(75);
+    expect(state.getSnapshot(1_000).isSprinting).toBe(true);
+  });
+
+  it('keeps sprint active after starting a light attack', () => {
+    const state = new PlayerCombatState();
+
+    expect(state.toggleSprint()).toEqual({ ok: true, active: true });
+    expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
+    expect(state.getSnapshot(1_000).isSprinting).toBe(true);
   });
 
   it('fails dodge when stamina is too low', () => {
@@ -119,8 +198,10 @@ describe('PlayerCombatState', () => {
     state.tryStartDodge(500);
     state.tryStartDodge(1_000);
     state.tryStartDodge(1_500);
+    state.tryStartDodge(2_000);
+    state.tryStartDodge(2_500);
 
-    expect(state.tryStartDodge(2_000)).toEqual({
+    expect(state.tryStartDodge(3_000)).toEqual({
       ok: false,
       reason: 'Too exhausted to dodge.',
     });
@@ -142,10 +223,10 @@ describe('PlayerCombatState', () => {
 
     state.tryStartDodge(1_000);
     state.update(1_500, 500, false);
-    expect(state.getSnapshot(1_500).stamina).toBe(75);
+    expect(state.getSnapshot(1_500).stamina).toBe(85);
 
     state.update(2_200, 700, false);
-    expect(state.getSnapshot(2_200).stamina).toBeGreaterThan(75);
+    expect(state.getSnapshot(2_200).stamina).toBeGreaterThan(85);
   });
 
   it('drains sprint stamina slowly out of combat and more heavily in combat', () => {
@@ -185,14 +266,18 @@ describe('PlayerCombatState', () => {
     const state = new PlayerCombatState();
 
     state.tryStartDodge(0);
-    state.update(1_000, 1_000, false);
-    const outOfCombatStamina = state.getSnapshot(1_000).stamina;
+    state.tryStartDodge(500);
+    state.tryStartDodge(1_000);
+    state.update(1_950, 950, false);
+    const outOfCombatStamina = state.getSnapshot(1_950).stamina;
 
     const combatState = new PlayerCombatState();
     combatState.enterCombat();
     combatState.tryStartDodge(0);
-    combatState.update(1_000, 1_000, false);
-    const combatStamina = combatState.getSnapshot(1_000).stamina;
+    combatState.tryStartDodge(500);
+    combatState.tryStartDodge(1_000);
+    combatState.update(1_950, 950, false);
+    const combatStamina = combatState.getSnapshot(1_950).stamina;
 
     expect(outOfCombatStamina).toBeGreaterThan(combatStamina);
   });
@@ -217,7 +302,7 @@ describe('PlayerCombatState', () => {
 
     expect(resolution.kind).toBe('blocked');
     expect(state.getSnapshot(100).currentHp).toBe(10);
-    expect(state.getSnapshot(100).stamina).toBe(82);
+    expect(state.getSnapshot(100).stamina).toBe(90);
   });
 
   it('triggers guard break and full damage when stamina is too low', () => {
@@ -227,14 +312,16 @@ describe('PlayerCombatState', () => {
     state.tryStartDodge(500);
     state.tryStartDodge(1_000);
     state.tryStartDodge(1_500);
+    state.tryStartDodge(2_000);
+    state.tryStartDodge(2_500);
     state.setGuardHeld(true);
 
-    const resolution = state.resolveIncomingAttack(2_000, 1, true);
+    const resolution = state.resolveIncomingAttack(3_000, 2, true);
 
     expect(resolution.kind).toBe('guard_broken');
-    expect(resolution.damageApplied).toBe(1);
-    expect(state.getSnapshot(2_000).currentHp).toBe(9);
-    expect(state.getSnapshot(2_000).isGuardBroken).toBe(true);
+    expect(resolution.damageApplied).toBe(2);
+    expect(state.getSnapshot(3_000).currentHp).toBe(8);
+    expect(state.getSnapshot(3_000).isGuardBroken).toBe(true);
   });
 
   it('consumes stamina on player light attack and exposes the active timing window', () => {
@@ -243,28 +330,38 @@ describe('PlayerCombatState', () => {
     expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
     expect(state.getSnapshot(1_000).stamina).toBe(88);
 
-    state.update(1_140, 140, false);
+    state.update(1_220, 220, false);
     expect(state.consumePendingLightAttackActivation()).toBe(true);
-    expect(state.getSnapshot(1_140).lightAttackPhase).toBe('active');
+    expect(state.getSnapshot(1_220).lightAttackPhase).toBe('active');
+  });
+
+  it('refunds light-attack stamina on hit response', () => {
+    const state = new PlayerCombatState();
+
+    expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
+    expect(state.getSnapshot(1_000).stamina).toBe(88);
+
+    state.refundLightAttackStamina();
+    expect(state.getSnapshot(1_000).stamina).toBe(100);
   });
 
   it('prevents light-attack spam during recovery', () => {
     const state = new PlayerCombatState();
 
     expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
-    state.update(1_140, 140, false);
+    state.update(1_220, 220, false);
     state.consumePendingLightAttackActivation();
-    state.update(1_260, 120, false);
+    state.update(1_380, 160, false);
 
-    expect(state.getSnapshot(1_260).lightAttackPhase).toBe('recovery');
-    expect(state.tryStartLightAttack(1_260)).toEqual({
+    expect(state.getSnapshot(1_380).lightAttackPhase).toBe('recovery');
+    expect(state.tryStartLightAttack(1_380)).toEqual({
       ok: false,
       reason: 'Still recovering.',
     });
 
-    state.update(1_540, 280, false);
-    expect(state.getSnapshot(1_540).lightAttackPhase).toBe('idle');
-    expect(state.tryStartLightAttack(1_540)).toEqual({ ok: true });
+    state.update(1_800, 420, false);
+    expect(state.getSnapshot(1_800).lightAttackPhase).toBe('idle');
+    expect(state.tryStartLightAttack(1_800)).toEqual({ ok: true });
   });
 
   it('restores the player safely after being downed', () => {
@@ -324,7 +421,49 @@ describe('EnemyStateMachine', () => {
   const tileContext = {
     tileWidth: 32,
     tileHeight: 16,
+    mapWidth: 64,
+    mapHeight: 64,
+    worldToTile: (worldX: number, worldY: number) => ({
+      x: Math.round(worldX / 16),
+      y: Math.round(worldY / 16),
+    }),
+    getTileCenterWorld: (tileX: number, tileY: number) => ({
+      x: tileX * 16,
+      y: tileY * 16,
+    }),
+    getTileDiamondPoints: (tileX: number, tileY: number) => {
+      const centerX = tileX * 16;
+      const centerY = tileY * 16;
+      return [
+        { x: centerX, y: centerY - 8 },
+        { x: centerX + 16, y: centerY },
+        { x: centerX, y: centerY + 8 },
+        { x: centerX - 16, y: centerY },
+      ];
+    },
+    isTileWalkable: () => true,
   };
+
+  function buildUpdateContext(
+    nowMs: number,
+    playerWorldX: number,
+    playerWorldY: number,
+    playerInvulnerable = false,
+  ) {
+    return {
+      nowMs,
+      deltaMs: 16,
+      playerWorldX,
+      playerWorldY,
+      playerInvulnerable,
+      playerHitPoints: [{ x: playerWorldX, y: playerWorldY }],
+      playerOccupiedTiles: [{
+        x: Math.round(playerWorldX / 16),
+        y: Math.round(playerWorldY / 16),
+      }],
+      ...tileContext,
+    };
+  }
 
   it('starts the training enemy with 5 HP and data-driven damage values', () => {
     expect(definition.maxHealth).toBe(5);
@@ -350,47 +489,31 @@ describe('EnemyStateMachine', () => {
 
   it('progresses from windup to active to recovery', () => {
     const state = createBaseState();
+    const stabAttack = definition.attacks.find((attack) => attack.id === 'wretch_stab');
 
-    let result = advanceEnemyStateMachine(definition, state, {
-      nowMs: 0,
-      deltaMs: 16,
-      playerWorldX: 24,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    expect(stabAttack).toBeDefined();
+    const stabTiming = stabAttack!.timing;
+
+    let result = advanceEnemyStateMachine(definition, state, buildUpdateContext(0, 24, 0));
     result.state.currentState = 'aggro';
 
-    result = advanceEnemyStateMachine(definition, result.state, {
-      nowMs: 100,
-      deltaMs: 16,
-      playerWorldX: 24,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    result = advanceEnemyStateMachine(definition, result.state, buildUpdateContext(100, 24, 0));
     expect(result.state.currentState).toBe('windup');
     expect(result.state.currentAttackId).toBe('wretch_stab');
     expect(result.events.some((event) => event.kind === 'telegraph_show')).toBe(true);
 
-    result = advanceEnemyStateMachine(definition, result.state, {
-      nowMs: 700,
-      deltaMs: 16,
-      playerWorldX: 24,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    result = advanceEnemyStateMachine(
+      definition,
+      result.state,
+      buildUpdateContext(100 + stabTiming.windupMs + 1, 24, 0),
+    );
     expect(result.state.currentState).toBe('active');
 
-    result = advanceEnemyStateMachine(definition, result.state, {
-      nowMs: 900,
-      deltaMs: 16,
-      playerWorldX: 24,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    result = advanceEnemyStateMachine(
+      definition,
+      result.state,
+      buildUpdateContext(100 + stabTiming.windupMs + stabTiming.activeMs + 2, 24, 0),
+    );
     expect(result.state.currentState).toBe('recovery');
   });
 
@@ -400,14 +523,7 @@ describe('EnemyStateMachine', () => {
       currentState: 'aggro' as const,
     };
 
-    const result = advanceEnemyStateMachine(definition, aggroState, {
-      nowMs: 100,
-      deltaMs: 16,
-      playerWorldX: 80,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    const result = advanceEnemyStateMachine(definition, aggroState, buildUpdateContext(100, 80, 0));
 
     expect(result.state.currentAttackId).toBe('wretch_jump');
     expect(result.events).toEqual(
@@ -415,6 +531,7 @@ describe('EnemyStateMachine', () => {
         expect.objectContaining({
           kind: 'telegraph_show',
           shape: expect.objectContaining({ kind: 'ellipse' }),
+          tiles: expect.any(Array),
         }),
       ]),
     );
@@ -424,27 +541,13 @@ describe('EnemyStateMachine', () => {
     const jumpResult = advanceEnemyStateMachine(definition, {
       ...createBaseState('enemy_jump_select'),
       currentState: 'aggro',
-    }, {
-      nowMs: 100,
-      deltaMs: 16,
-      playerWorldX: 80,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    }, buildUpdateContext(100, 80, 0));
     expect(jumpResult.state.currentAttackId).toBe('wretch_jump');
 
     const coneResult = advanceEnemyStateMachine(definition, {
       ...createBaseState('enemy_cone_select'),
       currentState: 'aggro',
-    }, {
-      nowMs: 100,
-      deltaMs: 16,
-      playerWorldX: 40,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    }, buildUpdateContext(100, 40, 0));
     expect(coneResult.state.currentAttackId).toBe('wretch_cone');
 
     const stabState = createBaseState('enemy_stab_select');
@@ -452,31 +555,17 @@ describe('EnemyStateMachine', () => {
     const fallbackCone = advanceEnemyStateMachine(definition, {
       ...stabState,
       currentState: 'aggro',
-    }, {
-      nowMs: 100,
-      deltaMs: 16,
-      playerWorldX: 24,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    }, buildUpdateContext(100, 24, 0));
     expect(fallbackCone.state.currentAttackId).toBe('wretch_cone');
 
     const stabResult = advanceEnemyStateMachine(definition, {
       ...createBaseState('enemy_stab_ready'),
       currentState: 'aggro',
-    }, {
-      nowMs: 100,
-      deltaMs: 16,
-      playerWorldX: 24,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    }, buildUpdateContext(100, 24, 0));
     expect(stabResult.state.currentAttackId).toBe('wretch_stab');
   });
 
-  it('registers a hit when the player is inside the stab attack shape and not invulnerable', () => {
+  it('waits for the active window before resolving a hit', () => {
     const windupState = {
       ...createBaseState('enemy_02'),
       currentState: 'windup' as const,
@@ -487,16 +576,18 @@ describe('EnemyStateMachine', () => {
       attackRotationRad: 0,
     };
 
-    const result = advanceEnemyStateMachine(definition, windupState, {
-      nowMs: 120,
-      deltaMs: 16,
-      playerWorldX: 20,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    const result = advanceEnemyStateMachine(definition, windupState, buildUpdateContext(120, 20, 0));
 
-    expect(result.events).toEqual(
+    expect(result.state.currentState).toBe('active');
+    expect(result.events).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_stab', damage: 1, hit: true }),
+      ]),
+    );
+
+    const activeResult = advanceEnemyStateMachine(definition, result.state, buildUpdateContext(136, 20, 0));
+
+    expect(activeResult.events).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'attack_result', attackId: 'wretch_stab', damage: 1, hit: true }),
       ]),
@@ -514,14 +605,9 @@ describe('EnemyStateMachine', () => {
       attackRotationRad: 0,
     };
 
-    const result = advanceEnemyStateMachine(definition, windupState, {
-      nowMs: 120,
-      deltaMs: 16,
-      playerWorldX: 30,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    const activeState = advanceEnemyStateMachine(definition, windupState, buildUpdateContext(120, 30, 0));
+
+    const result = advanceEnemyStateMachine(definition, activeState.state, buildUpdateContext(136, 30, 0));
 
     expect(result.events).toEqual(
       expect.arrayContaining([
@@ -541,14 +627,9 @@ describe('EnemyStateMachine', () => {
       attackRotationRad: 0,
     };
 
-    const result = advanceEnemyStateMachine(definition, windupState, {
-      nowMs: 120,
-      deltaMs: 16,
-      playerWorldX: 0,
-      playerWorldY: 30,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    const activeState = advanceEnemyStateMachine(definition, windupState, buildUpdateContext(120, 0, 30));
+
+    const result = advanceEnemyStateMachine(definition, activeState.state, buildUpdateContext(450, 0, 30));
 
     expect(result.events).toEqual(
       expect.arrayContaining([
@@ -570,14 +651,9 @@ describe('EnemyStateMachine', () => {
       attackRotationRad: 0,
     };
 
-    const result = advanceEnemyStateMachine(definition, windupState, {
-      nowMs: 120,
-      deltaMs: 16,
-      playerWorldX: 104,
-      playerWorldY: 0,
-      playerInvulnerable: false,
-      ...tileContext,
-    });
+    const activeState = advanceEnemyStateMachine(definition, windupState, buildUpdateContext(120, 104, 0));
+
+    const result = advanceEnemyStateMachine(definition, activeState.state, buildUpdateContext(450, 104, 0));
 
     expect(result.events).toEqual(
       expect.arrayContaining([
@@ -597,14 +673,9 @@ describe('EnemyStateMachine', () => {
       attackRotationRad: 0,
     };
 
-    const result = advanceEnemyStateMachine(definition, windupState, {
-      nowMs: 120,
-      deltaMs: 16,
-      playerWorldX: 20,
-      playerWorldY: 0,
-      playerInvulnerable: true,
-      ...tileContext,
-    });
+    const activeState = advanceEnemyStateMachine(definition, windupState, buildUpdateContext(120, 20, 0, true));
+
+    const result = advanceEnemyStateMachine(definition, activeState.state, buildUpdateContext(136, 20, 0, true));
 
     expect(result.events).toEqual(
       expect.arrayContaining([

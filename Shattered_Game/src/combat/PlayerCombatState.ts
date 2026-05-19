@@ -39,15 +39,16 @@ export type IncomingAttackResolution = {
 
 const MAX_STAMINA = 100;
 const MAX_HP = 10;
-const DODGE_COST = 25;
+const WALK_DODGE_COST = 15;
+const SPRINT_DODGE_COST = 25;
 const DODGE_DURATION_MS = 250;
 const DODGE_INVULNERABILITY_MS = 250;
 const DODGE_COOLDOWN_MS = 450;
 const LIGHT_ATTACK_COST = 12;
-const LIGHT_ATTACK_WINDUP_MS = 140;
-const LIGHT_ATTACK_ACTIVE_MS = 120;
-const LIGHT_ATTACK_RECOVERY_MS = 280;
-const GUARD_STAMINA_COST_PER_DAMAGE = 18;
+const LIGHT_ATTACK_WINDUP_MS = 220;
+const LIGHT_ATTACK_ACTIVE_MS = 160;
+const LIGHT_ATTACK_RECOVERY_MS = 420;
+const GUARD_STAMINA_COST_PER_DAMAGE = 10;
 const GUARD_BREAK_DURATION_MS = 650;
 const DOWNED_RECOVERY_MS = 1_500;
 const STAMINA_REGEN_DELAY_MS = 900;
@@ -154,10 +155,6 @@ export class PlayerCombatState {
 
   setGuardHeld(guardHeld: boolean): void {
     this.guardHeld = guardHeld;
-
-    if (guardHeld) {
-      this.sprinting = false;
-    }
   }
 
   tryStartDodge(nowMs: number): PlayerDodgeResult {
@@ -189,16 +186,17 @@ export class PlayerCombatState {
       };
     }
 
-    if (this.stamina < DODGE_COST) {
+    const dodgeCost = this.sprinting ? SPRINT_DODGE_COST : WALK_DODGE_COST;
+
+    if (this.stamina < dodgeCost) {
       return {
         ok: false,
         reason: 'Too exhausted to dodge.',
       };
     }
 
-    this.sprinting = false;
     this.guardHeld = false;
-    this.stamina -= DODGE_COST;
+    this.stamina -= dodgeCost;
     this.dodgeEndsAtMs = nowMs + DODGE_DURATION_MS;
     this.invulnerableUntilMs = nowMs + DODGE_INVULNERABILITY_MS;
     this.dodgeCooldownEndsAtMs = nowMs + DODGE_COOLDOWN_MS;
@@ -249,7 +247,6 @@ export class PlayerCombatState {
       };
     }
 
-    this.sprinting = false;
     this.stamina -= LIGHT_ATTACK_COST;
     this.staminaRegenStartsAtMs = nowMs + STAMINA_REGEN_DELAY_MS;
     this.lightAttack = {
@@ -259,6 +256,10 @@ export class PlayerCombatState {
       pendingActiveResolve: false,
     };
     return { ok: true };
+  }
+
+  refundLightAttackStamina(): void {
+    this.stamina = Math.min(MAX_STAMINA, this.stamina + LIGHT_ATTACK_COST);
   }
 
   resolveIncomingAttack(

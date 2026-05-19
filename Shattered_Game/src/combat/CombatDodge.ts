@@ -57,6 +57,27 @@ export function resolveCombatDodgeDirection(
   }
 }
 
+export function resolveClickMovementDodgeDirection(params: {
+  currentMoveDirection: { x: number; y: number } | null;
+  awayFromEnemyDirection: { x: number; y: number } | null;
+  lastMovementDirection: { x: number; y: number } | null;
+  facing: PlayerFacingDirection;
+}): CombatDodgeDirection {
+  if (params.currentMoveDirection && (Math.abs(params.currentMoveDirection.x) > 0 || Math.abs(params.currentMoveDirection.y) > 0)) {
+    return resolveCombatDodgeDirection(params.currentMoveDirection, params.facing);
+  }
+
+  if (params.awayFromEnemyDirection && (Math.abs(params.awayFromEnemyDirection.x) > 0 || Math.abs(params.awayFromEnemyDirection.y) > 0)) {
+    return resolveCombatDodgeDirection(params.awayFromEnemyDirection, params.facing);
+  }
+
+  if (params.lastMovementDirection && (Math.abs(params.lastMovementDirection.x) > 0 || Math.abs(params.lastMovementDirection.y) > 0)) {
+    return resolveCombatDodgeDirection(params.lastMovementDirection, params.facing);
+  }
+
+  return resolveCombatDodgeDirection({ x: 0, y: 0 }, params.facing);
+}
+
 export function resolveReachableDodgeTarget(
   startX: number,
   startY: number,

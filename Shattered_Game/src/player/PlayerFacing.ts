@@ -6,15 +6,18 @@ export function resolveFacingFromIntent(
   intent: Phaser.Math.Vector2,
   previousFacing: PlayerFacingDirection,
 ): PlayerFacingDirection {
-  if (intent.x !== 0 && intent.y === 0) {
-    return intent.x < 0 ? 'left' : 'right';
+  if (intent.lengthSq() === 0) {
+    return previousFacing;
   }
 
-  if (intent.y !== 0 && intent.x === 0) {
+  const absX = Math.abs(intent.x);
+  const absY = Math.abs(intent.y);
+
+  if (absY > absX) {
     return intent.y < 0 ? 'up' : 'down';
   }
 
-  return previousFacing;
+  return intent.x < 0 ? 'left' : 'right';
 }
 
 export function getFacingLookaheadWorldOffset(

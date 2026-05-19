@@ -39,7 +39,7 @@ export class InputSystem {
 
   // Returns true when the player controller should process movement input.
   shouldProcessMovement(): boolean {
-    return this.mode !== 'menu';
+    return this.mode === 'normal' || this.mode === 'combat';
   }
 
   destroy(): void {
@@ -170,7 +170,7 @@ export class InputSystem {
       this.callbacks.onGuardEnd();
     });
 
-    // --- F / LMB: light attack in combat mode ---
+    // --- F: temporary light attack key in combat mode ---
     this.on('F', () => {
       if (this.mode !== 'combat') {
         return;
@@ -179,16 +179,56 @@ export class InputSystem {
       this.callbacks.onPlayerLightAttack();
     });
 
+    // --- R: toggle explore/combat control mode ---
+    this.on('R', () => {
+      if (this.mode !== 'normal' && this.mode !== 'combat') {
+        return;
+      }
+
+      this.callbacks.onToggleControlMode();
+    });
+
     this.onPointerDown((pointer) => {
-      if (this.mode !== 'combat') {
+      if (this.mode === 'menu') {
+        if (pointer.button === 0 || pointer.leftButtonDown()) {
+          this.callbacks.onMenuPointer(pointer.x, pointer.y);
+        }
         return;
       }
 
-      if (pointer.button !== 0 && !pointer.leftButtonDown()) {
+      if (this.mode !== 'normal' && this.mode !== 'combat') {
         return;
       }
 
-      this.callbacks.onPlayerLightAttack();
+      const worldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
+      const worldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
+
+      if (worldX === null || worldY === null) {
+        return;
+      }
+
+      if (this.mode === 'combat') {
+        if (pointer.button === 0 || pointer.leftButtonDown()) {
+          this.callbacks.onMoveToPointer(worldX, worldY);
+          return;
+        }
+
+        if (pointer.button === 2) {
+          this.callbacks.onPlayerLightAttack();
+        }
+        return;
+      }
+
+      if (this.mode === 'normal') {
+        if (pointer.button === 0 || pointer.leftButtonDown()) {
+          this.callbacks.onPointerInteract(worldX, worldY);
+          return;
+        }
+
+        if (pointer.button === 2) {
+          this.callbacks.onPointerContext(worldX, worldY);
+        }
+      }
     });
 
     // --- ESC: cancel active state ---

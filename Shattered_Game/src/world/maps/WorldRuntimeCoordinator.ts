@@ -66,6 +66,14 @@ type WorldRuntimeBindings = {
   cameraSystem: CameraSystem;
 };
 
+type InteractionTargetType = InteractionTarget['definition']['interactionType'];
+export type DeferredInteractionAction = {
+  kind: 'deferred_interaction_action';
+  interactionType: InteractionTargetType;
+  targetId: string;
+  action: 'use' | 'inspect';
+};
+
 type RestorePrototypeSaveResult =
   | { ok: true; message: string; warnings: string[] }
   | { ok: false; message: string };
@@ -98,6 +106,7 @@ export class WorldRuntimeCoordinator {
   private readonly actionProgressSystem = new ActionProgressSystem();
   private readonly interactionSystem: InteractionSystem;
   private readonly actionBroker: WorldActionBroker;
+  private readonly interactionHandlers: WorldInteractionHandlers;
 
   private bindings?: WorldRuntimeBindings;
   private currentRuntime?: LoadedMapRuntime;
@@ -121,7 +130,7 @@ export class WorldRuntimeCoordinator {
     this.placementModeSystem = new PlacementModeSystem(scene, this.itemRegistry);
     this.choiceMenuCoordinator = new ChoiceMenuCoordinator(this.eventBus);
 
-    const interactionHandlers = new WorldInteractionHandlers(
+    this.interactionHandlers = new WorldInteractionHandlers(
       scene,
       this.playerSessionState,
       this.resourceNodeSystem,
@@ -130,7 +139,7 @@ export class WorldRuntimeCoordinator {
       this.placedStructureSystem,
       () => this.objectPlacementSystem,
     );
-    this.interactionSystem = new InteractionSystem(interactionHandlers.build());
+    this.interactionSystem = new InteractionSystem(this.interactionHandlers.build());
 
     this.actionBroker = new WorldActionBroker(
       this.actionProgressSystem,
@@ -244,79 +253,163 @@ export class WorldRuntimeCoordinator {
 
   triggerActiveInteraction(): InteractionResult | null {
     const activeInteraction = this.interactionSystem.getActiveInteraction();
-    const activeAction = this.actionProgressSystem.getSnapshot();
-
-    if (
-      activeAction
-      && activeInteraction
-      && (
-        activeAction.targetId !== activeInteraction.target.definition.id
-        || activeAction.interactionType !== activeInteraction.target.definition.interactionType
-      )
-    ) {
-      const cancelMsg = this.actionBroker.cancel('Action cancelled.');
-
-      if (cancelMsg) {
-        this.queueInfoResult(cancelMsg);
-      }
-    }
-
-    if (activeInteraction && this.tryOpenChoiceMenu(activeInteraction.target)) {
+    if (!activeInteraction) {
       return null;
     }
 
-    if (activeInteraction?.target.definition.interactionType === 'resource_node') {
-      this.actionBroker.start(
-        this.actionFactory.createGatherAction(
-          activeInteraction.target as ResourceNodeInteractionTarget,
-        ),
-      );
+    this.cancelConflictingActionForTarget(activeInteraction.target);
+
+    if (this.openInteractionChoiceMenuForTarget(activeInteraction.target)) {
       return null;
     }
 
-    if (activeInteraction?.target.definition.interactionType === 'workbench') {
-      const workbenchTarget = activeInteraction.target as WorkbenchInteractionTarget;
-      const recipes = this.workbenchSystem.getRecipesForWorkbench(workbenchTarget.anchor.id);
+    return this.executeTargetUse(activeInteraction.target);
+  }
 
-      if (recipes.length === 1) {
-        this.actionBroker.start(
-          this.actionFactory.createWorkbenchCraftAction(
-            workbenchTarget.anchor.id,
-            recipes[0].id,
-          ),
-        );
-        return null;
-      }
-    }
-
-    if (activeInteraction?.target.definition.interactionType === 'placed_object') {
-      const placedTarget = activeInteraction.target as PlacedObjectInteractionTarget;
-      const action = this.actionFactory.createPlacedObjectAction(
-        placedTarget,
-        this.playerSessionState.getInventoryState(),
-      );
-
-      if (action) {
-        this.actionBroker.start(action);
-        return null;
-      }
-    }
-
-    const result = this.interactionSystem.triggerActiveInteraction();
-
-    if (!result) {
+  triggerPointerInteraction(worldX: number, worldY: number): InteractionResult | null {
+    if (!this.bindings || !this.currentRuntime) {
       return null;
     }
 
-    this.actionBroker.emitResultSfx(result);
+    const clickedTile = this.currentRuntime.isoTilemap.transform.worldToTile(worldX, worldY);
+    const playerTile = this.bindings.playerController.getFeetTile();
+    const interaction = this.interactionSystem.findInteractionAtTile(
+      playerTile.x,
+      playerTile.y,
+      clickedTile.x,
+      clickedTile.y,
+    );
 
-    if (result.transitionRequest) {
-      this.loadMap(result.transitionRequest.targetMapId, result.transitionRequest.targetSpawnId);
-    } else {
-      this.rebuildInteractionTargets();
+    if (!interaction) {
+      return null;
     }
 
-    return result;
+    this.cancelConflictingActionForTarget(interaction.target);
+
+    if (this.openInteractionChoiceMenuForTarget(interaction.target)) {
+      return null;
+    }
+
+    return this.executeTargetUse(interaction.target);
+  }
+
+  findInteractionTargetAtWorldPoint(worldX: number, worldY: number): InteractionTarget | null {
+    if (!this.currentRuntime) {
+      return null;
+    }
+
+    const clickedTile = this.currentRuntime.isoTilemap.transform.worldToTile(worldX, worldY);
+    return this.interactionSystem.findTargetAtTile(clickedTile.x, clickedTile.y);
+  }
+
+  isTargetInInteractionRange(
+    interactionType: InteractionTargetType,
+    targetId: string,
+  ): boolean {
+    const target = this.findTargetByRef(interactionType, targetId);
+
+    if (!target) {
+      return false;
+    }
+
+    return this.isTargetStillInRange(
+      interactionType,
+      targetId,
+      target.definition.interactionRangeTiles,
+    );
+  }
+
+  findInteractionApproachWorldPoint(
+    interactionType: InteractionTargetType,
+    targetId: string,
+  ): Phaser.Math.Vector2 | null {
+    if (!this.currentRuntime || !this.bindings) {
+      return null;
+    }
+
+    const target = this.findTargetByRef(interactionType, targetId);
+
+    if (!target) {
+      return null;
+    }
+
+    const playerTile = this.bindings.playerController.getFeetTile();
+    const interactionRangeTiles = target.definition.interactionRangeTiles;
+    let bestTile: { tileX: number; tileY: number; distanceTiles: number } | null = null;
+
+    for (const tile of target.tiles) {
+      for (let offsetY = -interactionRangeTiles; offsetY <= interactionRangeTiles; offsetY += 1) {
+        for (let offsetX = -interactionRangeTiles; offsetX <= interactionRangeTiles; offsetX += 1) {
+          if (Math.abs(offsetX) + Math.abs(offsetY) > interactionRangeTiles) {
+            continue;
+          }
+
+          const candidateTileX = tile.x + offsetX;
+          const candidateTileY = tile.y + offsetY;
+
+          if (
+            !this.currentRuntime.isoTilemap.isTileInBounds(candidateTileX, candidateTileY)
+            || !this.currentRuntime.isoTilemap.isTileWalkable(candidateTileX, candidateTileY)
+          ) {
+            continue;
+          }
+
+          const distanceTiles =
+            Math.abs(candidateTileX - playerTile.x) + Math.abs(candidateTileY - playerTile.y);
+
+          if (
+            !bestTile
+            || distanceTiles < bestTile.distanceTiles
+            || (
+              distanceTiles === bestTile.distanceTiles
+              && (
+                candidateTileY < bestTile.tileY
+                || (candidateTileY === bestTile.tileY && candidateTileX < bestTile.tileX)
+              )
+            )
+          ) {
+            bestTile = {
+              tileX: candidateTileX,
+              tileY: candidateTileY,
+              distanceTiles,
+            };
+          }
+        }
+      }
+    }
+
+    if (!bestTile) {
+      return null;
+    }
+
+    return this.currentRuntime.isoTilemap.transform.getTileCenterWorld(bestTile.tileX, bestTile.tileY);
+  }
+
+  triggerTargetInteractionByRef(
+    interactionType: InteractionTargetType,
+    targetId: string,
+  ): InteractionResult | null {
+    const target = this.findTargetByRef(interactionType, targetId);
+
+    if (!target || !this.isTargetInInteractionRange(interactionType, targetId)) {
+      return null;
+    }
+
+    this.cancelConflictingActionForTarget(target);
+    return this.executeTargetUse(target);
+  }
+
+  inspectTargetByRef(
+    interactionType: InteractionTargetType,
+    targetId: string,
+  ): InteractionResult | null {
+    const target = this.findTargetByRef(interactionType, targetId);
+
+    if (!target || !this.isTargetInInteractionRange(interactionType, targetId)) {
+      return null;
+    }
+
+    return this.inspectTarget(target);
   }
 
   useItem(itemId: PlayerItemKey): InteractionResult {
@@ -529,7 +622,7 @@ export class WorldRuntimeCoordinator {
     this.choiceMenuCoordinator.moveSelection(delta);
   }
 
-  confirmChoiceMenu(): InteractionResult | null {
+  confirmChoiceMenu(): InteractionResult | DeferredInteractionAction | null {
     const confirmResult = this.choiceMenuCoordinator.confirm(this.playerSessionState);
 
     switch (confirmResult.kind) {
@@ -553,6 +646,38 @@ export class WorldRuntimeCoordinator {
           ),
         );
         return null;
+
+      case 'use_target':
+        if (this.isTargetStillInRange(
+          confirmResult.target.definition.interactionType,
+          confirmResult.target.definition.id,
+          confirmResult.target.definition.interactionRangeTiles,
+        )) {
+          return this.executeTargetUse(confirmResult.target);
+        }
+
+        return {
+          kind: 'deferred_interaction_action',
+          interactionType: confirmResult.target.definition.interactionType,
+          targetId: confirmResult.target.definition.id,
+          action: 'use',
+        };
+
+      case 'inspect_target':
+        if (this.isTargetStillInRange(
+          confirmResult.target.definition.interactionType,
+          confirmResult.target.definition.id,
+          confirmResult.target.definition.interactionRangeTiles,
+        )) {
+          return this.inspectTarget(confirmResult.target);
+        }
+
+        return {
+          kind: 'deferred_interaction_action',
+          interactionType: confirmResult.target.definition.interactionType,
+          targetId: confirmResult.target.definition.id,
+          action: 'inspect',
+        };
 
       case 'result': {
         const result = confirmResult.result;
@@ -594,6 +719,23 @@ export class WorldRuntimeCoordinator {
 
   getObjectOcclusionSystem(): ObjectOcclusionSystem | undefined {
     return this.objectOcclusionSystem;
+  }
+
+  openInteractionChoiceMenuByRef(
+    interactionType: InteractionTargetType,
+    targetId: string,
+  ): boolean {
+    const target = this.findTargetByRef(interactionType, targetId);
+
+    if (!target) {
+      return false;
+    }
+
+    return this.openInteractionChoiceMenuForTarget(target);
+  }
+
+  setChoiceMenuSelection(index: number): void {
+    this.choiceMenuCoordinator.setSelection(index);
   }
 
   destroy(): void {
@@ -748,6 +890,116 @@ export class WorldRuntimeCoordinator {
     this.objectOcclusionSystem = new ObjectOcclusionSystem(this.objectRenderer, this.bindings.player);
   }
 
+  private cancelConflictingActionForTarget(target: InteractionTarget): void {
+    const activeAction = this.actionProgressSystem.getSnapshot();
+
+    if (
+      !activeAction
+      || (
+        activeAction.targetId === target.definition.id
+        && activeAction.interactionType === target.definition.interactionType
+      )
+    ) {
+      return;
+    }
+
+    const cancelMsg = this.actionBroker.cancel('Action cancelled.');
+
+    if (cancelMsg) {
+      this.queueInfoResult(cancelMsg);
+    }
+  }
+
+  private executeTargetUse(target: InteractionTarget): InteractionResult | null {
+    if (this.tryOpenChoiceMenu(target)) {
+      return null;
+    }
+
+    if (target.definition.interactionType === 'resource_node') {
+      this.actionBroker.start(
+        this.actionFactory.createGatherAction(target as ResourceNodeInteractionTarget),
+      );
+      return null;
+    }
+
+    if (target.definition.interactionType === 'workbench') {
+      const workbenchTarget = target as WorkbenchInteractionTarget;
+      const recipes = this.workbenchSystem.getRecipesForWorkbench(workbenchTarget.anchor.id);
+
+      if (recipes.length === 1) {
+        this.actionBroker.start(
+          this.actionFactory.createWorkbenchCraftAction(
+            workbenchTarget.anchor.id,
+            recipes[0].id,
+          ),
+        );
+        return null;
+      }
+    }
+
+    if (target.definition.interactionType === 'placed_object') {
+      const placedTarget = target as PlacedObjectInteractionTarget;
+      const action = this.actionFactory.createPlacedObjectAction(
+        placedTarget,
+        this.playerSessionState.getInventoryState(),
+      );
+
+      if (action) {
+        this.actionBroker.start(action);
+        return null;
+      }
+    }
+
+    const result = this.interactionSystem.triggerTarget(target);
+    this.actionBroker.emitResultSfx(result);
+
+    if (result.transitionRequest) {
+      this.loadMap(result.transitionRequest.targetMapId, result.transitionRequest.targetSpawnId);
+    } else {
+      this.rebuildInteractionTargets();
+    }
+
+    return result;
+  }
+
+  private inspectTarget(target: InteractionTarget): InteractionResult {
+    const result = this.interactionHandlers.inspectTarget(target);
+    this.actionBroker.emitResultSfx(result);
+    return result;
+  }
+
+  private openInteractionChoiceMenuForTarget(target: InteractionTarget): boolean {
+    return this.choiceMenuCoordinator.tryOpen(
+      {
+        title: getInteractionMenuTitle(target),
+        getOptions: () => [
+          {
+            id: 'use',
+            label: getInteractionUseLabel(target),
+            details: getInteractionUseDetails(target),
+          },
+          {
+            id: 'inspect',
+            label: 'Inspect',
+            details: 'Take a closer look.',
+          },
+        ],
+        onConfirm: (optionId) => {
+          if (optionId === 'use') {
+            return { kind: 'use_target', target };
+          }
+
+          if (optionId === 'inspect') {
+            return { kind: 'inspect_target', target };
+          }
+
+          return { kind: 'none' };
+        },
+      },
+      this.playerSessionState,
+    );
+  }
+
   private tryOpenChoiceMenu(target: InteractionTarget): boolean {
     if (target.definition.interactionType === 'workbench') {
       const workbenchTarget = target as WorkbenchInteractionTarget;
@@ -806,5 +1058,75 @@ export class WorldRuntimeCoordinator {
     }
 
     this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
+  }
+
+  private findTargetByRef(
+    interactionType: InteractionTargetType,
+    targetId: string,
+  ): InteractionTarget | null {
+    return this.interactionSystem.findTargetByRef(interactionType, targetId);
+  }
+}
+
+function getInteractionMenuTitle(target: InteractionTarget): string {
+  switch (target.definition.interactionType) {
+    case 'map_transition':
+      return 'Travel';
+    case 'resource_node':
+      return 'Resource';
+    case 'npc':
+      return 'Interaction';
+    case 'workbench':
+      return 'Workbench';
+    case 'contract_board':
+      return 'Contracts';
+    case 'placed_object':
+      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
+        ? 'Campfire'
+        : 'Firestarter';
+    case 'generic_debug':
+      return 'Inspect';
+  }
+}
+
+function getInteractionUseLabel(target: InteractionTarget): string {
+  switch (target.definition.interactionType) {
+    case 'map_transition':
+      return 'Use Route';
+    case 'resource_node':
+      return 'Gather';
+    case 'npc':
+      return 'Talk';
+    case 'workbench':
+      return 'Use Workbench';
+    case 'contract_board':
+      return 'Read Contracts';
+    case 'placed_object':
+      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
+        ? 'Use Campfire'
+        : 'Light Firestarter';
+    case 'generic_debug':
+      return 'Use';
+  }
+}
+
+function getInteractionUseDetails(target: InteractionTarget): string {
+  switch (target.definition.interactionType) {
+    case 'map_transition':
+      return 'Travel onward.';
+    case 'resource_node':
+      return 'Harvest what you can carry.';
+    case 'npc':
+      return 'Start a conversation.';
+    case 'workbench':
+      return 'Craft using the workbench.';
+    case 'contract_board':
+      return 'Review and manage posted tasks.';
+    case 'placed_object':
+      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
+        ? 'Brew or use the fire.'
+        : 'Try to light it.';
+    case 'generic_debug':
+      return 'Interact with it.';
   }
 }

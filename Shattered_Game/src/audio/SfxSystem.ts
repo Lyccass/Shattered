@@ -70,6 +70,10 @@ export class SfxSystem {
       return;
     }
 
+    if (this.pendingEventIds.length > 0) {
+      this.flushPending(context);
+    }
+
     this.playNow(context, eventId, context.currentTime);
   }
 

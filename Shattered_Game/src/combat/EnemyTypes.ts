@@ -31,6 +31,7 @@ export type EnemyAttackDefinition = {
   timing: AttackTimingDefinition;
   telegraph: EnemyAttackTelegraphDefinition;
   cooldownMs: number;
+  globalCooldownMs: number;
 };
 
 export type EnemyDefinition = {
@@ -69,10 +70,14 @@ export type EnemyRuntimeState = {
   attackTargetWorldX: number | null;
   attackTargetWorldY: number | null;
   attackRotationRad: number | null;
+  attackTargetTiles: Array<{ x: number; y: number }>;
+  orbitDirection: -1 | 1;
   attackCooldownEndsAtMs: Record<string, number>;
+  globalCooldownEndsAtMs: number;
   phaseStartedAtMs: number | null;
   phaseEndsAtMs: number | null;
   telegraphId: string | null;
+  attackResolved: boolean;
 };
 
 export type EnemyUiSnapshot = {

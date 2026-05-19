@@ -31,6 +31,69 @@ export class InteractionSystem {
     return this.activeInteraction;
   }
 
+  findTargetByRef(
+    interactionType: InteractionTarget['definition']['interactionType'],
+    targetId: string,
+  ): InteractionTarget | null {
+    return this.targets.find((target) =>
+      target.definition.interactionType === interactionType
+      && target.definition.id === targetId,
+    ) ?? null;
+  }
+
+  findTargetAtTile(targetTileX: number, targetTileY: number): InteractionTarget | null {
+    let bestTarget: InteractionTarget | null = null;
+
+    for (const target of this.targets) {
+      if (!target.tiles.some((tile) => tile.x === targetTileX && tile.y === targetTileY)) {
+        continue;
+      }
+
+      if (!bestTarget || isHigherPriorityTarget(target, bestTarget)) {
+        bestTarget = target;
+      }
+    }
+
+    return bestTarget;
+  }
+
+  findInteractionAtTile(
+    playerTileX: number,
+    playerTileY: number,
+    targetTileX: number,
+    targetTileY: number,
+  ): ActiveInteraction | null {
+    let bestInteraction: ActiveInteraction | null = null;
+
+    for (const target of this.targets) {
+      if (!target.tiles.some((tile) => tile.x === targetTileX && tile.y === targetTileY)) {
+        continue;
+      }
+
+      const distanceTiles = getInteractionDistanceTiles(target, playerTileX, playerTileY);
+
+      if (distanceTiles > target.definition.interactionRangeTiles) {
+        continue;
+      }
+
+      const candidate: ActiveInteraction = {
+        target,
+        distanceTiles,
+        promptText: target.definition.promptText,
+      };
+
+      if (!bestInteraction || isHigherPriorityInteraction(candidate, bestInteraction)) {
+        bestInteraction = candidate;
+      }
+    }
+
+    if (bestInteraction) {
+      this.activeInteraction = bestInteraction;
+    }
+
+    return bestInteraction;
+  }
+
   updateActiveInteraction(tileX: number, tileY: number): ActiveInteraction | null {
     let bestInteraction: ActiveInteraction | null = null;
 
@@ -64,7 +127,7 @@ export class InteractionSystem {
     return this.triggerTarget(this.activeInteraction.target);
   }
 
-  private triggerTarget(target: InteractionTarget): InteractionResult {
+  triggerTarget(target: InteractionTarget): InteractionResult {
     switch (target.definition.interactionType) {
       case 'map_transition':
         return this.handlers.onMapTransition(target as MapTransitionInteractionTarget);
@@ -82,6 +145,14 @@ export class InteractionSystem {
         return this.handlers.onGenericDebug(target as GenericDebugInteractionTarget);
     }
   }
+}
+
+function isHigherPriorityTarget(candidate: InteractionTarget, currentBest: InteractionTarget): boolean {
+  if (candidate.definition.priority !== currentBest.definition.priority) {
+    return candidate.definition.priority > currentBest.definition.priority;
+  }
+
+  return candidate.definition.id < currentBest.definition.id;
 }
 
 function getInteractionDistanceTiles(target: InteractionTarget, tileX: number, tileY: number): number {

@@ -5,6 +5,7 @@ import type {
   GenericDebugInteractionTarget,
   InteractionHandlers,
   InteractionResult,
+  InteractionTarget,
   MapTransitionInteractionTarget,
   NpcInteractionTarget,
   PlacedObjectInteractionTarget,
@@ -39,6 +40,71 @@ export class WorldInteractionHandlers {
       onPlacedObject: (target) => this.handlePlacedObject(target),
       onGenericDebug: (target) => this.handleGenericDebug(target),
     };
+  }
+
+  inspectTarget(target: InteractionTarget): InteractionResult {
+    switch (target.definition.interactionType) {
+      case 'map_transition':
+        return {
+          ok: true,
+          interactionType: 'map_transition',
+          targetId: target.definition.id,
+          message: `A route leading to ${getMapDisplayName((target as MapTransitionInteractionTarget).transition.targetMapId)}.`,
+          toastKind: 'info',
+        };
+      case 'resource_node':
+        return {
+          ok: true,
+          interactionType: 'resource_node',
+          targetId: target.definition.id,
+          message: describeResourceNode((target as ResourceNodeInteractionTarget).anchor.resourceNodeType),
+          toastKind: 'info',
+        };
+      case 'npc':
+        return {
+          ok: true,
+          interactionType: 'npc',
+          targetId: target.definition.id,
+          message: (target as NpcInteractionTarget).anchor.promptLabel
+            ? `${(target as NpcInteractionTarget).anchor.promptLabel}.`
+            : 'Someone worth talking to.',
+          toastKind: 'info',
+        };
+      case 'workbench':
+        return {
+          ok: true,
+          interactionType: 'workbench',
+          targetId: target.definition.id,
+          message: 'A rough workbench for simple field crafting.',
+          toastKind: 'info',
+        };
+      case 'contract_board':
+        return {
+          ok: true,
+          interactionType: 'contract_board',
+          targetId: target.definition.id,
+          message: 'A contract board covered in requests, notices, and harbour jobs.',
+          toastKind: 'info',
+        };
+      case 'placed_object':
+        return {
+          ok: true,
+          interactionType: 'placed_object',
+          targetId: target.definition.id,
+          message: (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
+            ? 'A campfire. Good for warmth and brewing.'
+            : 'A prepared firestarter waiting for a spark.',
+          toastKind: 'info',
+        };
+      case 'generic_debug':
+        return {
+          ok: true,
+          interactionType: 'generic_debug',
+          targetId: target.definition.id,
+          message: (target as GenericDebugInteractionTarget).anchor.message,
+          toastKind: 'info',
+        };
+    }
   }
 
   private handleMapTransition(target: MapTransitionInteractionTarget): InteractionResult {
@@ -109,5 +175,16 @@ export class WorldInteractionHandlers {
       targetId: target.definition.id,
       message: target.anchor.message,
     };
+  }
+}
+
+function describeResourceNode(resourceNodeType: ResourceNodeInteractionTarget['anchor']['resourceNodeType']): string {
+  switch (resourceNodeType) {
+    case 'driftwood':
+      return 'A scatter of driftwood. Dry enough to carry off and use.';
+    case 'stone_pile':
+      return 'A loose stone pile with a few pieces worth prying free.';
+    case 'herb_patch':
+      return 'A herb patch. Useful if you know what to brew with it.';
   }
 }

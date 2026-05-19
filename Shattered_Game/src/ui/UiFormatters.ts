@@ -28,7 +28,15 @@ export function formatPromptPanelText(
     return placementState.promptText;
   }
 
-  return activeInteraction?.promptText ?? '';
+  if (!activeInteraction) {
+    return '';
+  }
+
+  const actionLabel = activeInteraction.promptText.includes(':')
+    ? activeInteraction.promptText.split(':').slice(1).join(':').trim()
+    : 'Interact';
+
+  return `Press E: Interact\n${actionLabel} / Inspect`;
 }
 
 export function formatHudPanelText(

@@ -9,6 +9,9 @@ export class AudioUnlockGate {
   private failureReason: string | null = null;
   private lastWarning: string | null = null;
   private unlockListenersRegistered = false;
+  private readonly handleContextStateChange = () => {
+    this.syncContextState();
+  };
 
   private readonly handleSceneGesture = () => {
     void this.unlockFromGesture();
@@ -29,6 +32,7 @@ export class AudioUnlockGate {
     this.unregisterUnlockListeners();
 
     if (this.audioContext) {
+      this.audioContext.removeEventListener('statechange', this.handleContextStateChange);
       void this.audioContext.close().catch(() => undefined);
       this.audioContext = null;
     }
@@ -98,6 +102,7 @@ export class AudioUnlockGate {
 
   async recreate(): Promise<void> {
     if (this.audioContext) {
+      this.audioContext.removeEventListener('statechange', this.handleContextStateChange);
       try {
         if (this.audioContext.state !== 'closed') {
           await this.audioContext.close();
@@ -154,6 +159,8 @@ export class AudioUnlockGate {
 
       try {
         this.audioContext = new View();
+        this.audioContext.addEventListener('statechange', this.handleContextStateChange);
+        this.syncContextState();
       } catch (error) {
         this.markFailed(this.formatResumeFailure(error));
         return null;
@@ -210,7 +217,24 @@ export class AudioUnlockGate {
   private markReady(): void {
     this.status = 'ready';
     this.failureReason = null;
-    this.unregisterUnlockListeners();
+  }
+
+  private syncContextState(): void {
+    const state = this.audioContext?.state ?? 'closed';
+
+    if (state === 'running') {
+      this.markReady();
+      return;
+    }
+
+    if (state === 'closed') {
+      this.status = 'locked';
+      this.registerUnlockListeners();
+      return;
+    }
+
+    this.status = 'locked';
+    this.registerUnlockListeners();
   }
 
   private markFailed(reason: string): null {

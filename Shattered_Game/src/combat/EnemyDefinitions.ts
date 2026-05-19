@@ -1,11 +1,12 @@
 import type { EnemyDefinition } from './EnemyTypes';
+import { PLAYER_CONFIG } from '../player/PlayerConfig';
 
 export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
   {
     id: 'training_wretch',
     displayName: 'Training Wretch',
     maxHealth: 5,
-    moveSpeed: 64,
+    moveSpeed: PLAYER_CONFIG.movementSpeed,
     collisionRadiusTiles: 0.65,
     aggroRangeTiles: 9.25,
     leashRangeTiles: 11,
@@ -18,16 +19,17 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
         maxRangeTiles: 8.75,
         damage: 2,
         timing: {
-          windupMs: 650,
-          activeMs: 180,
-          recoveryMs: 620,
+          windupMs: 1_200,
+          activeMs: 280,
+          recoveryMs: 1_100,
         },
         telegraph: {
           kind: 'ellipse',
           radiusXTiles: 2.75,
           radiusYTiles: 1.75,
         },
-        cooldownMs: 2_000,
+        cooldownMs: 3_600,
+        globalCooldownMs: 2_800,
       },
       {
         id: 'wretch_cone',
@@ -37,16 +39,17 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
         maxRangeTiles: 3.6,
         damage: 1,
         timing: {
-          windupMs: 850,
-          activeMs: 180,
-          recoveryMs: 700,
+          windupMs: 1_450,
+          activeMs: 280,
+          recoveryMs: 1_200,
         },
         telegraph: {
           kind: 'cone',
           rangeTiles: 3.6,
           angleDeg: 96,
         },
-        cooldownMs: 1_450,
+        cooldownMs: 2_800,
+        globalCooldownMs: 2_300,
       },
       {
         id: 'wretch_stab',
@@ -56,16 +59,17 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
         maxRangeTiles: 2.45,
         damage: 1,
         timing: {
-          windupMs: 520,
-          activeMs: 140,
-          recoveryMs: 520,
+          windupMs: 900,
+          activeMs: 220,
+          recoveryMs: 900,
         },
         telegraph: {
           kind: 'rectangle',
           widthTiles: 1,
           lengthTiles: 4.1,
         },
-        cooldownMs: 1_100,
+        cooldownMs: 2_000,
+        globalCooldownMs: 1_700,
       },
     ],
   },

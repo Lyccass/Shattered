@@ -18,12 +18,17 @@ export type InputCallbacks = {
   onGuardStart: () => void;
   onGuardEnd: () => void;
   onPlayerLightAttack: () => void;
+  onMoveToPointer: (worldX: number, worldY: number) => void;
+  onPointerInteract: (worldX: number, worldY: number) => void;
+  onPointerContext: (worldX: number, worldY: number) => void;
+  onToggleControlMode: () => void;
 
   // Menu mode
   onMenuMoveUp: () => void;
   onMenuMoveDown: () => void;
   onMenuConfirm: () => void;
   onMenuCancel: () => void;
+  onMenuPointer: (screenX: number, screenY: number) => void;
 
   // Placement mode
   onPlacementConfirm: () => void;

@@ -13,6 +13,7 @@ export function applyEnemyDamage(
   const nextState: EnemyRuntimeState = {
     ...state,
     attackCooldownEndsAtMs: { ...state.attackCooldownEndsAtMs },
+    globalCooldownEndsAtMs: state.globalCooldownEndsAtMs,
     health: Math.max(0, state.health - amount),
   };
 
@@ -26,9 +27,11 @@ export function applyEnemyDamage(
   nextState.attackTargetWorldX = null;
   nextState.attackTargetWorldY = null;
   nextState.attackRotationRad = null;
+  nextState.attackTargetTiles = [];
   nextState.phaseStartedAtMs = nowMs;
   nextState.phaseEndsAtMs = nowMs + deathResetDelayMs;
   nextState.telegraphId = null;
+  nextState.attackResolved = false;
   return { state: nextState, hit: true, killed: true, currentHp: 0 };
 }
 
@@ -51,11 +54,15 @@ export function resetEnemyRuntimeState(
     attackTargetWorldX: null,
     attackTargetWorldY: null,
     attackRotationRad: null,
+    attackTargetTiles: [],
+    orbitDirection: state.orbitDirection,
     attackCooldownEndsAtMs: Object.fromEntries(
       definition.attacks.map((attack) => [attack.id, 0]),
     ),
+    globalCooldownEndsAtMs: 0,
     phaseStartedAtMs: null,
     phaseEndsAtMs: null,
     telegraphId: null,
+    attackResolved: false,
   };
 }

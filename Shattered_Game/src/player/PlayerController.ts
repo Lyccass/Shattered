@@ -4,13 +4,14 @@ import {
 } from '../combat/CombatDodge';
 import type { CombatAnimationStateId } from '../combat/CombatAnimationTypes';
 import { PlayerCollisionSystem } from './PlayerCollisionSystem';
+import { PLAYER_CONFIG } from './PlayerConfig';
 import { resolveFacingFromIntent, type PlayerFacingDirection } from './PlayerFacing';
 import { PlayerMovementSystem } from './PlayerMovementSystem';
 import { PlayerPositionSystem } from './PlayerPositionSystem';
 import { PlayerVisualSystem } from './PlayerVisualSystem';
 import { IsoTilemap } from '../world/IsoTilemap';
+import { findGridPath } from '../world/GridPathfinder';
 
-type MovementKeys = Record<'up' | 'left' | 'down' | 'right', Phaser.Input.Keyboard.Key>;
 type ActiveDodgeMotion = {
   direction: Phaser.Math.Vector2;
   elapsedMs: number;
@@ -21,33 +22,31 @@ type ActiveDodgeMotion = {
 export class PlayerController {
   readonly sprite: Phaser.GameObjects.Sprite;
 
-  private readonly keys: MovementKeys;
   private readonly movementIntent = new Phaser.Math.Vector2();
   private readonly collision: PlayerCollisionSystem;
   private readonly movement: PlayerMovementSystem;
   private readonly position: PlayerPositionSystem;
   private readonly visuals: PlayerVisualSystem;
+  private tilemap: IsoTilemap;
   private facingDirection: PlayerFacingDirection = 'down';
   private horizontalFacing: 'left' | 'right' = 'right';
   private movementSpeedMultiplier = 1;
   private dodgeMotion: ActiveDodgeMotion | null = null;
+  private clickMoveTarget: Phaser.Math.Vector2 | null = null;
+  private clickMoveWaypoints: Phaser.Math.Vector2[] = [];
+  private readonly lastMovementDirection = new Phaser.Math.Vector2(0, 1);
   private lastSafeSpriteX: number;
   private lastSafeSpriteY: number;
 
-  constructor(scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite, tilemap: IsoTilemap) {
+  constructor(_scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite, tilemap: IsoTilemap) {
     this.sprite = sprite;
+    this.tilemap = tilemap;
     this.collision = new PlayerCollisionSystem(tilemap);
     this.position = new PlayerPositionSystem();
     this.movement = new PlayerMovementSystem(this.collision, this.position);
     this.visuals = new PlayerVisualSystem(sprite);
     this.lastSafeSpriteX = sprite.x;
     this.lastSafeSpriteY = sprite.y;
-    this.keys = scene.input.keyboard?.addKeys({
-      up: Phaser.Input.Keyboard.KeyCodes.W,
-      left: Phaser.Input.Keyboard.KeyCodes.A,
-      down: Phaser.Input.Keyboard.KeyCodes.S,
-      right: Phaser.Input.Keyboard.KeyCodes.D,
-    }) as MovementKeys;
   }
 
   update(delta: number, nowMs: number, movementSpeedMultiplier = this.movementSpeedMultiplier): void {
@@ -86,8 +85,19 @@ export class PlayerController {
       return;
     }
 
-    this.readMovementIntent();
+    const usedClickMove = this.readMovementIntent(nowMs);
+    const beforeX = this.sprite.x;
+    const beforeY = this.sprite.y;
     this.movement.move(this.sprite, this.movementIntent, delta, movementSpeedMultiplier);
+
+    if (
+      usedClickMove
+      && this.movementIntent.lengthSq() > 0
+      && Math.abs(this.sprite.x - beforeX) < 0.001
+      && Math.abs(this.sprite.y - beforeY) < 0.001
+    ) {
+      this.clickMoveTarget = null;
+    }
     this.recoverIfBlocked();
     this.captureSafePosition();
     this.visuals.update(
@@ -116,6 +126,78 @@ export class PlayerController {
     return this.collision.getPlayerFeetTile(feetPoint.x, feetPoint.y);
   }
 
+  getFootprintTiles(): Array<{ x: number; y: number }> {
+    const feet = this.getFeetPoint();
+    const keys = new Set<string>();
+    const tiles: Array<{ x: number; y: number }> = [];
+
+    this.collision.getFeetSamplePoints(feet.x, feet.y).forEach((point) => {
+      const tile = this.tilemap.transform.worldToTile(point.x, point.y);
+      const key = `${tile.x},${tile.y}`;
+
+      if (keys.has(key) || !this.tilemap.isTileInBounds(tile.x, tile.y)) {
+        return;
+      }
+
+      keys.add(key);
+      tiles.push({ x: tile.x, y: tile.y });
+    });
+
+    return tiles;
+  }
+
+  getFootprintSamplePoints(): Array<{ x: number; y: number }> {
+    const seen = new Set<string>();
+    const samples: Array<{ x: number; y: number }> = [];
+
+    this.getFootprintTiles().forEach((tile) => {
+      const center = this.tilemap.getTileCenterWorld(tile.x, tile.y);
+      const corners = this.tilemap.transform.getTileDiamondPoints(tile.x, tile.y);
+      const edgeMidpoints = corners.map((corner, index) => {
+        const next = corners[(index + 1) % corners.length];
+        return {
+          x: (corner.x + next.x) / 2,
+          y: (corner.y + next.y) / 2,
+        };
+      });
+
+      [
+        { x: center.x, y: center.y },
+        ...corners.map((point) => ({ x: point.x, y: point.y })),
+        ...edgeMidpoints,
+      ].forEach((point) => {
+        const key = `${Math.round(point.x * 100) / 100},${Math.round(point.y * 100) / 100}`;
+
+        if (seen.has(key)) {
+          return;
+        }
+
+        seen.add(key);
+        samples.push(point);
+      });
+    });
+
+    return samples;
+  }
+
+  getCombatHitEllipse(): { centerX: number; centerY: number; radiusX: number; radiusY: number } {
+    const bounds = this.sprite.getBounds();
+    const feet = this.getFeetPoint();
+    const radiusX = Math.max(6, bounds.width * 0.17);
+    const radiusY = Math.max(9, bounds.height * 0.19);
+
+    return {
+      centerX: bounds.x + bounds.width / 2,
+      centerY: feet.y - radiusY,
+      radiusX,
+      radiusY,
+    };
+  }
+
+  getCombatHitboxPoints(): Array<{ x: number; y: number }> {
+    return getEllipseSamplePoints(this.getCombatHitEllipse());
+  }
+
   getFacingDirection(): PlayerFacingDirection {
     return this.facingDirection;
   }
@@ -133,7 +215,66 @@ export class PlayerController {
   }
 
   getMovementIntent(): Phaser.Math.Vector2 {
-    return this.computeMovementIntent();
+    return this.movementIntent.clone();
+  }
+
+  isMoving(): boolean {
+    return this.dodgeMotion !== null || this.movementIntent.lengthSq() > 0;
+  }
+
+  hasClickMoveTarget(): boolean {
+    return this.clickMoveTarget !== null || this.clickMoveWaypoints.length > 0;
+  }
+
+  clearClickMoveTarget(): void {
+    this.clickMoveTarget = null;
+    this.clickMoveWaypoints = [];
+  }
+
+  getCurrentMoveDirection(): Phaser.Math.Vector2 | null {
+    const currentWaypoint = this.clickMoveWaypoints[0] ?? this.clickMoveTarget;
+
+    if (currentWaypoint) {
+      const feet = this.getFeetPoint();
+      const deltaX = currentWaypoint.x - feet.x;
+      const deltaY = currentWaypoint.y - feet.y;
+
+      if (Math.hypot(deltaX, deltaY) > 0.001) {
+        return new Phaser.Math.Vector2(deltaX, deltaY);
+      }
+    }
+
+    if (this.movementIntent.lengthSq() > 0) {
+      return this.movementIntent.clone();
+    }
+
+    return null;
+  }
+
+  getLastMovementDirection(): Phaser.Math.Vector2 {
+    return this.lastMovementDirection.clone();
+  }
+
+  setFacingFromTarget(targetWorldX: number | null, targetWorldY: number | null): void {
+    if (targetWorldX === null || targetWorldY === null) {
+      return;
+    }
+
+    const feet = this.getFeetPoint();
+    const deltaX = targetWorldX - feet.x;
+    const deltaY = targetWorldY - feet.y;
+
+    if (Math.abs(deltaX) < 0.001 && Math.abs(deltaY) < 0.001) {
+      return;
+    }
+
+    if (Math.abs(deltaY) > Math.abs(deltaX)) {
+      this.facingDirection = deltaY < 0 ? 'up' : 'down';
+    } else {
+      this.facingDirection = deltaX < 0 ? 'left' : 'right';
+    }
+
+    this.setHorizontalFacingFromTarget(targetWorldX);
   }
 
   isDodging(): boolean {
@@ -151,7 +292,9 @@ export class PlayerController {
   }
 
   setTilemap(tilemap: IsoTilemap): void {
+    this.tilemap = tilemap;
     this.collision.setTilemap(tilemap);
+    this.clearClickMoveTarget();
   }
 
   setExternalOccupancyValidator(
@@ -162,6 +305,7 @@ export class PlayerController {
 
   setWorldPosition(worldX: number, worldY: number): void {
     this.dodgeMotion = null;
+    this.clickMoveTarget = null;
     this.sprite.setPosition(worldX, worldY);
     this.captureSafePosition();
   }
@@ -173,6 +317,29 @@ export class PlayerController {
 
   setMovementSpeedMultiplier(multiplier: number): void {
     this.movementSpeedMultiplier = multiplier;
+  }
+
+  setClickMoveTarget(worldX: number, worldY: number): void {
+    const startTile = this.getFeetTile();
+    const goalTile = this.tilemap.transform.worldToTile(worldX, worldY);
+    const path = findGridPath({
+      width: this.tilemap.width,
+      height: this.tilemap.height,
+      start: { x: startTile.x, y: startTile.y },
+      goal: { x: goalTile.x, y: goalTile.y },
+      isWalkable: (tileX, tileY) => this.tilemap.isTileWalkable(tileX, tileY),
+    });
+
+    if (!path || path.length === 0) {
+      this.clearClickMoveTarget();
+      return;
+    }
+
+    this.clickMoveTarget = new Phaser.Math.Vector2(worldX, worldY);
+    this.clickMoveWaypoints = path
+      .slice(1)
+      .map((tile) => this.tilemap.getTileCenterWorld(tile.x, tile.y))
+      .map((point) => new Phaser.Math.Vector2(point.x, point.y));
   }
 
   resolveDodgeTarget(
@@ -219,6 +386,7 @@ export class PlayerController {
       return;
     }
 
+    this.clearClickMoveTarget();
     this.dodgeMotion = {
       direction: new Phaser.Math.Vector2(direction.x / length, direction.y / length),
       elapsedMs: 0,
@@ -239,29 +407,60 @@ export class PlayerController {
     return this.visuals.getCombatState(nowMs);
   }
 
-  private readMovementIntent(): void {
-    this.movementIntent.copy(this.computeMovementIntent());
+  private readMovementIntent(nowMs: number): boolean {
+    const attackFacingLocked = this.isAttackFacingLocked(nowMs);
+    const clickMoveIntent = this.computeClickMoveIntent();
+    const usingClickMove = clickMoveIntent.lengthSq() > 0;
+    this.movementIntent.copy(clickMoveIntent);
 
     if (this.movementIntent.lengthSq() > 0) {
-      this.facingDirection = resolveFacingFromIntent(this.movementIntent, this.facingDirection);
+      this.lastMovementDirection.copy(this.movementIntent).normalize();
 
-      if (this.movementIntent.x < 0) {
-        this.horizontalFacing = 'left';
-      } else if (this.movementIntent.x > 0) {
-        this.horizontalFacing = 'right';
+      if (!attackFacingLocked) {
+        this.facingDirection = resolveFacingFromIntent(this.movementIntent, this.facingDirection);
+
+        if (this.movementIntent.x < 0) {
+          this.horizontalFacing = 'left';
+        } else if (this.movementIntent.x > 0) {
+          this.horizontalFacing = 'right';
+        }
       }
     }
+
+    return usingClickMove;
   }
 
-  private computeMovementIntent(): Phaser.Math.Vector2 {
-    const intent = new Phaser.Math.Vector2();
+  private computeClickMoveIntent(): Phaser.Math.Vector2 {
+    const currentWaypoint = this.clickMoveWaypoints[0] ?? this.clickMoveTarget;
 
-    if (this.keys.left.isDown) intent.x -= 1;
-    if (this.keys.right.isDown) intent.x += 1;
-    if (this.keys.up.isDown) intent.y -= 1;
-    if (this.keys.down.isDown) intent.y += 1;
+    if (!currentWaypoint) {
+      return new Phaser.Math.Vector2();
+    }
 
-    return intent;
+    const feet = this.getFeetPoint();
+    const deltaX = currentWaypoint.x - feet.x;
+    const deltaY = currentWaypoint.y - feet.y;
+
+    if (Math.hypot(deltaX, deltaY) <= PLAYER_CONFIG.movementSpeed * 0.08) {
+      if (this.clickMoveWaypoints.length > 0) {
+        this.clickMoveWaypoints.shift();
+
+        if (this.clickMoveWaypoints.length > 0) {
+          return this.computeClickMoveIntent();
+        }
+      }
+
+      this.clickMoveTarget = null;
+      this.clickMoveWaypoints = [];
+      return new Phaser.Math.Vector2();
+    }
+
+    return new Phaser.Math.Vector2(deltaX, deltaY);
+  }
+
+  private isAttackFacingLocked(nowMs: number): boolean {
+    const state = this.visuals.getCombatState(nowMs);
+    return state === 'attack_windup' || state === 'attack_active' || state === 'attack_recovery';
   }
 
   private recoverIfBlocked(): void {
@@ -285,4 +484,32 @@ export class PlayerController {
     this.lastSafeSpriteX = this.sprite.x;
     this.lastSafeSpriteY = this.sprite.y;
   }
+}
+
+function getEllipseSamplePoints(
+  ellipse: { centerX: number; centerY: number; radiusX: number; radiusY: number },
+): Array<{ x: number; y: number }> {
+  return [
+    { x: ellipse.centerX, y: ellipse.centerY },
+    { x: ellipse.centerX - ellipse.radiusX, y: ellipse.centerY },
+    { x: ellipse.centerX + ellipse.radiusX, y: ellipse.centerY },
+    { x: ellipse.centerX, y: ellipse.centerY - ellipse.radiusY },
+    { x: ellipse.centerX, y: ellipse.centerY + ellipse.radiusY },
+    {
+      x: ellipse.centerX - ellipse.radiusX * 0.7,
+      y: ellipse.centerY - ellipse.radiusY * 0.7,
+    },
+    {
+      x: ellipse.centerX + ellipse.radiusX * 0.7,
+      y: ellipse.centerY - ellipse.radiusY * 0.7,
+    },
+    {
+      x: ellipse.centerX - ellipse.radiusX * 0.7,
+      y: ellipse.centerY + ellipse.radiusY * 0.7,
+    },
+    {
+      x: ellipse.centerX + ellipse.radiusX * 0.7,
+      y: ellipse.centerY + ellipse.radiusY * 0.7,
+    },
+  ];
 }

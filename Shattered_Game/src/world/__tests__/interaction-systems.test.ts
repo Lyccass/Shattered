@@ -162,6 +162,58 @@ describe('InteractionSystem', () => {
       targetSpawnId: 'dock',
     });
   });
+
+  it('finds a clicked interaction tile only when the player is in range', () => {
+    const system = new InteractionSystem(createHandlers());
+    system.setTargets([
+      {
+        definition: {
+          id: 'driftwood_01',
+          interactionType: 'resource_node',
+          promptText: 'Press E: Gather Driftwood',
+          interactionRangeTiles: 1,
+          priority: 90,
+        },
+        tiles: [{ x: 11, y: 10 }],
+        anchor: {
+          id: 'driftwood_01',
+          interactionType: 'resource_node',
+          tileX: 11,
+          tileY: 10,
+          resourceNodeType: 'driftwood',
+        },
+      },
+    ]);
+
+    expect(system.findInteractionAtTile(10, 10, 11, 10)?.target.definition.id).toBe('driftwood_01');
+    expect(system.findInteractionAtTile(30, 30, 11, 10)).toBeNull();
+  });
+
+  it('can find a clicked target even when the player is out of range', () => {
+    const system = new InteractionSystem(createHandlers());
+    system.setTargets([
+      {
+        definition: {
+          id: 'driftwood_02',
+          interactionType: 'resource_node',
+          promptText: 'Press E: Gather Driftwood',
+          interactionRangeTiles: 1,
+          priority: 90,
+        },
+        tiles: [{ x: 21, y: 14 }],
+        anchor: {
+          id: 'driftwood_02',
+          interactionType: 'resource_node',
+          tileX: 21,
+          tileY: 14,
+          resourceNodeType: 'driftwood',
+        },
+      },
+    ]);
+
+    expect(system.findTargetAtTile(21, 14)?.definition.id).toBe('driftwood_02');
+    expect(system.findTargetByRef('resource_node', 'driftwood_02')?.definition.id).toBe('driftwood_02');
+  });
 });
 
 describe('ResourceNodeSystem', () => {

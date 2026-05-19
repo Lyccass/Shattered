@@ -65,7 +65,7 @@ const PLAYER_ANIMATIONS: PlayerAnimationDefinition[] = [
   {
     animationKey: PLAYER_ATTACK_ANIMATION_KEY,
     textureKeys: PLAYER_FRAME_GROUPS.attack.slice(0, 6),
-    frameRate: 22,
+    frameRate: 15,
     repeat: 0,
   },
   {

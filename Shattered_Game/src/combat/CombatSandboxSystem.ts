@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
-import { resolveCombatDodgeDirection } from './CombatDodge';
+import { resolveClickMovementDodgeDirection } from './CombatDodge';
 import {
-  doesEnemyHitCircleIntersectPlayerLightAttackByRotation,
   getPlayerLightAttackHitbox,
   getPlayerLightAttackHitboxByRotation,
   getPlayerLightAttackSlash,
   getPlayerLightAttackSlashByRotation,
   isAttackerInsideGuardFront,
-  isEnemyInsidePlayerLightAttackByRotation,
+  PLAYER_LIGHT_ATTACK_LENGTH_WORLD,
+  PLAYER_LIGHT_ATTACK_WIDTH_WORLD,
   resolvePlayerAttackAimRad,
 } from './CombatPlayerMath';
 import type { PlayerAttackPhase } from './PlayerCombatState';
@@ -29,9 +29,9 @@ export class CombatSandboxSystem {
   private static readonly SPRINT_DODGE_DISTANCE_MULTIPLIER = 1.45;
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
   private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
-  private static readonly PLAYER_ATTACK_WINDUP_MS = 140;
-  private static readonly PLAYER_ATTACK_ACTIVE_MS = 120;
-  private static readonly PLAYER_ATTACK_RECOVERY_MS = 280;
+  private static readonly PLAYER_ATTACK_WINDUP_MS = 220;
+  private static readonly PLAYER_ATTACK_ACTIVE_MS = 160;
+  private static readonly PLAYER_ATTACK_RECOVERY_MS = 420;
   private static readonly PLAYER_ATTACK_WINDUP_TELEGRAPH_ID = 'player_light_attack_windup';
   private static readonly PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID = 'player_light_attack_active';
   private static readonly PLAYER_ATTACK_SLASH_TELEGRAPH_ID = 'player_light_attack_slash';
@@ -39,6 +39,7 @@ export class CombatSandboxSystem {
   private readonly playerCombatState = new PlayerCombatState();
   private readonly enemySystem: EnemySystem;
   private readonly telegraphSystem: TelegraphSystem;
+  private readonly debugHitboxGraphics: Phaser.GameObjects.Graphics;
   private currentTilemap: IsoTilemap | null = null;
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
   private playerAttackAimRad: number | null = null;
@@ -51,6 +52,8 @@ export class CombatSandboxSystem {
   ) {
     this.telegraphSystem = telegraphSystem;
     this.enemySystem = new EnemySystem(scene, telegraphSystem);
+    this.debugHitboxGraphics = scene.add.graphics();
+    this.debugHitboxGraphics.setDepth(9_500);
   }
 
   setMapContext(mapId: string, tilemap: IsoTilemap): void {
@@ -69,7 +72,7 @@ export class CombatSandboxSystem {
     this.playerCombatState.update(
       nowMs,
       deltaMs,
-      playerController.getMovementIntent().lengthSq() > 0,
+      playerController.isMoving(),
     );
     this.syncPlayerAttackVisuals(nowMs, playerController);
 
@@ -84,6 +87,8 @@ export class CombatSandboxSystem {
     }
 
     const feetPoint = playerController.getFeetPoint();
+    const playerHitPoints = playerController.getCombatHitboxPoints();
+    const playerOccupiedTiles = playerController.getFootprintTiles();
     const combatActive = this.enemySystem.isCombatActive(feetPoint.x, feetPoint.y);
 
     if (combatActive) {
@@ -105,8 +110,11 @@ export class CombatSandboxSystem {
       feetPoint.x,
       feetPoint.y,
       this.playerCombatState.isInvulnerable(nowMs),
+      playerHitPoints,
+      playerOccupiedTiles,
     );
     this.resolvePlayerEnemyOverlap(playerController);
+    this.syncDebugHitboxes(playerController);
 
     const results: UiHandledResult[] = [];
     this.resolveEnemyAttackEvents(nowMs, playerController, events, results);
@@ -120,7 +128,12 @@ export class CombatSandboxSystem {
     return results;
   }
 
-  tryDodge(nowMs: number, playerController: PlayerController): UiHandledResult | null {
+  tryDodge(
+    nowMs: number,
+    playerController: PlayerController,
+    targetWorldX: number | null,
+    targetWorldY: number | null,
+  ): UiHandledResult | null {
     if (!this.currentTilemap) {
       return null;
     }
@@ -129,10 +142,28 @@ export class CombatSandboxSystem {
       return null;
     }
 
-    const direction = resolveCombatDodgeDirection(
-      playerController.getMovementIntent(),
-      playerController.getFacingDirection(),
-    );
+    const enemyPosition = this.enemySystem.getWorldPosition();
+    const playerFeet = playerController.getFeetPoint();
+    const pointerDirection =
+      targetWorldX !== null
+      && targetWorldY !== null
+      && Math.hypot(targetWorldX - playerFeet.x, targetWorldY - playerFeet.y) > 0.001
+        ? {
+            x: targetWorldX - playerFeet.x,
+            y: targetWorldY - playerFeet.y,
+          }
+        : null;
+    const direction = resolveClickMovementDodgeDirection({
+      currentMoveDirection: pointerDirection ?? playerController.getCurrentMoveDirection(),
+      awayFromEnemyDirection: enemyPosition
+        ? {
+            x: playerFeet.x - enemyPosition.x,
+            y: playerFeet.y - enemyPosition.y,
+          }
+        : null,
+      lastMovementDirection: playerController.getLastMovementDirection(),
+      facing: playerController.getFacingDirection(),
+    });
     const dodgeDistance = this.playerCombatState.getSnapshot(nowMs).isSprinting
       ? CombatSandboxSystem.DODGE_DISTANCE_WORLD * CombatSandboxSystem.SPRINT_DODGE_DISTANCE_MULTIPLIER
       : CombatSandboxSystem.DODGE_DISTANCE_WORLD;
@@ -173,7 +204,7 @@ export class CombatSandboxSystem {
     targetWorldX: number | null,
     targetWorldY: number | null,
   ): UiHandledResult | null {
-    if (!this.currentTilemap || !this.playerCombatState.getSnapshot(nowMs).combatModeActive) {
+    if (!this.currentTilemap) {
       return null;
     }
 
@@ -245,6 +276,7 @@ export class CombatSandboxSystem {
 
   destroy(): void {
     this.clearPlayerAttackTelegraphs();
+    this.debugHitboxGraphics.destroy();
     this.enemySystem.destroy();
   }
 
@@ -361,8 +393,7 @@ export class CombatSandboxSystem {
       return;
     }
 
-    const enemyPosition = this.enemySystem.getWorldPosition();
-    const enemyHitCircle = this.enemySystem.getHitCircle();
+    const enemyTile = this.enemySystem.getOccupiedTile();
     const playerFeet = playerController.getFeetPoint();
     const attackAimRad = this.playerAttackAimRad ?? resolvePlayerAttackAimRad(
       playerFeet.x,
@@ -371,29 +402,18 @@ export class CombatSandboxSystem {
       null,
       null,
     );
-
-    if (
-      !enemyPosition
-      || !(
-        isEnemyInsidePlayerLightAttackByRotation(
+    const attackTiles = this.currentTilemap
+      ? collectTilesCoveredByPlayerAttack(
+          this.currentTilemap,
           playerFeet.x,
           playerFeet.y,
           attackAimRad,
-          enemyPosition.x,
-          enemyPosition.y,
         )
-        || (
-          enemyHitCircle !== null
-          && doesEnemyHitCircleIntersectPlayerLightAttackByRotation(
-            playerFeet.x,
-            playerFeet.y,
-            attackAimRad,
-            enemyHitCircle.worldX,
-            enemyHitCircle.worldY,
-            enemyHitCircle.radius,
-          )
-        )
-      )
+      : [];
+
+    if (
+      !enemyTile
+      || !attackTiles.some((tile) => tile.x === enemyTile.x && tile.y === enemyTile.y)
     ) {
       return;
     }
@@ -408,6 +428,7 @@ export class CombatSandboxSystem {
     }
 
     this.playerAttackHitResolved = true;
+    this.playerCombatState.refundLightAttackStamina();
     this.emitSfx(outcome.killed ? 'enemy_down' : 'player_attack');
     results.push({
       ok: true,
@@ -460,41 +481,51 @@ export class CombatSandboxSystem {
   }
 
   private resolvePlayerEnemyOverlap(playerController: PlayerController): void {
-    const enemyBody = this.enemySystem.getBlockingCircle();
+    const enemyTile = this.enemySystem.getOccupiedTile();
 
-    if (!enemyBody || !this.currentTilemap) {
+    if (!enemyTile || !this.currentTilemap) {
       return;
     }
 
+    const playerTiles = playerController.getFootprintTiles();
+
+    if (!playerTiles.some((tile) => tile.x === enemyTile.x && tile.y === enemyTile.y)) {
+      return;
+    }
+
+    const enemyCenter = this.currentTilemap.getTileCenterWorld(enemyTile.x, enemyTile.y);
     const feet = playerController.getFeetPoint();
-    const dx = feet.x - enemyBody.worldX;
-    const dy = feet.y - enemyBody.worldY;
-    const distance = Math.hypot(dx, dy);
+    const dx = feet.x - enemyCenter.x;
+    const dy = feet.y - enemyCenter.y;
+    const horizontal = dx >= 0 ? 1 : -1;
+    const vertical = dy >= 0 ? 1 : -1;
+    const candidateOffsets: Array<{ x: number; y: number }> = [
+      { x: horizontal, y: vertical },
+      { x: horizontal, y: 0 },
+      { x: 0, y: vertical },
+      { x: -horizontal, y: vertical },
+      { x: horizontal, y: -vertical },
+      { x: -horizontal, y: 0 },
+      { x: 0, y: -vertical },
+      { x: -horizontal, y: -vertical },
+    ];
 
-    if (distance >= enemyBody.radius) {
-      return;
-    }
+    for (const offset of candidateOffsets) {
+      const tileX = enemyTile.x + offset.x;
+      const tileY = enemyTile.y + offset.y;
 
-    const preferred = distance > 0.001
-      ? new Phaser.Math.Vector2(dx / distance, dy / distance)
-      : new Phaser.Math.Vector2(0, 1);
-    const angleOffsets = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4];
-    const minDistance = enemyBody.radius + 1;
-    const maxDistance = enemyBody.radius + 14;
-
-    for (let probeDistance = minDistance; probeDistance <= maxDistance; probeDistance += 2) {
-      for (const angleOffset of angleOffsets) {
-        const direction = preferred.clone().rotate(angleOffset);
-        const candidateX = enemyBody.worldX + direction.x * probeDistance;
-        const candidateY = enemyBody.worldY + direction.y * probeDistance;
-
-        if (!playerController.canOccupyFeetPosition(candidateX, candidateY)) {
-          continue;
-        }
-
-        playerController.setFeetWorldPosition(candidateX, candidateY);
-        return;
+      if (!this.currentTilemap.isTileInBounds(tileX, tileY) || !this.currentTilemap.isTileWalkable(tileX, tileY)) {
+        continue;
       }
+
+      const candidate = this.currentTilemap.getTileCenterWorld(tileX, tileY);
+
+      if (!playerController.canOccupyFeetPosition(candidate.x, candidate.y)) {
+        continue;
+      }
+
+      playerController.setFeetWorldPosition(candidate.x, candidate.y);
+      return;
     }
   }
 
@@ -571,4 +602,159 @@ export class CombatSandboxSystem {
     this.telegraphSystem.removeTelegraph(CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID);
     this.telegraphSystem.removeTelegraph(CombatSandboxSystem.PLAYER_ATTACK_SLASH_TELEGRAPH_ID);
   }
+
+  private syncDebugHitboxes(playerController: PlayerController): void {
+    this.debugHitboxGraphics.clear();
+
+    drawEllipseHitbox(
+      this.debugHitboxGraphics,
+      playerController.getCombatHitEllipse(),
+      0x38bdf8,
+      0.16,
+      0.9,
+    );
+
+    const enemyEllipse = this.enemySystem.getCombatHitEllipse();
+
+    if (enemyEllipse) {
+      drawEllipseHitbox(
+        this.debugHitboxGraphics,
+        enemyEllipse,
+        0xef4444,
+        0.14,
+        0.9,
+      );
+    }
+  }
+}
+
+function drawEllipseHitbox(
+  graphics: Phaser.GameObjects.Graphics,
+  ellipse: { centerX: number; centerY: number; radiusX: number; radiusY: number },
+  color: number,
+  fillAlpha: number,
+  strokeAlpha: number,
+): void {
+  graphics.lineStyle(2, color, strokeAlpha);
+  graphics.fillStyle(color, fillAlpha);
+  graphics.fillEllipse(
+    ellipse.centerX,
+    ellipse.centerY,
+    ellipse.radiusX * 2,
+    ellipse.radiusY * 2,
+  );
+  graphics.strokeEllipse(
+    ellipse.centerX,
+    ellipse.centerY,
+    ellipse.radiusX * 2,
+    ellipse.radiusY * 2,
+  );
+}
+
+function collectTilesCoveredByPlayerAttack(
+  tilemap: IsoTilemap,
+  playerFeetX: number,
+  playerFeetY: number,
+  rotationRad: number,
+): Array<{ x: number; y: number }> {
+  const centerOffset = 22 + PLAYER_LIGHT_ATTACK_LENGTH_WORLD / 2;
+  const centerX = playerFeetX + Math.cos(rotationRad) * centerOffset;
+  const centerY = playerFeetY + Math.sin(rotationRad) * centerOffset;
+  const corners = getRotatedRectangleCorners(
+    centerX,
+    centerY,
+    PLAYER_LIGHT_ATTACK_LENGTH_WORLD,
+    PLAYER_LIGHT_ATTACK_WIDTH_WORLD,
+    rotationRad,
+  );
+  const tileBounds = corners.map((corner) => tilemap.transform.worldToTile(corner.x, corner.y));
+  const tileXs = tileBounds.map((tile) => tile.x);
+  const tileYs = tileBounds.map((tile) => tile.y);
+  const tiles: Array<{ x: number; y: number }> = [];
+
+  for (let tileY = Math.min(...tileYs); tileY <= Math.max(...tileYs); tileY += 1) {
+    for (let tileX = Math.min(...tileXs); tileX <= Math.max(...tileXs); tileX += 1) {
+      if (!tilemap.isTileInBounds(tileX, tileY)) {
+        continue;
+      }
+
+      const samples = getTileSamplePoints(tilemap, tileX, tileY);
+
+      if (samples.some((point) => pointInsideRotatedRectangle(
+        point.x,
+        point.y,
+        centerX,
+        centerY,
+        PLAYER_LIGHT_ATTACK_LENGTH_WORLD,
+        PLAYER_LIGHT_ATTACK_WIDTH_WORLD,
+        rotationRad,
+      ))) {
+        tiles.push({ x: tileX, y: tileY });
+      }
+    }
+  }
+
+  return tiles;
+}
+
+function getTileSamplePoints(
+  tilemap: IsoTilemap,
+  tileX: number,
+  tileY: number,
+): Array<{ x: number; y: number }> {
+  const center = tilemap.getTileCenterWorld(tileX, tileY);
+  const corners = tilemap.transform.getTileDiamondPoints(tileX, tileY);
+  const edgeMidpoints = corners.map((corner, index) => {
+    const next = corners[(index + 1) % corners.length];
+    return {
+      x: (corner.x + next.x) / 2,
+      y: (corner.y + next.y) / 2,
+    };
+  });
+
+  return [
+    { x: center.x, y: center.y },
+    ...corners.map((point) => ({ x: point.x, y: point.y })),
+    ...edgeMidpoints,
+  ];
+}
+
+function pointInsideRotatedRectangle(
+  pointX: number,
+  pointY: number,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  rotationRad: number,
+): boolean {
+  const cos = Math.cos(-rotationRad);
+  const sin = Math.sin(-rotationRad);
+  const localX = (pointX - centerX) * cos - (pointY - centerY) * sin;
+  const localY = (pointX - centerX) * sin + (pointY - centerY) * cos;
+  return Math.abs(localX) <= width / 2 && Math.abs(localY) <= height / 2;
+}
+
+function getRotatedRectangleCorners(
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  rotationRad: number,
+): Array<{ x: number; y: number }> {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const localCorners = [
+    { x: -halfWidth, y: -halfHeight },
+    { x: halfWidth, y: -halfHeight },
+    { x: halfWidth, y: halfHeight },
+    { x: -halfWidth, y: halfHeight },
+  ];
+  const cos = Math.cos(rotationRad);
+  const sin = Math.sin(rotationRad);
+
+  return localCorners.map((corner) => ({
+    x: centerX + corner.x * cos - corner.y * sin,
+    y: centerY + corner.x * sin + corner.y * cos,
+  }));
 }

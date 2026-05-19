@@ -2,14 +2,16 @@ import type { GameEventBus } from '../events/GameEventBus';
 import type { PlayerSessionState } from '../player/PlayerSessionState';
 import { ChoiceMenuState } from './ChoiceMenuState';
 import type { ChoiceMenuOption, ChoiceMenuStateSnapshot } from './ChoiceMenuTypes';
-import type { InteractionResult } from './InteractionTypes';
+import type { InteractionResult, InteractionTarget } from './InteractionTypes';
 
 // Returned by ChoiceMenuHandler.onConfirm so systems declare what
 // they want done without depending on ActionProgressSystem or the coordinator.
 export type ChoiceMenuHandlerOutcome =
   | { kind: 'none' }
   | { kind: 'craft'; workbenchId: string; recipeId: string }
-  | { kind: 'result'; result: InteractionResult };
+  | { kind: 'use_target'; target: InteractionTarget }
+  | { kind: 'inspect_target'; target: InteractionTarget }
+  | { kind: 'result'; result: InteractionResult; closeMenu?: boolean };
 
 // Implemented by each system that can open a choice menu.
 // The coordinator calls getOptions/onConfirm without knowing
@@ -27,6 +29,8 @@ export type ChoiceMenuConfirmResult =
   | { kind: 'none' }
   | { kind: 'disabled'; reason: string }
   | { kind: 'craft'; workbenchId: string; recipeId: string }
+  | { kind: 'use_target'; target: InteractionTarget }
+  | { kind: 'inspect_target'; target: InteractionTarget }
   | { kind: 'result'; result: InteractionResult };
 
 export class ChoiceMenuCoordinator {
@@ -77,8 +81,25 @@ export class ChoiceMenuCoordinator {
       return { kind: 'craft', workbenchId: outcome.workbenchId, recipeId: outcome.recipeId };
     }
 
-    // kind === 'result': refresh or close the menu after the action resolves.
-    this.refreshOrClose(playerState);
+    if (outcome.kind === 'use_target') {
+      this.state.cancel();
+      this.handler = null;
+      return { kind: 'use_target', target: outcome.target };
+    }
+
+    if (outcome.kind === 'inspect_target') {
+      this.state.cancel();
+      this.handler = null;
+      return { kind: 'inspect_target', target: outcome.target };
+    }
+
+    if (outcome.closeMenu) {
+      this.state.cancel();
+      this.handler = null;
+    } else {
+      this.refreshOrClose(playerState);
+    }
+
     return { kind: 'result', result: outcome.result };
   }
 
@@ -94,6 +115,16 @@ export class ChoiceMenuCoordinator {
 
   moveSelection(delta: number): ChoiceMenuStateSnapshot | null {
     const snapshot = this.state.moveSelection(delta);
+
+    if (snapshot) {
+      this.eventBus.emitSfx('menu_select');
+    }
+
+    return snapshot;
+  }
+
+  setSelection(index: number): ChoiceMenuStateSnapshot | null {
+    const snapshot = this.state.setSelection(index);
 
     if (snapshot) {
       this.eventBus.emitSfx('menu_select');

@@ -96,6 +96,10 @@ export class UiManager {
     return this.skillPanel.toggle();
   }
 
+  getChoiceMenuOptionIndexAt(screenX: number, screenY: number): number | null {
+    return this.choiceMenuPanel.getOptionIndexAt(screenX, screenY);
+  }
+
   destroy(): void {
     this.scene.scale.off('resize', this.handleResize);
     this.scene.events.off(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);

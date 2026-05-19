@@ -1,5 +1,6 @@
 import {
   doesCircleIntersectRotatedRectangle,
+  doesEllipseIntersectRotatedRectangle,
   isPointInsideRotatedRectangle,
 } from './EnemyAttackMath';
 import type { TelegraphShape } from './TelegraphTypes';
@@ -90,6 +91,27 @@ export function doesEnemyHitCircleIntersectPlayerLightAttackByRotation(
     enemyWorldX,
     enemyWorldY,
     enemyHitRadius,
+    hitbox.worldX,
+    hitbox.worldY,
+    hitbox.width,
+    hitbox.height,
+    hitbox.rotationRad,
+  );
+}
+
+export function doesEnemyHitEllipseIntersectPlayerLightAttackByRotation(
+  playerWorldX: number,
+  playerWorldY: number,
+  rotationRad: number,
+  enemyHitEllipse: { centerX: number; centerY: number; radiusX: number; radiusY: number },
+): boolean {
+  const hitbox = getPlayerLightAttackHitboxByRotation(playerWorldX, playerWorldY, rotationRad);
+
+  return doesEllipseIntersectRotatedRectangle(
+    enemyHitEllipse.centerX,
+    enemyHitEllipse.centerY,
+    enemyHitEllipse.radiusX,
+    enemyHitEllipse.radiusY,
     hitbox.worldX,
     hitbox.worldY,
     hitbox.width,

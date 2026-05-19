@@ -35,6 +35,15 @@ export class ChoiceMenuState {
     return this.getSnapshot();
   }
 
+  setSelection(index: number): ChoiceMenuStateSnapshot | null {
+    if (!this.isOpen() || index < 0 || index >= this.options.length) {
+      return null;
+    }
+
+    this.selectedIndex = index;
+    return this.getSnapshot();
+  }
+
   getSelectedOption(): ChoiceMenuOption | null {
     if (!this.isOpen()) {
       return null;
