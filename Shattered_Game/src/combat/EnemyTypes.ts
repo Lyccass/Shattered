@@ -75,6 +75,7 @@ export type EnemyRuntimeState = {
   attackRotationRad: number | null;
   attackTargetTiles: Array<{ x: number; y: number }>;
   orbitDirection: -1 | 1;
+  settleUntilMs: number;
   attackCooldownEndsAtMs: Record<string, number>;
   globalCooldownEndsAtMs: number;
   phaseStartedAtMs: number | null;

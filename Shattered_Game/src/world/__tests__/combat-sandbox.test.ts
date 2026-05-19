@@ -330,9 +330,9 @@ describe('PlayerCombatState', () => {
     expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
     expect(state.getSnapshot(1_000).stamina).toBe(88);
 
-    state.update(1_320, 320, false);
+    state.update(1_200, 200, false);
     expect(state.consumePendingLightAttackActivation()).toBe(true);
-    expect(state.getSnapshot(1_320).lightAttackPhase).toBe('active');
+    expect(state.getSnapshot(1_200).lightAttackPhase).toBe('active');
   });
 
   it('refunds light-attack stamina on hit response', () => {
@@ -349,19 +349,19 @@ describe('PlayerCombatState', () => {
     const state = new PlayerCombatState();
 
     expect(state.tryStartLightAttack(1_000)).toEqual({ ok: true });
-    state.update(1_320, 320, false);
+    state.update(1_200, 200, false);
     state.consumePendingLightAttackActivation();
-    state.update(1_520, 200, false);
+    state.update(1_400, 200, false);
 
-    expect(state.getSnapshot(1_520).lightAttackPhase).toBe('recovery');
-    expect(state.tryStartLightAttack(1_520)).toEqual({
+    expect(state.getSnapshot(1_400).lightAttackPhase).toBe('recovery');
+    expect(state.tryStartLightAttack(1_400)).toEqual({
       ok: false,
       reason: 'Still recovering.',
     });
 
-    state.update(2_100, 580, false);
-    expect(state.getSnapshot(2_100).lightAttackPhase).toBe('idle');
-    expect(state.tryStartLightAttack(2_100)).toEqual({ ok: true });
+    state.update(1_900, 500, false);
+    expect(state.getSnapshot(1_900).lightAttackPhase).toBe('idle');
+    expect(state.tryStartLightAttack(1_900)).toEqual({ ok: true });
   });
 
   it('restores the player safely after being downed', () => {

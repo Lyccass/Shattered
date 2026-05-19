@@ -53,6 +53,7 @@ export class PlayerController {
     this.recoverIfBlocked();
 
     if (this.dodgeMotion) {
+      const dodgeLateralIntentX = this.dodgeMotion.direction.x;
       const remainingMs = Math.max(0, this.dodgeMotion.durationMs - this.dodgeMotion.elapsedMs);
       const frameMs = Math.min(delta, remainingMs);
       const distance = this.dodgeMotion.distancePerMs * frameMs;
@@ -81,6 +82,8 @@ export class PlayerController {
         false,
         this.facingDirection,
         this.horizontalFacing,
+        dodgeLateralIntentX,
+        this.dodgeMotion?.direction.y ?? 0,
       );
       return;
     }
@@ -107,6 +110,8 @@ export class PlayerController {
       this.movementIntent.lengthSq() > 0 && movementSpeedMultiplier > 1.01,
       this.facingDirection,
       this.horizontalFacing,
+      this.movementIntent.x,
+      this.movementIntent.y,
     );
   }
 
@@ -262,7 +267,7 @@ export class PlayerController {
     this.movementSpeedMultiplier = multiplier;
   }
 
-  setClickMoveTarget(worldX: number, worldY: number): void {
+  setClickMoveTarget(worldX: number, worldY: number, maxPathTiles?: number): void {
     const startTile = this.getFeetTile();
     const goalTile = this.tilemap.transform.worldToTile(worldX, worldY);
     const path = findGridPath({
@@ -278,9 +283,24 @@ export class PlayerController {
       return;
     }
 
-    this.clickMoveTarget = new Phaser.Math.Vector2(worldX, worldY);
-    this.clickMoveWaypoints = path
-      .slice(1)
+    const rawTiles = path.slice(1);
+    const isClamped = maxPathTiles !== undefined && rawTiles.length > maxPathTiles;
+    const tiles = isClamped ? rawTiles.slice(0, maxPathTiles) : rawTiles;
+
+    if (tiles.length === 0) {
+      this.clearClickMoveTarget();
+      return;
+    }
+
+    if (isClamped) {
+      const lastTile = tiles[tiles.length - 1];
+      const lastCenter = this.tilemap.getTileCenterWorld(lastTile.x, lastTile.y);
+      this.clickMoveTarget = new Phaser.Math.Vector2(lastCenter.x, lastCenter.y);
+    } else {
+      this.clickMoveTarget = new Phaser.Math.Vector2(worldX, worldY);
+    }
+
+    this.clickMoveWaypoints = tiles
       .map((tile) => this.tilemap.getTileCenterWorld(tile.x, tile.y))
       .map((point) => new Phaser.Math.Vector2(point.x, point.y));
   }
@@ -416,7 +436,7 @@ export class PlayerController {
 
   private isAttackMovementBlocked(nowMs: number): boolean {
     const state = this.visuals.getCombatState(nowMs);
-    return state === 'attack_windup' || state === 'attack_active';
+    return state === 'attack_active';
   }
 
   private recoverIfBlocked(): void {
@@ -441,4 +461,3 @@ export class PlayerController {
     this.lastSafeSpriteY = this.sprite.y;
   }
 }
-

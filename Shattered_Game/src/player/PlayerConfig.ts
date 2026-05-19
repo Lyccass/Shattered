@@ -2,14 +2,12 @@ import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 
 export const PLAYER_CONFIG = {
   movementSpeed: 88,
-  // The warrior PNG has transparent padding: visible pixels are centred around
-  // x=26.5 in a 64px-wide frame. This origin makes sprite.x line up with the
-  // character/feet centre instead of the raw texture centre.
-  originX: 26.5 / 64,
-  originY: 0.5,
-  // Warrior idle frame is 64x44 with default origin (0.5, 0.5).
-  // Feet/depth sit near local y=38, so they are roughly 16px below texture centre.
-  feetAnchorFromCenterY: 16,
+  // The female adventurer body centers a touch right of exact half in most frames.
+  originX: 24.5 / 48,
+  // Anchor the sprite directly on the visible feet for this pack.
+  originY: 42 / 64,
+  // With a feet-origin sprite, the feet point is the sprite position itself.
+  feetAnchorFromCenterY: 0,
   visualScale: PROTOTYPE_SCALE.playerVisualScale,
   // Collision is still grid-first. These samples describe the small ground
   // contact area around the feet, not the full upright body.

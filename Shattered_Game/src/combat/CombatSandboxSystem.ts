@@ -1,10 +1,6 @@
 import Phaser from 'phaser';
 import { resolveClickMovementDodgeDirection } from './CombatDodge';
 import {
-  getPlayerLightAttackHitbox,
-  getPlayerLightAttackHitboxByRotation,
-  getPlayerLightAttackSlash,
-  getPlayerLightAttackSlashByRotation,
   isAttackerInsideGuardFront,
   resolvePlayerAttackAimRad,
 } from './CombatPlayerMath';
@@ -28,11 +24,8 @@ import type { TelegraphSystem } from './TelegraphSystem';
 import type { GameEventBus } from '../events/GameEventBus';
 
 export class CombatSandboxSystem {
-  private static readonly DODGE_DISTANCE_WORLD = 58;
-  private static readonly SPRINT_DODGE_DISTANCE_MULTIPLIER = 1.45;
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
   private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
-  private static readonly MAX_REPOSITION_RANGE_WORLD = 192; // ~3 tile-widths — beyond this the attack just misses
   private static readonly PLAYER_ATTACK_WINDUP_TELEGRAPH_ID = 'player_light_attack_windup';
   private static readonly PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID = 'player_light_attack_active';
   private static readonly PLAYER_ATTACK_SLASH_TELEGRAPH_ID = 'player_light_attack_slash';
@@ -43,12 +36,17 @@ export class CombatSandboxSystem {
   private readonly debugHitboxGraphics: Phaser.GameObjects.Graphics;
   private currentTilemap: IsoTilemap | null = null;
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
-  private playerAttackAimRad: number | null = null;
+  private playerAttackTargetWorld: { x: number; y: number } | null = null;
   private playerAttackHitResolved = false;
+  private static readonly SPEAR_MAX_TILE_REACH = 3;
+  private static readonly HIT_STOP_MS = 70;
+
   private currentDodgeTileCount = 2;
+  private hitStopUntilMs = 0;
+  private pendingScreenShake = false;
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly eventBus: GameEventBus,
     telegraphSystem: TelegraphSystem,
   ) {
@@ -65,24 +63,23 @@ export class CombatSandboxSystem {
     this.playerCombatState.leaveCombat();
     this.playerCombatState.setGuardHeld(false);
     this.lastPlayerAttackPhase = 'idle';
-    this.playerAttackAimRad = null;
+
+    this.playerAttackTargetWorld = null;
     this.playerAttackHitResolved = false;
     this.clearPlayerAttackTelegraphs();
   }
 
   update(nowMs: number, deltaMs: number, playerController: PlayerController): UiHandledResult[] {
-    this.playerCombatState.update(
-      nowMs,
-      deltaMs,
-      playerController.isMoving(),
-    );
+    const inHitStop = nowMs < this.hitStopUntilMs;
+
+    this.playerCombatState.update(nowMs, deltaMs, playerController.isMoving());
     this.syncPlayerAttackVisuals(nowMs, playerController);
 
     if (!this.currentTilemap) {
       this.playerCombatState.leaveCombat();
       this.playerCombatState.setGuardHeld(false);
       playerController.setMovementSpeedMultiplier(1);
-      this.playerAttackAimRad = null;
+  
       this.playerAttackHitResolved = false;
       this.clearPlayerAttackTelegraphs();
       return [];
@@ -105,21 +102,23 @@ export class CombatSandboxSystem {
         : 1,
     );
 
-    const events = this.enemySystem.update(
-      nowMs,
-      deltaMs,
-      feetPoint.x,
-      feetPoint.y,
-      this.playerCombatState.isInvulnerable(nowMs),
-      playerOccupiedTiles,
-    );
+    const events = inHitStop
+      ? []
+      : this.enemySystem.update(
+          nowMs,
+          deltaMs,
+          feetPoint.x,
+          feetPoint.y,
+          this.playerCombatState.isInvulnerable(nowMs),
+          playerOccupiedTiles,
+        );
     this.resolvePlayerEnemyOverlap(playerController);
     this.syncDebugHitboxes(nowMs, playerController);
 
     const results: UiHandledResult[] = [];
     this.resolveEnemyAttackEvents(nowMs, playerController, events, results);
     this.resolvePlayerLightAttackActivation();
-    this.resolvePlayerLightAttackHit(nowMs, playerController, results);
+    this.resolvePlayerLightAttackHit(nowMs, results);
 
     if (this.playerCombatState.consumeRecoveredFromDowned()) {
       this.enemySystem.forceReset();
@@ -167,15 +166,49 @@ export class CombatSandboxSystem {
       facing: playerController.getFacingDirection(),
     });
     const isSprinting = this.playerCombatState.getSnapshot(nowMs).isSprinting;
-    const dodgeDistance = isSprinting
-      ? CombatSandboxSystem.DODGE_DISTANCE_WORLD * CombatSandboxSystem.SPRINT_DODGE_DISTANCE_MULTIPLIER
-      : CombatSandboxSystem.DODGE_DISTANCE_WORLD;
-    this.currentDodgeTileCount = isSprinting ? 3 : 2;
-    const dodgeDelta = playerController.resolveDodgeTarget(direction, dodgeDistance);
+    this.currentDodgeTileCount = isSprinting ? 2 : 1;
 
-    if (!dodgeDelta) {
+    // Snap direction to the nearest isometric grid direction and slide to the furthest
+    // valid tile in that direction (up to currentDodgeTileCount steps).
+    const aimAngle = Math.atan2(direction.y, direction.x);
+    const [dgx, dgy] = snapToIsometricGridDirection(
+      aimAngle,
+      this.currentTilemap.tileWidth,
+      this.currentTilemap.tileHeight,
+    );
+    const playerFeetForDodge = playerController.getFeetPoint();
+    const playerTile = this.currentTilemap.transform.worldToTile(playerFeetForDodge.x, playerFeetForDodge.y);
+    let finalTileX = playerTile.x;
+    let finalTileY = playerTile.y;
+
+    for (let step = 1; step <= this.currentDodgeTileCount; step++) {
+      const tx = playerTile.x + dgx * step;
+      const ty = playerTile.y + dgy * step;
+
+      if (!this.currentTilemap.isTileInBounds(tx, ty) || !this.currentTilemap.isTileWalkable(tx, ty)) {
+        break;
+      }
+
+      const center = this.currentTilemap.getTileCenterWorld(tx, ty);
+
+      if (!playerController.canOccupyFeetPosition(center.x, center.y)) {
+        break;
+      }
+
+      finalTileX = tx;
+      finalTileY = ty;
+    }
+
+    if (finalTileX === playerTile.x && finalTileY === playerTile.y) {
       return null;
     }
+
+    const targetCenter = this.currentTilemap.getTileCenterWorld(finalTileX, finalTileY);
+    const dodgeDir = {
+      x: targetCenter.x - playerFeetForDodge.x,
+      y: targetCenter.y - playerFeetForDodge.y,
+    };
+    const dodgeDistance = Math.hypot(dodgeDir.x, dodgeDir.y);
 
     const dodgeResult = this.playerCombatState.tryStartDodge(nowMs);
 
@@ -190,15 +223,12 @@ export class CombatSandboxSystem {
 
     // Immediately clear any in-flight attack telegraphs so the cancel is visually instant
     this.lastPlayerAttackPhase = 'idle';
-    this.playerAttackAimRad = null;
+
+    this.playerAttackTargetWorld = null;
     this.playerAttackHitResolved = false;
     this.clearPlayerAttackTelegraphs();
 
-    playerController.startDodgeMotion(
-      direction,
-      Math.hypot(dodgeDelta.x, dodgeDelta.y),
-      DODGE_DURATION_MS,
-    );
+    playerController.startDodgeMotion(dodgeDir, dodgeDistance, DODGE_DURATION_MS);
     playerController.requestCombatVisualState(
       'dodge',
       nowMs,
@@ -237,7 +267,8 @@ export class CombatSandboxSystem {
       };
     }
 
-    this.playerAttackAimRad = this.tryRepositionForAttack(playerController, attackAimRad);
+    playerController.clearClickMoveTarget();
+    this.playerAttackTargetWorld = this.resolveSpearTarget(playerFeet, targetWorldX, targetWorldY, attackAimRad);
     this.playerAttackHitResolved = false;
     return null;
   }
@@ -284,86 +315,25 @@ export class CombatSandboxSystem {
     return !this.enemySystem.blocksFeetAt(feetWorldX, feetWorldY);
   }
 
+  preSyncAttackVisuals(nowMs: number, playerController: PlayerController): void {
+    this.syncPlayerAttackVisuals(nowMs, playerController);
+  }
+
+  consumePendingScreenShake(): boolean {
+    if (!this.pendingScreenShake) {
+      return false;
+    }
+
+    this.pendingScreenShake = false;
+    return true;
+  }
+
   destroy(): void {
     this.clearPlayerAttackTelegraphs();
     this.debugHitboxGraphics.destroy();
     this.enemySystem.destroy();
   }
 
-  // If the aimed attack wouldn't cover the enemy tile, step the player into the nearest
-  // valid attacking position (1 or 2 tiles behind the enemy along the snapped direction).
-  // Returns the final aim angle to store — either the original or the updated one.
-  private tryRepositionForAttack(
-    playerController: PlayerController,
-    attackAimRad: number,
-  ): number {
-    if (!this.currentTilemap) {
-      return attackAimRad;
-    }
-
-    const enemyTile = this.enemySystem.getOccupiedTile();
-
-    if (!enemyTile) {
-      return attackAimRad;
-    }
-
-    const feet = playerController.getFeetPoint();
-    const attackTiles = collectTilesCoveredByPlayerAttack(
-      this.currentTilemap,
-      feet.x,
-      feet.y,
-      attackAimRad,
-    );
-
-    if (attackTiles.some((t) => t.x === enemyTile.x && t.y === enemyTile.y)) {
-      return attackAimRad;
-    }
-
-    const enemyCenter = this.currentTilemap.getTileCenterWorld(enemyTile.x, enemyTile.y);
-    const distToEnemy = Math.hypot(enemyCenter.x - feet.x, enemyCenter.y - feet.y);
-
-    if (distToEnemy > CombatSandboxSystem.MAX_REPOSITION_RANGE_WORLD) {
-      return attackAimRad;
-    }
-
-    const aimTowardEnemy = Math.atan2(enemyCenter.y - feet.y, enemyCenter.x - feet.x);
-    const [dgx, dgy] = snapToIsometricGridDirection(
-      aimTowardEnemy,
-      this.currentTilemap.tileWidth,
-      this.currentTilemap.tileHeight,
-    );
-
-    // Prefer step=1 (closer to enemy) then step=2 (further back)
-    for (const step of [1, 2]) {
-      const candidateTileX = enemyTile.x - dgx * step;
-      const candidateTileY = enemyTile.y - dgy * step;
-
-      if (!this.currentTilemap.isTileInBounds(candidateTileX, candidateTileY)) {
-        continue;
-      }
-
-      if (!this.currentTilemap.isTileWalkable(candidateTileX, candidateTileY)) {
-        continue;
-      }
-
-      const candidateCenter = this.currentTilemap.getTileCenterWorld(candidateTileX, candidateTileY);
-      const repositionDist = Math.hypot(candidateCenter.x - feet.x, candidateCenter.y - feet.y);
-
-      if (repositionDist > CombatSandboxSystem.MAX_REPOSITION_RANGE_WORLD) {
-        continue;
-      }
-
-      if (!playerController.canOccupyFeetPosition(candidateCenter.x, candidateCenter.y)) {
-        continue;
-      }
-
-      playerController.setFeetWorldPosition(candidateCenter.x, candidateCenter.y);
-      playerController.setFacingFromTarget(enemyCenter.x, enemyCenter.y);
-      return aimTowardEnemy;
-    }
-
-    return attackAimRad;
-  }
 
   private emitSfx(id: SfxEventId): void {
     this.eventBus.emitSfx(id);
@@ -480,7 +450,6 @@ export class CombatSandboxSystem {
 
   private resolvePlayerLightAttackHit(
     nowMs: number,
-    playerController: PlayerController,
     results: UiHandledResult[],
   ): void {
     if (this.playerAttackHitResolved) {
@@ -493,28 +462,17 @@ export class CombatSandboxSystem {
       return;
     }
 
-    const enemyTiles = this.enemySystem.getOccupiedTiles();
-    const playerFeet = playerController.getFeetPoint();
-    const attackAimRad = this.playerAttackAimRad ?? resolvePlayerAttackAimRad(
-      playerFeet.x,
-      playerFeet.y,
-      playerController.getFacingDirection(),
-      null,
-      null,
-    );
-    const attackTiles = this.currentTilemap
-      ? collectTilesCoveredByPlayerAttack(
-          this.currentTilemap,
-          playerFeet.x,
-          playerFeet.y,
-          attackAimRad,
-        )
-      : [];
+    if (!this.playerAttackTargetWorld || !this.currentTilemap) {
+      return;
+    }
 
-    if (
-      !enemyTiles.length
-      || !attackTiles.some((at) => enemyTiles.some((et) => et.x === at.x && et.y === at.y))
-    ) {
+    const targetTile = this.currentTilemap.transform.worldToTile(
+      this.playerAttackTargetWorld.x,
+      this.playerAttackTargetWorld.y,
+    );
+    const enemyTiles = this.enemySystem.getOccupiedTiles();
+
+    if (!enemyTiles.some((et) => et.x === targetTile.x && et.y === targetTile.y)) {
       return;
     }
 
@@ -528,6 +486,9 @@ export class CombatSandboxSystem {
     }
 
     this.playerAttackHitResolved = true;
+    this.hitStopUntilMs = nowMs + CombatSandboxSystem.HIT_STOP_MS;
+    this.pendingScreenShake = true;
+    this.playerCombatState.setNextRecoveryMs(320);
     this.playerCombatState.refundLightAttackStamina();
     this.emitSfx(outcome.killed ? 'enemy_down' : 'player_attack');
     results.push({
@@ -562,6 +523,7 @@ export class CombatSandboxSystem {
           LIGHT_ATTACK_ACTIVE_MS,
         );
         this.showPlayerAttackActiveTelegraph(nowMs, playerController);
+        this.drawSlashVfx(playerController);
         break;
       case 'recovery':
         playerController.requestCombatVisualState(
@@ -573,11 +535,34 @@ export class CombatSandboxSystem {
         this.clearPlayerAttackTelegraphs();
         break;
       default:
-        this.playerAttackAimRad = null;
+    
+        this.playerAttackTargetWorld = null;
         this.playerAttackHitResolved = false;
         this.clearPlayerAttackTelegraphs();
         break;
     }
+  }
+
+  private drawSlashVfx(_playerController: PlayerController): void {
+    if (!this.playerAttackTargetWorld) {
+      return;
+    }
+
+    const { x, y } = this.playerAttackTargetWorld;
+    const g = this.scene.add.graphics();
+    g.setDepth(9_400);
+    g.fillStyle(0xffffff, 0.95);
+    g.fillCircle(x, y, 14);
+    g.fillStyle(0xfde68a, 0.85);
+    g.fillCircle(x, y, 8);
+
+    this.scene.tweens.add({
+      targets: g,
+      alpha: 0,
+      duration: 160,
+      ease: 'Quad.easeOut',
+      onComplete: () => g.destroy(),
+    });
   }
 
   private resolvePlayerEnemyOverlap(playerController: PlayerController): void {
@@ -618,12 +603,10 @@ export class CombatSandboxSystem {
         continue;
       }
 
+      // Only check terrain — skipping the enemy occupancy validator intentionally.
+      // canOccupyFeetPosition would reject all adjacent tiles while the enemy is
+      // nearby, making it impossible to escape the overlap.
       const candidate = this.currentTilemap.getTileCenterWorld(tileX, tileY);
-
-      if (!playerController.canOccupyFeetPosition(candidate.x, candidate.y)) {
-        continue;
-      }
-
       playerController.setFeetWorldPosition(candidate.x, candidate.y);
       return;
     }
@@ -631,70 +614,111 @@ export class CombatSandboxSystem {
 
   private showPlayerAttackWindupTelegraph(nowMs: number, playerController: PlayerController): void {
     this.clearPlayerAttackTelegraphs();
+
+    if (!this.currentTilemap || !this.playerAttackTargetWorld) {
+      return;
+    }
+
     const feet = playerController.getFeetPoint();
-    const hitbox = this.playerAttackAimRad !== null
-      ? getPlayerLightAttackHitboxByRotation(feet.x, feet.y, this.playerAttackAimRad)
-      : getPlayerLightAttackHitbox(
-          feet.x,
-          feet.y,
-          playerController.getFacingDirection(),
-        );
+    const reachRadius = CombatSandboxSystem.SPEAR_MAX_TILE_REACH * this.currentTilemap.tileWidth;
+    const dotRadius = this.currentTilemap.tileWidth * 0.5;
 
     this.telegraphSystem.showTelegraph({
       id: CombatSandboxSystem.PLAYER_ATTACK_WINDUP_TELEGRAPH_ID,
-      worldX: hitbox.worldX,
-      worldY: hitbox.worldY,
-      shape: hitbox.shape,
+      worldX: feet.x,
+      worldY: feet.y,
+      shape: { kind: 'circle', radius: reachRadius },
+      durationMs: LIGHT_ATTACK_WINDUP_MS,
+      startedAtMs: nowMs,
+      warningColor: 0x38bdf8,
+      fadeOutMs: LIGHT_ATTACK_WINDUP_MS,
+      strokeAlpha: 0.15,
+      fillAlphaMultiplier: 0.06,
+    });
+
+    this.telegraphSystem.showTelegraph({
+      id: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID,
+      worldX: this.playerAttackTargetWorld.x,
+      worldY: this.playerAttackTargetWorld.y,
+      shape: { kind: 'circle', radius: dotRadius },
       durationMs: LIGHT_ATTACK_WINDUP_MS,
       startedAtMs: nowMs,
       warningColor: 0xeab308,
       fadeOutMs: LIGHT_ATTACK_WINDUP_MS,
-      strokeAlpha: 0,
-      fillAlphaMultiplier: 0.32,
+      strokeAlpha: 0.9,
+      fillAlphaMultiplier: 0.38,
     });
   }
 
-  private showPlayerAttackActiveTelegraph(nowMs: number, playerController: PlayerController): void {
+  private showPlayerAttackActiveTelegraph(nowMs: number, _playerController: PlayerController): void {
     this.clearPlayerAttackTelegraphs();
-    const feet = playerController.getFeetPoint();
-    const hitbox = this.playerAttackAimRad !== null
-      ? getPlayerLightAttackHitboxByRotation(feet.x, feet.y, this.playerAttackAimRad)
-      : getPlayerLightAttackHitbox(
-          feet.x,
-          feet.y,
-          playerController.getFacingDirection(),
-        );
-    const slash = this.playerAttackAimRad !== null
-      ? getPlayerLightAttackSlashByRotation(hitbox.worldX, hitbox.worldY, this.playerAttackAimRad)
-      : getPlayerLightAttackSlash(
-          feet.x,
-          feet.y,
-          playerController.getFacingDirection(),
-        );
+
+    if (!this.currentTilemap || !this.playerAttackTargetWorld) {
+      return;
+    }
+
+    const dotRadius = this.currentTilemap.tileWidth * 0.5;
 
     this.telegraphSystem.showTelegraph({
       id: CombatSandboxSystem.PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID,
-      worldX: hitbox.worldX,
-      worldY: hitbox.worldY,
-      shape: hitbox.shape,
+      worldX: this.playerAttackTargetWorld.x,
+      worldY: this.playerAttackTargetWorld.y,
+      shape: { kind: 'circle', radius: dotRadius },
       durationMs: LIGHT_ATTACK_ACTIVE_MS,
       startedAtMs: nowMs,
       warningColor: 0xfacc15,
       fadeOutMs: LIGHT_ATTACK_ACTIVE_MS,
       strokeAlpha: 0,
-      fillAlphaMultiplier: 0.42,
+      fillAlphaMultiplier: 0.60,
     });
+  }
 
-    this.telegraphSystem.showTelegraph({
-      id: CombatSandboxSystem.PLAYER_ATTACK_SLASH_TELEGRAPH_ID,
-      worldX: slash.worldX,
-      worldY: slash.worldY,
-      shape: slash.shape,
-      durationMs: LIGHT_ATTACK_ACTIVE_MS,
-      startedAtMs: nowMs,
-      warningColor: 0xfacc15,
-      fadeOutMs: LIGHT_ATTACK_ACTIVE_MS,
-    });
+  private resolveSpearTarget(
+    playerFeet: { x: number; y: number },
+    targetWorldX: number | null,
+    targetWorldY: number | null,
+    aimRad: number,
+  ): { x: number; y: number } | null {
+    if (!this.currentTilemap) {
+      return null;
+    }
+
+    const MAX = CombatSandboxSystem.SPEAR_MAX_TILE_REACH;
+    const playerTile = this.currentTilemap.transform.worldToTile(playerFeet.x, playerFeet.y);
+
+    let rawTile: { x: number; y: number };
+
+    if (targetWorldX !== null && targetWorldY !== null) {
+      rawTile = this.currentTilemap.transform.worldToTile(targetWorldX, targetWorldY);
+    } else {
+      // Keyboard fallback: project 2 tiles ahead in facing direction
+      const projX = playerFeet.x + Math.cos(aimRad) * this.currentTilemap.tileWidth * 2;
+      const projY = playerFeet.y + Math.sin(aimRad) * this.currentTilemap.tileWidth * 2;
+      rawTile = this.currentTilemap.transform.worldToTile(projX, projY);
+    }
+
+    let dx = rawTile.x - playerTile.x;
+    let dy = rawTile.y - playerTile.y;
+    const chebyshev = Math.max(Math.abs(dx), Math.abs(dy));
+
+    if (chebyshev === 0) {
+      // Aimed at own tile — project 1 tile in aim direction
+      const projX = playerFeet.x + Math.cos(aimRad) * this.currentTilemap.tileWidth;
+      const projY = playerFeet.y + Math.sin(aimRad) * this.currentTilemap.tileWidth;
+      const projected = this.currentTilemap.transform.worldToTile(projX, projY);
+      dx = projected.x - playerTile.x;
+      dy = projected.y - playerTile.y;
+    }
+
+    if (Math.max(Math.abs(dx), Math.abs(dy)) > MAX) {
+      const scale = MAX / Math.max(Math.abs(dx), Math.abs(dy));
+      dx = Math.round(dx * scale);
+      dy = Math.round(dy * scale);
+    }
+
+    const finalTile = { x: playerTile.x + dx, y: playerTile.y + dy };
+    const center = this.currentTilemap.getTileCenterWorld(finalTile.x, finalTile.y);
+    return { x: center.x, y: center.y };
   }
 
   private clearPlayerAttackTelegraphs(): void {
@@ -756,18 +780,20 @@ export class CombatSandboxSystem {
       drawTileSet(this.debugHitboxGraphics, this.currentTilemap, dodgeTiles, 0x22c55e, 0.30, 0.9);
     }
 
-    // Player attack tiles — windup preview (blue) or active (yellow)
+    // Spear target tile — windup preview (blue) or active (yellow)
     const snapshot = this.playerCombatState.getSnapshot(nowMs);
     const phase = snapshot.lightAttackPhase;
 
-    if ((phase === 'windup' || phase === 'active') && this.playerAttackAimRad !== null) {
-      const feet = playerController.getFeetPoint();
-      const tiles = collectTilesCoveredByPlayerAttack(this.currentTilemap, feet.x, feet.y, this.playerAttackAimRad);
+    if ((phase === 'windup' || phase === 'active') && this.playerAttackTargetWorld) {
+      const targetTile = this.currentTilemap.transform.worldToTile(
+        this.playerAttackTargetWorld.x,
+        this.playerAttackTargetWorld.y,
+      );
       const fillAlpha = phase === 'active' ? 0.52 : 0.22;
       const strokeAlpha = phase === 'active' ? 0.9 : 0.55;
       const color = phase === 'active' ? 0xfacc15 : 0x38bdf8;
 
-      drawTileSet(this.debugHitboxGraphics, this.currentTilemap, tiles, color, fillAlpha, strokeAlpha);
+      drawTileSet(this.debugHitboxGraphics, this.currentTilemap, [targetTile], color, fillAlpha, strokeAlpha);
     }
   }
 }
@@ -840,25 +866,3 @@ function snapToIsometricGridDirection(
   return [bestDgx, bestDgy];
 }
 
-// Returns the player's tile + up to 2 tiles ahead in the snapped grid direction.
-function collectTilesCoveredByPlayerAttack(
-  tilemap: IsoTilemap,
-  playerFeetX: number,
-  playerFeetY: number,
-  rotationRad: number,
-): Array<{ x: number; y: number }> {
-  const playerTile = tilemap.transform.worldToTile(playerFeetX, playerFeetY);
-  const [dgx, dgy] = snapToIsometricGridDirection(rotationRad, tilemap.tileWidth, tilemap.tileHeight);
-  const tiles: Array<{ x: number; y: number }> = [];
-
-  for (let step = 0; step <= 2; step++) {
-    const tx = playerTile.x + dgx * step;
-    const ty = playerTile.y + dgy * step;
-
-    if (tilemap.isTileInBounds(tx, ty)) {
-      tiles.push({ x: tx, y: ty });
-    }
-  }
-
-  return tiles;
-}

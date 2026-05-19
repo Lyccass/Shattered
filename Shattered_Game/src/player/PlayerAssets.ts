@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-export const PLAYER_TEXTURE_KEY = 'player-idle-1';
+export const PLAYER_TEXTURE_KEY = 'player-sheet-idle-down';
 export const PLAYER_IDLE_ANIMATION_KEY = 'player-idle';
 export const PLAYER_WALK_ANIMATION_KEY = 'player-walk';
 export const PLAYER_WALK_UP_ANIMATION_KEY = 'player-walk-up';
@@ -11,125 +11,191 @@ export const PLAYER_DASH_ANIMATION_KEY = 'player-dash';
 export const PLAYER_HURT_ANIMATION_KEY = 'player-hurt';
 export const PLAYER_DEAD_ANIMATION_KEY = 'player-dead';
 
-const PLAYER_PATHS = new Map<string, string>();
+export type PlayerAnimationDirection =
+  | 'down'
+  | 'up'
+  | 'left_down'
+  | 'left_up'
+  | 'right_down'
+  | 'right_up';
 
-type PlayerAnimationDefinition = {
-  animationKey: string;
-  textureKeys: string[];
+type DirectionalAssetGroup = Record<PlayerAnimationDirection, string>;
+
+type DirectionalAnimationDefinition = {
+  baseAnimationKey: string;
+  sheetKeys: DirectionalAssetGroup;
   frameRate: number;
   repeat: number;
+  frames?: number[];
 };
 
-const PLAYER_FRAME_GROUPS = {
-  idle: createFrameKeys('player-idle', 'idle', 'Warrior_Idle_', 6),
-  walk: createFrameKeys('player-walk', 'Crouch', 'Warrior_Crouch_', 6),
-  walkUp: createFrameKeys('player-walk-up', 'Ladder-Grab', 'Warrior-Ladder-Grab_', 8),
-  run: createFrameKeys('player-run', 'Run', 'Warrior_Run_', 8),
-  attack: createFrameKeys('player-attack', 'Dash-Attack_noDust', 'Warrior_Dash-Attack_', 10),
-  dash: createFrameKeys('player-dash', 'Dash_NoDust', 'Warrior_Dash_', 7),
-  hurt: createFrameKeys('player-hurt', 'HurtnoEffect', 'Warrior_hurt_', 4),
-  dead: createFrameKeys('player-dead', 'DeathnoEffect', 'Warrior_Death_', 11),
+const FRAME_WIDTH = 48;
+const FRAME_HEIGHT = 64;
+const PLAYER_PATHS = new Map<string, string>();
+
+const PLAYER_SHEETS = {
+  idle: createDirectionalSheets('player-sheet-idle', 'Idle', {
+    down: 'Idle_Down.png',
+    up: 'Idle_Up.png',
+    left_down: 'Idle_Left_Down.png',
+    left_up: 'Idle_Left_Up.png',
+    right_down: 'Idle_Right_Down.png',
+    right_up: 'Idle_Right_Up.png',
+  }),
+  walk: createDirectionalSheets('player-sheet-walk', 'Walk', {
+    down: 'walk_Down.png',
+    up: 'walk_Up.png',
+    left_down: 'walk_Left_Down.png',
+    left_up: 'walk_Left_Up.png',
+    right_down: 'walk_Right_Down.png',
+    right_up: 'walk_Right_Up.png',
+  }),
+  dash: createDirectionalSheets('player-sheet-dash', 'Dash', {
+    down: 'Dash_Down.png',
+    up: 'Dash_Up.png',
+    left_down: 'Dash_Left_Down.png',
+    left_up: 'Dash_Left_Up.png',
+    right_down: 'Dash_Right_Down.png',
+    right_up: 'Dash_Right_Up.png',
+  }),
+  death: createDirectionalSheets('player-sheet-death', 'Death', {
+    down: 'death_Down.png',
+    up: 'death_Up.png',
+    left_down: 'death_Left_Down.png',
+    left_up: 'death_Left_Up.png',
+    right_down: 'death_Right_Down.png',
+    right_up: 'death_Right_Up.png',
+  }),
 } as const;
 
-const PLAYER_ANIMATIONS: PlayerAnimationDefinition[] = [
+const PLAYER_ANIMATIONS: DirectionalAnimationDefinition[] = [
   {
-    animationKey: PLAYER_IDLE_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.idle,
+    baseAnimationKey: PLAYER_IDLE_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.idle,
     frameRate: 8,
     repeat: -1,
   },
   {
-    animationKey: PLAYER_WALK_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.run,
+    baseAnimationKey: PLAYER_WALK_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.walk,
     frameRate: 7,
     repeat: -1,
   },
   {
-    animationKey: PLAYER_WALK_UP_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.walkUp,
+    baseAnimationKey: PLAYER_WALK_UP_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.walk,
+    frameRate: 7,
+    repeat: -1,
+  },
+  {
+    baseAnimationKey: PLAYER_SPRINT_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.walk,
     frameRate: 10,
     repeat: -1,
   },
   {
-    animationKey: PLAYER_SPRINT_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.run,
-    frameRate: 9,
+    baseAnimationKey: PLAYER_SPRINT_UP_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.walk,
+    frameRate: 10,
     repeat: -1,
   },
   {
-    animationKey: PLAYER_SPRINT_UP_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.walkUp,
-    frameRate: 14,
-    repeat: -1,
+    baseAnimationKey: PLAYER_ATTACK_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.dash,
+    frameRate: 12,
+    repeat: 0,
+    frames: [0, 1, 2, 3, 4],
   },
   {
-    animationKey: PLAYER_ATTACK_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.attack.slice(0, 6),
-    frameRate: 15,
+    baseAnimationKey: PLAYER_DASH_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.dash,
+    frameRate: 18,
     repeat: 0,
   },
   {
-    animationKey: PLAYER_DASH_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.dash,
-    frameRate: 24,
+    baseAnimationKey: PLAYER_HURT_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.idle,
+    frameRate: 1,
     repeat: 0,
+    frames: [0],
   },
   {
-    animationKey: PLAYER_HURT_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.hurt,
-    frameRate: 14,
-    repeat: 0,
-  },
-  {
-    animationKey: PLAYER_DEAD_ANIMATION_KEY,
-    textureKeys: PLAYER_FRAME_GROUPS.dead,
+    baseAnimationKey: PLAYER_DEAD_ANIMATION_KEY,
+    sheetKeys: PLAYER_SHEETS.death,
     frameRate: 10,
     repeat: 0,
   },
 ];
 
 export function preloadPlayerAssets(scene: Phaser.Scene): void {
-  for (const textureKey of Object.values(PLAYER_FRAME_GROUPS).flat()) {
-    if (scene.textures.exists(textureKey)) {
+  for (const sheetKey of Object.values(PLAYER_SHEETS).flatMap((group) => Object.values(group))) {
+    if (scene.textures.exists(sheetKey)) {
       continue;
     }
 
-    scene.load.image(textureKey, textureKeyToPath(textureKey));
+    scene.load.spritesheet(sheetKey, textureKeyToPath(sheetKey), {
+      frameWidth: FRAME_WIDTH,
+      frameHeight: FRAME_HEIGHT,
+    });
   }
 }
 
 export function createPlayerAnimations(scene: Phaser.Scene): void {
   PLAYER_ANIMATIONS.forEach((definition) => {
-    if (scene.anims.exists(definition.animationKey)) {
-      return;
-    }
+    for (const direction of Object.keys(definition.sheetKeys) as PlayerAnimationDirection[]) {
+      const animationKey = getPlayerDirectionalAnimationKey(definition.baseAnimationKey, direction);
 
-    scene.anims.create({
-      key: definition.animationKey,
-      frames: definition.textureKeys.map((textureKey) => ({ key: textureKey })),
-      frameRate: definition.frameRate,
-      repeat: definition.repeat,
-    });
+      if (scene.anims.exists(animationKey)) {
+        continue;
+      }
+
+      const frames = (definition.frames ?? [...Array(8).keys()]).map((frame) => ({
+        key: definition.sheetKeys[direction],
+        frame,
+      }));
+
+      scene.anims.create({
+        key: animationKey,
+        frames,
+        frameRate: definition.frameRate,
+        repeat: definition.repeat,
+      });
+    }
   });
 }
 
-function createFrameKeys(
+export function getPlayerDirectionalAnimationKey(
+  baseAnimationKey: string,
+  direction: PlayerAnimationDirection,
+): string {
+  return `${baseAnimationKey}-${direction}`;
+}
+
+function createDirectionalSheets(
   keyPrefix: string,
   folder: string,
-  filePrefix: string,
-  frameCount: number,
-): string[] {
-  return Array.from({ length: frameCount }, (_value, index) => {
-    const frameNumber = index + 1;
-    return `${keyPrefix}-${frameNumber}`;
-  }).map((textureKey, index) => {
-    const frameNumber = index + 1;
-    PLAYER_PATHS.set(
-      textureKey,
-      `/assets/Warrior/Individual%20Sprite/${encodeURIComponent(folder)}/${filePrefix}${frameNumber}.png`,
-    );
-    return textureKey;
-  });
+  filenames: Record<PlayerAnimationDirection, string>,
+): DirectionalAssetGroup {
+  return {
+    down: registerSheet(`${keyPrefix}-down`, folder, filenames.down),
+    up: registerSheet(`${keyPrefix}-up`, folder, filenames.up),
+    left_down: registerSheet(`${keyPrefix}-left-down`, folder, filenames.left_down),
+    left_up: registerSheet(`${keyPrefix}-left-up`, folder, filenames.left_up),
+    right_down: registerSheet(`${keyPrefix}-right-down`, folder, filenames.right_down),
+    right_up: registerSheet(`${keyPrefix}-right-up`, folder, filenames.right_up),
+  };
+}
+
+function registerSheet(textureKey: string, folder: string, filename: string): string {
+  PLAYER_PATHS.set(
+    textureKey,
+    buildAssetPath(['The Female Adventurer - Free', folder, filename]),
+  );
+  return textureKey;
+}
+
+function buildAssetPath(parts: string[]): string {
+  return `/assets/${parts.map((part) => encodeURIComponent(part)).join('/')}`;
 }
 
 function textureKeyToPath(textureKey: string): string {

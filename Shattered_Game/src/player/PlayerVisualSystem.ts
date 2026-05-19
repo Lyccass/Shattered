@@ -5,12 +5,14 @@ import {
   PLAYER_ATTACK_ANIMATION_KEY,
   PLAYER_DASH_ANIMATION_KEY,
   PLAYER_DEAD_ANIMATION_KEY,
+  getPlayerDirectionalAnimationKey,
   PLAYER_HURT_ANIMATION_KEY,
   PLAYER_IDLE_ANIMATION_KEY,
   PLAYER_SPRINT_ANIMATION_KEY,
   PLAYER_SPRINT_UP_ANIMATION_KEY,
   PLAYER_WALK_ANIMATION_KEY,
   PLAYER_WALK_UP_ANIMATION_KEY,
+  type PlayerAnimationDirection,
 } from './PlayerAssets';
 import { PLAYER_CONFIG } from './PlayerConfig';
 import { getDynamicDepth } from '../render/RenderLayers';
@@ -33,6 +35,8 @@ export class PlayerVisualSystem {
     isSprinting: boolean,
     facingDirection: PlayerFacingDirection,
     horizontalFacing: HorizontalFacing,
+    lateralIntentX = 0,
+    verticalIntentY = 0,
   ): void {
     this.animationState.syncMovementState(isMoving, nowMs);
     this.applyVisualState(
@@ -41,6 +45,8 @@ export class PlayerVisualSystem {
       isSprinting,
       facingDirection,
       horizontalFacing,
+      lateralIntentX,
+      verticalIntentY,
     );
     this.sprite.setDepth(getDynamicDepth(feetWorldY, PLAYER_CONFIG.depthTieBreaker));
   }
@@ -59,12 +65,22 @@ export class PlayerVisualSystem {
     isSprinting: boolean,
     facingDirection: PlayerFacingDirection,
     horizontalFacing: HorizontalFacing,
+    lateralIntentX: number,
+    verticalIntentY: number,
   ): void {
     this.sprite.clearTint();
     this.sprite.setScale(PLAYER_CONFIG.visualScale);
-    this.sprite.setFlipX(horizontalFacing === 'left');
+    this.sprite.setFlipX(false);
 
-    const animationKey = resolveAnimationKey(state, isMoving, isSprinting, facingDirection);
+    const animationKey = resolveAnimationKey(
+      state,
+      isMoving,
+      isSprinting,
+      facingDirection,
+      horizontalFacing,
+      lateralIntentX,
+      verticalIntentY,
+    );
     const ignoreIfPlaying = animationKey === this.currentAnimationKey;
 
     if (!ignoreIfPlaying) {
@@ -91,43 +107,106 @@ function resolveAnimationKey(
   isMoving: boolean,
   isSprinting: boolean,
   facingDirection: PlayerFacingDirection,
+  horizontalFacing: HorizontalFacing,
+  lateralIntentX: number,
+  verticalIntentY: number,
 ): string {
+  const direction = resolveAnimationDirection(
+    facingDirection,
+    horizontalFacing,
+    lateralIntentX,
+    verticalIntentY,
+  );
+
   switch (state) {
     case 'move':
       if (isSprinting) {
-        return facingDirection === 'up'
-          ? PLAYER_SPRINT_UP_ANIMATION_KEY
-          : PLAYER_SPRINT_ANIMATION_KEY;
+        return getPlayerDirectionalAnimationKey(
+          facingDirection === 'up' ? PLAYER_SPRINT_UP_ANIMATION_KEY : PLAYER_SPRINT_ANIMATION_KEY,
+          direction,
+        );
       }
 
-      return facingDirection === 'up'
-        ? PLAYER_WALK_UP_ANIMATION_KEY
-        : PLAYER_WALK_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(
+        facingDirection === 'up' ? PLAYER_WALK_UP_ANIMATION_KEY : PLAYER_WALK_ANIMATION_KEY,
+        direction,
+      );
     case 'attack_windup':
     case 'attack_active':
-      return PLAYER_ATTACK_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(PLAYER_ATTACK_ANIMATION_KEY, direction);
     case 'attack_recovery':
       if (isMoving) {
         if (isSprinting) {
-          return facingDirection === 'up'
-            ? PLAYER_SPRINT_UP_ANIMATION_KEY
-            : PLAYER_SPRINT_ANIMATION_KEY;
+          return getPlayerDirectionalAnimationKey(
+            facingDirection === 'up' ? PLAYER_SPRINT_UP_ANIMATION_KEY : PLAYER_SPRINT_ANIMATION_KEY,
+            direction,
+          );
         }
 
-        return facingDirection === 'up'
-          ? PLAYER_WALK_UP_ANIMATION_KEY
-          : PLAYER_WALK_ANIMATION_KEY;
+        return getPlayerDirectionalAnimationKey(
+          facingDirection === 'up' ? PLAYER_WALK_UP_ANIMATION_KEY : PLAYER_WALK_ANIMATION_KEY,
+          direction,
+        );
       }
 
-      return PLAYER_IDLE_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(PLAYER_IDLE_ANIMATION_KEY, direction);
     case 'dodge':
-      return PLAYER_DASH_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(PLAYER_DASH_ANIMATION_KEY, direction);
     case 'hurt':
-      return PLAYER_HURT_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(PLAYER_HURT_ANIMATION_KEY, direction);
     case 'dead':
-      return PLAYER_DEAD_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(PLAYER_DEAD_ANIMATION_KEY, direction);
     case 'idle':
     default:
-      return PLAYER_IDLE_ANIMATION_KEY;
+      return getPlayerDirectionalAnimationKey(PLAYER_IDLE_ANIMATION_KEY, direction);
   }
+}
+
+function resolveAnimationDirection(
+  facingDirection: PlayerFacingDirection,
+  horizontalFacing: HorizontalFacing,
+  lateralIntentX: number,
+  verticalIntentY: number,
+): PlayerAnimationDirection {
+  if (verticalIntentY < -0.001) {
+    if (lateralIntentX < -0.001) {
+      return 'left_up';
+    }
+
+    if (lateralIntentX > 0.001) {
+      return 'right_up';
+    }
+
+    return 'up';
+  }
+
+  if (verticalIntentY > 0.001) {
+    if (lateralIntentX < -0.001) {
+      return 'left_down';
+    }
+
+    if (lateralIntentX > 0.001) {
+      return 'right_down';
+    }
+
+    return 'down';
+  }
+
+  if (lateralIntentX < -0.001) {
+    return 'left_down';
+  }
+
+  if (lateralIntentX > 0.001) {
+    return 'right_down';
+  }
+
+  if (facingDirection === 'up') {
+    return horizontalFacing === 'left' ? 'left_up' : 'right_up';
+  }
+
+  if (facingDirection === 'down') {
+    return 'down';
+  }
+
+  return horizontalFacing === 'left' ? 'left_down' : 'right_down';
 }

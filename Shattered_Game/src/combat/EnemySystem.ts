@@ -27,6 +27,7 @@ import type { IsoTilemap } from '../world/IsoTilemap';
 
 export class EnemySystem {
   private static readonly DEATH_RESET_DELAY_MS = 1_800;
+  private static readonly HIT_FLASH_MS = 120;
 
   private readonly enemyRegistry = new EnemyRegistry(ENEMY_DEFINITIONS);
   private runtimeState: EnemyRuntimeState | null = null;
@@ -38,6 +39,7 @@ export class EnemySystem {
   private currentAnimationKey: string | null = null;
   private activeMapId: string | null = null;
   private tilemap: IsoTilemap | null = null;
+  private hitFlashUntilMs = 0;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -126,6 +128,10 @@ export class EnemySystem {
       EnemySystem.DEATH_RESET_DELAY_MS,
     );
     this.runtimeState = result.state;
+
+    if (result.hit && !result.killed) {
+      this.hitFlashUntilMs = nowMs + EnemySystem.HIT_FLASH_MS;
+    }
 
     if (!result.killed) {
       return result;
@@ -333,6 +339,12 @@ export class EnemySystem {
         break;
       default:
         break;
+    }
+
+    if (this.hitFlashUntilMs > 0 && nowMs < this.hitFlashUntilMs) {
+      const flashT = (this.hitFlashUntilMs - nowMs) / EnemySystem.HIT_FLASH_MS;
+      this.visual.setTint(0xffffff);
+      this.visual.setScale(this.visual.scaleX * (1 + 0.12 * flashT), this.visual.scaleY * (1 + 0.12 * flashT));
     }
 
     this.updateHealthBar(state, lift);

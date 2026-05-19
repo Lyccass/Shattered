@@ -88,6 +88,7 @@ export function createEnemyRuntimeState(
     attackRotationRad: null,
     attackTargetTiles: [],
     orbitDirection: hashStringToOrbitDirection(spawn.id),
+    settleUntilMs: 0,
     attackCooldownEndsAtMs: Object.fromEntries(
       definition.attacks.map((attack) => [attack.id, 0]),
     ),
@@ -313,6 +314,8 @@ export function advanceEnemyStateMachine(
         nextState.currentState = 'aggro';
         nextState.phaseStartedAtMs = null;
         nextState.phaseEndsAtMs = null;
+        // Commit-then-pause: orbit for 500–1100 ms before choosing the next move
+        nextState.settleUntilMs = context.nowMs + 500 + Math.floor(Math.random() * 600);
 
         if (attack) {
           nextState.attackCooldownEndsAtMs[attack.id] = context.nowMs + attack.cooldownMs;
@@ -360,6 +363,10 @@ function selectAttack(
   context: UpdateContext,
   distanceToPlayer: number,
 ): EnemyAttackDefinition | null {
+  if (context.nowMs < state.settleUntilMs) {
+    return null;
+  }
+
   const readyAttacks = definition.attacks.filter((attack) => {
     const distanceTiles = worldDistanceToTiles(distanceToPlayer, context.tileWidth, context.tileHeight);
     return distanceTiles >= attack.minRangeTiles
@@ -385,6 +392,16 @@ function enterWindup(
   context: UpdateContext,
   events: EnemyUpdateEvent[],
 ): void {
+  // Snap to the nearest tile centre before committing to an attack.
+  // During approach the enemy moves smoothly between tile centres; without this
+  // snap the sprite would stay frozen at an off-grid position for the entire
+  // windup → active → recovery sequence, making it look like the enemy is
+  // floating between tiles.
+  const tile = context.worldToTile(state.worldX, state.worldY);
+  const tileCenter = context.getTileCenterWorld(tile.x, tile.y);
+  state.worldX = tileCenter.x;
+  state.worldY = tileCenter.y;
+
   state.currentState = 'windup';
   state.phaseStartedAtMs = context.nowMs;
   state.phaseEndsAtMs = context.nowMs + attack.timing.windupMs;
@@ -843,7 +860,7 @@ function resolveApproachTarget(
   const dx = state.worldX - context.playerWorldX;
   const dy = state.worldY - context.playerWorldY;
   const distanceToPlayer = Math.hypot(dx, dy);
-  const orbitStartDistance = context.tileWidth * 4.5;
+  const orbitStartDistance = context.tileWidth * 6.5;
 
   if (distanceToPlayer > orbitStartDistance || distanceToPlayer <= 0.001) {
     return {
@@ -856,8 +873,11 @@ function resolveApproachTarget(
   const outwardY = dy / distanceToPlayer;
   const tangentX = -outwardY * state.orbitDirection;
   const tangentY = outwardX * state.orbitDirection;
-  const orbitRadius = context.tileWidth * 1.8;
-  const tangentBias = context.tileWidth * 1.1;
+  // During settle: oscillate orbit radius to create step-in/step-back pressure
+  const orbitRadius = context.nowMs < state.settleUntilMs
+    ? context.tileWidth * (1.95 + 0.65 * Math.sin(context.nowMs * 0.006))
+    : context.tileWidth * 2.6;
+  const tangentBias = context.tileWidth * 1.6;
 
   return {
     x: context.playerWorldX + outwardX * orbitRadius + tangentX * tangentBias,

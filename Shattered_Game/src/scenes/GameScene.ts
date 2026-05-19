@@ -92,6 +92,12 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.inputSystem?.setMode(this.computeInputMode());
 
+    // Sync combat animation state before player movement so attack phase locks
+    // are visible to isAttackMovementBlocked within the same frame.
+    if (this.combatSandboxSystem && this.playerController) {
+      this.combatSandboxSystem.preSyncAttackVisuals(this.time.now, this.playerController);
+    }
+
     if (this.inputSystem?.shouldProcessMovement() ?? true) {
       this.playerController?.update(delta, this.time.now);
     }
@@ -104,6 +110,11 @@ export class GameScene extends Phaser.Scene {
         ? this.combatSandboxSystem.update(this.time.now, delta, this.playerController)
         : [];
     combatResults.forEach((result) => this.uiManager?.handleResult(result));
+
+    if (this.combatSandboxSystem?.consumePendingScreenShake()) {
+      this.cameras.main.shake(80, 0.003);
+    }
+
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     this.telegraphSystem?.update(this.time.now);
     this.uiManager?.update(
@@ -735,7 +746,11 @@ export class GameScene extends Phaser.Scene {
       this.clearPendingPointerInteraction();
     }
 
-    this.playerController.setClickMoveTarget(tileCenter.x, tileCenter.y);
+    this.playerController.setClickMoveTarget(
+      tileCenter.x,
+      tileCenter.y,
+      this.controlMode === 'combat' ? 4 : undefined,
+    );
   }
 
   private syncMoveTargetTelegraph(): void {

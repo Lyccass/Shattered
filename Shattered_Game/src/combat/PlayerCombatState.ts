@@ -43,11 +43,11 @@ const WALK_DODGE_COST = 15;
 const SPRINT_DODGE_COST = 25;
 export const DODGE_DURATION_MS = 250;
 const DODGE_INVULNERABILITY_MS = 250;
-const DODGE_COOLDOWN_MS = 450;
+const DODGE_COOLDOWN_MS = 350;
 const LIGHT_ATTACK_COST = 12;
-export const LIGHT_ATTACK_WINDUP_MS = 320;
+export const LIGHT_ATTACK_WINDUP_MS = 160;
 export const LIGHT_ATTACK_ACTIVE_MS = 200;
-export const LIGHT_ATTACK_RECOVERY_MS = 580;
+export const LIGHT_ATTACK_RECOVERY_MS = 500;
 const GUARD_STAMINA_COST_PER_DAMAGE = 10;
 const GUARD_BREAK_DURATION_MS = 650;
 const DOWNED_RECOVERY_MS = 1_500;
@@ -77,6 +77,7 @@ export class PlayerCombatState {
   private dodgeCooldownEndsAtMs = 0;
   private staminaRegenStartsAtMs = 0;
   private lightAttack: ActiveLightAttackState | null = null;
+  private recoveryOverrideMs: number | null = null;
   private pendingRecoveredFromDowned = false;
 
   enterCombat(): void {
@@ -192,6 +193,7 @@ export class PlayerCombatState {
     // Cancel any in-progress attack (windup, active, or recovery) — dodge overrides all
     if (this.lightAttack !== null) {
       this.lightAttack = null;
+      this.recoveryOverrideMs = null;
     }
 
     this.guardHeld = false;
@@ -259,6 +261,10 @@ export class PlayerCombatState {
 
   refundLightAttackStamina(): void {
     this.stamina = Math.min(MAX_STAMINA, this.stamina + LIGHT_ATTACK_COST);
+  }
+
+  setNextRecoveryMs(ms: number): void {
+    this.recoveryOverrideMs = ms;
   }
 
   resolveIncomingAttack(
@@ -429,10 +435,12 @@ export class PlayerCombatState {
     }
 
     if (this.lightAttack.phase === 'active') {
+      const recoveryMs = this.recoveryOverrideMs ?? LIGHT_ATTACK_RECOVERY_MS;
+      this.recoveryOverrideMs = null;
       this.lightAttack = {
         phase: 'recovery',
         phaseStartedAtMs: nowMs,
-        phaseEndsAtMs: nowMs + LIGHT_ATTACK_RECOVERY_MS,
+        phaseEndsAtMs: nowMs + recoveryMs,
         pendingActiveResolve: false,
       };
       return;
@@ -452,6 +460,7 @@ export class PlayerCombatState {
     this.guardHeld = false;
     this.sprinting = false;
     this.lightAttack = null;
+    this.recoveryOverrideMs = null;
     this.dodgeEndsAtMs = null;
     this.invulnerableUntilMs = null;
     return true;
