@@ -85,7 +85,11 @@ export class EditorScene extends Phaser.Scene {
     this.palette = new EditorTilePaletteController(
       this,
       this.terrainTool.getCatalog(),
-      { onSelectBrush: (brush) => this.selectBrushById(brush.id) },
+      this.objectTool.getCatalog(),
+      {
+        onSelectBrush: (brush) => this.selectBrushById(brush.id),
+        onSelectObject: (def) => this.selectObjectById(def.id),
+      },
     );
     this.viewport = new EditorViewportController(this, {
       maxZoom: MAX_CAMERA_ZOOM,
@@ -171,23 +175,31 @@ export class EditorScene extends Phaser.Scene {
 
   private selectBrushForFamily(family: TerrainFamily): void {
     const selectedBrush = this.terrainTool.selectFamily(family);
-    this.palette?.updateSelection(selectedBrush);
+    this.palette?.updateTerrainSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(`Selected ${selectedBrush.label}. Use Q/E or [/] to choose a specific tile.`);
   }
 
   private selectBrushById(brushId: string): void {
     const selectedBrush = this.terrainTool.selectById(brushId);
-    this.palette?.updateSelection(selectedBrush);
+    this.palette?.updateTerrainSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(`Selected tile ${selectedBrush.label}.`);
   }
 
+  private selectObjectById(definitionId: string): void {
+    const def = this.objectTool.selectById(definitionId);
+    this.palette?.updateObjectSelection(def.id);
+    this.updateInfoText();
+    this.setStatus(`Selected object ${def.displayName}.`);
+  }
+
   private cycleSelection(offset: number): void {
     if (this.toolMode === 'object') {
-      const selectedObjectDefinition = this.objectTool.cycle(offset);
+      const def = this.objectTool.cycle(offset);
+      this.palette?.updateObjectSelection(def.id);
       this.updateInfoText();
-      this.setStatus(`Selected object ${selectedObjectDefinition.displayName}.`);
+      this.setStatus(`Selected object ${def.displayName}.`);
       return;
     }
 
@@ -196,20 +208,24 @@ export class EditorScene extends Phaser.Scene {
 
   private cycleSelectedBrush(offset: number): void {
     const selectedBrush = this.terrainTool.cycle(offset);
-    this.palette?.updateSelection(selectedBrush);
+    this.palette?.updateTerrainSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(`Selected tile ${selectedBrush.label}.`);
   }
 
   private flipSelectedBrush(axis: 'x' | 'y'): void {
     const selectedBrush = this.terrainTool.flip(axis);
-    this.palette?.updateSelection(selectedBrush);
+    this.palette?.updateTerrainSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(axis === 'x' ? 'Selected brush flipped left/right.' : 'Selected brush flipped up/down.');
   }
 
   private togglePalette(): void {
-    this.palette?.toggle(this.terrainTool.getSelectedBrush());
+    this.palette?.toggle(
+      this.toolMode,
+      this.terrainTool.getSelectedBrush(),
+      this.objectTool.getSelectedDefinition().id,
+    );
   }
 
   private adjustBrushSize(delta: number): void {

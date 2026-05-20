@@ -99,6 +99,7 @@ export class EditorHudController {
     this.els.sizeInc.addEventListener('click', () => this.callbacks.onAdjustBrushSize(1));
     this.els.sizeDec.addEventListener('click', () => this.callbacks.onAdjustBrushSize(-1));
     document.getElementById('ed-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
+    document.getElementById('ed-obj-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
   }
 
   // No Phaser display objects — HUD is pure HTML.
