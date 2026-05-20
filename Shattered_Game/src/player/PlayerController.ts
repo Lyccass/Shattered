@@ -83,7 +83,6 @@ export class PlayerController {
         this.facingDirection,
         this.horizontalFacing,
         dodgeLateralIntentX,
-        this.dodgeMotion?.direction.y ?? 0,
       );
       return;
     }
@@ -111,7 +110,6 @@ export class PlayerController {
       this.facingDirection,
       this.horizontalFacing,
       this.movementIntent.x,
-      this.movementIntent.y,
     );
   }
 

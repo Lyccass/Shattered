@@ -4,10 +4,10 @@ export const PLAYER_CONFIG = {
   movementSpeed: 88,
   // The female adventurer body centers a touch right of exact half in most frames.
   originX: 24.5 / 48,
-  // Anchor the sprite directly on the visible feet for this pack.
-  originY: 42 / 64,
-  // With a feet-origin sprite, the feet point is the sprite position itself.
-  feetAnchorFromCenterY: 0,
+  originY: 0.5,
+  // Visible feet land around y=42 in a 64px frame, so the ground contact sits
+  // roughly 10px below frame centre instead of the old warrior's 16px.
+  feetAnchorFromCenterY: 10,
   visualScale: PROTOTYPE_SCALE.playerVisualScale,
   // Collision is still grid-first. These samples describe the small ground
   // contact area around the feet, not the full upright body.

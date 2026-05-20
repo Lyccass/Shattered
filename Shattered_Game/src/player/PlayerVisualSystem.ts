@@ -36,7 +36,6 @@ export class PlayerVisualSystem {
     facingDirection: PlayerFacingDirection,
     horizontalFacing: HorizontalFacing,
     lateralIntentX = 0,
-    verticalIntentY = 0,
   ): void {
     this.animationState.syncMovementState(isMoving, nowMs);
     this.applyVisualState(
@@ -46,7 +45,6 @@ export class PlayerVisualSystem {
       facingDirection,
       horizontalFacing,
       lateralIntentX,
-      verticalIntentY,
     );
     this.sprite.setDepth(getDynamicDepth(feetWorldY, PLAYER_CONFIG.depthTieBreaker));
   }
@@ -66,7 +64,6 @@ export class PlayerVisualSystem {
     facingDirection: PlayerFacingDirection,
     horizontalFacing: HorizontalFacing,
     lateralIntentX: number,
-    verticalIntentY: number,
   ): void {
     this.sprite.clearTint();
     this.sprite.setScale(PLAYER_CONFIG.visualScale);
@@ -79,7 +76,6 @@ export class PlayerVisualSystem {
       facingDirection,
       horizontalFacing,
       lateralIntentX,
-      verticalIntentY,
     );
     const ignoreIfPlaying = animationKey === this.currentAnimationKey;
 
@@ -109,14 +105,8 @@ function resolveAnimationKey(
   facingDirection: PlayerFacingDirection,
   horizontalFacing: HorizontalFacing,
   lateralIntentX: number,
-  verticalIntentY: number,
 ): string {
-  const direction = resolveAnimationDirection(
-    facingDirection,
-    horizontalFacing,
-    lateralIntentX,
-    verticalIntentY,
-  );
+  const direction = resolveAnimationDirection(facingDirection, horizontalFacing, lateralIntentX);
 
   switch (state) {
     case 'move':
@@ -166,41 +156,11 @@ function resolveAnimationDirection(
   facingDirection: PlayerFacingDirection,
   horizontalFacing: HorizontalFacing,
   lateralIntentX: number,
-  verticalIntentY: number,
 ): PlayerAnimationDirection {
-  if (verticalIntentY < -0.001) {
-    if (lateralIntentX < -0.001) {
-      return 'left_up';
-    }
-
-    if (lateralIntentX > 0.001) {
-      return 'right_up';
-    }
-
-    return 'up';
-  }
-
-  if (verticalIntentY > 0.001) {
-    if (lateralIntentX < -0.001) {
-      return 'left_down';
-    }
-
-    if (lateralIntentX > 0.001) {
-      return 'right_down';
-    }
-
-    return 'down';
-  }
-
-  if (lateralIntentX < -0.001) {
-    return 'left_down';
-  }
-
-  if (lateralIntentX > 0.001) {
-    return 'right_down';
-  }
-
   if (facingDirection === 'up') {
+    if (Math.abs(lateralIntentX) <= 0.001) {
+      return 'up';
+    }
     return horizontalFacing === 'left' ? 'left_up' : 'right_up';
   }
 

@@ -1,4 +1,6 @@
-export type TerrainFamily = 'grass' | 'dirt' | 'stone' | 'water' | 'sand';
+import type { TerrainFamily as SharedTerrainFamily } from '../../shared/map/TerrainTypes';
+
+export type TerrainFamily = SharedTerrainFamily;
 
 export type RenderTerrainFamily = Exclude<TerrainFamily, 'sand'>;
 
