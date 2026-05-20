@@ -3,29 +3,37 @@ import { RENDER_DEPTHS } from '../render/RenderLayers';
 
 type UiTextVariant = 'panel' | 'menu' | 'toast';
 
+const FONT = '"Asimovian", "Palatino Linotype", serif';
+
 const UI_TEXT_STYLES: Record<UiTextVariant, Phaser.Types.GameObjects.Text.TextStyle> = {
   panel: {
-    color: '#f8fafc',
-    fontFamily: 'monospace',
-    fontSize: '16px',
-    backgroundColor: '#07111fdc',
-    padding: { x: 10, y: 8 },
+    color: '#FFFCC3',
+    fontFamily: FONT,
+    fontSize: '18px',
+    backgroundColor: '#0c0702ee',
+    padding: { x: 12, y: 9 },
+    stroke: '#3a2209',
+    strokeThickness: 1,
   },
   menu: {
-    color: '#f8fafc',
-    fontFamily: 'monospace',
+    color: '#FFFCC3',
+    fontFamily: FONT,
     fontSize: '18px',
-    backgroundColor: '#07111fe8',
-    padding: { x: 14, y: 10 },
+    backgroundColor: '#0c0702f0',
+    padding: { x: 16, y: 12 },
     wordWrap: { width: 680 },
+    stroke: '#3a2209',
+    strokeThickness: 1,
   },
   toast: {
-    color: '#f8fafc',
-    fontFamily: 'monospace',
-    fontSize: '16px',
-    backgroundColor: '#07111fe6',
-    padding: { x: 12, y: 8 },
+    color: '#FFFCC3',
+    fontFamily: FONT,
+    fontSize: '18px',
+    backgroundColor: '#0c0702f0',
+    padding: { x: 14, y: 9 },
     align: 'center',
+    stroke: '#613C18',
+    strokeThickness: 1,
   },
 };
 

@@ -1,99 +1,92 @@
 import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
 import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
-import { formatPromptPanelText, formatSkillXpToastLines } from './UiFormatters';
+import { formatSkillXpToastLines } from './UiFormatters';
 import { ChoiceMenuPanel } from './ChoiceMenuPanel';
-import { CombatPanel } from './CombatPanel';
-import { HudPanel } from './HudPanel';
-import { InventoryPanel } from './InventoryPanel';
-import { JournalPanel } from './JournalPanel';
-import { PromptPanel } from './PromptPanel';
-import { SkillPanel } from './SkillPanel';
 import { ToastSystem } from './ToastSystem';
 import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
+import { UIOverlayManager } from './overlay/UIOverlayManager';
+
+export interface UiManagerCallbacks {
+  onCombatToggle: () => void;
+  onSprintToggle: () => void;
+}
 
 export class UiManager {
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
-  private readonly promptPanel: PromptPanel;
-  private readonly hudPanel: HudPanel;
-  private readonly combatPanel: CombatPanel;
   private readonly actionProgressPanel: ActionProgressPanel;
-  private readonly inventoryPanel: InventoryPanel;
   private readonly choiceMenuPanel: ChoiceMenuPanel;
-  private readonly journalPanel: JournalPanel;
-  private readonly skillPanel: SkillPanel;
   private readonly toastSystem: ToastSystem;
+  private readonly overlay: UIOverlayManager;
 
-  constructor(private readonly scene: Phaser.Scene) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    callbacks: UiManagerCallbacks,
+  ) {
     this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
-    this.promptPanel = new PromptPanel(scene);
-    this.hudPanel = new HudPanel(scene);
-    this.combatPanel = new CombatPanel(scene);
-    this.actionProgressPanel = new ActionProgressPanel(scene);
-    this.inventoryPanel = new InventoryPanel(scene);
-    this.choiceMenuPanel = new ChoiceMenuPanel(scene);
-    this.journalPanel = new JournalPanel(scene);
-    this.skillPanel = new SkillPanel(scene);
-    this.toastSystem = new ToastSystem(scene);
 
-    const displayObjects = this.getDisplayObjects();
+    // Phaser panels: only choice menus and action progress (no hint text)
+    this.actionProgressPanel = new ActionProgressPanel(scene);
+    this.choiceMenuPanel     = new ChoiceMenuPanel(scene);
+    this.toastSystem         = new ToastSystem(scene);
+
+    // HTML overlay handles all main game UI panels
+    this.overlay = new UIOverlayManager({ onCombatToggle: callbacks.onCombatToggle, onSprintToggle: callbacks.onSprintToggle });
+
+    const displayObjects = this.getPhaserDisplayObjects();
     this.scene.cameras.main.ignore(displayObjects);
     this.ignoreWorldForUiCamera(displayObjects);
     this.registerResizeHandler();
     this.layout();
   }
 
-  update(state: UiStateSnapshot, combat: CombatUiSnapshot | null = null): void {
-    this.promptPanel.update(
-      state.choiceMenu || state.actionProgress
-        ? ''
-        : formatPromptPanelText(state.activeInteraction, state.placementState),
-    );
-    this.hudPanel.update(
-      state.inventory,
-      state.activeEffects,
-    );
-    this.combatPanel.update(combat);
+  update(
+    state: UiStateSnapshot,
+    combat: CombatUiSnapshot | null = null,
+    controlMode: 'explore' | 'combat' = 'explore',
+  ): void {
     this.actionProgressPanel.update(state.actionProgress);
-    this.inventoryPanel.update(
-      state.inventory,
-      state.currency,
-    );
     this.choiceMenuPanel.update(state.choiceMenu);
-    this.journalPanel.update(
-      state.journalEntries,
-      state.reputation,
-      state.activeTaskCount,
-    );
-    this.skillPanel.update(state.skills);
     this.toastSystem.update();
+
+    this.overlay.update(state, combat, controlMode);
+    this.overlay.tick();
   }
 
   handleResult(result: UiHandledResult | null): void {
-    if (!result) {
-      return;
-    }
+    if (!result) return;
 
-    this.toastSystem.push(result.message, result.toastKind ?? (result.ok ? 'success' : 'error'));
+    // Primary message → chat
+    const channel = result.toastKind === 'reward'
+      ? 'reward'
+      : result.ok ? 'game' : 'error';
+    this.overlay.pushMessage(result.message, channel);
+
+    // XP lines → chat as reward
     formatSkillXpToastLines(result.xpDelta).forEach((line) => {
-      this.toastSystem.push(line, 'reward');
+      this.overlay.pushMessage(line, 'reward');
     });
+
+    // Only show a Phaser popup for hard errors so the player never misses them
+    if (!result.ok) {
+      this.toastSystem.push(result.message, 'error');
+    }
   }
 
   showInfo(message: string): void {
-    this.toastSystem.push(message, 'info');
+    this.overlay.pushMessage(message, 'system');
   }
 
   toggleJournal(): boolean {
-    return this.journalPanel.toggle();
+    return this.overlay.toggleTab('journal');
   }
 
   toggleInventory(): boolean {
-    return this.inventoryPanel.toggle();
+    return this.overlay.toggleTab('inventory');
   }
 
   toggleSkills(): boolean {
-    return this.skillPanel.toggle();
+    return this.overlay.toggleTab('journal');
   }
 
   getChoiceMenuOptionIndexAt(screenX: number, screenY: number): number | null {
@@ -103,8 +96,9 @@ export class UiManager {
   destroy(): void {
     this.scene.scale.off('resize', this.handleResize);
     this.scene.events.off(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);
-    this.getDisplayObjects().forEach((displayObject) => displayObject.destroy());
+    this.getPhaserDisplayObjects().forEach((obj) => obj.destroy());
     this.scene.cameras.remove(this.uiCamera);
+    this.overlay.destroy();
   }
 
   private readonly handleResize = (gameSize: Phaser.Structs.Size): void => {
@@ -117,44 +111,28 @@ export class UiManager {
   }
 
   private ignoreWorldForUiCamera(uiObjects: Phaser.GameObjects.GameObject[]): void {
-    const isUiObject = (child: Phaser.GameObjects.GameObject): boolean =>
-      uiObjects.includes(child);
-
-    const existing = this.scene.children.getChildren().filter((child) => !isUiObject(child));
+    const isUiObject = (c: Phaser.GameObjects.GameObject): boolean => uiObjects.includes(c);
+    const existing = this.scene.children.getChildren().filter((c) => !isUiObject(c));
     this.uiCamera.ignore(existing);
 
     this.handleAddedToScene = (child: Phaser.GameObjects.GameObject) => {
-      if (!isUiObject(child)) {
-        this.uiCamera.ignore(child);
-      }
+      if (!isUiObject(child)) this.uiCamera.ignore(child);
     };
     this.scene.events.on(Phaser.Scenes.Events.ADDED_TO_SCENE, this.handleAddedToScene);
   }
 
   private layout(): void {
-    const width = this.scene.scale.width;
+    const width  = this.scene.scale.width;
     const height = this.scene.scale.height;
-    this.promptPanel.layout(width, height);
-    this.hudPanel.layout(width, height);
-    this.combatPanel.layout(width, height);
     this.actionProgressPanel.layout(width, height);
-    this.inventoryPanel.layout(width, height);
     this.choiceMenuPanel.layout(width, height);
-    this.journalPanel.layout(width, height);
-    this.skillPanel.layout(width, height);
     this.toastSystem.layout(width);
   }
 
-  private getDisplayObjects(): Phaser.GameObjects.GameObject[] {
+  private getPhaserDisplayObjects(): Phaser.GameObjects.GameObject[] {
     return [
-      ...this.promptPanel.getDisplayObjects(),
-      ...this.hudPanel.getDisplayObjects(),
-      ...this.combatPanel.getDisplayObjects(),
       ...this.actionProgressPanel.getDisplayObjects(),
-      ...this.inventoryPanel.getDisplayObjects(),
       ...this.choiceMenuPanel.getDisplayObjects(),
-      ...this.journalPanel.getDisplayObjects(),
-      ...this.skillPanel.getDisplayObjects(),
       ...this.toastSystem.getDisplayObjects(),
     ];
   }

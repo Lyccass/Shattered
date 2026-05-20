@@ -3,27 +3,22 @@ import {
   type CombatDodgeDirection,
 } from '../combat/CombatDodge';
 import type { CombatAnimationStateId } from '../combat/CombatAnimationTypes';
+import { IsoTilemap } from '../world/IsoTilemap';
+import { PlayerClickMovementController } from './PlayerClickMovementController';
 import { PlayerCollisionSystem } from './PlayerCollisionSystem';
-import { PLAYER_CONFIG } from './PlayerConfig';
+import { PlayerDodgeMotionController } from './PlayerDodgeMotionController';
 import { resolveFacingFromIntent, type PlayerFacingDirection } from './PlayerFacing';
 import { PlayerMovementSystem } from './PlayerMovementSystem';
 import { PlayerPositionSystem } from './PlayerPositionSystem';
 import { PlayerVisualSystem } from './PlayerVisualSystem';
-import { IsoTilemap } from '../world/IsoTilemap';
-import { findGridPath } from '../world/GridPathfinder';
-
-type ActiveDodgeMotion = {
-  direction: Phaser.Math.Vector2;
-  elapsedMs: number;
-  durationMs: number;
-  distancePerMs: number;
-};
 
 export class PlayerController {
   readonly sprite: Phaser.GameObjects.Sprite;
 
   private readonly movementIntent = new Phaser.Math.Vector2();
+  private readonly clickMovement: PlayerClickMovementController;
   private readonly collision: PlayerCollisionSystem;
+  private readonly dodgeMotion: PlayerDodgeMotionController;
   private readonly movement: PlayerMovementSystem;
   private readonly position: PlayerPositionSystem;
   private readonly visuals: PlayerVisualSystem;
@@ -31,9 +26,6 @@ export class PlayerController {
   private facingDirection: PlayerFacingDirection = 'down';
   private horizontalFacing: 'left' | 'right' = 'right';
   private movementSpeedMultiplier = 1;
-  private dodgeMotion: ActiveDodgeMotion | null = null;
-  private clickMoveTarget: Phaser.Math.Vector2 | null = null;
-  private clickMoveWaypoints: Phaser.Math.Vector2[] = [];
   private readonly lastMovementDirection = new Phaser.Math.Vector2(0, 1);
   private lastSafeSpriteX: number;
   private lastSafeSpriteY: number;
@@ -41,7 +33,9 @@ export class PlayerController {
   constructor(_scene: Phaser.Scene, sprite: Phaser.GameObjects.Sprite, tilemap: IsoTilemap) {
     this.sprite = sprite;
     this.tilemap = tilemap;
+    this.clickMovement = new PlayerClickMovementController(tilemap);
     this.collision = new PlayerCollisionSystem(tilemap);
+    this.dodgeMotion = new PlayerDodgeMotionController();
     this.position = new PlayerPositionSystem();
     this.movement = new PlayerMovementSystem(this.collision, this.position);
     this.visuals = new PlayerVisualSystem(sprite);
@@ -52,27 +46,8 @@ export class PlayerController {
   update(delta: number, nowMs: number, movementSpeedMultiplier = this.movementSpeedMultiplier): void {
     this.recoverIfBlocked();
 
-    if (this.dodgeMotion) {
-      const dodgeLateralIntentX = this.dodgeMotion.direction.x;
-      const remainingMs = Math.max(0, this.dodgeMotion.durationMs - this.dodgeMotion.elapsedMs);
-      const frameMs = Math.min(delta, remainingMs);
-      const distance = this.dodgeMotion.distancePerMs * frameMs;
-      const moved = this.movement.moveDistance(
-        this.sprite,
-        this.dodgeMotion.direction,
-        distance,
-        false,
-      );
-
-      this.dodgeMotion = {
-        ...this.dodgeMotion,
-        elapsedMs: this.dodgeMotion.elapsedMs + frameMs,
-      };
-
-      if (!moved || this.dodgeMotion.elapsedMs >= this.dodgeMotion.durationMs) {
-        this.dodgeMotion = null;
-      }
-
+    if (this.dodgeMotion.isDodging()) {
+      const dodgeStep = this.dodgeMotion.update(delta, this.sprite, this.movement);
       this.recoverIfBlocked();
       this.captureSafePosition();
       this.visuals.update(
@@ -82,7 +57,7 @@ export class PlayerController {
         false,
         this.facingDirection,
         this.horizontalFacing,
-        dodgeLateralIntentX,
+        dodgeStep.lateralIntentX,
       );
       return;
     }
@@ -98,7 +73,7 @@ export class PlayerController {
       && Math.abs(this.sprite.x - beforeX) < 0.001
       && Math.abs(this.sprite.y - beforeY) < 0.001
     ) {
-      this.clickMoveTarget = null;
+      this.clickMovement.clear();
     }
     this.recoverIfBlocked();
     this.captureSafePosition();
@@ -141,7 +116,7 @@ export class PlayerController {
   }
 
   getDodgeDirection(): Phaser.Math.Vector2 | null {
-    return this.dodgeMotion ? this.dodgeMotion.direction.clone() : null;
+    return this.dodgeMotion.getDirection();
   }
 
   getFacingDirection(): PlayerFacingDirection {
@@ -165,29 +140,22 @@ export class PlayerController {
   }
 
   isMoving(): boolean {
-    return this.dodgeMotion !== null || this.movementIntent.lengthSq() > 0;
+    return this.dodgeMotion.isDodging() || this.movementIntent.lengthSq() > 0;
   }
 
   hasClickMoveTarget(): boolean {
-    return this.clickMoveTarget !== null || this.clickMoveWaypoints.length > 0;
+    return this.clickMovement.hasTarget();
   }
 
   clearClickMoveTarget(): void {
-    this.clickMoveTarget = null;
-    this.clickMoveWaypoints = [];
+    this.clickMovement.clear();
   }
 
   getCurrentMoveDirection(): Phaser.Math.Vector2 | null {
-    const currentWaypoint = this.clickMoveWaypoints[0] ?? this.clickMoveTarget;
+    const clickMoveDirection = this.clickMovement.getCurrentMoveDirection(this.getFeetPoint());
 
-    if (currentWaypoint) {
-      const feet = this.getFeetPoint();
-      const deltaX = currentWaypoint.x - feet.x;
-      const deltaY = currentWaypoint.y - feet.y;
-
-      if (Math.hypot(deltaX, deltaY) > 0.001) {
-        return new Phaser.Math.Vector2(deltaX, deltaY);
-      }
+    if (clickMoveDirection) {
+      return clickMoveDirection;
     }
 
     if (this.movementIntent.lengthSq() > 0) {
@@ -224,7 +192,7 @@ export class PlayerController {
   }
 
   isDodging(): boolean {
-    return this.dodgeMotion !== null;
+    return this.dodgeMotion.isDodging();
   }
 
   isFeetTileBlocked(): boolean {
@@ -239,8 +207,8 @@ export class PlayerController {
 
   setTilemap(tilemap: IsoTilemap): void {
     this.tilemap = tilemap;
+    this.clickMovement.setTilemap(tilemap);
     this.collision.setTilemap(tilemap);
-    this.clearClickMoveTarget();
   }
 
   setExternalOccupancyValidator(
@@ -250,15 +218,18 @@ export class PlayerController {
   }
 
   setWorldPosition(worldX: number, worldY: number): void {
-    this.dodgeMotion = null;
-    this.clickMoveTarget = null;
+    this.dodgeMotion.clear();
+    this.clickMovement.clear();
     this.sprite.setPosition(worldX, worldY);
     this.captureSafePosition();
   }
 
   setFeetWorldPosition(feetWorldX: number, feetWorldY: number): void {
     const currentFeet = this.getFeetPoint();
-    this.setWorldPosition(this.sprite.x + (feetWorldX - currentFeet.x), this.sprite.y + (feetWorldY - currentFeet.y));
+    this.setWorldPosition(
+      this.sprite.x + (feetWorldX - currentFeet.x),
+      this.sprite.y + (feetWorldY - currentFeet.y),
+    );
   }
 
   setMovementSpeedMultiplier(multiplier: number): void {
@@ -266,41 +237,7 @@ export class PlayerController {
   }
 
   setClickMoveTarget(worldX: number, worldY: number, maxPathTiles?: number): void {
-    const startTile = this.getFeetTile();
-    const goalTile = this.tilemap.transform.worldToTile(worldX, worldY);
-    const path = findGridPath({
-      width: this.tilemap.width,
-      height: this.tilemap.height,
-      start: { x: startTile.x, y: startTile.y },
-      goal: { x: goalTile.x, y: goalTile.y },
-      isWalkable: (tileX, tileY) => this.tilemap.isTileWalkable(tileX, tileY),
-    });
-
-    if (!path || path.length === 0) {
-      this.clearClickMoveTarget();
-      return;
-    }
-
-    const rawTiles = path.slice(1);
-    const isClamped = maxPathTiles !== undefined && rawTiles.length > maxPathTiles;
-    const tiles = isClamped ? rawTiles.slice(0, maxPathTiles) : rawTiles;
-
-    if (tiles.length === 0) {
-      this.clearClickMoveTarget();
-      return;
-    }
-
-    if (isClamped) {
-      const lastTile = tiles[tiles.length - 1];
-      const lastCenter = this.tilemap.getTileCenterWorld(lastTile.x, lastTile.y);
-      this.clickMoveTarget = new Phaser.Math.Vector2(lastCenter.x, lastCenter.y);
-    } else {
-      this.clickMoveTarget = new Phaser.Math.Vector2(worldX, worldY);
-    }
-
-    this.clickMoveWaypoints = tiles
-      .map((tile) => this.tilemap.getTileCenterWorld(tile.x, tile.y))
-      .map((point) => new Phaser.Math.Vector2(point.x, point.y));
+    this.clickMovement.setTarget(this.getFeetTile(), worldX, worldY, maxPathTiles);
   }
 
   resolveDodgeTarget(
@@ -340,20 +277,8 @@ export class PlayerController {
   }
 
   startDodgeMotion(direction: CombatDodgeDirection, distance: number, durationMs: number): void {
-    const length = Math.hypot(direction.x, direction.y);
-
-    if (length <= 0.0001 || distance <= 0 || durationMs <= 0) {
-      this.dodgeMotion = null;
-      return;
-    }
-
     this.clearClickMoveTarget();
-    this.dodgeMotion = {
-      direction: new Phaser.Math.Vector2(direction.x / length, direction.y / length),
-      elapsedMs: 0,
-      durationMs,
-      distancePerMs: distance / durationMs,
-    };
+    this.dodgeMotion.start(direction, distance, durationMs);
   }
 
   requestCombatVisualState(
@@ -371,14 +296,13 @@ export class PlayerController {
   private readMovementIntent(nowMs: number): boolean {
     // Block all movement during windup and active — attack interrupts movement
     if (this.isAttackMovementBlocked(nowMs)) {
-      this.clickMoveTarget = null;
-      this.clickMoveWaypoints = [];
+      this.clickMovement.clear();
       this.movementIntent.set(0, 0);
       return false;
     }
 
     const attackFacingLocked = this.isAttackFacingLocked(nowMs);
-    const clickMoveIntent = this.computeClickMoveIntent();
+    const clickMoveIntent = this.clickMovement.readMovementIntent(this.getFeetPoint());
     const usingClickMove = clickMoveIntent.lengthSq() > 0;
     this.movementIntent.copy(clickMoveIntent);
 
@@ -399,34 +323,6 @@ export class PlayerController {
     return usingClickMove;
   }
 
-  private computeClickMoveIntent(): Phaser.Math.Vector2 {
-    const currentWaypoint = this.clickMoveWaypoints[0] ?? this.clickMoveTarget;
-
-    if (!currentWaypoint) {
-      return new Phaser.Math.Vector2();
-    }
-
-    const feet = this.getFeetPoint();
-    const deltaX = currentWaypoint.x - feet.x;
-    const deltaY = currentWaypoint.y - feet.y;
-
-    if (Math.hypot(deltaX, deltaY) <= PLAYER_CONFIG.movementSpeed * 0.08) {
-      if (this.clickMoveWaypoints.length > 0) {
-        this.clickMoveWaypoints.shift();
-
-        if (this.clickMoveWaypoints.length > 0) {
-          return this.computeClickMoveIntent();
-        }
-      }
-
-      this.clickMoveTarget = null;
-      this.clickMoveWaypoints = [];
-      return new Phaser.Math.Vector2();
-    }
-
-    return new Phaser.Math.Vector2(deltaX, deltaY);
-  }
-
   private isAttackFacingLocked(nowMs: number): boolean {
     const state = this.visuals.getCombatState(nowMs);
     return state === 'attack_windup' || state === 'attack_active' || state === 'attack_recovery';
@@ -444,7 +340,7 @@ export class PlayerController {
       return;
     }
 
-    this.dodgeMotion = null;
+    this.dodgeMotion.clear();
     this.sprite.setPosition(this.lastSafeSpriteX, this.lastSafeSpriteY);
   }
 

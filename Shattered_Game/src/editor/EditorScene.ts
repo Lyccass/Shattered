@@ -1,27 +1,18 @@
 import Phaser from 'phaser';
 import {
   addEditorPlacedObject,
-  createEditorMapFromWorldChunkDefinition,
-  createEditorMapFromMapDefinition,
   createSampleEditorMap,
   getEditorTerrainAt,
   paintTerrainTile,
-  parseEditorMapJson,
   removeEditorPlacedObjectsAtTile,
-  resizeEditorMap,
-  serializeEditorMapAsWorldChunk,
-  serializeEditorMap,
   type EditorMapDefinition,
 } from '../shared/editor/EditorMapModel';
 import {
-  getTileCenterWorld,
   getTileDiamondPoints,
   worldToTile,
   type IsoTransformConfig,
 } from '../shared/iso/IsoCoordinates';
 import type { TerrainFamily } from '../shared/map/TerrainTypes';
-import { validateWorldChunkDefinition } from '../shared/world/ChunkValidation';
-import type { WorldChunkDefinition } from '../shared/world/ChunkTypes';
 import { preloadTerrainAssets, createTerrainRenderTextures } from '../world/terrain/TerrainAssets';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import {
@@ -35,11 +26,14 @@ import {
   EditorTerrainChunkRenderer,
   toPaint,
 } from './terrain/EditorTerrainChunkRenderer';
+import { EditorHudController } from './ui/EditorHudController';
 import {
   createEditorObjectCatalog,
   getObjectAtOffset,
 } from './objects/EditorObjectCatalog';
 import { EditorObjectLayerRenderer } from './objects/EditorObjectLayerRenderer';
+import { EditorMapIoController } from './io/EditorMapIoController';
+import { EditorViewportController } from './viewport/EditorViewportController';
 
 const TILE_WIDTH = 64;
 const TILE_HEIGHT = 32;
@@ -58,22 +52,12 @@ const BRUSH_KEYS: Record<string, TerrainFamily> = {
   Digit5: 'sand',
 };
 
-type PanKeys = {
-  w: Phaser.Input.Keyboard.Key;
-  a: Phaser.Input.Keyboard.Key;
-  s: Phaser.Input.Keyboard.Key;
-  d: Phaser.Input.Keyboard.Key;
-  up: Phaser.Input.Keyboard.Key;
-  left: Phaser.Input.Keyboard.Key;
-  down: Phaser.Input.Keyboard.Key;
-  right: Phaser.Input.Keyboard.Key;
-};
-
 type EditorToolMode = 'terrain' | 'object';
 
 export class EditorScene extends Phaser.Scene {
   private readonly terrainCatalog = createEditorTerrainCatalog();
   private readonly objectCatalog = createEditorObjectCatalog();
+  private readonly mapIo = new EditorMapIoController();
   private selectedBrush: EditorTerrainBrush = getDefaultBrushForFamily(this.terrainCatalog, 'grass');
   private selectedObjectDefinition = this.objectCatalog.all[0];
   private map: EditorMapDefinition = createSampleEditorMap(toPaint(this.selectedBrush));
@@ -87,17 +71,12 @@ export class EditorScene extends Phaser.Scene {
   private hoverTile: { x: number; y: number } | null = null;
   private overlayGraphics?: Phaser.GameObjects.Graphics;
   private chunkOverlayGraphics?: Phaser.GameObjects.Graphics;
-  private infoText?: Phaser.GameObjects.Text;
-  private statusText?: Phaser.GameObjects.Text;
-  private selectedPreviewImage?: Phaser.GameObjects.Image;
-  private hoveredPreviewImage?: Phaser.GameObjects.Image;
+  private hud?: EditorHudController;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
   private terrainRenderer?: EditorTerrainChunkRenderer;
   private objectRenderer?: EditorObjectLayerRenderer;
+  private viewport?: EditorViewportController;
   private toolMode: EditorToolMode = 'terrain';
-  private panKeys?: PanKeys;
-  private isPointerPanning = false;
-  private lastPanPointer?: { x: number; y: number };
   private lastPaintedTileKey?: string;
 
   preload(): void {
@@ -114,43 +93,18 @@ export class EditorScene extends Phaser.Scene {
     this.objectRenderer = new EditorObjectLayerRenderer(this, this.transform, this.objectCatalog);
     this.overlayGraphics = this.add.graphics();
     this.chunkOverlayGraphics = this.add.graphics();
-    this.infoText = this.add.text(16, 16, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      color: '#dbeafe',
-      backgroundColor: '#0f172acc',
-      padding: { x: 8, y: 6 },
-    }).setScrollFactor(0).setDepth(10_000);
-    this.statusText = this.add.text(16, 198, '', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#bfdbfe',
-      backgroundColor: '#0f172acc',
-      padding: { x: 8, y: 6 },
-    }).setScrollFactor(0).setDepth(10_000);
-    this.selectedPreviewImage = this.add.image(48, 306, this.selectedBrush.textureKey)
-      .setOrigin(0.5, 0)
-      .setDepth(10_000)
-      .setScrollFactor(0)
-      .setScale(1.5);
-    this.hoveredPreviewImage = this.add.image(128, 306, this.selectedBrush.textureKey)
-      .setOrigin(0.5, 0)
-      .setDepth(10_000)
-      .setScrollFactor(0)
-      .setScale(1.5);
+    this.hud = new EditorHudController(this);
+    this.hud.create(this.selectedBrush);
+    this.viewport = new EditorViewportController(this, {
+      maxZoom: MAX_CAMERA_ZOOM,
+      minZoom: MIN_CAMERA_ZOOM,
+      panSpeed: CAMERA_PAN_SPEED,
+      transform: this.transform,
+      zoomStep: ZOOM_STEP,
+      onZoomChanged: () => this.updateInfoText(),
+    });
 
     this.createUiCamera();
-    this.panKeys = this.input.keyboard?.addKeys({
-      w: Phaser.Input.Keyboard.KeyCodes.W,
-      a: Phaser.Input.Keyboard.KeyCodes.A,
-      s: Phaser.Input.Keyboard.KeyCodes.S,
-      d: Phaser.Input.Keyboard.KeyCodes.D,
-      up: Phaser.Input.Keyboard.KeyCodes.UP,
-      left: Phaser.Input.Keyboard.KeyCodes.LEFT,
-      down: Phaser.Input.Keyboard.KeyCodes.DOWN,
-      right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
-    }) as PanKeys | undefined;
-
     this.registerInput();
     this.redrawTerrain();
     this.redrawObjects();
@@ -159,16 +113,11 @@ export class EditorScene extends Phaser.Scene {
   }
 
   update(_time: number, deltaMs: number): void {
-    this.updateKeyboardPanning(deltaMs);
+    this.viewport?.update(deltaMs);
   }
 
   private createUiCamera(): void {
-    const uiObjects: Phaser.GameObjects.GameObject[] = [];
-
-    if (this.infoText) uiObjects.push(this.infoText);
-    if (this.statusText) uiObjects.push(this.statusText);
-    if (this.selectedPreviewImage) uiObjects.push(this.selectedPreviewImage);
-    if (this.hoveredPreviewImage) uiObjects.push(this.hoveredPreviewImage);
+    const uiObjects = this.hud?.getObjects() ?? [];
 
     this.uiCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height)
       .setScroll(0, 0)
@@ -185,10 +134,10 @@ export class EditorScene extends Phaser.Scene {
 
   private registerInput(): void {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.updatePointerPan(pointer);
+      this.viewport?.updatePointerPan(pointer);
       this.hoverTile = this.getTileFromPointer(pointer);
 
-      if (pointer.leftButtonDown() && !this.isPointerPanning) {
+      if (pointer.leftButtonDown() && !this.viewport?.isPanning()) {
         this.applyHoveredPrimaryAction(pointer);
       }
 
@@ -200,7 +149,7 @@ export class EditorScene extends Phaser.Scene {
       this.lastPaintedTileKey = undefined;
 
       if (pointer.rightButtonDown() || pointer.middleButtonDown()) {
-        this.startPointerPan(pointer);
+        this.viewport?.startPointerPan(pointer);
         return;
       }
 
@@ -210,12 +159,12 @@ export class EditorScene extends Phaser.Scene {
     });
 
     this.input.on('pointerup', () => {
-      this.stopPointerPan();
+      this.viewport?.stopPointerPan();
       this.lastPaintedTileKey = undefined;
     });
 
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
-      this.adjustZoom(deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP);
+      this.viewport?.adjustZoom(deltaY > 0 ? 'out' : 'in');
     });
 
     this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
@@ -291,12 +240,12 @@ export class EditorScene extends Phaser.Scene {
       }
 
       if (event.code === 'Equal' || event.code === 'NumpadAdd') {
-        this.adjustZoom(ZOOM_STEP);
+        this.viewport?.adjustZoom('in');
         return;
       }
 
       if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
-        this.adjustZoom(-ZOOM_STEP);
+        this.viewport?.adjustZoom('out');
       }
     });
   }
@@ -459,7 +408,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private updateInfoText(): void {
-    if (!this.infoText) {
+    if (!this.hud) {
       return;
     }
 
@@ -471,48 +420,19 @@ export class EditorScene extends Phaser.Scene {
     const hoverObject = hover ? this.objectRenderer?.getObjectAtTile(this.map, hover.x, hover.y) ?? null : null;
     const selectedIndex = this.getSelectedBrushIndexLabel();
 
-    this.updatePreviewImages(hoverPaint);
-    this.infoText.setText([
-      `Map: ${this.map.displayName} (${this.map.width}x${this.map.height})`,
-      `Mode: ${this.toolMode}`,
-      `Selected: ${this.selectedBrush.label} ${selectedIndex}`,
-      `Selected object: ${this.selectedObjectDefinition.displayName}`,
-      `Selected art: ${this.selectedBrush.textureKey}`,
-      `Selected flip: ${formatFlip(this.selectedBrush)}`,
-      `Hover tile: ${hover ? `${hover.x},${hover.y}` : '-'}`,
-      `Hover terrain: ${hoverFamily ?? '-'}`,
-      `Hover art: ${hoverPaint?.id ?? '-'}`,
-      `Hover object: ${hoverObject?.definitionId ?? '-'}`,
-      `Camera: WASD/arrows, right/middle drag, wheel zoom`,
-      `Mode: T terrain, O object`,
-      `Terrain: 1-5 family, Q/E or [/] exact tile, F/V flip brush`,
-      `Object: Q/E or [/] object, left click place, Shift+click/D/Del remove`,
-      `Map: R resize, C center, X map export, Y chunk export, I import`,
-    ]);
-  }
-
-  private updatePreviewImages(hoverPaint: ReturnType<EditorTerrainChunkRenderer['getTilePaint']>): void {
-    this.updatePreviewImage(this.selectedPreviewImage, this.selectedBrush);
-    this.updatePreviewImage(this.hoveredPreviewImage, hoverPaint);
-  }
-
-  private updatePreviewImage(
-    image: Phaser.GameObjects.Image | undefined,
-    paint: { textureKey: string; flipX: boolean; flipY: boolean } | null,
-  ): void {
-    if (!image) {
-      return;
-    }
-
-    if (!paint || !this.textures.exists(paint.textureKey)) {
-      image.setVisible(false);
-      return;
-    }
-
-    image
-      .setVisible(true)
-      .setTexture(paint.textureKey)
-      .setFlip(paint.flipX, paint.flipY);
+    this.hud.update({
+      hover: {
+        family: hoverFamily,
+        objectDefinitionId: hoverObject?.definitionId ?? null,
+        paint: hoverPaint,
+        tile: hover,
+      },
+      map: this.map,
+      selectedBrush: this.selectedBrush,
+      selectedBrushIndexLabel: selectedIndex,
+      selectedObjectDisplayName: this.selectedObjectDefinition.displayName,
+      toolMode: this.toolMode,
+    });
   }
 
   private getSelectedBrushIndexLabel(): string {
@@ -522,45 +442,37 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private async exportMap(): Promise<void> {
-    const json = serializeEditorMap(this.map);
-    await this.writeExport(json, 'MapDefinition export');
+    const result = await this.mapIo.exportMap(this.map);
+    this.setStatus(
+      result === 'clipboard'
+        ? 'MapDefinition export copied to clipboard.'
+        : 'MapDefinition export printed to console.',
+    );
   }
 
   private async exportWorldChunk(): Promise<void> {
-    const json = serializeEditorMapAsWorldChunk(this.map, {
+    const result = await this.mapIo.exportWorldChunk(this.map, {
       worldId: 'the_wake',
       regionId: 'editor_region',
       chunkX: 0,
       chunkY: 0,
     });
-    await this.writeExport(json, 'WorldChunkDefinition export');
-  }
-
-  private async writeExport(json: string, label: string): Promise<void> {
-    console.log(json);
-
-    if (!navigator.clipboard) {
-      this.setStatus(`${label} printed to console.`);
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(json);
-      this.setStatus(`${label} copied to clipboard.`);
-    } catch {
-      this.setStatus(`Clipboard blocked. ${label} printed to console.`);
-    }
+    this.setStatus(
+      result === 'clipboard'
+        ? 'WorldChunkDefinition export copied to clipboard.'
+        : 'WorldChunkDefinition export printed to console.',
+    );
   }
 
   private importMap(): void {
-    const json = window.prompt('Paste map JSON');
-
-    if (!json) {
-      return;
-    }
-
     try {
-      this.map = this.parseEditorImport(json);
+      const importedMap = this.mapIo.importFromPrompt();
+
+      if (!importedMap) {
+        return;
+      }
+
+      this.map = importedMap;
       this.centerCameraOnMap();
       this.redrawTerrain();
       this.redrawObjects();
@@ -572,33 +484,15 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  private parseEditorImport(json: string): EditorMapDefinition {
-    const parsed: unknown = JSON.parse(json);
+  private promptResizeMap(): void {
+    try {
+      const resizedMap = this.mapIo.resizeFromPrompt(this.map, toPaint(this.selectedBrush));
 
-    if (isWorldChunkDefinitionLike(parsed)) {
-      const validation = validateWorldChunkDefinition(parsed);
-
-      if (!validation.ok) {
-        throw new Error(validation.errors.join('\n'));
+      if (!resizedMap) {
+        return;
       }
 
-      return createEditorMapFromWorldChunkDefinition(parsed);
-    }
-
-    return createEditorMapFromMapDefinition(parseEditorMapJson(json));
-  }
-
-  private promptResizeMap(): void {
-    const value = window.prompt('New map size as width,height', `${this.map.width},${this.map.height}`);
-
-    if (!value) {
-      return;
-    }
-
-    const [widthValue, heightValue] = value.split(',').map((part) => Number.parseInt(part.trim(), 10));
-
-    try {
-      this.map = resizeEditorMap(this.map, widthValue, heightValue, toPaint(this.selectedBrush));
+      this.map = resizedMap;
       this.hoverTile = null;
       this.redrawTerrain();
       this.redrawObjects();
@@ -611,76 +505,12 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private centerCameraOnMap(): void {
-    const center = getTileCenterWorld(
-      this.transform,
-      Math.floor(this.map.width / 2),
-      Math.floor(this.map.height / 2),
-    );
-    this.cameras.main.centerOn(center.x, center.y);
+    this.viewport?.centerOnMap(this.map.width, this.map.height);
     this.setStatus('Camera centered on map.');
   }
 
-  private updateKeyboardPanning(deltaMs: number): void {
-    if (!this.panKeys) {
-      return;
-    }
-
-    const moveLeft = this.panKeys.a.isDown || this.panKeys.left.isDown;
-    const moveRight = this.panKeys.d.isDown || this.panKeys.right.isDown;
-    const moveUp = this.panKeys.w.isDown || this.panKeys.up.isDown;
-    const moveDown = this.panKeys.s.isDown || this.panKeys.down.isDown;
-    const x = Number(moveRight) - Number(moveLeft);
-    const y = Number(moveDown) - Number(moveUp);
-
-    if (x === 0 && y === 0) {
-      return;
-    }
-
-    const camera = this.cameras.main;
-    const length = Math.hypot(x, y) || 1;
-    const distance = (CAMERA_PAN_SPEED * deltaMs) / 1000 / camera.zoom;
-    camera.scrollX += (x / length) * distance;
-    camera.scrollY += (y / length) * distance;
-  }
-
-  private startPointerPan(pointer: Phaser.Input.Pointer): void {
-    this.isPointerPanning = true;
-    this.lastPanPointer = { x: pointer.x, y: pointer.y };
-  }
-
-  private updatePointerPan(pointer: Phaser.Input.Pointer): void {
-    if (!this.isPointerPanning || !this.lastPanPointer) {
-      return;
-    }
-
-    const isStillPanning = pointer.rightButtonDown() || pointer.middleButtonDown();
-
-    if (!isStillPanning) {
-      this.stopPointerPan();
-      return;
-    }
-
-    const camera = this.cameras.main;
-    const deltaX = pointer.x - this.lastPanPointer.x;
-    const deltaY = pointer.y - this.lastPanPointer.y;
-    camera.scrollX -= deltaX / camera.zoom;
-    camera.scrollY -= deltaY / camera.zoom;
-    this.lastPanPointer = { x: pointer.x, y: pointer.y };
-  }
-
-  private stopPointerPan(): void {
-    this.isPointerPanning = false;
-    this.lastPanPointer = undefined;
-  }
-
-  private adjustZoom(delta: number): void {
-    const camera = this.cameras.main;
-    camera.setZoom(Phaser.Math.Clamp(camera.zoom + delta, MIN_CAMERA_ZOOM, MAX_CAMERA_ZOOM));
-    this.updateInfoText();
-  }
-
   private setStatus(message: string): void {
-    this.statusText?.setText(message);
+    this.hud?.setStatus(message);
   }
 
   private isTileInBounds(tileX: number, tileY: number): boolean {
@@ -713,20 +543,4 @@ export class EditorScene extends Phaser.Scene {
 
 function tileKey(tileX: number, tileY: number): string {
   return `${tileX},${tileY}`;
-}
-
-function formatFlip(paint: { flipX: boolean; flipY: boolean }): string {
-  return `${paint.flipX ? 'X' : '-'} ${paint.flipY ? 'Y' : '-'}`;
-}
-
-function isWorldChunkDefinitionLike(value: unknown): value is WorldChunkDefinition {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'worldId' in value &&
-    'regionId' in value &&
-    'objectLayer' in value &&
-    'resourceLayer' in value &&
-    'habitatLayer' in value
-  );
 }

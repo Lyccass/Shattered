@@ -1,0 +1,808 @@
+/* ═══════════════════════════════════════════════════════
+   SHATTERED — UI DESIGN TOKENS
+   Edit :root to retheme the entire UI at once.
+   ═══════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Asimovian';
+  src: url('/assets/fonts/Asimovian-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+:root {
+  /* ── Brand Colors ─────────────────────────────────── */
+  --c-primary:        #FFFCC3;
+  --c-primary-dim:    #CECCA0;
+  --c-secondary:      #613C18;
+  --c-secondary-dark: #3a2209;
+
+  /* ── Icon States ──────────────────────────────────── */
+  --c-icon-default:    #FFFCC3;
+  --c-icon-active:     #E592DC;
+  --c-combat-active:   #FF0000;
+  --c-combat-inactive: #CECCA0;
+
+  /* ── Surfaces ─────────────────────────────────────── */
+  --c-panel-bg:    rgba(12, 7, 2, 0.95);
+  --c-panel-border:#613C18;
+  --c-slot-bg:     rgba(25, 14, 4, 0.90);
+  --c-slot-border: #3a2209;
+  --c-slot-hover:  rgba(255, 252, 195, 0.08);
+  --c-surface-alt: rgba(35, 20, 8, 0.85);
+
+  /* ── Semantic Text ────────────────────────────────── */
+  --c-text:        #FFFCC3;
+  --c-text-dim:    #CECCA0;
+  --c-text-muted:  #7a6840;
+  --c-text-system: #a0c4ff;
+  --c-text-reward: #ffd700;
+  --c-text-enemy:  #ff6b6b;
+  --c-text-error:  #ff4444;
+
+  /* ── HP / Bars ────────────────────────────────────── */
+  --c-hp-fill:   #3d8a3d;
+  --c-hp-low:    #c03030;
+  --c-hp-bg:     #111111;
+  --c-stam-fill: #b8860b;
+
+  /* ── Currency ─────────────────────────────────────── */
+  --c-copper:   #b87333;
+  --c-silver:   #c0c0c0;
+  --c-gold:     #ffd700;
+  --c-platinum: #e5e4e2;
+
+  /* ── Typography ───────────────────────────────────── */
+  --font: 'Asimovian', 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+  --fs-xs:   13px;
+  --fs-sm:   15px;
+  --fs-base: 16px;
+  --fs-md:   18px;
+  --fs-lg:   20px;
+  --fs-xl:   23px;
+
+  /* ── Spacing ──────────────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+
+  /* ── Dimensions ───────────────────────────────────── */
+  /*
+    Panel height and icon bar height must match.
+    Icon bar total = 7 × --icon-btn-h + 7 × 4px (gaps) + 8px (padding)
+    = 7×60 + 28 + 8 = 456px + spacer → set taskbar height to --panel-h
+  */
+  --panel-w:     245px;
+  --panel-h:     480px;   /* = taskbar column height */
+  --icon-col-w:  62px;
+  --icon-btn-h:  60px;
+  --slot-size:   55px;
+  --minimap-size:185px;
+  --orb-size:    36px;
+  --chat-w:      525px;
+  --chat-h:      150px;
+  --enemy-w:     260px;
+
+  /* ── Effects ──────────────────────────────────────── */
+  --border-panel: 2px solid var(--c-panel-border);
+  --border-slot:  1px solid var(--c-slot-border);
+  --radius-sm:    3px;
+  --radius-md:    5px;
+  --shadow:       0 4px 24px rgba(0,0,0,0.75), 0 1px 4px rgba(0,0,0,0.5);
+  --tr:           80ms ease;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   OVERLAY ROOT
+   ═══════════════════════════════════════════════════════ */
+
+#ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  font-family: var(--font);
+  color: var(--c-text);
+}
+
+#ui-overlay *, #ui-overlay *::before, #ui-overlay *::after { box-sizing: border-box; }
+.ui-hidden { display: none !important; }
+
+
+/* ═══════════════════════════════════════════════════════
+   TOP-LEFT: ENEMY NAMEPLATE
+   ═══════════════════════════════════════════════════════ */
+
+#ui-enemy {
+  position: absolute;
+  top: 60px;
+  left: 60px;
+  width: var(--enemy-w);
+  background: var(--c-panel-bg);
+  border: 2px solid var(--c-secondary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,252,195,0.06);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#ui-enemy::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--c-secondary), transparent);
+}
+
+.enemy-name-row { padding: var(--sp-1) var(--sp-3); text-align: center; }
+.enemy-name {
+  font-size: var(--fs-lg);
+  color: var(--c-primary);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 12px rgba(255,140,60,0.35);
+  display: block;
+}
+
+.enemy-hp-wrap { padding: 0 var(--sp-3) var(--sp-2); }
+.enemy-hp-track {
+  width: 100%;
+  height: 10px;
+  background: var(--c-hp-bg);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.enemy-hp-fill {
+  height: 100%;
+  background: var(--c-hp-fill);
+  border-radius: 2px;
+  transition: width 200ms ease, background-color 400ms ease;
+}
+.enemy-hp-fill.is-low { background: var(--c-hp-low); }
+.enemy-hp-text {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  text-align: center;
+  margin-top: 3px;
+  letter-spacing: 0.06em;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   TOP-RIGHT: MINIMAP
+   Layout: [orb col] [ring] [zoom col]
+   ═══════════════════════════════════════════════════════ */
+
+#ui-minimap {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Orb Column (left of ring) ──────────────────────── */
+
+.minimap-orb-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.minimap-orb {
+  width: var(--orb-size);
+  height: var(--orb-size);
+  border-radius: 50%;
+  border: 2px solid var(--c-secondary);
+  background: var(--c-panel-bg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+}
+
+/* Fill that rises from the bottom */
+.orb-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transition: height 300ms ease, background-color 400ms ease;
+  border-radius: 0 0 50% 50%;
+}
+
+.orb-hp   .orb-fill { background: var(--c-hp-fill); }
+.orb-stam .orb-fill { background: var(--c-stam-fill); }
+
+.orb-hp.is-low .orb-fill { background: var(--c-hp-low); }
+
+.orb-icon {
+  font-size: 13px;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.9));
+}
+
+.orb-value {
+  font-size: 10px;
+  color: #fff;
+  line-height: 1;
+  margin-top: 1px;
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+
+/* ── Ring ───────────────────────────────────────────── */
+
+.minimap-ring {
+  width: var(--minimap-size);
+  height: var(--minimap-size);
+  border-radius: 50%;
+  border: 3px solid var(--c-secondary);
+  background: #0d1a0d;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 0 0 1px var(--c-secondary-dark), var(--shadow);
+  flex-shrink: 0;
+}
+
+.minimap-location-inside {
+  position: absolute;
+  bottom: 18px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--c-text-dim);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+.minimap-player-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--c-primary);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 5px var(--c-primary);
+}
+
+/* ── Zoom Buttons (right of ring) ───────────────────── */
+
+.minimap-zoom-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.minimap-zoom-btn {
+  width: 26px;
+  height: 26px;
+  background: var(--c-panel-bg);
+  border: 1px solid var(--c-secondary);
+  border-radius: 2px;
+  color: var(--c-text-dim);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--tr), color var(--tr);
+}
+
+.minimap-zoom-btn:hover { background: var(--c-surface-alt); color: var(--c-primary); }
+
+
+/* ═══════════════════════════════════════════════════════
+   XP DROPS — small floating notifications below minimap
+   ═══════════════════════════════════════════════════════ */
+
+#ui-xp-drops {
+  position: absolute;
+  top: 60px;              /* same vertical position as enemy nameplate */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.xp-drop {
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  color: var(--c-text-reward);
+  background: rgba(12, 7, 2, 0.82);
+  border: 1px solid rgba(255, 215, 0, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 3px var(--sp-3);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  animation: xp-drop-anim 3.5s ease-out forwards;
+}
+
+@keyframes xp-drop-anim {
+  0%   { opacity: 0;    transform: translateY(6px); }
+  8%   { opacity: 1;    transform: translateY(0); }
+  70%  { opacity: 1;    transform: translateY(-10px); }
+  100% { opacity: 0;    transform: translateY(-22px); }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   BOTTOM-RIGHT: SIDEBAR
+   [panel area] [icon column]   — both anchored to bottom
+   ═══════════════════════════════════════════════════════ */
+
+#ui-sidebar {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+/* ── Panel Area (left of icon column) ───────────────── */
+
+.ui-panel-area {
+  width: var(--panel-w);
+  height: var(--panel-h);
+  background: var(--c-panel-bg);
+  border-top: var(--border-panel);
+  border-left: var(--border-panel);
+  border-bottom: var(--border-panel);
+  border-right: 1px solid var(--c-secondary-dark);
+  overflow: hidden;   /* no scrollbars; content must fit */
+  flex-shrink: 0;
+}
+
+.panel-tab-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panel-title {
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: var(--sp-2) var(--sp-3) var(--sp-1);
+  border-bottom: 1px solid var(--c-secondary-dark);
+  flex-shrink: 0;
+}
+
+/* ── Vertical Icon Column (right edge) ──────────────── */
+
+.ui-taskbar {
+  width: var(--icon-col-w);
+  height: var(--panel-h);
+  background: var(--c-panel-bg);
+  border: var(--border-panel);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;   /* buttons fill full column width */
+  padding: var(--sp-1) 0;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Spacer pushes Settings to the bottom */
+.taskbar-spacer { flex: 1; }
+
+.taskbar-btn {
+  width: 100%;
+  height: var(--icon-btn-h);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  transition: background var(--tr);
+  flex-shrink: 0;
+}
+
+.taskbar-btn:hover { background: var(--c-slot-hover); }
+
+/* Active: full-width tinted background + inset right-edge accent — no pseudo-element, no nested box */
+.taskbar-btn.is-active {
+  background: rgba(229, 146, 220, 0.13);
+  box-shadow: inset -3px 0 0 var(--c-icon-active);
+}
+
+/* CSS-mask technique: fixed square icon, centered in button */
+.taskbar-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+          mask: var(--icon-url) center / contain no-repeat;
+  background-color: var(--c-icon-default);
+  transition: background-color var(--tr);
+}
+
+.taskbar-btn.is-active .taskbar-icon         { background-color: var(--c-icon-active); }
+.taskbar-btn--combat   .taskbar-icon         { background-color: var(--c-combat-inactive); }
+.taskbar-btn--combat.combat-on               { background: rgba(255, 0, 0, 0.10); box-shadow: inset -3px 0 0 var(--c-combat-active); }
+.taskbar-btn--combat.combat-on .taskbar-icon { background-color: var(--c-combat-active); }
+.taskbar-btn--sprint.sprint-on               { background: rgba(255, 210, 60, 0.10); box-shadow: inset -3px 0 0 #FFD23C; }
+.taskbar-btn--sprint.sprint-on .taskbar-icon { background-color: #FFD23C; }
+
+/* Tooltip — opens to the LEFT */
+.taskbar-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--c-panel-bg);
+  border: 1px solid var(--c-secondary);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  padding: 3px var(--sp-2);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  letter-spacing: 0.05em;
+  z-index: 20;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   INVENTORY TAB — flex-fill, no scroll
+   ═══════════════════════════════════════════════════════ */
+
+.inventory-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-2) 0;
+  gap: var(--sp-2);
+}
+
+.inventory-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.inv-slot {
+  background: var(--c-slot-bg);
+  border: var(--border-slot);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  overflow: hidden;
+  transition: background var(--tr), border-color var(--tr);
+}
+
+.inv-slot:hover         { background: var(--c-slot-hover); border-color: var(--c-secondary-dark); }
+.inv-slot.has-item      { cursor: pointer; }
+.inv-slot.has-item:hover { border-color: var(--c-secondary); }
+
+.inv-slot-icon  { font-size: 20px; line-height: 1; user-select: none; }
+.inv-slot-label { font-size: 9px; color: var(--c-text-dim); text-align: center; padding: 2px; word-break: break-word; }
+.inv-slot-count {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-size: var(--fs-xs);
+  color: #ffffaa;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.coin-purse {
+  flex-shrink: 0;
+  height: 50px;
+  margin-bottom: var(--sp-2);
+  background: var(--c-slot-bg);
+  border: var(--border-slot);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 var(--sp-2);
+}
+
+.coin-entry { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.coin-symbol { font-size: 14px; line-height: 1; }
+.coin-value  { font-size: var(--fs-xs); letter-spacing: 0.04em; }
+
+.coin-entry--copper .coin-value { color: var(--c-copper); }
+.coin-entry--silver .coin-value { color: var(--c-silver); }
+.coin-entry--gold   .coin-value { color: var(--c-gold); }
+.coin-entry--plat   .coin-value { color: var(--c-platinum); }
+
+
+/* ═══════════════════════════════════════════════════════
+   EQUIPMENT TAB — fill-height grid, no scroll
+   ═══════════════════════════════════════════════════════ */
+
+.equipment-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.equipment-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-areas:
+    ". head ."
+    "shoulder chest off"
+    ". belly ."
+    "ring legs ammo"
+    ". feet ."
+    "weapon . shield";
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: repeat(6, 1fr);
+  gap: 3px;
+  padding: var(--sp-1) var(--sp-2) var(--sp-2);
+}
+
+.equip-slot {
+  background: var(--c-slot-bg);
+  border: var(--border-slot);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: background var(--tr);
+}
+
+.equip-slot:hover     { background: var(--c-slot-hover); border-color: var(--c-secondary-dark); }
+.equip-slot-icon      { font-size: 20px; line-height: 1; }
+.equip-slot-label     { font-size: 8px; color: var(--c-text-muted); letter-spacing: 0.05em; }
+
+.equip-slot[data-slot="head"]     { grid-area: head; }
+.equip-slot[data-slot="shoulder"] { grid-area: shoulder; }
+.equip-slot[data-slot="chest"]    { grid-area: chest; }
+.equip-slot[data-slot="off"]      { grid-area: off; }
+.equip-slot[data-slot="belly"]    { grid-area: belly; }
+.equip-slot[data-slot="ring"]     { grid-area: ring; }
+.equip-slot[data-slot="legs"]     { grid-area: legs; }
+.equip-slot[data-slot="ammo"]     { grid-area: ammo; }
+.equip-slot[data-slot="feet"]     { grid-area: feet; }
+.equip-slot[data-slot="weapon"]   { grid-area: weapon; }
+.equip-slot[data-slot="shield"]   { grid-area: shield; }
+
+
+/* ═══════════════════════════════════════════════════════
+   JOURNAL TAB — fill-height, overflow hidden
+   ═══════════════════════════════════════════════════════ */
+
+.journal-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.journal-body { padding: 0 var(--sp-2) var(--sp-2); overflow: hidden; }
+
+.journal-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--c-secondary-dark);
+  margin-bottom: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.journal-entries {
+  overflow: hidden;
+  flex: 1;
+}
+
+.journal-entry {
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--c-secondary-dark);
+}
+
+.journal-entry:last-child   { border-bottom: none; margin-bottom: 0; }
+.journal-entry-name         { font-size: var(--fs-sm); color: var(--c-text); margin-bottom: var(--sp-1); }
+.journal-entry-line         { font-size: var(--fs-xs); color: var(--c-text-dim); line-height: 1.4; }
+.journal-entry-status       { font-size: var(--fs-xs); margin-top: 3px; }
+.journal-entry-status.ready         { color: var(--c-text-reward); }
+.journal-entry-status.in-progress   { color: var(--c-text-muted); }
+
+.journal-empty { font-size: var(--fs-sm); color: var(--c-text-muted); text-align: center; padding: 40px var(--sp-2); }
+
+
+/* ═══════════════════════════════════════════════════════
+   MAP TAB
+   ═══════════════════════════════════════════════════════ */
+
+.map-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #0a120a;
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.08em;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SETTINGS TAB
+   ═══════════════════════════════════════════════════════ */
+
+.settings-tab   { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.settings-body  { flex: 1; overflow: hidden; padding: 0 var(--sp-2) var(--sp-2); }
+
+.settings-group       { margin-bottom: var(--sp-3); }
+.settings-group-label { font-size: var(--fs-xs); color: var(--c-text-muted); letter-spacing: 0.10em; text-transform: uppercase; margin-bottom: var(--sp-1); }
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--c-secondary-dark);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label  { font-size: var(--fs-xs); color: var(--c-text-dim); }
+
+.settings-toggle {
+  width: 32px;
+  height: 16px;
+  background: var(--c-slot-bg);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--tr);
+}
+.settings-toggle.on { background: var(--c-secondary); }
+.settings-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--c-text-dim);
+  border-radius: 50%;
+  transition: transform var(--tr);
+}
+.settings-toggle.on::after { transform: translateX(16px); background: var(--c-primary); }
+
+
+/* ═══════════════════════════════════════════════════════
+   BOTTOM-LEFT: CHAT
+   ═══════════════════════════════════════════════════════ */
+
+#ui-chat {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--chat-w);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.chat-log {
+  height: var(--chat-h);
+  background: rgba(12, 7, 2, 0.90);
+  border-top: var(--border-panel);
+  border-left: var(--border-panel);
+  border-right: var(--border-panel);
+  border-bottom: 1px solid var(--c-secondary-dark);
+  overflow-y: auto;
+  padding: var(--sp-1) var(--sp-3);
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-secondary) transparent;
+}
+
+.chat-log::-webkit-scrollbar       { width: 4px; }
+.chat-log::-webkit-scrollbar-track { background: transparent; }
+.chat-log::-webkit-scrollbar-thumb { background: var(--c-secondary); border-radius: 2px; }
+
+.chat-line { font-size: var(--fs-sm); line-height: 1.5; margin: 0; word-break: break-word; }
+.chat-line + .chat-line { margin-top: 1px; }
+
+.chat-line--game   { color: var(--c-text); }
+.chat-line--system { color: var(--c-text-system); }
+.chat-line--combat { color: var(--c-text-enemy); }
+.chat-line--reward { color: var(--c-text-reward); }
+.chat-line--error  { color: var(--c-text-error); }
+
+.chat-tabs-row {
+  display: flex;
+  align-items: center;
+  background: var(--c-panel-bg);
+  border: var(--border-panel);
+  border-top: none;
+  height: 28px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.chat-tab {
+  padding: 0 var(--sp-2);
+  height: 100%;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--c-secondary-dark);
+  color: var(--c-text-muted);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--tr), background var(--tr);
+  pointer-events: auto;
+}
+
+.chat-tab:hover     { color: var(--c-text); background: var(--c-slot-hover); }
+.chat-tab.is-active { color: var(--c-primary); background: var(--c-surface-alt); }
+
+.chat-tab--report {
+  margin-left: auto;
+  border-right: none;
+  border-left: 1px solid var(--c-secondary-dark);
+  color: var(--c-text-error);
+}
+.chat-tab--report:hover { color: #ff6666; }

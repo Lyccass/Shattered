@@ -21,6 +21,7 @@ import {
   getPlayerLightAttackHitbox,
   getPlayerLightAttackSlash,
 } from '../../combat/CombatPlayerMath';
+import { snapToIsometricGridDirection } from '../../combat/CombatGridDirection';
 import {
   applyEnemyDamage,
   resetEnemyRuntimeState,
@@ -29,6 +30,13 @@ import {
 import { PlayerCombatState } from '../../combat/PlayerCombatState';
 
 describe('CombatDodge', () => {
+  it('snaps free-angle dodge aim to the nearest isometric grid direction', () => {
+    expect(snapToIsometricGridDirection(0, 64, 32)).toEqual([1, -1]);
+    expect(snapToIsometricGridDirection(Math.PI, 64, 32)).toEqual([-1, 1]);
+    expect(snapToIsometricGridDirection(Math.PI / 2, 64, 32)).toEqual([1, 1]);
+    expect(snapToIsometricGridDirection(-Math.PI / 2, 64, 32)).toEqual([-1, -1]);
+  });
+
   it('resolves W/A/S/D input and facing into stable dodge directions', () => {
     expect(resolveCombatDodgeDirection({ x: 0, y: -1 }, 'down')).toEqual({ x: 0, y: -1 });
     expect(resolveCombatDodgeDirection({ x: 0, y: 1 }, 'up')).toEqual({ x: 0, y: 1 });

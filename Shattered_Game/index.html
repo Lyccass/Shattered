@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shattered Prototype</title>
+    <link rel="stylesheet" href="/ui.css" />
     <style>
       html,
       body,
@@ -19,6 +20,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        position: relative;
       }
 
       canvas {
@@ -28,7 +30,10 @@
     </style>
   </head>
   <body>
-    <div id="game"></div>
+    <div id="game">
+      <!-- HTML UI overlay — sits on top of the Phaser canvas -->
+      <div id="ui-overlay"></div>
+    </div>
     <script type="module" src="/src/apps/game/main.ts"></script>
   </body>
 </html>

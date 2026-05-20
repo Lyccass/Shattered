@@ -44,6 +44,7 @@ export class GameScene extends Phaser.Scene {
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private inputSystem?: InputSystem;
   private controlMode: 'explore' | 'combat' = 'explore';
+  private tileHighlight?: Phaser.GameObjects.Graphics;
   private hasShutdown = false;
 
   constructor() {
@@ -71,7 +72,10 @@ export class GameScene extends Phaser.Scene {
     );
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.initializeWorldRuntime('test_home_island', 'default');
-    this.uiManager = new UiManager(this);
+    this.uiManager = new UiManager(this, {
+      onCombatToggle: () => this.toggleControlMode(),
+      onSprintToggle: () => this.tryToggleSprint(),
+    });
     this.saveController = new GameSaveController(this);
     this.interactionController = new GameInteractionController(this, {
       getWorldRuntimeCoordinator: () => this.worldRuntimeCoordinator,
@@ -81,6 +85,8 @@ export class GameScene extends Phaser.Scene {
       getControlMode: () => this.controlMode,
       handleGameplayResult: (result, options) => this.handleGameplayResult(result, options),
     });
+    this.tileHighlight = this.add.graphics();
+
     this.inputSystem = new InputSystem(this, this.buildInputCallbacks());
     this.input.mouse?.disableContextMenu();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
@@ -119,9 +125,29 @@ export class GameScene extends Phaser.Scene {
     this.uiManager?.update(
       this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot(),
       this.combatSandboxSystem?.getUiSnapshot(this.time.now) ?? null,
+      this.controlMode,
     );
     this.interactionController?.syncMoveTargetTelegraph();
+    this.updateTileHighlight();
     this.debugOverlaySystem?.update();
+  }
+
+  private updateTileHighlight(): void {
+    const g = this.tileHighlight;
+    if (!g) return;
+    g.clear();
+
+    const tiles = this.worldRuntimeCoordinator?.getActiveInteractionTiles();
+    const transform = this.worldRuntimeCoordinator?.getIsoTransform();
+    if (!tiles || !transform) return;
+
+    g.lineStyle(2, 0xffd700, 0.85);
+    g.fillStyle(0xffd700, 0.12);
+    tiles.forEach(({ x, y }) => {
+      const pts = transform.getTileDiamondPoints(x, y);
+      g.fillPoints(pts, true);
+      g.strokePoints(pts, true);
+    });
   }
 
   private computeInputMode(): InputMode {
@@ -141,6 +167,8 @@ export class GameScene extends Phaser.Scene {
     this.inputSystem = undefined;
     this.debugOverlaySystem?.destroy();
     this.debugOverlaySystem = undefined;
+    this.tileHighlight?.destroy();
+    this.tileHighlight = undefined;
     this.combatSandboxSystem?.destroy();
     this.combatSandboxSystem = undefined;
     this.telegraphSystem?.destroy();

@@ -16,11 +16,6 @@ import { ObjectRenderer } from '../../objects/ObjectRenderer';
 import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
-import {
-  createPrototypeSaveV1,
-  restorePrototypeSaveV1,
-} from '../../persistence/PrototypeSaveV1';
-import { resolvePrototypeRestoreMap, resolvePrototypeRestoreTile } from '../../persistence/RestoreSafety';
 import type { PlayerTileSaveState, SaveGameV1 } from '../../persistence/SaveTypes';
 import { ChoiceMenuCoordinator } from '../../interactions/ChoiceMenuCoordinator';
 import { InteractionActionFactory } from '../../interactions/InteractionActionFactory';
@@ -55,10 +50,19 @@ import type { LoadedMapRuntime } from './MapRuntime';
 import { MapTransitionSystem } from './MapTransitionSystem';
 import { MapTransitionVisualSystem } from './MapTransitionVisualSystem';
 import { WorldSessionState } from '../session/WorldSessionState';
+import { findInteractionApproachWorldPoint as findApproachWorldPoint } from './InteractionApproachFinder';
 import { buildDebugTargets, buildNpcTargets, buildTransitionTargets } from './InteractionTargetBuilders';
+import {
+  getInteractionMenuTitle,
+  getInteractionUseDetails,
+  getInteractionUseLabel,
+} from './InteractionMenuCopy';
 import { WorldActionBroker } from './WorldActionBroker';
 import { WorldInteractionHandlers } from './WorldInteractionHandlers';
-import { hasMapDefinition } from './MapDefinitions';
+import {
+  type RestorePrototypeSaveResult,
+  WorldPrototypeSaveController,
+} from './WorldPrototypeSaveController';
 
 type WorldRuntimeBindings = {
   player: Phaser.GameObjects.Sprite;
@@ -73,12 +77,6 @@ export type DeferredInteractionAction = {
   targetId: string;
   action: 'use' | 'inspect';
 };
-
-type RestorePrototypeSaveResult =
-  | { ok: true; message: string; warnings: string[] }
-  | { ok: false; message: string };
-
-const DEFAULT_PROTOTYPE_RESTORE_MAP_ID = 'test_home_island';
 
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
@@ -115,10 +113,12 @@ export class WorldRuntimeCoordinator {
   private objectDebugRenderer?: ObjectDebugRenderer;
   private objectOcclusionSystem?: ObjectOcclusionSystem;
   private readonly pendingUiResults: InteractionResult[] = [];
+  private activeInteractionTiles: Array<{ x: number; y: number }> | null = null;
   private destroyed = false;
 
   private readonly actionFactory: InteractionActionFactory;
   private readonly uiAggregator: UiStateAggregator;
+  private readonly prototypeSaveController: WorldPrototypeSaveController;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -167,6 +167,22 @@ export class WorldRuntimeCoordinator {
       this.contractBoardSystem,
       () => this.scene.time.now,
     );
+
+    this.prototypeSaveController = new WorldPrototypeSaveController({
+      playerSessionState: this.playerSessionState,
+      worldSessionState: this.worldSessionState,
+      getCurrentMapId: () => this.getCurrentMapId(),
+      getCurrentPlayerTileSnapshot: () => this.getCurrentPlayerTileSnapshot(),
+      loadMap: (mapId, spawnId) => {
+        this.loadMap(mapId, spawnId);
+      },
+      isRestorablePlayerTile: (tile) => this.isRestorablePlayerTile(tile),
+      setPlayerToTile: (tile) => this.setPlayerToTile(tile),
+      recenterCameraOnPlayer: () => this.recenterCameraOnPlayer(),
+      updatePlayerRuntimeState: () => {
+        this.updatePlayerRuntimeState();
+      },
+    });
   }
 
   loadMap(mapId: string, spawnId: string): LoadedMapRuntime {
@@ -334,55 +350,11 @@ export class WorldRuntimeCoordinator {
     }
 
     const playerTile = this.bindings.playerController.getFeetTile();
-    const interactionRangeTiles = target.definition.interactionRangeTiles;
-    let bestTile: { tileX: number; tileY: number; distanceTiles: number } | null = null;
-
-    for (const tile of target.tiles) {
-      for (let offsetY = -interactionRangeTiles; offsetY <= interactionRangeTiles; offsetY += 1) {
-        for (let offsetX = -interactionRangeTiles; offsetX <= interactionRangeTiles; offsetX += 1) {
-          if (Math.abs(offsetX) + Math.abs(offsetY) > interactionRangeTiles) {
-            continue;
-          }
-
-          const candidateTileX = tile.x + offsetX;
-          const candidateTileY = tile.y + offsetY;
-
-          if (
-            !this.currentRuntime.isoTilemap.isTileInBounds(candidateTileX, candidateTileY)
-            || !this.currentRuntime.isoTilemap.isTileWalkable(candidateTileX, candidateTileY)
-          ) {
-            continue;
-          }
-
-          const distanceTiles =
-            Math.abs(candidateTileX - playerTile.x) + Math.abs(candidateTileY - playerTile.y);
-
-          if (
-            !bestTile
-            || distanceTiles < bestTile.distanceTiles
-            || (
-              distanceTiles === bestTile.distanceTiles
-              && (
-                candidateTileY < bestTile.tileY
-                || (candidateTileY === bestTile.tileY && candidateTileX < bestTile.tileX)
-              )
-            )
-          ) {
-            bestTile = {
-              tileX: candidateTileX,
-              tileY: candidateTileY,
-              distanceTiles,
-            };
-          }
-        }
-      }
-    }
-
-    if (!bestTile) {
-      return null;
-    }
-
-    return this.currentRuntime.isoTilemap.transform.getTileCenterWorld(bestTile.tileX, bestTile.tileY);
+    return findApproachWorldPoint({
+      runtime: this.currentRuntime,
+      playerTile,
+      target,
+    });
   }
 
   triggerTargetInteractionByRef(
@@ -444,69 +416,11 @@ export class WorldRuntimeCoordinator {
   }
 
   createPrototypeSaveSnapshot(nowMs: number): SaveGameV1 {
-    const playerTile = this.getCurrentPlayerTileSnapshot();
-
-    return createPrototypeSaveV1({
-      playerSessionState: this.playerSessionState,
-      worldSessionState: this.worldSessionState,
-      currentMapId: this.getCurrentMapId(),
-      playerTile,
-      nowMs,
-    });
+    return this.prototypeSaveController.createSnapshot(nowMs);
   }
 
   restorePrototypeSaveSnapshot(saveGame: SaveGameV1, nowMs: number): RestorePrototypeSaveResult {
-    try {
-      const mapResolution = resolvePrototypeRestoreMap({
-        savedMapId: saveGame.playerState.currentMapId,
-        defaultMapId: DEFAULT_PROTOTYPE_RESTORE_MAP_ID,
-        hasMap: hasMapDefinition,
-      });
-      const warnings = mapResolution.warningMessage ? [mapResolution.warningMessage] : [];
-
-      this.loadMap(mapResolution.mapId, 'default');
-
-      const restore = restorePrototypeSaveV1(saveGame, {
-        playerSessionState: this.playerSessionState,
-        worldSessionState: this.worldSessionState,
-        nowMs,
-      });
-
-      if (!restore.ok) {
-        return {
-          ok: false,
-          message: restore.error,
-        };
-      }
-
-      const tileResolution = resolvePrototypeRestoreTile({
-        savedTile: saveGame.playerState.playerTile,
-        isTileValid: (tile) => this.isRestorablePlayerTile(tile),
-      });
-
-      if (tileResolution.warningMessage) {
-        warnings.push(tileResolution.warningMessage);
-      }
-
-      if (tileResolution.playerTile) {
-        this.setPlayerToTile(tileResolution.playerTile);
-      } else {
-        this.recenterCameraOnPlayer();
-      }
-
-      this.updatePlayerRuntimeState();
-
-      return {
-        ok: true,
-        message: 'Save loaded.',
-        warnings,
-      };
-    } catch (error) {
-      return {
-        ok: false,
-        message: error instanceof Error ? error.message : 'Failed to restore saved game.',
-      };
-    }
+    return this.prototypeSaveController.restoreSnapshot(saveGame, nowMs);
   }
 
   getActiveInteraction(): ActiveInteraction | null {
@@ -550,7 +464,20 @@ export class WorldRuntimeCoordinator {
   }
 
   cancelActiveAction(reason = 'Action cancelled.'): string | null {
+    this.activeInteractionTiles = null;
     return this.actionBroker.cancel(reason);
+  }
+
+  getActiveInteractionTiles(): Array<{ x: number; y: number }> | null {
+    return this.activeInteractionTiles;
+  }
+
+  setActiveInteractionTiles(tiles: Array<{ x: number; y: number }> | null): void {
+    this.activeInteractionTiles = tiles;
+  }
+
+  getIsoTransform(): import('../../world/IsoTransform').IsoTransform | null {
+    return this.currentRuntime?.isoTilemap.transform ?? null;
   }
 
   startPlacementMode(itemId: PlayerItemKey = 'firestarter_set'): string {
@@ -771,6 +698,9 @@ export class WorldRuntimeCoordinator {
       return;
     }
 
+    // Action finished (completed or cancelled) — clear tile highlight
+    this.activeInteractionTiles = null;
+
     if (update.transitionRequest) {
       this.loadMap(update.transitionRequest.targetMapId, update.transitionRequest.targetSpawnId);
     } else {
@@ -916,6 +846,7 @@ export class WorldRuntimeCoordinator {
     }
 
     if (target.definition.interactionType === 'resource_node') {
+      this.activeInteractionTiles = target.tiles.map((t) => ({ x: t.x, y: t.y }));
       this.actionBroker.start(
         this.actionFactory.createGatherAction(target as ResourceNodeInteractionTarget),
       );
@@ -927,6 +858,7 @@ export class WorldRuntimeCoordinator {
       const recipes = this.workbenchSystem.getRecipesForWorkbench(workbenchTarget.anchor.id);
 
       if (recipes.length === 1) {
+        this.activeInteractionTiles = target.tiles.map((t) => ({ x: t.x, y: t.y }));
         this.actionBroker.start(
           this.actionFactory.createWorkbenchCraftAction(
             workbenchTarget.anchor.id,
@@ -945,6 +877,7 @@ export class WorldRuntimeCoordinator {
       );
 
       if (action) {
+        this.activeInteractionTiles = target.tiles.map((t) => ({ x: t.x, y: t.y }));
         this.actionBroker.start(action);
         return null;
       }
@@ -1065,68 +998,5 @@ export class WorldRuntimeCoordinator {
     targetId: string,
   ): InteractionTarget | null {
     return this.interactionSystem.findTargetByRef(interactionType, targetId);
-  }
-}
-
-function getInteractionMenuTitle(target: InteractionTarget): string {
-  switch (target.definition.interactionType) {
-    case 'map_transition':
-      return 'Travel';
-    case 'resource_node':
-      return 'Resource';
-    case 'npc':
-      return 'Interaction';
-    case 'workbench':
-      return 'Workbench';
-    case 'contract_board':
-      return 'Contracts';
-    case 'placed_object':
-      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-        ? 'Campfire'
-        : 'Firestarter';
-    case 'generic_debug':
-      return 'Inspect';
-  }
-}
-
-function getInteractionUseLabel(target: InteractionTarget): string {
-  switch (target.definition.interactionType) {
-    case 'map_transition':
-      return 'Use Route';
-    case 'resource_node':
-      return 'Gather';
-    case 'npc':
-      return 'Talk';
-    case 'workbench':
-      return 'Use Workbench';
-    case 'contract_board':
-      return 'Read Contracts';
-    case 'placed_object':
-      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-        ? 'Use Campfire'
-        : 'Light Firestarter';
-    case 'generic_debug':
-      return 'Use';
-  }
-}
-
-function getInteractionUseDetails(target: InteractionTarget): string {
-  switch (target.definition.interactionType) {
-    case 'map_transition':
-      return 'Travel onward.';
-    case 'resource_node':
-      return 'Harvest what you can carry.';
-    case 'npc':
-      return 'Start a conversation.';
-    case 'workbench':
-      return 'Craft using the workbench.';
-    case 'contract_board':
-      return 'Review and manage posted tasks.';
-    case 'placed_object':
-      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-        ? 'Brew or use the fire.'
-        : 'Try to light it.';
-    case 'generic_debug':
-      return 'Interact with it.';
   }
 }

@@ -59,6 +59,93 @@ In v0:
 
 - save/load/autosave flow moved into `GameSaveController`
 - pointer/default interaction/click-move flow moved into `GameInteractionController`
+- app boot now imports the game scene through `src/game/scenes/GameScene.ts`
+- the old scene path remains as a compatibility location until the scene is small enough to move physically
+
+## World Runtime Coordinator
+
+`WorldRuntimeCoordinator` is still a large file, but v0 starts peeling off responsibilities:
+
+- prototype save/restore assembly moved into `WorldPrototypeSaveController`
+- interaction approach-tile search moved into `InteractionApproachFinder`
+- interaction menu labels/details moved into `InteractionMenuCopy`
+
+The coordinator still owns too much, but the extracted pieces are intentionally low-risk and behavior-preserving.
+
+## Combat Sandbox
+
+`CombatSandboxSystem` is still the combat orchestrator, but the first combat cleanup separates several responsibilities:
+
+- isometric grid direction snapping moved into `CombatGridDirection`
+- spear target tile selection moved into `PlayerAttackTargeting`
+- tile-based dodge targeting moved into `PlayerDodgeTargeting`
+- player/enemy overlap escape moved into `PlayerEnemySeparation`
+- player attack telegraphs/slash feedback moved into `PlayerAttackFeedbackRenderer`
+- debug body/attack/dodge tile overlays moved into `CombatDebugHitboxRenderer`
+
+The important boundary is that the sandbox should decide the order of combat updates, while smaller helpers own rules or Phaser drawing details.
+
+## Enemy Runtime
+
+`EnemySystem` now stays closer to enemy orchestration:
+
+- map context and spawn/reset
+- state machine update calls
+- damage application
+- public combat queries for occupied tiles, UI, and blocking
+
+Extracted responsibilities:
+
+- enemy sprite/shadow/health bar/hit flash moved into `EnemyVisualController`
+- tile warning overlays for enemy attacks moved into `EnemyAttackTileRenderer`
+- enemy body tile/blocking/sample queries moved into `EnemyOccupancy`
+
+The large remaining file is `EnemyStateMachine`. That should be split later into movement, attack selection, attack resolution, and telegraph event generation, but it should be done carefully because it is pure combat behavior rather than rendering glue.
+
+## Enemy State Machine
+
+The enemy state machine has started moving from one giant behavior file into focused pure helpers:
+
+- state-machine event/context types moved into `EnemyStateMachineTypes`
+- small math and tile conversion helpers moved into `EnemyStateMath`
+- current-attack lookup and attack-state clearing moved into `EnemyAttackState`
+- attack selection and cooldown/range readiness moved into `EnemyAttackSelection`
+- pathing, orbit approach, movement, and jump landing moved into `EnemyMovement`
+- tile footprint generation for enemy attacks moved into `EnemyAttackTiles`
+
+`EnemyStateMachine` still owns the actual state transition order. That is intentional: the transition flow should stay in one readable place until each branch has enough tests to split further.
+
+The transition branches have now been split into `EnemyStateTransitions`:
+
+- `handleEnemyIdle`
+- `handleEnemyAggro`
+- `handleEnemyApproach`
+- `handleEnemyWindup`
+- `handleEnemyActive`
+- `handleEnemyRecovery`
+- `handleEnemyReset`
+
+`EnemyStateMachine` is now the dispatcher and runtime-state factory. It should remain small; future combat tuning should happen in the named transition/helper files.
+
+## Player Controller
+
+`PlayerController` is still the player facade used by scene/combat systems, but click movement and dodge motion are no longer embedded directly in it:
+
+- click target pathing and waypoint following moved into `PlayerClickMovementController`
+- smooth dodge movement state moved into `PlayerDodgeMotionController`
+- `PlayerController` still owns facing, safe-position recovery, animation forwarding, and public player queries
+
+This keeps mouse movement and dodge behavior easier to reason about without changing the current control scheme.
+
+## Editor Scene
+
+`EditorScene` remains the editor composition point, but the first editor cleanup separates three responsibilities that were making it grow quickly:
+
+- camera pan/zoom/centering moved into `EditorViewportController`
+- import/export/resize prompt parsing moved into `EditorMapIoController`
+- HUD text and selected/hovered tile previews moved into `EditorHudController`
+
+The scene still owns terrain/object tool orchestration for now. Those should be split next, especially before adding more layers such as resources, spawns, zones, chunk dirty-state, or object inspectors.
 
 ## Ownership Rules
 
@@ -83,14 +170,13 @@ In v0:
 
 ## What This Pass Does Not Do Yet
 
-This is not the full cleanup. It does not yet split:
+This is not the full cleanup. These files are partially split but still need more focused ownership boundaries:
 
 - `WorldRuntimeCoordinator`
 - `CombatSandboxSystem`
-- `PlayerController`
 - `EditorScene`
 
-Those are the next high-value refactor targets. They should be split in small behavior-preserving slices, with tests after each slice.
+They should continue to shrink in small behavior-preserving slices, with tests after each slice.
 
 ## Next Cleanup Slices
 
@@ -98,6 +184,6 @@ Recommended order:
 
 1. Split `WorldRuntimeCoordinator` into map runtime, interaction runtime, placement runtime, object runtime, and save snapshot adapter.
 2. Split `CombatSandboxSystem` into pure combat rules, enemy runtime, player combat runtime, and Phaser visual feedback.
-3. Split `PlayerController` into click path following, dodge movement, collision recovery, facing, and animation state.
-4. Split `EditorScene` into tool state, viewport controls, terrain tool, object tool, import/export, and UI overlay.
+3. Continue `PlayerController` cleanup by extracting collision recovery/facing/animation coordination if those areas start causing bugs.
+4. Continue `EditorScene` cleanup by extracting terrain tool, object tool, chunk dirty-state, and future layer tools.
 5. Move folders into final app/domain structure once file ownership is clear.

@@ -7,7 +7,6 @@ import type { MapTransition } from './MapTypes';
 type AnchorEntry = {
   container: Phaser.GameObjects.Container;
   ring: Phaser.GameObjects.Graphics;
-  label: Phaser.GameObjects.Text;
 };
 
 const ACTIVE_COLOUR = 0xfacc15;
@@ -59,27 +58,14 @@ export class MapTransitionVisualSystem {
     this.activeTransitionId = null;
   }
 
-  private createAnchorEntry(worldX: number, worldY: number, labelText: string): AnchorEntry {
+  private createAnchorEntry(worldX: number, worldY: number, _labelText: string): AnchorEntry {
     const container = this.scene.add.container(worldX, worldY);
     container.setDepth(RENDER_DEPTHS.DEBUG - 100);
 
     const ring = this.scene.add.graphics();
-    const label = this.scene.add.text(0, -20, labelText, {
-      color: '#d7f3ff',
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      backgroundColor: '#07111fcc',
-      padding: { x: 4, y: 2 },
-    });
+    container.add([ring]);
 
-    label.setOrigin(0.5, 1);
-    container.add([ring, label]);
-
-    return {
-      container,
-      ring,
-      label,
-    };
+    return { container, ring };
   }
 
   private applyAnchorState(transitionId: string, isActive: boolean): void {
@@ -107,6 +93,5 @@ export class MapTransitionVisualSystem {
       ],
       true,
     );
-    entry.label.setAlpha(isActive ? 1 : 0.82);
   }
 }

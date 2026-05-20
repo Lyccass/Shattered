@@ -133,6 +133,9 @@ export class GameInteractionController {
       targetId,
       action: 'use',
     };
+    worldRuntimeCoordinator.setActiveInteractionTiles(
+      clickedTarget.tiles.map((t) => ({ x: t.x, y: t.y })),
+    );
     this.moveToPointer(approachPoint.x, approachPoint.y, true);
   }
 
@@ -311,6 +314,10 @@ export class GameInteractionController {
 
   clearPendingPointerInteraction(): void {
     this.pendingPointerInteraction = null;
+    const wrc = this.deps.getWorldRuntimeCoordinator();
+    if (wrc && !wrc.isActionInProgress()) {
+      wrc.setActiveInteractionTiles(null);
+    }
   }
 
   private confirmChoiceMenuViaCallback(): void {
