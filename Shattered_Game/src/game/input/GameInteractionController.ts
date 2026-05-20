@@ -25,8 +25,6 @@ type GameInteractionControllerDeps = {
 };
 
 export class GameInteractionController {
-  private static readonly MOVE_TARGET_TELEGRAPH_ID = 'player-move-target';
-  private static readonly MOVE_TARGET_HIGHLIGHT_MS = 30_000;
 
   private pendingPointerInteraction: {
     interactionType: InteractionTargetType;
@@ -226,7 +224,7 @@ export class GameInteractionController {
 
     if (!walkable) {
       telegraphSystem.showTelegraph({
-        id: GameInteractionController.MOVE_TARGET_TELEGRAPH_ID,
+        id: 'move-blocked',
         worldX: tileCenter.x,
         worldY: tileCenter.y,
         shape: {
@@ -237,7 +235,7 @@ export class GameInteractionController {
           })),
         },
         startedAtMs: this.scene.time.now,
-        durationMs: GameInteractionController.MOVE_TARGET_HIGHLIGHT_MS,
+        durationMs: 800,
         warningColor: 0xef4444,
         strokeAlpha: 0.9,
         fillAlphaMultiplier: 0.3,
@@ -249,8 +247,6 @@ export class GameInteractionController {
       return;
     }
 
-    telegraphSystem.removeTelegraph(GameInteractionController.MOVE_TARGET_TELEGRAPH_ID);
-
     if (!preservePendingInteraction) {
       this.clearPendingPointerInteraction();
     }
@@ -260,19 +256,6 @@ export class GameInteractionController {
       tileCenter.y,
       this.deps.getControlMode() === 'combat' ? 4 : undefined,
     );
-  }
-
-  syncMoveTargetTelegraph(): void {
-    const playerController = this.deps.getPlayerController();
-    const telegraphSystem = this.deps.getTelegraphSystem();
-
-    if (!playerController || !telegraphSystem) {
-      return;
-    }
-
-    if (!playerController.hasClickMoveTarget()) {
-      telegraphSystem.removeTelegraph(GameInteractionController.MOVE_TARGET_TELEGRAPH_ID);
-    }
   }
 
   beginDeferredInteractionAction(action: DeferredInteractionAction): void {

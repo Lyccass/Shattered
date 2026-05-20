@@ -269,20 +269,6 @@ export class InputSystem {
       }
     });
 
-    // --- B: start placement (normal mode only) ---
-    this.on('B', () => {
-      if (this.mode === 'normal') {
-        this.callbacks.onStartPlacement();
-      }
-    });
-
-    // --- T: use item (normal mode only) ---
-    this.on('T', () => {
-      if (this.mode === 'normal') {
-        this.callbacks.onUseItem('warm_tea');
-      }
-    });
-
     // --- Panel toggles (normal mode only) ---
     this.on('I', () => {
       if (this.mode === 'normal') {

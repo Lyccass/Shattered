@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
 import type { ActionProgressSnapshot } from '../../actions/ActionProgressTypes';
-import { CameraSystem } from '../../camera/CameraSystem';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
 import { ContractRegistry } from '../../contracts/ContractRegistry';
@@ -12,7 +11,6 @@ import { ObjectDebugRenderer } from '../../objects/ObjectDebugRenderer';
 import { ObjectOcclusionSystem } from '../../objects/ObjectOcclusionSystem';
 import { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import { ObjectRegistry } from '../../objects/ObjectRegistry';
-import { ObjectRenderer } from '../../objects/ObjectRenderer';
 import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
@@ -22,13 +20,8 @@ import { InteractionActionFactory } from '../../interactions/InteractionActionFa
 import { InteractionSystem } from '../../interactions/InteractionSystem';
 import {
   type ActiveInteraction,
-  type ContractBoardInteractionTarget,
   type InteractionResult,
   type InteractionTarget,
-  type MapTransitionInteractionTarget,
-  type PlacedObjectInteractionTarget,
-  type ResourceNodeInteractionTarget,
-  type WorkbenchInteractionTarget,
 } from '../../interactions/InteractionTypes';
 import {
   PlacementModeSystem,
@@ -37,7 +30,6 @@ import {
 import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem';
 import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
-import { PlayerController } from '../../player/PlayerController';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { PlayerItemKey } from '../../player/PlayerInventoryState';
 import type { SkillSnapshot } from '../../skills/SkillTypes';
@@ -50,33 +42,26 @@ import type { LoadedMapRuntime } from './MapRuntime';
 import { MapTransitionSystem } from './MapTransitionSystem';
 import { MapTransitionVisualSystem } from './MapTransitionVisualSystem';
 import { WorldSessionState } from '../session/WorldSessionState';
-import { findInteractionApproachWorldPoint as findApproachWorldPoint } from './InteractionApproachFinder';
-import { buildDebugTargets, buildNpcTargets, buildTransitionTargets } from './InteractionTargetBuilders';
-import {
-  getInteractionMenuTitle,
-  getInteractionUseDetails,
-  getInteractionUseLabel,
-} from './InteractionMenuCopy';
 import { WorldActionBroker } from './WorldActionBroker';
 import { WorldInteractionHandlers } from './WorldInteractionHandlers';
 import {
   type RestorePrototypeSaveResult,
   WorldPrototypeSaveController,
 } from './WorldPrototypeSaveController';
+import { WorldObjectManager } from './WorldObjectManager';
+import {
+  type DeferredInteractionAction,
+  WorldInteractionOrchestrator,
+} from './WorldInteractionOrchestrator';
+import {
+  type WorldRuntimeBindings,
+  WorldMapRuntimeConfigurator,
+} from './WorldMapRuntimeConfigurator';
+import { WorldInteractionTargetCoordinator } from './WorldInteractionTargetCoordinator';
 
-type WorldRuntimeBindings = {
-  player: Phaser.GameObjects.Sprite;
-  playerController: PlayerController;
-  cameraSystem: CameraSystem;
-};
+export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
 type InteractionTargetType = InteractionTarget['definition']['interactionType'];
-export type DeferredInteractionAction = {
-  kind: 'deferred_interaction_action';
-  interactionType: InteractionTargetType;
-  targetId: string;
-  action: 'use' | 'inspect';
-};
 
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
@@ -105,13 +90,13 @@ export class WorldRuntimeCoordinator {
   private readonly interactionSystem: InteractionSystem;
   private readonly actionBroker: WorldActionBroker;
   private readonly interactionHandlers: WorldInteractionHandlers;
+  private readonly objectManager: WorldObjectManager;
+  private readonly interactionOrchestrator: WorldInteractionOrchestrator;
+  private readonly mapRuntimeConfigurator: WorldMapRuntimeConfigurator;
+  private readonly interactionTargetCoordinator: WorldInteractionTargetCoordinator;
 
   private bindings?: WorldRuntimeBindings;
   private currentRuntime?: LoadedMapRuntime;
-  private objectRenderer?: ObjectRenderer;
-  private objectPlacementSystem?: ObjectPlacementSystem;
-  private objectDebugRenderer?: ObjectDebugRenderer;
-  private objectOcclusionSystem?: ObjectOcclusionSystem;
   private readonly pendingUiResults: InteractionResult[] = [];
   private activeInteractionTiles: Array<{ x: number; y: number }> | null = null;
   private destroyed = false;
@@ -126,6 +111,7 @@ export class WorldRuntimeCoordinator {
   ) {
     this.mapLoader = new MapLoader(scene);
     this.objectRegistry = new ObjectRegistry(OBJECT_DEFINITIONS);
+    this.objectManager = new WorldObjectManager(scene, this.objectRegistry);
     this.mapTransitionVisualSystem = new MapTransitionVisualSystem(scene);
     this.placementModeSystem = new PlacementModeSystem(scene, this.itemRegistry);
     this.choiceMenuCoordinator = new ChoiceMenuCoordinator(this.eventBus);
@@ -137,9 +123,26 @@ export class WorldRuntimeCoordinator {
       this.workbenchSystem,
       this.contractBoardSystem,
       this.placedStructureSystem,
-      () => this.objectPlacementSystem,
+      () => this.objectManager.getPlacementSystem(),
     );
     this.interactionSystem = new InteractionSystem(this.interactionHandlers.build());
+
+    this.mapRuntimeConfigurator = new WorldMapRuntimeConfigurator({
+      contractBoardSystem: this.contractBoardSystem,
+      getActiveObjectCountForDefinition: (definitionId) =>
+        this.placedStructureSystem.getActiveObjectCountForDefinition(definitionId),
+      interactionSystem: this.interactionSystem,
+      mapLoader: this.mapLoader,
+      mapTransitionSystem: this.mapTransitionSystem,
+      mapTransitionVisualSystem: this.mapTransitionVisualSystem,
+      objectManager: this.objectManager,
+      placementModeSystem: this.placementModeSystem,
+      placedStructureSystem: this.placedStructureSystem,
+      recenterCameraOnPlayer: () => this.recenterCameraOnPlayer(),
+      resourceNodeSystem: this.resourceNodeSystem,
+      scene: this.scene,
+      workbenchSystem: this.workbenchSystem,
+    });
 
     this.actionBroker = new WorldActionBroker(
       this.actionProgressSystem,
@@ -154,9 +157,39 @@ export class WorldRuntimeCoordinator {
       this.playerSessionState,
       (interactionType, targetId, rangeTiles) =>
         this.isTargetStillInRange(interactionType, targetId, rangeTiles),
-      () => this.objectPlacementSystem,
+      () => this.objectManager.getPlacementSystem(),
       () => this.scene.time.now,
     );
+
+    this.interactionOrchestrator = new WorldInteractionOrchestrator({
+      actionBroker: this.actionBroker,
+      actionFactory: this.actionFactory,
+      choiceMenuCoordinator: this.choiceMenuCoordinator,
+      contractBoardSystem: this.contractBoardSystem,
+      interactionHandlers: this.interactionHandlers,
+      interactionSystem: this.interactionSystem,
+      isTargetStillInRange: (interactionType, targetId, rangeTiles) =>
+        this.isTargetStillInRange(interactionType, targetId, rangeTiles),
+      loadMap: (mapId, spawnId) => {
+        this.loadMap(mapId, spawnId);
+      },
+      playerSessionState: this.playerSessionState,
+      rebuildInteractionTargets: () => this.rebuildInteractionTargets(),
+      setActiveInteractionTiles: (tiles) => {
+        this.activeInteractionTiles = tiles;
+      },
+      workbenchSystem: this.workbenchSystem,
+    });
+
+    this.interactionTargetCoordinator = new WorldInteractionTargetCoordinator({
+      cancelConflictingActionForTarget: (target) => this.cancelConflictingActionForTarget(target),
+      getBindings: () => this.bindings,
+      getRuntime: () => this.currentRuntime,
+      interactionOrchestrator: this.interactionOrchestrator,
+      interactionSystem: this.interactionSystem,
+      mapTransitionSystem: this.mapTransitionSystem,
+      mapTransitionVisualSystem: this.mapTransitionVisualSystem,
+    });
 
     this.uiAggregator = new UiStateAggregator(
       this.playerSessionState,
@@ -186,12 +219,8 @@ export class WorldRuntimeCoordinator {
   }
 
   loadMap(mapId: string, spawnId: string): LoadedMapRuntime {
-    const objectDebugVisible = this.objectDebugRenderer?.isVisible() ?? false;
-
     // Destroy old per-map Phaser objects before replacing them.
-    this.objectRenderer?.destroyAll();
-    this.objectDebugRenderer?.destroyAll();
-    this.objectPlacementSystem?.clear();
+    this.mapRuntimeConfigurator.clearPreviousMapRuntime();
 
     this.choiceMenuCoordinator.cancel();
     this.actionProgressSystem.cancel();
@@ -199,20 +228,7 @@ export class WorldRuntimeCoordinator {
     const runtime = this.mapLoader.loadMap(mapId, spawnId);
     this.currentRuntime = runtime;
 
-    this.mapTransitionSystem.setTransitions(runtime.transitions);
-    this.mapTransitionVisualSystem.setMapContext(runtime.isoTilemap.transform, runtime.transitions);
-
-    this.objectRenderer = new ObjectRenderer(this.scene, runtime.isoTilemap.transform);
-    this.objectDebugRenderer = new ObjectDebugRenderer(this.scene, runtime.isoTilemap.transform);
-    this.objectDebugRenderer.setVisible(objectDebugVisible);
-    this.objectPlacementSystem = new ObjectPlacementSystem(
-      runtime.isoTilemap.worldGrid,
-      this.objectRegistry,
-      this.objectRenderer,
-      this.objectDebugRenderer,
-    );
-    this.mapLoader.placeCurrentMapObjects(this.objectPlacementSystem);
-    this.configureInteractionRuntime(runtime);
+    this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -230,14 +246,7 @@ export class WorldRuntimeCoordinator {
   }
 
   updateActiveInteraction(tileX: number, tileY: number): ActiveInteraction | null {
-    this.mapTransitionSystem.updateActiveTransition(tileX, tileY);
-    const activeInteraction = this.interactionSystem.updateActiveInteraction(tileX, tileY);
-    const highlightedTransitionId =
-      activeInteraction?.target.definition.interactionType === 'map_transition'
-        ? (activeInteraction.target as MapTransitionInteractionTarget).transition.id
-        : null;
-    this.mapTransitionVisualSystem.setActiveTransition(highlightedTransitionId);
-    return activeInteraction;
+    return this.interactionTargetCoordinator.updateActiveInteraction(tileX, tileY);
   }
 
   updatePlayerRuntimeState(deltaMs = 0): InteractionResult[] {
@@ -249,11 +258,11 @@ export class WorldRuntimeCoordinator {
     this.playerSessionState.update(nowMs);
     const resourceStateChanged = this.resourceNodeSystem.updateRuntimeState(
       nowMs,
-      this.objectPlacementSystem,
+      this.objectManager.getPlacementSystem(),
     );
     const placedStateChanged = this.placedStructureSystem.updateRuntimeState(
       nowMs,
-      this.objectPlacementSystem,
+      this.objectManager.getPlacementSystem(),
     );
 
     if (resourceStateChanged || placedStateChanged) {
@@ -268,123 +277,65 @@ export class WorldRuntimeCoordinator {
   }
 
   triggerActiveInteraction(): InteractionResult | null {
-    const activeInteraction = this.interactionSystem.getActiveInteraction();
-    if (!activeInteraction) {
-      return null;
-    }
-
-    this.cancelConflictingActionForTarget(activeInteraction.target);
-
-    if (this.openInteractionChoiceMenuForTarget(activeInteraction.target)) {
-      return null;
-    }
-
-    return this.executeTargetUse(activeInteraction.target);
+    return this.interactionTargetCoordinator.triggerActiveInteraction();
   }
 
   triggerPointerInteraction(worldX: number, worldY: number): InteractionResult | null {
-    if (!this.bindings || !this.currentRuntime) {
-      return null;
-    }
-
-    const clickedTile = this.currentRuntime.isoTilemap.transform.worldToTile(worldX, worldY);
-    const playerTile = this.bindings.playerController.getFeetTile();
-    const interaction = this.interactionSystem.findInteractionAtTile(
-      playerTile.x,
-      playerTile.y,
-      clickedTile.x,
-      clickedTile.y,
-    );
-
-    if (!interaction) {
-      return null;
-    }
-
-    this.cancelConflictingActionForTarget(interaction.target);
-
-    if (this.openInteractionChoiceMenuForTarget(interaction.target)) {
-      return null;
-    }
-
-    return this.executeTargetUse(interaction.target);
+    return this.interactionTargetCoordinator.triggerPointerInteraction(worldX, worldY);
   }
 
   findInteractionTargetAtWorldPoint(worldX: number, worldY: number): InteractionTarget | null {
-    if (!this.currentRuntime) {
-      return null;
-    }
-
-    const clickedTile = this.currentRuntime.isoTilemap.transform.worldToTile(worldX, worldY);
-    return this.interactionSystem.findTargetAtTile(clickedTile.x, clickedTile.y);
+    return this.interactionTargetCoordinator.findInteractionTargetAtWorldPoint(worldX, worldY);
   }
 
   isTargetInInteractionRange(
     interactionType: InteractionTargetType,
     targetId: string,
   ): boolean {
-    const target = this.findTargetByRef(interactionType, targetId);
-
-    if (!target) {
-      return false;
-    }
-
-    return this.isTargetStillInRange(
-      interactionType,
-      targetId,
-      target.definition.interactionRangeTiles,
-    );
+    return this.interactionTargetCoordinator.isTargetInInteractionRange(interactionType, targetId);
   }
 
   findInteractionApproachWorldPoint(
     interactionType: InteractionTargetType,
     targetId: string,
   ): Phaser.Math.Vector2 | null {
-    if (!this.currentRuntime || !this.bindings) {
-      return null;
-    }
-
-    const target = this.findTargetByRef(interactionType, targetId);
-
-    if (!target) {
-      return null;
-    }
-
-    const playerTile = this.bindings.playerController.getFeetTile();
-    return findApproachWorldPoint({
-      runtime: this.currentRuntime,
-      playerTile,
-      target,
-    });
+    return this.interactionTargetCoordinator.findInteractionApproachWorldPoint(
+      interactionType,
+      targetId,
+    );
   }
 
   triggerTargetInteractionByRef(
     interactionType: InteractionTargetType,
     targetId: string,
   ): InteractionResult | null {
-    const target = this.findTargetByRef(interactionType, targetId);
-
-    if (!target || !this.isTargetInInteractionRange(interactionType, targetId)) {
-      return null;
-    }
-
-    this.cancelConflictingActionForTarget(target);
-    return this.executeTargetUse(target);
+    return this.interactionTargetCoordinator.triggerTargetInteractionByRef(
+      interactionType,
+      targetId,
+    );
   }
 
   inspectTargetByRef(
     interactionType: InteractionTargetType,
     targetId: string,
   ): InteractionResult | null {
-    const target = this.findTargetByRef(interactionType, targetId);
-
-    if (!target || !this.isTargetInInteractionRange(interactionType, targetId)) {
-      return null;
-    }
-
-    return this.inspectTarget(target);
+    return this.interactionTargetCoordinator.inspectTargetByRef(interactionType, targetId);
   }
 
   useItem(itemId: PlayerItemKey): InteractionResult {
+    const itemDefinition = this.itemRegistry.get(itemId);
+
+    if (itemDefinition.useMode === 'place') {
+      const message = this.startPlacementMode(itemId);
+      return {
+        ok: this.placementModeSystem.isActive(),
+        interactionType: 'item_use',
+        targetId: itemId,
+        message,
+        toastKind: this.placementModeSystem.isActive() ? 'info' : 'error',
+      };
+    }
+
     const result = this.itemUseSystem.useItem(
       itemId,
       this.playerSessionState.getInventoryState(),
@@ -501,8 +452,9 @@ export class WorldRuntimeCoordinator {
 
   confirmPlacementMode(): InteractionResult | null {
     const placementState = this.placementModeSystem.getState();
+    const objectPlacementSystem = this.objectManager.getPlacementSystem();
 
-    if (!placementState || !this.objectPlacementSystem) {
+    if (!placementState || !objectPlacementSystem) {
       return null;
     }
 
@@ -524,7 +476,7 @@ export class WorldRuntimeCoordinator {
       this.scene.time.now,
       this.playerSessionState.getInventoryState(),
       this.itemRegistry,
-      this.objectPlacementSystem,
+      objectPlacementSystem,
     );
 
     if (result.ok) {
@@ -550,69 +502,7 @@ export class WorldRuntimeCoordinator {
   }
 
   confirmChoiceMenu(): InteractionResult | DeferredInteractionAction | null {
-    const confirmResult = this.choiceMenuCoordinator.confirm(this.playerSessionState);
-
-    switch (confirmResult.kind) {
-      case 'none':
-        return null;
-
-      case 'disabled':
-        return {
-          ok: false,
-          sfxId: 'invalid_action',
-          interactionType: 'generic_debug',
-          targetId: 'choice_menu',
-          message: confirmResult.reason,
-        };
-
-      case 'craft':
-        this.actionBroker.start(
-          this.actionFactory.createWorkbenchCraftAction(
-            confirmResult.workbenchId,
-            confirmResult.recipeId,
-          ),
-        );
-        return null;
-
-      case 'use_target':
-        if (this.isTargetStillInRange(
-          confirmResult.target.definition.interactionType,
-          confirmResult.target.definition.id,
-          confirmResult.target.definition.interactionRangeTiles,
-        )) {
-          return this.executeTargetUse(confirmResult.target);
-        }
-
-        return {
-          kind: 'deferred_interaction_action',
-          interactionType: confirmResult.target.definition.interactionType,
-          targetId: confirmResult.target.definition.id,
-          action: 'use',
-        };
-
-      case 'inspect_target':
-        if (this.isTargetStillInRange(
-          confirmResult.target.definition.interactionType,
-          confirmResult.target.definition.id,
-          confirmResult.target.definition.interactionRangeTiles,
-        )) {
-          return this.inspectTarget(confirmResult.target);
-        }
-
-        return {
-          kind: 'deferred_interaction_action',
-          interactionType: confirmResult.target.definition.interactionType,
-          targetId: confirmResult.target.definition.id,
-          action: 'inspect',
-        };
-
-      case 'result': {
-        const result = confirmResult.result;
-        this.actionBroker.emitResultSfx(result);
-        this.rebuildInteractionTargets();
-        return result;
-      }
-    }
+    return this.interactionOrchestrator.confirmChoiceMenu();
   }
 
   cancelChoiceMenu(): string | null {
@@ -637,28 +527,25 @@ export class WorldRuntimeCoordinator {
   }
 
   getObjectPlacementSystem(): ObjectPlacementSystem | undefined {
-    return this.objectPlacementSystem;
+    return this.objectManager.getPlacementSystem();
   }
 
   getObjectDebugRenderer(): ObjectDebugRenderer | undefined {
-    return this.objectDebugRenderer;
+    return this.objectManager.getDebugRenderer();
   }
 
   getObjectOcclusionSystem(): ObjectOcclusionSystem | undefined {
-    return this.objectOcclusionSystem;
+    return this.objectManager.getOcclusionSystem();
   }
 
   openInteractionChoiceMenuByRef(
     interactionType: InteractionTargetType,
     targetId: string,
   ): boolean {
-    const target = this.findTargetByRef(interactionType, targetId);
-
-    if (!target) {
-      return false;
-    }
-
-    return this.openInteractionChoiceMenuForTarget(target);
+    return this.interactionTargetCoordinator.openInteractionChoiceMenuByRef(
+      interactionType,
+      targetId,
+    );
   }
 
   setChoiceMenuSelection(index: number): void {
@@ -675,17 +562,7 @@ export class WorldRuntimeCoordinator {
     this.actionProgressSystem.cancel();
     this.pendingUiResults.length = 0;
     this.placementModeSystem.destroy();
-    this.mapTransitionVisualSystem.clear();
-    this.mapTransitionSystem.setTransitions([]);
-    this.interactionSystem.setTargets([]);
-    this.objectPlacementSystem?.clear();
-    this.objectRenderer?.destroyAll();
-    this.objectDebugRenderer?.destroyAll();
-    this.objectRenderer = undefined;
-    this.objectDebugRenderer = undefined;
-    this.objectPlacementSystem = undefined;
-    this.objectOcclusionSystem = undefined;
-    this.mapLoader.destroyCurrentRuntime();
+    this.mapRuntimeConfigurator.destroy();
     this.currentRuntime = undefined;
     this.bindings = undefined;
     this.worldSessionState.clearAll();
@@ -725,99 +602,23 @@ export class WorldRuntimeCoordinator {
     targetId: string,
     rangeTiles: number,
   ): boolean {
-    if (!this.bindings) {
-      return false;
-    }
-
-    const target = this.interactionSystem
-      .getTargets()
-      .find((candidate) =>
-        candidate.definition.interactionType === interactionType
-        && candidate.definition.id === targetId,
-      );
-
-    if (!target) {
-      return false;
-    }
-
-    const feetTile = this.bindings.playerController.getFeetTile();
-    const distanceTiles = target.tiles.reduce(
-      (best, tile) => Math.min(best, Math.abs(tile.x - feetTile.x) + Math.abs(tile.y - feetTile.y)),
-      Number.POSITIVE_INFINITY,
+    return this.interactionTargetCoordinator.isTargetStillInRange(
+      interactionType,
+      targetId,
+      rangeTiles,
     );
-
-    return distanceTiles <= rangeTiles;
-  }
-
-  private configureInteractionRuntime(runtime: LoadedMapRuntime): void {
-    const anchors = runtime.interactionAnchors;
-    const nowMs = this.scene.time.now;
-    this.resourceNodeSystem.setMapNodes(
-      runtime.definition.id,
-      anchors.filter((anchor) => anchor.interactionType === 'resource_node'),
-      runtime.definition.objects,
-      nowMs,
-      this.objectPlacementSystem,
-    );
-    this.workbenchSystem.setMapWorkbenches(
-      runtime.definition.id,
-      anchors.filter((anchor) => anchor.interactionType === 'workbench'),
-    );
-    this.contractBoardSystem.setMapBoards(
-      runtime.definition.id,
-      anchors.filter((anchor) => anchor.interactionType === 'contract_board'),
-    );
-    this.placedStructureSystem.setCurrentMap(runtime.definition.id, nowMs, this.objectPlacementSystem);
-
-    if (this.objectPlacementSystem) {
-      this.placementModeSystem.bindRuntimeContext(
-        runtime.isoTilemap.transform,
-        runtime.definition.spaceType,
-        runtime.isoTilemap.worldGrid,
-        runtime.zoneIndex,
-        runtime.transitions,
-        this.objectPlacementSystem,
-        (definitionId) => this.placedStructureSystem.getActiveObjectCountForDefinition(definitionId),
-      );
-    }
-
-    this.placementModeSystem.cancelPlacement();
-    this.rebuildInteractionTargets();
-    this.mapTransitionVisualSystem.setActiveTransition(null);
   }
 
   private rebuildInteractionTargets(): void {
-    if (!this.currentRuntime) {
-      this.interactionSystem.setTargets([]);
-      return;
-    }
-
-    const anchors = this.currentRuntime.interactionAnchors;
-    const targets: InteractionTarget[] = [
-      ...buildTransitionTargets(this.currentRuntime.transitions),
-      ...this.resourceNodeSystem.createInteractionTargets(),
-      ...this.workbenchSystem.createInteractionTargets(),
-      ...this.contractBoardSystem.createInteractionTargets(),
-      ...this.placedStructureSystem.createInteractionTargets(),
-      ...buildNpcTargets(anchors.filter((a) => a.interactionType === 'npc')),
-      ...buildDebugTargets(anchors.filter((a) => a.interactionType === 'generic_debug')),
-    ];
-
-    this.interactionSystem.setTargets(targets);
+    this.mapRuntimeConfigurator.rebuildInteractionTargets(this.currentRuntime);
   }
 
   private rebindSceneSystems(): void {
-    if (!this.bindings || !this.currentRuntime || !this.objectRenderer) {
+    if (!this.bindings || !this.currentRuntime) {
       return;
     }
 
-    const spawnPoint = this.getCurrentSpawnWorldPoint();
-
-    this.bindings.playerController.setTilemap(this.currentRuntime.isoTilemap);
-    this.bindings.playerController.setWorldPosition(spawnPoint.x, spawnPoint.y);
-    this.bindings.cameraSystem.setBounds(this.currentRuntime.worldBounds);
-    this.recenterCameraOnPlayer();
-    this.objectOcclusionSystem = new ObjectOcclusionSystem(this.objectRenderer, this.bindings.player);
+    this.mapRuntimeConfigurator.rebindSceneSystems(this.currentRuntime, this.bindings);
   }
 
   private cancelConflictingActionForTarget(target: InteractionTarget): void {
@@ -838,115 +639,6 @@ export class WorldRuntimeCoordinator {
     if (cancelMsg) {
       this.queueInfoResult(cancelMsg);
     }
-  }
-
-  private executeTargetUse(target: InteractionTarget): InteractionResult | null {
-    if (this.tryOpenChoiceMenu(target)) {
-      return null;
-    }
-
-    if (target.definition.interactionType === 'resource_node') {
-      this.activeInteractionTiles = target.tiles.map((t) => ({ x: t.x, y: t.y }));
-      this.actionBroker.start(
-        this.actionFactory.createGatherAction(target as ResourceNodeInteractionTarget),
-      );
-      return null;
-    }
-
-    if (target.definition.interactionType === 'workbench') {
-      const workbenchTarget = target as WorkbenchInteractionTarget;
-      const recipes = this.workbenchSystem.getRecipesForWorkbench(workbenchTarget.anchor.id);
-
-      if (recipes.length === 1) {
-        this.activeInteractionTiles = target.tiles.map((t) => ({ x: t.x, y: t.y }));
-        this.actionBroker.start(
-          this.actionFactory.createWorkbenchCraftAction(
-            workbenchTarget.anchor.id,
-            recipes[0].id,
-          ),
-        );
-        return null;
-      }
-    }
-
-    if (target.definition.interactionType === 'placed_object') {
-      const placedTarget = target as PlacedObjectInteractionTarget;
-      const action = this.actionFactory.createPlacedObjectAction(
-        placedTarget,
-        this.playerSessionState.getInventoryState(),
-      );
-
-      if (action) {
-        this.activeInteractionTiles = target.tiles.map((t) => ({ x: t.x, y: t.y }));
-        this.actionBroker.start(action);
-        return null;
-      }
-    }
-
-    const result = this.interactionSystem.triggerTarget(target);
-    this.actionBroker.emitResultSfx(result);
-
-    if (result.transitionRequest) {
-      this.loadMap(result.transitionRequest.targetMapId, result.transitionRequest.targetSpawnId);
-    } else {
-      this.rebuildInteractionTargets();
-    }
-
-    return result;
-  }
-
-  private inspectTarget(target: InteractionTarget): InteractionResult {
-    const result = this.interactionHandlers.inspectTarget(target);
-    this.actionBroker.emitResultSfx(result);
-    return result;
-  }
-
-  private openInteractionChoiceMenuForTarget(target: InteractionTarget): boolean {
-    return this.choiceMenuCoordinator.tryOpen(
-      {
-        title: getInteractionMenuTitle(target),
-        getOptions: () => [
-          {
-            id: 'use',
-            label: getInteractionUseLabel(target),
-            details: getInteractionUseDetails(target),
-          },
-          {
-            id: 'inspect',
-            label: 'Inspect',
-            details: 'Take a closer look.',
-          },
-        ],
-        onConfirm: (optionId) => {
-          if (optionId === 'use') {
-            return { kind: 'use_target', target };
-          }
-
-          if (optionId === 'inspect') {
-            return { kind: 'inspect_target', target };
-          }
-
-          return { kind: 'none' };
-        },
-      },
-      this.playerSessionState,
-    );
-  }
-
-  private tryOpenChoiceMenu(target: InteractionTarget): boolean {
-    if (target.definition.interactionType === 'workbench') {
-      const workbenchTarget = target as WorkbenchInteractionTarget;
-      const handler = this.workbenchSystem.createMenuHandler(workbenchTarget.anchor.id);
-      return this.choiceMenuCoordinator.tryOpen(handler, this.playerSessionState);
-    }
-
-    if (target.definition.interactionType === 'contract_board') {
-      const contractBoardTarget = target as ContractBoardInteractionTarget;
-      const handler = this.contractBoardSystem.createMenuHandler(contractBoardTarget.anchor.id);
-      return this.choiceMenuCoordinator.tryOpen(handler, this.playerSessionState);
-    }
-
-    return false;
   }
 
   private getCurrentPlayerTileSnapshot(): PlayerTileSaveState {
@@ -991,12 +683,5 @@ export class WorldRuntimeCoordinator {
     }
 
     this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
-  }
-
-  private findTargetByRef(
-    interactionType: InteractionTargetType,
-    targetId: string,
-  ): InteractionTarget | null {
-    return this.interactionSystem.findTargetByRef(interactionType, targetId);
   }
 }

@@ -6,22 +6,30 @@ type ZoomDirection = 'in' | 'out';
 
 type EditorInputHandlers = {
   applyPrimaryAction: (pointer: Phaser.Input.Pointer) => void;
+  adjustBrushSize: (delta: number) => void;
   centerCameraOnMap: () => void;
   cycleSelection: (offset: number) => void;
   exportMap: () => void;
+  exportDirtyChunks: () => void;
   exportWorldChunk: () => void;
   flipSelectedBrush: (axis: 'x' | 'y') => void;
   getToolMode: () => EditorToolMode;
   importMap: () => void;
+  importDirtyChunks: () => void;
+  isPaletteOpen: () => boolean;
   isPointerPanning: () => boolean;
+  openMapFromFile: () => void;
   redrawPointerState: () => void;
   removeHoveredObject: () => void;
+  renameHoveredChunk: () => void;
   resetTerrainStroke: () => void;
   resizeMap: () => void;
+  saveMapToFile: () => void;
   selectBrushForFamily: (family: TerrainFamily) => void;
   setToolMode: (mode: EditorToolMode) => void;
   startPointerPan: (pointer: Phaser.Input.Pointer) => void;
   stopPointerPan: () => void;
+  togglePalette: () => void;
   updatePointerPan: (pointer: Phaser.Input.Pointer) => void;
   updateHoverFromPointer: (pointer: Phaser.Input.Pointer) => void;
   zoom: (direction: ZoomDirection) => void;
@@ -75,7 +83,7 @@ export class EditorInputController {
     this.handlers.updatePointerPan(pointer);
     this.handlers.updateHoverFromPointer(pointer);
 
-    if (pointer.leftButtonDown() && !this.handlers.isPointerPanning()) {
+    if (pointer.leftButtonDown() && !this.handlers.isPointerPanning() && !this.handlers.isPaletteOpen()) {
       this.handlers.applyPrimaryAction(pointer);
     }
 
@@ -83,6 +91,10 @@ export class EditorInputController {
   };
 
   private readonly onPointerDown = (pointer: Phaser.Input.Pointer): void => {
+    if (this.handlers.isPaletteOpen()) {
+      return;
+    }
+
     this.handlers.resetTerrainStroke();
 
     if (pointer.rightButtonDown() || pointer.middleButtonDown()) {
@@ -127,13 +139,44 @@ export class EditorInputController {
       return;
     }
 
+    if (event.code === 'KeyP') {
+      this.handlers.togglePalette();
+      return;
+    }
+
+    if (event.ctrlKey && event.code === 'KeyS') {
+      event.preventDefault();
+      this.handlers.saveMapToFile();
+      return;
+    }
+
+    if (event.code === 'KeyL') {
+      this.handlers.openMapFromFile();
+      return;
+    }
+
     if (event.code === 'KeyQ' || event.code === 'BracketLeft') {
-      this.handlers.cycleSelection(-1);
+      if (!event.shiftKey) {
+        this.handlers.cycleSelection(-1);
+      }
       return;
     }
 
     if (event.code === 'KeyE' || event.code === 'BracketRight') {
-      this.handlers.cycleSelection(1);
+      if (!event.shiftKey) {
+        this.handlers.cycleSelection(1);
+      }
+      return;
+    }
+
+    // Shift+[ / Shift+] → decrease / increase brush size (terrain mode only)
+    if (event.shiftKey && event.code === 'BracketLeft' && this.handlers.getToolMode() === 'terrain') {
+      this.handlers.adjustBrushSize(-1);
+      return;
+    }
+
+    if (event.shiftKey && event.code === 'BracketRight' && this.handlers.getToolMode() === 'terrain') {
+      this.handlers.adjustBrushSize(1);
       return;
     }
 
@@ -147,7 +190,12 @@ export class EditorInputController {
       return;
     }
 
-    if (event.code === 'Backspace' || event.code === 'Delete' || event.code === 'KeyD') {
+    if (event.code === 'KeyN') {
+      this.handlers.renameHoveredChunk();
+      return;
+    }
+
+    if (event.code === 'Backspace' || event.code === 'Delete') {
       this.handlers.removeHoveredObject();
       return;
     }
@@ -162,8 +210,18 @@ export class EditorInputController {
       return;
     }
 
+    if (event.code === 'KeyU') {
+      this.handlers.exportDirtyChunks();
+      return;
+    }
+
     if (event.code === 'KeyI') {
       this.handlers.importMap();
+      return;
+    }
+
+    if (event.code === 'KeyJ') {
+      this.handlers.importDirtyChunks();
       return;
     }
 

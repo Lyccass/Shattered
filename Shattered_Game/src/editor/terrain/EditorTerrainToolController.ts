@@ -17,7 +17,8 @@ import { toPaint } from './EditorTerrainChunkRenderer';
 export class EditorTerrainToolController {
   private readonly catalog = createEditorTerrainCatalog();
   private selectedBrush: EditorTerrainBrush = getDefaultBrushForFamily(this.catalog, 'grass');
-  private lastPaintedTileKey?: string;
+  private lastPaintedCenterKey?: string;
+  private brushSize = 1;
 
   getCatalog(): EditorTerrainCatalog {
     return this.catalog;
@@ -37,8 +38,24 @@ export class EditorTerrainToolController {
     return index >= 0 ? `(${index + 1}/${familyBrushes.length})` : '';
   }
 
+  getBrushSize(): number {
+    return this.brushSize;
+  }
+
+  setBrushSize(size: number): void {
+    this.brushSize = Math.max(1, Math.min(4, size));
+  }
+
   selectFamily(family: TerrainFamily): EditorTerrainBrush {
     this.selectedBrush = getDefaultBrushForFamily(this.catalog, family);
+    return this.selectedBrush;
+  }
+
+  selectById(id: string): EditorTerrainBrush {
+    const brush = this.catalog.byId.get(id);
+    if (brush) {
+      this.selectedBrush = { ...brush };
+    }
     return this.selectedBrush;
   }
 
@@ -53,22 +70,56 @@ export class EditorTerrainToolController {
   }
 
   resetStroke(): void {
-    this.lastPaintedTileKey = undefined;
+    this.lastPaintedCenterKey = undefined;
   }
 
-  paintTile(map: EditorMapDefinition, tileX: number, tileY: number): boolean {
-    const key = tileKey(tileX, tileY);
+  getBrushFootprint(centerX: number, centerY: number): Array<{ x: number; y: number }> {
+    const radius = this.brushSize - 1;
 
-    if (this.lastPaintedTileKey === key) {
-      return false;
+    if (radius === 0) {
+      return [{ x: centerX, y: centerY }];
     }
 
-    if (!paintTerrainTile(map, tileX, tileY, this.getSelectedPaint())) {
-      return false;
+    const tiles: Array<{ x: number; y: number }> = [];
+
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (Math.abs(dx) + Math.abs(dy) <= radius) {
+          tiles.push({ x: centerX + dx, y: centerY + dy });
+        }
+      }
     }
 
-    this.lastPaintedTileKey = key;
-    return true;
+    return tiles;
+  }
+
+  /**
+   * Paints the current brush at (centerX, centerY).
+   * Returns every tile that was actually written — empty if the center was already
+   * the last painted center (dedup during drag).
+   */
+  paintTile(map: EditorMapDefinition, centerX: number, centerY: number): Array<{ x: number; y: number }> {
+    const key = tileKey(centerX, centerY);
+
+    if (this.lastPaintedCenterKey === key) {
+      return [];
+    }
+
+    const paint = this.getSelectedPaint();
+    const footprint = this.getBrushFootprint(centerX, centerY);
+    const painted: Array<{ x: number; y: number }> = [];
+
+    for (const tile of footprint) {
+      if (paintTerrainTile(map, tile.x, tile.y, paint)) {
+        painted.push(tile);
+      }
+    }
+
+    if (painted.length > 0) {
+      this.lastPaintedCenterKey = key;
+    }
+
+    return painted;
   }
 }
 

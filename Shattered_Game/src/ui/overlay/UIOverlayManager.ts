@@ -26,7 +26,12 @@ export class UIOverlayManager {
     this.enemyPanel      = new EnemyPanel(this.overlay);
     this.minimapPanel    = new MinimapPanel(this.overlay);
     this.chatPanel       = new ChatPanel(this.overlay);
-    this.taskbarPanel    = new TaskbarPanel(this.overlay, callbacks.onCombatToggle, callbacks.onSprintToggle);
+    this.taskbarPanel    = new TaskbarPanel(
+      this.overlay,
+      callbacks.onCombatToggle,
+      callbacks.onSprintToggle,
+      callbacks.onInventoryItemUse,
+    );
     this.xpDropPanel     = new XpDropPanel(this.overlay);
     this.choiceMenuPopup = new ChoiceMenuPopup(
       this.overlay,

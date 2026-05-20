@@ -11,127 +11,210 @@ type EditorHudHoverState = {
   objectDefinitionId: string | null;
   paint: EditorTerrainTilePaint | null;
   tile: { x: number; y: number } | null;
+  chunkX: number | null;
+  chunkY: number | null;
+  chunkName: string | null;
 };
 
 export type EditorHudState = {
-  dirtyChunks: {
-    count: number;
-    keys: string[];
-  };
+  brushSize: number;
+  dirtyChunks: { count: number; keys: string[] };
   hover: EditorHudHoverState;
   map: EditorMapDefinition;
+  objectPreviewTextureKey: string | null;
+  objectPreviewColor: number | null;
   selectedBrush: EditorTerrainBrush;
   selectedBrushIndexLabel: string;
   selectedObjectDisplayName: string;
   toolMode: string;
 };
 
+type EditorHudCallbacks = {
+  onSetMode: (mode: string) => void;
+  onAdjustBrushSize: (delta: number) => void;
+  onOpenPalette: () => void;
+};
+
+const MAX_BRUSH_SIZE = 4;
+
 export class EditorHudController {
-  private infoText?: Phaser.GameObjects.Text;
-  private statusText?: Phaser.GameObjects.Text;
-  private selectedPreviewImage?: Phaser.GameObjects.Image;
-  private hoveredPreviewImage?: Phaser.GameObjects.Image;
+  private readonly els: {
+    mapName: HTMLElement;
+    mapSize: HTMLElement;
+    dirty: HTMLElement;
+    modeTerrainBtn: HTMLButtonElement;
+    modeObjectBtn: HTMLButtonElement;
+    brushSection: HTMLElement;
+    objectSection: HTMLElement;
+    previewSelected: HTMLImageElement;
+    brushLabel: HTMLElement;
+    brushIdx: HTMLElement;
+    brushFlip: HTMLElement;
+    sizeInc: HTMLButtonElement;
+    sizeDec: HTMLButtonElement;
+    sizePips: HTMLElement[];
+    previewObject: HTMLImageElement;
+    objColorSwatch: HTMLCanvasElement;
+    objectName: HTMLElement;
+    hoverTile: HTMLElement;
+    hoverTerrain: HTMLElement;
+    hoverArt: HTMLElement;
+    hoverObject: HTMLElement;
+    hoverChunk: HTMLElement;
+    status: HTMLElement;
+  };
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly callbacks: EditorHudCallbacks,
+  ) {
+    this.els = {
+      mapName:        document.getElementById('ed-map-name')!,
+      mapSize:        document.getElementById('ed-map-size')!,
+      dirty:          document.getElementById('ed-dirty')!,
+      modeTerrainBtn: document.getElementById('ed-mode-terrain') as HTMLButtonElement,
+      modeObjectBtn:  document.getElementById('ed-mode-object')  as HTMLButtonElement,
+      brushSection:   document.getElementById('ed-brush-section')!,
+      objectSection:  document.getElementById('ed-object-section')!,
+      previewSelected: document.getElementById('ed-preview-selected') as HTMLImageElement,
+      brushLabel:     document.getElementById('ed-brush-label')!,
+      brushIdx:       document.getElementById('ed-brush-idx')!,
+      brushFlip:      document.getElementById('ed-brush-flip')!,
+      sizeInc:        document.getElementById('ed-size-inc') as HTMLButtonElement,
+      sizeDec:        document.getElementById('ed-size-dec') as HTMLButtonElement,
+      sizePips:       [1, 2, 3, 4].map((i) => document.getElementById(`ed-pip-${i}`)!),
+      previewObject:  document.getElementById('ed-preview-object') as HTMLImageElement,
+      objColorSwatch: document.getElementById('ed-obj-color-swatch') as HTMLCanvasElement,
+      objectName:     document.getElementById('ed-object-name')!,
+      hoverTile:      document.getElementById('ed-hover-tile')!,
+      hoverTerrain:   document.getElementById('ed-hover-terrain')!,
+      hoverArt:       document.getElementById('ed-hover-art')!,
+      hoverObject:    document.getElementById('ed-hover-object')!,
+      hoverChunk:     document.getElementById('ed-hover-chunk')!,
+      status:         document.getElementById('ed-status')!,
+    };
 
-  create(selectedBrush: EditorTerrainBrush): void {
-    this.infoText = this.scene.add.text(16, 16, '', {
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      color: '#dbeafe',
-      backgroundColor: '#0f172acc',
-      padding: { x: 8, y: 6 },
-    }).setScrollFactor(0).setDepth(10_000);
-    this.statusText = this.scene.add.text(16, 198, '', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#bfdbfe',
-      backgroundColor: '#0f172acc',
-      padding: { x: 8, y: 6 },
-    }).setScrollFactor(0).setDepth(10_000);
-    this.selectedPreviewImage = this.scene.add.image(48, 306, selectedBrush.textureKey)
-      .setOrigin(0.5, 0)
-      .setDepth(10_000)
-      .setScrollFactor(0)
-      .setScale(1.5);
-    this.hoveredPreviewImage = this.scene.add.image(128, 306, selectedBrush.textureKey)
-      .setOrigin(0.5, 0)
-      .setDepth(10_000)
-      .setScrollFactor(0)
-      .setScale(1.5);
+    this.els.modeTerrainBtn.addEventListener('click', () => this.callbacks.onSetMode('terrain'));
+    this.els.modeObjectBtn.addEventListener('click',  () => this.callbacks.onSetMode('object'));
+    this.els.sizeInc.addEventListener('click', () => this.callbacks.onAdjustBrushSize(1));
+    this.els.sizeDec.addEventListener('click', () => this.callbacks.onAdjustBrushSize(-1));
+    document.getElementById('ed-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
   }
 
+  // No Phaser display objects — HUD is pure HTML.
+  create(_selectedBrush: EditorTerrainBrush): void {}
+
   getObjects(): Phaser.GameObjects.GameObject[] {
-    const objects: Phaser.GameObjects.GameObject[] = [];
-
-    if (this.infoText) objects.push(this.infoText);
-    if (this.statusText) objects.push(this.statusText);
-    if (this.selectedPreviewImage) objects.push(this.selectedPreviewImage);
-    if (this.hoveredPreviewImage) objects.push(this.hoveredPreviewImage);
-
-    return objects;
+    return [];
   }
 
   setStatus(message: string): void {
-    this.statusText?.setText(message);
+    this.els.status.textContent = message;
   }
 
   update(state: EditorHudState): void {
-    if (!this.infoText) {
-      return;
+    // Map info
+    this.els.mapName.textContent = state.map.displayName;
+    this.els.mapSize.textContent = `${state.map.width} × ${state.map.height}`;
+    const dirtyText = formatDirtyChunks(state.dirtyChunks);
+    this.els.dirty.textContent = dirtyText;
+    this.els.dirty.classList.toggle('is-dirty', state.dirtyChunks.count > 0);
+
+    // Tool mode
+    const isObject = state.toolMode === 'object';
+    this.els.modeTerrainBtn.classList.toggle('is-active', !isObject);
+    this.els.modeObjectBtn.classList.toggle('is-active', isObject);
+    this.els.brushSection.style.display  = isObject ? 'none' : '';
+    this.els.objectSection.style.display = isObject ? '' : 'none';
+
+    // Brush (terrain mode)
+    this.els.brushLabel.textContent = state.selectedBrush.label;
+    this.els.brushIdx.textContent   = state.selectedBrushIndexLabel;
+    this.els.brushFlip.textContent  = `Flip: ${formatFlip(state.selectedBrush)}`;
+    this.updatePreviewImg(this.els.previewSelected, state.selectedBrush);
+
+    // Brush size pips
+    for (let i = 0; i < MAX_BRUSH_SIZE; i++) {
+      this.els.sizePips[i]?.classList.toggle('is-active', i < state.brushSize);
     }
 
-    this.updatePreviewImages(state.selectedBrush, state.hover.paint);
-    this.infoText.setText([
-      `Map: ${state.map.displayName} (${state.map.width}x${state.map.height})`,
-      `Mode: ${state.toolMode}`,
-      `Dirty chunks: ${formatDirtyChunks(state.dirtyChunks)}`,
-      `Selected: ${state.selectedBrush.label} ${state.selectedBrushIndexLabel}`,
-      `Selected object: ${state.selectedObjectDisplayName}`,
-      `Selected art: ${state.selectedBrush.textureKey}`,
-      `Selected flip: ${formatFlip(state.selectedBrush)}`,
-      `Hover tile: ${state.hover.tile ? `${state.hover.tile.x},${state.hover.tile.y}` : '-'}`,
-      `Hover terrain: ${state.hover.family ?? '-'}`,
-      `Hover art: ${state.hover.paint?.id ?? '-'}`,
-      `Hover object: ${state.hover.objectDefinitionId ?? '-'}`,
-      `Camera: WASD/arrows, right/middle drag, wheel zoom`,
-      `Mode: T terrain, O object`,
-      `Terrain: 1-5 family, Q/E or [/] exact tile, F/V flip brush`,
-      `Object: Q/E or [/] object, left click place, Shift+click/D/Del remove`,
-      `Map: R resize, C center, X map export, Y chunk export, I import`,
-    ]);
+    this.els.sizeDec.disabled = state.brushSize <= 1;
+    this.els.sizeInc.disabled = state.brushSize >= MAX_BRUSH_SIZE;
+
+    // Object preview (object mode)
+    this.els.objectName.textContent = state.selectedObjectDisplayName;
+    this.updateObjectPreview(state.objectPreviewTextureKey, state.objectPreviewColor);
+
+    // Hover
+    this.els.hoverTile.textContent    = state.hover.tile ? `${state.hover.tile.x}, ${state.hover.tile.y}` : '–';
+    this.els.hoverTerrain.textContent = state.hover.family ?? '–';
+    this.els.hoverArt.textContent     = state.hover.paint?.id ?? '–';
+    this.els.hoverObject.textContent  = state.hover.objectDefinitionId ?? '–';
+
+    if (state.hover.chunkX !== null && state.hover.chunkY !== null) {
+      const name = state.hover.chunkName ? ` "${state.hover.chunkName}"` : '';
+      this.els.hoverChunk.textContent = `${state.hover.chunkX},${state.hover.chunkY}${name}`;
+    } else {
+      this.els.hoverChunk.textContent = '–';
+    }
   }
 
-  private updatePreviewImages(
-    selectedBrush: EditorTerrainBrush,
-    hoverPaint: EditorTerrainTilePaint | null,
-  ): void {
-    this.updatePreviewImage(this.selectedPreviewImage, selectedBrush);
-    this.updatePreviewImage(this.hoveredPreviewImage, hoverPaint);
+  private updatePreviewImg(el: HTMLImageElement, brush: EditorTerrainBrush): void {
+    const { textureKey, flipX, flipY } = brush;
+
+    if (!this.scene.textures.exists(textureKey)) {
+      el.style.display = 'none';
+      return;
+    }
+
+    el.style.display = '';
+
+    if (el.dataset['texture'] !== textureKey) {
+      el.src = this.scene.textures.getBase64(textureKey);
+      el.dataset['texture'] = textureKey;
+    }
+
+    const sx = flipX ? -1 : 1;
+    const sy = flipY ? -1 : 1;
+    el.style.transform = (sx !== 1 || sy !== 1) ? `scale(${sx}, ${sy})` : '';
   }
 
-  private updatePreviewImage(
-    image: Phaser.GameObjects.Image | undefined,
-    paint: { textureKey: string; flipX: boolean; flipY: boolean } | null,
-  ): void {
-    if (!image) {
+  private updateObjectPreview(textureKey: string | null, color: number | null): void {
+    if (textureKey && this.scene.textures.exists(textureKey)) {
+      // Show sprite preview
+      if (this.els.previewObject.dataset['texture'] !== textureKey) {
+        this.els.previewObject.src = this.scene.textures.getBase64(textureKey);
+        this.els.previewObject.dataset['texture'] = textureKey;
+      }
+      this.els.previewObject.style.display   = '';
+      this.els.objColorSwatch.style.display  = 'none';
       return;
     }
 
-    if (!paint || !this.scene.textures.exists(paint.textureKey)) {
-      image.setVisible(false);
-      return;
-    }
+    // Fallback: render a coloured diamond on the canvas swatch
+    this.els.previewObject.style.display  = 'none';
+    this.els.objColorSwatch.style.display = '';
+    const ctx = this.els.objColorSwatch.getContext('2d');
 
-    image
-      .setVisible(true)
-      .setTexture(paint.textureKey)
-      .setFlip(paint.flipX, paint.flipY);
+    if (ctx && color !== null) {
+      const hex = `#${color.toString(16).padStart(6, '0')}`;
+      const w = this.els.objColorSwatch.width;
+      const h = this.els.objColorSwatch.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = hex;
+      ctx.beginPath();
+      ctx.moveTo(w / 2, 4);
+      ctx.lineTo(w - 4, h / 2);
+      ctx.lineTo(w / 2, h - 4);
+      ctx.lineTo(4, h / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 }
 
-function formatFlip(paint: { flipX: boolean; flipY: boolean }): string {
-  return `${paint.flipX ? 'X' : '-'} ${paint.flipY ? 'Y' : '-'}`;
+function formatFlip(brush: { flipX: boolean; flipY: boolean }): string {
+  return `${brush.flipX ? 'X' : '–'} ${brush.flipY ? 'Y' : '–'}`;
 }
 
 function formatDirtyChunks(summary: { count: number; keys: string[] }): string {
@@ -139,7 +222,7 @@ function formatDirtyChunks(summary: { count: number; keys: string[] }): string {
     return 'clean';
   }
 
-  const preview = summary.keys.slice(0, 4).join(' ');
-  const suffix = summary.count > 4 ? ` +${summary.count - 4}` : '';
+  const preview = summary.keys.slice(0, 3).join(' ');
+  const suffix  = summary.count > 3 ? ` +${summary.count - 3}` : '';
   return `${summary.count} (${preview}${suffix})`;
 }

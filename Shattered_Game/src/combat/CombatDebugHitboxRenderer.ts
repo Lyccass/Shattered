@@ -9,6 +9,7 @@ export class CombatDebugHitboxRenderer {
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics();
     this.graphics.setDepth(9_500);
+    this.graphics.setVisible(false);
   }
 
   render({

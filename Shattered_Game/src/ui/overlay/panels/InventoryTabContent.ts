@@ -1,9 +1,10 @@
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
-import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
+import type { PlayerInventorySnapshot, PlayerItemKey } from '../../../player/PlayerInventoryState';
 import { UI_TOKENS } from '../UITokens';
 
 interface SlotData {
   id: string;
+  kind: 'resource' | 'item' | 'empty';
   label: string;
   icon: string;
   count: number;
@@ -28,20 +29,20 @@ function buildSlots(inventory: PlayerInventorySnapshot): SlotData[] {
   for (const [key, count] of Object.entries(inventory.resources)) {
     if (count > 0) {
       const meta = RESOURCE_META[key] ?? { label: key, icon: '?' };
-      slots.push({ id: key, label: meta.label, icon: meta.icon, count });
+      slots.push({ id: key, kind: 'resource', label: meta.label, icon: meta.icon, count });
     }
   }
 
   for (const [key, count] of Object.entries(inventory.items)) {
     if (count > 0) {
       const meta = ITEM_META[key] ?? { label: key, icon: '?' };
-      slots.push({ id: key, label: meta.label, icon: meta.icon, count });
+      slots.push({ id: key, kind: 'item', label: meta.label, icon: meta.icon, count });
     }
   }
 
   const total = UI_TOKENS.sizes.inventorySlots;
   while (slots.length < total) {
-    slots.push({ id: '', label: '', icon: '', count: 0 });
+    slots.push({ id: '', kind: 'empty', label: '', icon: '', count: 0 });
   }
 
   return slots.slice(0, total);
@@ -51,8 +52,9 @@ export class InventoryTabContent {
   readonly el: HTMLElement;
   private readonly slotEls: HTMLElement[] = [];
   private readonly coinEls: Record<string, HTMLElement> = {};
+  private currentSlots: SlotData[] = [];
 
-  constructor() {
+  constructor(private readonly onItemUse: (itemId: PlayerItemKey) => void) {
     this.el = document.createElement('div');
     this.el.className = 'inventory-wrapper';
 
@@ -67,6 +69,7 @@ export class InventoryTabContent {
         <span class="inv-slot-label"></span>
         <span class="inv-slot-count"></span>
       `;
+      slot.addEventListener('click', () => this.handleSlotClick(i));
       this.slotEls.push(slot);
       grid.appendChild(slot);
     }
@@ -103,6 +106,7 @@ export class InventoryTabContent {
 
   update(inventory: PlayerInventorySnapshot, currency: CurrencySnapshot): void {
     const slots = buildSlots(inventory);
+    this.currentSlots = slots;
 
     slots.forEach((slot, i) => {
       const el = this.slotEls[i];
@@ -114,12 +118,16 @@ export class InventoryTabContent {
 
       if (slot.count > 0) {
         el.classList.add('has-item');
+        el.classList.toggle('is-usable', slot.kind === 'item');
         iconEl.textContent  = slot.icon;
         labelEl.textContent = '';
         countEl.textContent = slot.count > 1 ? String(slot.count) : '';
-        el.title = `${slot.label} (${slot.count})`;
+        el.title = slot.kind === 'item'
+          ? `Use ${slot.label} (${slot.count})`
+          : `${slot.label} (${slot.count})`;
       } else {
         el.classList.remove('has-item');
+        el.classList.remove('is-usable');
         iconEl.textContent  = '';
         labelEl.textContent = '';
         countEl.textContent = '';
@@ -131,5 +139,15 @@ export class InventoryTabContent {
     this.coinEls.gold.textContent     = String(currency.gold);
     this.coinEls.silver.textContent   = String(currency.silver);
     this.coinEls.copper.textContent   = String(currency.copper);
+  }
+
+  private handleSlotClick(index: number): void {
+    const slot = this.currentSlots[index];
+
+    if (!slot || slot.kind !== 'item' || slot.count <= 0) {
+      return;
+    }
+
+    this.onItemUse(slot.id as PlayerItemKey);
   }
 }

@@ -1,5 +1,5 @@
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
-import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
+import type { PlayerInventorySnapshot, PlayerItemKey } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
@@ -49,6 +49,7 @@ export class TaskbarPanel {
     overlay: HTMLElement,
     private readonly onCombatToggle: () => void,
     private readonly onSprintToggle: () => void,
+    private readonly onInventoryItemUse: (itemId: PlayerItemKey) => void,
   ) {
     this.root = document.createElement('div');
     this.root.id = 'ui-sidebar';
@@ -101,7 +102,7 @@ export class TaskbarPanel {
     overlay.appendChild(this.root);
 
     // Build tab content instances
-    this.inventoryContent = new InventoryTabContent();
+    this.inventoryContent = new InventoryTabContent(this.onInventoryItemUse);
     this.equipmentContent = new EquipmentTabContent();
     this.skillsContent    = new SkillsTabContent();
     this.journalContent   = new JournalTabContent();

@@ -69,8 +69,12 @@ In v0:
 - prototype save/restore assembly moved into `WorldPrototypeSaveController`
 - interaction approach-tile search moved into `InteractionApproachFinder`
 - interaction menu labels/details moved into `InteractionMenuCopy`
+- placed object renderer/placement/debug/occlusion lifecycle moved into `WorldObjectManager`
+- interaction menu confirmation, target use/inspect routing, action startup, and transition result handling moved into `WorldInteractionOrchestrator`
+- map runtime configuration, transition/object/placement binding, interaction-target rebuilding, and player/camera rebind moved into `WorldMapRuntimeConfigurator`
+- active interaction updates, pointer target lookup, by-reference use/inspect/menu routing, range checks, and approach-point lookup moved into `WorldInteractionTargetCoordinator`
 
-The coordinator still owns too much, but the extracted pieces are intentionally low-risk and behavior-preserving.
+The coordinator still owns too much, but the extracted pieces are intentionally low-risk and behavior-preserving. `WorldObjectManager` is the first real ownership boundary for map-local object runtime: WRC asks it to load authored map objects, bind player occlusion, expose placement/debug systems, and tear down map-local object visuals. `WorldInteractionOrchestrator` now owns the interaction/menu/action decision tree, so WRC can stay closer to map/runtime coordination. `WorldMapRuntimeConfigurator` owns the post-load map setup path so WRC no longer directly wires every map-local system. `WorldInteractionTargetCoordinator` owns the "which target are we talking to?" path, including pointer conversion, range checks, active transition highlighting, and deferred by-reference interaction routing.
 
 ## Combat Sandbox
 
@@ -148,8 +152,9 @@ This keeps mouse movement and dodge behavior easier to reason about without chan
 - object selection, placement, replacement, and deletion moved into `EditorObjectToolController`
 - pointer/keyboard shortcut routing moved into `EditorInputController`
 - changed chunk tracking moved into `EditorDirtyChunkTracker`
+- dirty chunk bundle export/import moved into `EditorDirtyChunkBundle`
 
-The scene still owns command callbacks and render refresh ordering. Dirty chunks are now tracked separately so later editor persistence can export/save only changed chunks instead of treating every edit as a full-map rewrite. Future editor layers should follow the same pattern: a focused tool controller plus renderer/import-export support, not more monolithic scene branches.
+The scene still owns command callbacks and render refresh ordering. Dirty chunks are now tracked separately so editor persistence can export/import changed chunks without treating every edit as a full-map rewrite. Current editor shortcuts include `U` to export dirty chunks and `J` to import a dirty chunk bundle. Future editor layers should follow the same pattern: a focused tool controller plus renderer/import-export support, not more monolithic scene branches.
 
 ## Ownership Rules
 
@@ -186,8 +191,8 @@ They should continue to shrink in small behavior-preserving slices, with tests a
 
 Recommended order:
 
-1. Split `WorldRuntimeCoordinator` into map runtime, interaction runtime, placement runtime, object runtime, and save snapshot adapter.
+1. Continue splitting `WorldRuntimeCoordinator` by extracting placement mode flow or action-progress/update flow next.
 2. Split `CombatSandboxSystem` into pure combat rules, enemy runtime, player combat runtime, and Phaser visual feedback.
 3. Continue `PlayerController` cleanup by extracting collision recovery/facing/animation coordination if those areas start causing bugs.
-4. Continue `EditorScene` cleanup by extracting future resource/spawn/zone tools and adding dirty-chunk export/import workflows.
+4. Continue `EditorScene` cleanup by extracting future resource/spawn/zone tools and moving chunk bundle formats toward shared editor/world schemas when they stabilize.
 5. Move folders into final app/domain structure once file ownership is clear.

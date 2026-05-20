@@ -76,6 +76,7 @@ export class GameScene extends Phaser.Scene {
     this.uiManager = new UiManager(this, {
       onCombatToggle:      () => this.toggleControlMode(),
       onSprintToggle:      () => this.tryToggleSprint(),
+      onInventoryItemUse:  (itemId) => this.tryUseItem(itemId),
       onChoiceMenuSelect:  (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
       onChoiceMenuConfirm: () => this.tryConfirmChoiceMenu(),
       onChoiceMenuCancel:  () => {
@@ -135,7 +136,6 @@ export class GameScene extends Phaser.Scene {
       this.combatSandboxSystem?.getUiSnapshot(this.time.now) ?? null,
       this.controlMode,
     );
-    this.interactionController?.syncMoveTargetTelegraph();
     this.updateTileHighlight();
     this.debugOverlaySystem?.update();
   }
@@ -196,8 +196,6 @@ export class GameScene extends Phaser.Scene {
   private buildInputCallbacks(): InputCallbacks {
     return {
       onInteract: () => this.interactionController?.triggerActiveInteraction(),
-      onStartPlacement: () => this.tryStartPlacementMode(),
-      onUseItem: (itemId) => this.tryUseItem(itemId),
       onCancelAction: () => this.cancelActiveActionForUi(),
       onCombatDodge: () => this.tryCombatDodge(),
       onToggleSprint: () => this.tryToggleSprint(),
@@ -338,15 +336,6 @@ export class GameScene extends Phaser.Scene {
   private bindRuntimeSupportSystems(): void {
     this.bindDebugOverlayToRuntime();
     this.bindCombatSandboxToRuntime();
-  }
-
-  private tryStartPlacementMode(): void {
-    if (!this.worldRuntimeCoordinator || !this.uiManager) {
-      return;
-    }
-
-    this.uiManager.showInfo(this.worldRuntimeCoordinator.startPlacementMode());
-    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
   }
 
   private tryUseItem(itemId: PlayerItemKey): void {

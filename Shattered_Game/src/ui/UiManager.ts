@@ -1,6 +1,7 @@
 import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
 import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
+import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { formatSkillXpToastLines } from './UiFormatters';
 import { ToastSystem } from './ToastSystem';
 import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
@@ -9,6 +10,7 @@ import { UIOverlayManager } from './overlay/UIOverlayManager';
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
   onSprintToggle: () => void;
+  onInventoryItemUse: (itemId: PlayerItemKey) => void;
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
@@ -32,6 +34,7 @@ export class UiManager {
     this.overlay = new UIOverlayManager({
       onCombatToggle:      callbacks.onCombatToggle,
       onSprintToggle:      callbacks.onSprintToggle,
+      onInventoryItemUse:  callbacks.onInventoryItemUse,
       onChoiceMenuSelect:  callbacks.onChoiceMenuSelect,
       onChoiceMenuConfirm: callbacks.onChoiceMenuConfirm,
       onChoiceMenuCancel:  callbacks.onChoiceMenuCancel,

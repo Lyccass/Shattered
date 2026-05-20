@@ -39,6 +39,8 @@ export type EditorMapDefinition = {
   terrainTiles: Record<string, EditorTerrainTilePaint>;
   objects: EditorPlacedObject[];
   enemySpawns: EditorEnemySpawn[];
+  /** editor-only: maps "chunkX,chunkY" → human name for that chunk */
+  chunkNames?: Record<string, string>;
 };
 
 export function createEditorMap(
@@ -70,9 +72,8 @@ export function createEditorMap(
 }
 
 export function createSampleEditorMap(defaultPaint?: EditorTerrainTilePaint): EditorMapDefinition {
-  const map = createEditorMap(24, 24, 'grass', 'editor_test_map', 'Editor Test Map', defaultPaint);
-
-  return map;
+  // 32×32 = 2×2 full chunks of size 16
+  return createEditorMap(32, 32, 'grass', 'editor_test_map', 'Editor Test Map', defaultPaint);
 }
 
 export function paintTerrainTile(
@@ -219,6 +220,7 @@ export function exportEditorMapToMapDefinition(map: EditorMapDefinition): MapDef
       source: 'map_editor_v0',
       editorTerrainTiles: map.terrainTiles,
       ...(map.enemySpawns.length > 0 ? { editorEnemySpawns: map.enemySpawns } : {}),
+      ...(map.chunkNames && Object.keys(map.chunkNames).length > 0 ? { editorChunkNames: map.chunkNames } : {}),
     },
   };
 
@@ -243,6 +245,7 @@ export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapD
     height: map.height,
     terrain: map.terrain.map((row) => [...row]),
     terrainTiles: parseEditorTerrainTiles(map.metadata?.editorTerrainTiles),
+    chunkNames: parseEditorChunkNames(map.metadata?.editorChunkNames),
     objects: map.objects.map((object) => ({
       id: object.id,
       definitionId: object.definitionId,
@@ -382,6 +385,22 @@ function parseEditorEnemySpawns(value: unknown): EditorEnemySpawn[] {
       tileY: spawn.tileY,
     }];
   });
+}
+
+function parseEditorChunkNames(value: unknown): Record<string, string> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const names: Record<string, string> = {};
+
+  for (const [key, name] of Object.entries(value)) {
+    if (typeof name === 'string' && name.length > 0) {
+      names[key] = name;
+    }
+  }
+
+  return Object.keys(names).length > 0 ? names : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

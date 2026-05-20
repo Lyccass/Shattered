@@ -4,7 +4,7 @@ import {
   removeEditorPlacedObjectsAtTile,
   type EditorMapDefinition,
 } from '../../shared/editor/EditorMapModel';
-import type { ObjectDefinition } from '../../objects/ObjectTypes';
+import type { ObjectDefinition, SpriteVisualPart } from '../../objects/ObjectTypes';
 import {
   createEditorObjectCatalog,
   getObjectAtOffset,
@@ -25,6 +25,26 @@ export class EditorObjectToolController {
   }
 
   getSelectedDefinition(): ObjectDefinition {
+    return this.selectedObjectDefinition;
+  }
+
+  /** Returns the textureKey of the first sprite part, or null for geometry-only objects. */
+  getPreviewTextureKey(): string | null {
+    const spritePart = this.selectedObjectDefinition.visual.parts
+      .find((p): p is SpriteVisualPart => p.shape === 'sprite');
+    return spritePart?.textureKey ?? null;
+  }
+
+  /** Fallback colour for geometry-only objects (from their debug colour). */
+  getPreviewColor(): number {
+    return this.selectedObjectDefinition.debug?.color ?? 0x888888;
+  }
+
+  selectById(id: string): ObjectDefinition {
+    const def = this.catalog.byId.get(id);
+    if (def) {
+      this.selectedObjectDefinition = def;
+    }
     return this.selectedObjectDefinition;
   }
 

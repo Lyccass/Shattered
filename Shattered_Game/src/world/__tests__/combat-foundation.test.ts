@@ -8,6 +8,7 @@ import {
 import { TelegraphStore } from '../../combat/TelegraphStore';
 import { InputSystem } from '../../input/InputSystem';
 import type { InputCallbacks } from '../../input/InputTypes';
+import { getFacingTileOffset } from '../../player/PlayerFacingTiles';
 
 class FakeKeyboardPlugin {
   private readonly handlers = new Map<string, Set<(event: KeyboardEvent) => void>>();
@@ -95,8 +96,6 @@ function createInputHarness() {
   const keyboard = input.keyboard;
   const calls = {
     onInteract: vi.fn(),
-    onStartPlacement: vi.fn(),
-    onUseItem: vi.fn(),
     onCancelAction: vi.fn(),
     onCombatDodge: vi.fn(),
     onToggleSprint: vi.fn(),
@@ -128,8 +127,6 @@ function createInputHarness() {
   };
   const callbacks: InputCallbacks = {
     onInteract: calls.onInteract,
-    onStartPlacement: calls.onStartPlacement,
-    onUseItem: calls.onUseItem,
     onCancelAction: calls.onCancelAction,
     onCombatDodge: calls.onCombatDodge,
     onToggleSprint: calls.onToggleSprint,
@@ -174,7 +171,6 @@ describe('Combat foundation input routing', () => {
     system.setMode('normal');
     keyboard.emit('keydown-SPACE');
 
-    expect(callbacks.onStartPlacement).not.toHaveBeenCalled();
     expect(callbacks.onCancelAction).not.toHaveBeenCalled();
     expect(callbacks.onCombatDodge).toHaveBeenCalledTimes(1);
   });
@@ -192,13 +188,13 @@ describe('Combat foundation input routing', () => {
     expect(callbacks.onPointerContext).toHaveBeenCalledWith(120, 180);
   });
 
-  it('starts placement with B in normal mode', () => {
+  it('does not start placement from a keyboard shortcut', () => {
     const { keyboard, callbacks, system } = createInputHarness();
 
     system.setMode('normal');
     keyboard.emit('keydown-B');
 
-    expect(callbacks.onStartPlacement).toHaveBeenCalledTimes(1);
+    expect(callbacks.onInteract).not.toHaveBeenCalled();
   });
 
   it('confirms placement with E in placement mode', () => {
@@ -302,6 +298,15 @@ describe('Combat foundation input routing', () => {
     expect(callbacks.onPointerInteract).not.toHaveBeenCalled();
     expect(callbacks.onPointerContext).not.toHaveBeenCalled();
     expect(callbacks.onMenuPointer).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('placement facing target', () => {
+  it('resolves screen-facing directions to adjacent isometric tiles', () => {
+    expect(getFacingTileOffset('up')).toEqual({ x: -1, y: -1 });
+    expect(getFacingTileOffset('down')).toEqual({ x: 1, y: 1 });
+    expect(getFacingTileOffset('left')).toEqual({ x: -1, y: 1 });
+    expect(getFacingTileOffset('right')).toEqual({ x: 1, y: -1 });
   });
 });
 

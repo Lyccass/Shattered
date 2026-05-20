@@ -24,6 +24,8 @@ import { EditorDirtyChunkTracker } from './chunks/EditorDirtyChunkTracker';
 import { EditorMapIoController } from './io/EditorMapIoController';
 import { EditorInputController, type EditorToolMode } from './input/EditorInputController';
 import { EditorViewportController } from './viewport/EditorViewportController';
+import { EditorChunkNameRenderer } from './chunks/EditorChunkNameRenderer';
+import { EditorTilePaletteController } from './ui/EditorTilePaletteController';
 
 const TILE_WIDTH = 64;
 const TILE_HEIGHT = 32;
@@ -54,6 +56,8 @@ export class EditorScene extends Phaser.Scene {
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
   private terrainRenderer?: EditorTerrainChunkRenderer;
   private objectRenderer?: EditorObjectLayerRenderer;
+  private chunkNameRenderer?: EditorChunkNameRenderer;
+  private palette?: EditorTilePaletteController;
   private viewport?: EditorViewportController;
   private toolMode: EditorToolMode = 'terrain';
 
@@ -69,10 +73,20 @@ export class EditorScene extends Phaser.Scene {
 
     this.terrainRenderer = new EditorTerrainChunkRenderer(this, this.transform, this.terrainTool.getCatalog());
     this.objectRenderer = new EditorObjectLayerRenderer(this, this.transform, this.objectTool.getCatalog());
+    this.chunkNameRenderer = new EditorChunkNameRenderer(this, this.transform);
     this.overlayGraphics = this.add.graphics();
     this.chunkOverlayGraphics = this.add.graphics();
-    this.hud = new EditorHudController(this);
+    this.hud = new EditorHudController(this, {
+      onAdjustBrushSize: (delta) => this.adjustBrushSize(delta),
+      onOpenPalette: () => this.togglePalette(),
+      onSetMode: (mode) => this.setToolMode(mode as EditorToolMode),
+    });
     this.hud.create(this.terrainTool.getSelectedBrush());
+    this.palette = new EditorTilePaletteController(
+      this,
+      this.terrainTool.getCatalog(),
+      { onSelectBrush: (brush) => this.selectBrushById(brush.id) },
+    );
     this.viewport = new EditorViewportController(this, {
       maxZoom: MAX_CAMERA_ZOOM,
       minZoom: MIN_CAMERA_ZOOM,
@@ -95,15 +109,13 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private createUiCamera(): void {
-    const uiObjects = this.hud?.getObjects() ?? [];
-
     this.uiCamera = this.cameras.add(0, 0, this.scale.width, this.scale.height)
       .setScroll(0, 0)
       .setZoom(1);
-    this.cameras.main.ignore(uiObjects);
     this.ignoreWorldObjectsForUiCamera();
     this.terrainRenderer?.setUiCamera(this.uiCamera);
     this.objectRenderer?.setUiCamera(this.uiCamera);
+    this.chunkNameRenderer?.setUiCamera(this.uiCamera);
 
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
       this.uiCamera?.setSize(gameSize.width, gameSize.height);
@@ -113,22 +125,30 @@ export class EditorScene extends Phaser.Scene {
   private registerInputController(): void {
     const inputController = new EditorInputController(this, {
       applyPrimaryAction: (pointer) => this.applyHoveredPrimaryAction(pointer),
+      adjustBrushSize: (delta) => this.adjustBrushSize(delta),
       centerCameraOnMap: () => this.centerCameraOnMap(),
       cycleSelection: (offset) => this.cycleSelection(offset),
+      exportDirtyChunks: () => { void this.exportDirtyChunks(); },
       exportMap: () => { void this.exportMap(); },
       exportWorldChunk: () => { void this.exportWorldChunk(); },
       flipSelectedBrush: (axis) => this.flipSelectedBrush(axis),
       getToolMode: () => this.toolMode,
+      importDirtyChunks: () => this.importDirtyChunks(),
       importMap: () => this.importMap(),
+      isPaletteOpen: () => this.palette?.isVisible() ?? false,
       isPointerPanning: () => this.viewport?.isPanning() ?? false,
+      openMapFromFile: () => { void this.openMapFromFile(); },
       redrawPointerState: () => this.redrawPointerState(),
       removeHoveredObject: () => this.removeHoveredObject(),
+      renameHoveredChunk: () => this.renameHoveredChunk(),
       resetTerrainStroke: () => this.terrainTool.resetStroke(),
       resizeMap: () => this.promptResizeMap(),
+      saveMapToFile: () => { void this.saveMapToFile(); },
       selectBrushForFamily: (family) => this.selectBrushForFamily(family),
       setToolMode: (mode) => this.setToolMode(mode),
       startPointerPan: (pointer) => this.viewport?.startPointerPan(pointer),
       stopPointerPan: () => this.viewport?.stopPointerPan(),
+      togglePalette: () => this.togglePalette(),
       updateHoverFromPointer: (pointer) => {
         this.hoverTile = this.getTileFromPointer(pointer);
       },
@@ -151,8 +171,16 @@ export class EditorScene extends Phaser.Scene {
 
   private selectBrushForFamily(family: TerrainFamily): void {
     const selectedBrush = this.terrainTool.selectFamily(family);
+    this.palette?.updateSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(`Selected ${selectedBrush.label}. Use Q/E or [/] to choose a specific tile.`);
+  }
+
+  private selectBrushById(brushId: string): void {
+    const selectedBrush = this.terrainTool.selectById(brushId);
+    this.palette?.updateSelection(selectedBrush);
+    this.updateInfoText();
+    this.setStatus(`Selected tile ${selectedBrush.label}.`);
   }
 
   private cycleSelection(offset: number): void {
@@ -168,14 +196,27 @@ export class EditorScene extends Phaser.Scene {
 
   private cycleSelectedBrush(offset: number): void {
     const selectedBrush = this.terrainTool.cycle(offset);
+    this.palette?.updateSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(`Selected tile ${selectedBrush.label}.`);
   }
 
   private flipSelectedBrush(axis: 'x' | 'y'): void {
-    this.terrainTool.flip(axis);
+    const selectedBrush = this.terrainTool.flip(axis);
+    this.palette?.updateSelection(selectedBrush);
     this.updateInfoText();
     this.setStatus(axis === 'x' ? 'Selected brush flipped left/right.' : 'Selected brush flipped up/down.');
+  }
+
+  private togglePalette(): void {
+    this.palette?.toggle(this.terrainTool.getSelectedBrush());
+  }
+
+  private adjustBrushSize(delta: number): void {
+    this.terrainTool.setBrushSize(this.terrainTool.getBrushSize() + delta);
+    this.redrawOverlay();
+    this.updateInfoText();
+    this.setStatus(`Brush size ${this.terrainTool.getBrushSize()}.`);
   }
 
   private applyHoveredPrimaryAction(pointer: Phaser.Input.Pointer): void {
@@ -201,12 +242,17 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private paintTile(tileX: number, tileY: number): void {
-    if (!this.terrainTool.paintTile(this.map, tileX, tileY)) {
+    const paintedTiles = this.terrainTool.paintTile(this.map, tileX, tileY);
+
+    if (paintedTiles.length === 0) {
       return;
     }
 
-    this.terrainRenderer?.renderChunksAroundTile(this.map, tileX, tileY);
-    this.dirtyChunks.markTileDirty(tileX, tileY);
+    for (const tile of paintedTiles) {
+      this.terrainRenderer?.renderChunksAroundTile(this.map, tile.x, tile.y);
+      this.dirtyChunks.markTileDirty(tile.x, tile.y);
+    }
+
     this.redrawObjects();
     this.redrawOverlay();
     this.updateInfoText();
@@ -246,6 +292,7 @@ export class EditorScene extends Phaser.Scene {
 
   private redrawTerrain(): void {
     this.terrainRenderer?.renderAll(this.map);
+    this.chunkNameRenderer?.setMapContext(this.map);
     this.redrawChunkOverlay();
   }
 
@@ -274,14 +321,26 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
-    const points = getTileDiamondPoints(this.transform, this.hoverTile.x, this.hoverTile.y)
-      .map((point) => new Phaser.Geom.Point(point.x, point.y));
-
     graphics.setDepth(9_000);
-    graphics.fillStyle(0xfacc15, 0.22);
-    graphics.fillPoints(points, true);
-    graphics.lineStyle(2, 0xf8fafc, 0.95);
-    graphics.strokePoints(points, true);
+
+    const footprint = this.toolMode === 'terrain'
+      ? this.terrainTool.getBrushFootprint(this.hoverTile.x, this.hoverTile.y)
+      : [this.hoverTile];
+
+    for (const tile of footprint) {
+      if (!this.isTileInBounds(tile.x, tile.y)) {
+        continue;
+      }
+
+      const isCenter = tile.x === this.hoverTile.x && tile.y === this.hoverTile.y;
+      const points = getTileDiamondPoints(this.transform, tile.x, tile.y)
+        .map((point) => new Phaser.Geom.Point(point.x, point.y));
+
+      graphics.fillStyle(0xfacc15, isCenter ? 0.22 : 0.12);
+      graphics.fillPoints(points, true);
+      graphics.lineStyle(isCenter ? 2 : 1, 0xf8fafc, isCenter ? 0.95 : 0.45);
+      graphics.strokePoints(points, true);
+    }
   }
 
   private getTileFromPointer(pointer: Phaser.Input.Pointer): { x: number; y: number } | null {
@@ -306,11 +365,16 @@ export class EditorScene extends Phaser.Scene {
     const hoverFamily = hover ? getEditorTerrainAt(this.map, hover.x, hover.y) : null;
     const hoverPaint = hover ? this.terrainRenderer?.getTilePaint(this.map, hover.x, hover.y) ?? null : null;
     const hoverObject = hover ? this.objectRenderer?.getObjectAtTile(this.map, hover.x, hover.y) ?? null : null;
+    const hoverChunk = hover ? this.getChunkInfo(hover.x, hover.y) : null;
     const selectedBrush = this.terrainTool.getSelectedBrush();
     const selectedObjectDefinition = this.objectTool.getSelectedDefinition();
 
     this.hud.update({
+      brushSize: this.terrainTool.getBrushSize(),
       hover: {
+        chunkName: hoverChunk?.chunkName ?? null,
+        chunkX: hoverChunk?.chunkX ?? null,
+        chunkY: hoverChunk?.chunkY ?? null,
         family: hoverFamily,
         objectDefinitionId: hoverObject?.definitionId ?? null,
         paint: hoverPaint,
@@ -318,6 +382,8 @@ export class EditorScene extends Phaser.Scene {
       },
       dirtyChunks: this.dirtyChunks.getSummary(),
       map: this.map,
+      objectPreviewColor: this.objectTool.getPreviewColor(),
+      objectPreviewTextureKey: this.objectTool.getPreviewTextureKey(),
       selectedBrush,
       selectedBrushIndexLabel: this.terrainTool.getSelectedBrushIndexLabel(),
       selectedObjectDisplayName: selectedObjectDefinition.displayName,
@@ -352,6 +418,28 @@ export class EditorScene extends Phaser.Scene {
     );
   }
 
+  private async exportDirtyChunks(): Promise<void> {
+    const dirtyChunks = this.dirtyChunks.getDirtyChunks();
+
+    if (dirtyChunks.length === 0) {
+      this.setStatus('No dirty chunks to export.');
+      return;
+    }
+
+    const result = await this.mapIo.exportDirtyChunks(this.map, dirtyChunks, {
+      chunkSize: EDITOR_CHUNK_SIZE,
+      regionId: 'editor_region',
+      worldId: 'the_wake',
+    });
+    this.dirtyChunks.clear();
+    this.updateInfoText();
+    this.setStatus(
+      result === 'clipboard'
+        ? `Dirty chunk bundle copied to clipboard (${dirtyChunks.length} chunks).`
+        : `Dirty chunk bundle printed to console (${dirtyChunks.length} chunks).`,
+    );
+  }
+
   private importMap(): void {
     try {
       const importedMap = this.mapIo.importFromPrompt();
@@ -370,6 +458,67 @@ export class EditorScene extends Phaser.Scene {
       this.setStatus('Map loaded.');
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Map import failed.');
+    }
+  }
+
+  private importDirtyChunks(): void {
+    try {
+      const result = this.mapIo.importDirtyChunksFromPrompt(this.map);
+
+      if (!result) {
+        return;
+      }
+
+      this.map = result.map;
+      this.dirtyChunks.clear();
+      this.redrawTerrain();
+      this.redrawObjects();
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.setStatus(`Dirty chunk bundle imported (${result.bundle.chunks.length} chunks).`);
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Dirty chunk import failed.');
+    }
+  }
+
+  private async saveMapToFile(): Promise<void> {
+    try {
+      const result = await this.mapIo.quickSaveToFile(this.map);
+
+      if (result === 'cancelled') {
+        return;
+      }
+
+      this.dirtyChunks.clear();
+      this.updateInfoText();
+      this.setStatus(
+        result === 'no-file-api'
+          ? 'Map export copied/printed because file save is unavailable.'
+          : 'Map saved.',
+      );
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Map save failed.');
+    }
+  }
+
+  private async openMapFromFile(): Promise<void> {
+    try {
+      const importedMap = await this.mapIo.openFromFile();
+
+      if (!importedMap) {
+        return;
+      }
+
+      this.map = importedMap;
+      this.dirtyChunks.clear();
+      this.centerCameraOnMap();
+      this.redrawTerrain();
+      this.redrawObjects();
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.setStatus('Map loaded from file.');
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Map file open failed.');
     }
   }
 
@@ -394,9 +543,52 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
+  private renameHoveredChunk(): void {
+    if (!this.hoverTile) {
+      this.setStatus('Hover a chunk before renaming it.');
+      return;
+    }
+
+    const chunk = this.getChunkInfo(this.hoverTile.x, this.hoverTile.y);
+    const nextName = window.prompt(
+      `Name chunk ${chunk.chunkX},${chunk.chunkY}`,
+      chunk.chunkName,
+    );
+
+    if (nextName === null) {
+      return;
+    }
+
+    const key = `${chunk.chunkX},${chunk.chunkY}`;
+    const chunkNames = { ...(this.map.chunkNames ?? {}) };
+    const trimmed = nextName.trim();
+
+    if (trimmed) {
+      chunkNames[key] = trimmed;
+    } else {
+      delete chunkNames[key];
+    }
+
+    this.map = {
+      ...this.map,
+      chunkNames,
+    };
+    this.chunkNameRenderer?.setChunkName(chunk.chunkX, chunk.chunkY, chunkNames);
+    this.dirtyChunks.markChunkDirty({ chunkX: chunk.chunkX, chunkY: chunk.chunkY });
+    this.updateInfoText();
+    this.setStatus(trimmed ? `Chunk ${key} named "${trimmed}".` : `Chunk ${key} name cleared.`);
+  }
+
   private centerCameraOnMap(): void {
     this.viewport?.centerOnMap(this.map.width, this.map.height);
     this.setStatus('Camera centered on map.');
+  }
+
+  private getChunkInfo(tileX: number, tileY: number): { chunkName: string; chunkX: number; chunkY: number } {
+    const chunkX = Math.floor(tileX / EDITOR_CHUNK_SIZE);
+    const chunkY = Math.floor(tileY / EDITOR_CHUNK_SIZE);
+    const chunkName = this.map.chunkNames?.[`${chunkX},${chunkY}`] ?? '';
+    return { chunkName, chunkX, chunkY };
   }
 
   private setStatus(message: string): void {

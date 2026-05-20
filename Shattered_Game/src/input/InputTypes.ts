@@ -1,5 +1,3 @@
-import type { PlayerItemKey } from '../player/PlayerInventoryState';
-
 // Modes determine which key bindings are active each frame.
 // GameScene computes the active mode from WorldRuntimeCoordinator state
 // and calls InputSystem.setMode() before update runs.
@@ -10,8 +8,6 @@ export type InputMode = 'normal' | 'menu' | 'placement' | 'action_progress' | 'c
 export type InputCallbacks = {
   // Normal-mode interactions
   onInteract: () => void;
-  onStartPlacement: () => void;
-  onUseItem: (itemId: PlayerItemKey) => void;
   onCancelAction: () => void;
   onCombatDodge: () => void;
   onToggleSprint: () => void;

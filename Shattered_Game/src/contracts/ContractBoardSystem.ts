@@ -73,7 +73,7 @@ export class ContractBoardSystem {
       getOptions: (playerState) => this.getMenuOptions(boardId, playerState),
       onConfirm: (optionId, playerState) => {
         const result = this.selectContract(boardId, optionId, playerState);
-        return { kind: 'result', result };
+        return { kind: 'result', result, closeMenu: true };
       },
     };
   }

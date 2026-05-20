@@ -6,7 +6,7 @@ import {
 } from '../items/ItemPlacementRules';
 import type { PlayerController } from '../player/PlayerController';
 import type { PlayerItemKey } from '../player/PlayerInventoryState';
-import { getFacingLookaheadWorldOffset } from '../player/PlayerFacing';
+import { getFacingTileOffset } from '../player/PlayerFacingTiles';
 import { getDynamicDepth, RENDER_DEPTHS } from '../render/RenderLayers';
 import type { IsoTransform } from '../world/IsoTransform';
 import type { WorldGrid } from '../world/WorldGrid';
@@ -115,17 +115,13 @@ export class PlacementModeSystem {
       return null;
     }
 
-    const feetPoint = playerController.getFeetPoint();
+    const feetTile = playerController.getFeetTile();
     const facing = playerController.getFacingDirection();
-    const lookahead = getFacingLookaheadWorldOffset(
-      facing,
-      this.runtimeContext.transform.tileWidth,
-      this.runtimeContext.transform.tileHeight,
-    );
-    const targetTile = this.runtimeContext.transform.worldToTile(
-      feetPoint.x + lookahead.x,
-      feetPoint.y + lookahead.y,
-    );
+    const facingTileOffset = getFacingTileOffset(facing);
+    const targetTile = {
+      x: feetTile.x + facingTileOffset.x,
+      y: feetTile.y + facingTileOffset.y,
+    };
     const itemDefinition = this.itemRegistry.get(this.state.itemId);
     const objectPlacementEvaluation = this.runtimeContext.objectPlacementSystem.getPlacementEvaluation(
       this.state.placementObjectDefinitionId,

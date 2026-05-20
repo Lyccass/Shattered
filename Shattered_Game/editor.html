@@ -4,31 +4,685 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Shattered Map Editor</title>
+    <link rel="stylesheet" href="/ui.css" />
     <style>
-      html,
-      body,
-      #editor {
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        overflow: hidden;
+      html, body {
+        width: 100%; height: 100%;
+        margin: 0; overflow: hidden;
         background: #07111f;
+        position: relative;
       }
 
       #editor {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
       }
 
       canvas {
         display: block;
         image-rendering: pixelated;
       }
+
+      /* ── Editor overlay ─────────────────────────────── */
+      #editor-overlay {
+        position: absolute;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        pointer-events: none;
+        display: flex;
+      }
+
+      /* ── Sidebar ────────────────────────────────────── */
+      .ed-sidebar {
+        pointer-events: all;
+        width: 210px;
+        min-width: 210px;
+        height: 100%;
+        background: rgba(12, 7, 2, 0.94);
+        border-right: 1px solid var(--c-panel-border);
+        display: flex;
+        flex-direction: column;
+        font-family: var(--font);
+        color: var(--c-text);
+        overflow-y: auto;
+        overflow-x: hidden;
+        user-select: none;
+      }
+
+      .ed-sidebar::-webkit-scrollbar { width: 4px; }
+      .ed-sidebar::-webkit-scrollbar-track { background: transparent; }
+      .ed-sidebar::-webkit-scrollbar-thumb { background: #3a2209; border-radius: 2px; }
+
+      /* ── Header ─────────────────────────────────────── */
+      .ed-header {
+        padding: 10px 12px 9px;
+        border-bottom: 1px solid var(--c-secondary-dark);
+        font-size: var(--fs-xs);
+        color: var(--c-primary);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      /* ── Section ─────────────────────────────────────── */
+      .ed-section {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--c-secondary-dark);
+      }
+
+      .ed-section-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--c-text-muted);
+        margin-bottom: 6px;
+      }
+
+      /* ── Key–value rows ──────────────────────────────── */
+      .ed-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 6px;
+        margin-bottom: 3px;
+      }
+
+      .ed-label {
+        color: var(--c-text-muted);
+        font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .ed-value {
+        color: var(--c-primary-dim);
+        font-size: 12px;
+        text-align: right;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .ed-value.is-dirty { color: #f59e0b; }
+
+      /* ── Mode buttons ────────────────────────────────── */
+      .ed-mode-row {
+        display: flex;
+        gap: 4px;
+      }
+
+      .ed-mode-btn {
+        flex: 1;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        color: var(--c-text-muted);
+        font-family: var(--font);
+        font-size: 12px;
+        padding: 5px 4px;
+        cursor: pointer;
+        border-radius: 2px;
+        transition: background 0.1s, color 0.1s, border-color 0.1s;
+        text-align: center;
+        line-height: 1;
+      }
+
+      .ed-mode-btn:hover {
+        background: var(--c-slot-hover);
+        color: var(--c-text-dim);
+        border-color: var(--c-panel-border);
+      }
+
+      .ed-mode-btn.is-active {
+        background: rgba(97, 60, 24, 0.4);
+        border-color: var(--c-panel-border);
+        color: var(--c-primary);
+      }
+
+      /* ── Brush preview ───────────────────────────────── */
+      .ed-preview-row {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+
+      .ed-preview-wrap {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .ed-preview-img {
+        max-width: 100%;
+        max-height: 100%;
+        image-rendering: pixelated;
+        object-fit: contain;
+      }
+
+      .ed-preview-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow: hidden;
+        min-width: 0;
+      }
+
+      .ed-preview-name {
+        color: var(--c-primary-dim);
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .ed-preview-meta {
+        color: var(--c-text-muted);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      /* ── Brush size controls ─────────────────────────── */
+      .ed-brush-size-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+      }
+
+      .ed-size-btn {
+        width: 22px;
+        height: 22px;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        color: var(--c-text-muted);
+        font-family: monospace;
+        font-size: 14px;
+        cursor: pointer;
+        border-radius: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        padding: 0;
+        flex-shrink: 0;
+        transition: background 0.1s, color 0.1s;
+      }
+
+      .ed-size-btn:hover {
+        background: var(--c-slot-hover);
+        color: var(--c-primary);
+        border-color: var(--c-panel-border);
+      }
+
+      .ed-size-pips {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+        flex: 1;
+      }
+
+      .ed-size-pip {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--c-slot-border);
+        transition: background 0.1s;
+        flex-shrink: 0;
+      }
+
+      .ed-size-pip.is-active { background: var(--c-primary); }
+
+      /* ── Object preview colour swatch ────────────────── */
+      .ed-color-swatch {
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+        border: 1px solid var(--c-slot-border);
+        border-radius: 2px;
+      }
+
+      /* ── Browse button ───────────────────────────────── */
+      .ed-browse-btn {
+        width: 100%;
+        margin-top: 6px;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        color: var(--c-text-muted);
+        font-family: var(--font);
+        font-size: 11px;
+        padding: 5px 4px;
+        cursor: pointer;
+        border-radius: 2px;
+        transition: background 0.1s, color 0.1s, border-color 0.1s;
+        text-align: center;
+        line-height: 1;
+      }
+
+      .ed-browse-btn:hover {
+        background: var(--c-slot-hover);
+        color: var(--c-primary);
+        border-color: var(--c-panel-border);
+      }
+
+      /* ── Tile palette overlay ─────────────────────────── */
+      .ed-palette {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 380px;
+        max-height: 540px;
+        background: rgba(10, 6, 2, 0.97);
+        border: 1px solid var(--c-panel-border);
+        border-radius: 2px;
+        display: flex;
+        flex-direction: column;
+        z-index: 200;
+        pointer-events: all;
+        box-shadow: 0 12px 48px rgba(0, 0, 0, 0.75);
+      }
+
+      .ed-palette-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--c-secondary-dark);
+        font-size: var(--fs-xs);
+        color: var(--c-primary);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        flex-shrink: 0;
+      }
+
+      .ed-palette-close {
+        background: none;
+        border: none;
+        color: var(--c-text-muted);
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0 2px;
+      }
+
+      .ed-palette-close:hover { color: var(--c-primary); }
+
+      .ed-palette-tabs {
+        display: flex;
+        gap: 4px;
+        padding: 8px 10px 0;
+        flex-shrink: 0;
+      }
+
+      .ed-pal-tab {
+        flex: 1;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        color: var(--c-text-muted);
+        font-family: var(--font);
+        font-size: 11px;
+        padding: 4px 2px;
+        cursor: pointer;
+        border-radius: 2px;
+        text-transform: capitalize;
+        transition: background 0.1s, color 0.1s, border-color 0.1s;
+      }
+
+      .ed-pal-tab:hover {
+        background: var(--c-slot-hover);
+        color: var(--c-text-dim);
+        border-color: var(--c-panel-border);
+      }
+
+      .ed-pal-tab.is-active {
+        background: rgba(97, 60, 24, 0.4);
+        border-color: var(--c-panel-border);
+        color: var(--c-primary);
+      }
+
+      .ed-palette-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, 52px);
+        gap: 4px;
+        padding: 10px;
+        overflow-y: auto;
+        justify-content: center;
+        min-height: 80px;
+      }
+
+      .ed-palette-grid::-webkit-scrollbar { width: 4px; }
+      .ed-palette-grid::-webkit-scrollbar-track { background: transparent; }
+      .ed-palette-grid::-webkit-scrollbar-thumb { background: #3a2209; border-radius: 2px; }
+
+      .ed-pal-cell {
+        width: 52px;
+        height: 52px;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        border-radius: 2px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        padding: 4px;
+        transition: background 0.1s, border-color 0.1s;
+        position: relative;
+      }
+
+      .ed-pal-cell:hover {
+        background: var(--c-slot-hover);
+        border-color: var(--c-panel-border);
+      }
+
+      .ed-pal-cell.is-active {
+        border-color: var(--c-primary);
+        box-shadow: inset 0 0 0 1px var(--c-primary), 0 0 8px rgba(188, 140, 64, 0.35);
+        background: rgba(97, 60, 24, 0.3);
+      }
+
+      .ed-pal-img {
+        max-width: 100%;
+        max-height: 100%;
+        image-rendering: pixelated;
+        object-fit: contain;
+      }
+
+      .ed-pal-placeholder {
+        color: var(--c-text-muted);
+        font-size: 18px;
+      }
+
+      .ed-pal-swatch {
+        image-rendering: pixelated;
+      }
+
+      .ed-pal-obj-label {
+        display: block;
+        font-size: 9px;
+        color: var(--c-text-muted);
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 100%;
+        margin-top: 2px;
+        line-height: 1.2;
+      }
+
+      .ed-pal-cell:has(.ed-pal-obj-label) {
+        height: auto;
+        min-height: 52px;
+        flex-direction: column;
+        padding: 6px 4px 4px;
+        gap: 0;
+      }
+
+      /* ── Status bar ──────────────────────────────────── */
+      .ed-status {
+        padding: 7px 12px;
+        border-bottom: 1px solid var(--c-secondary-dark);
+        font-size: 12px;
+        color: var(--c-text-system);
+        min-height: 34px;
+        background: rgba(0, 20, 40, 0.3);
+        line-height: 1.35;
+      }
+
+      /* ── Shortcuts ───────────────────────────────────── */
+      .ed-shortcuts {
+        flex: 1;
+        padding-bottom: 12px;
+      }
+
+      .ed-shortcut-group {
+        margin-top: 8px;
+      }
+
+      .ed-shortcut-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+
+      .ed-key {
+        background: rgba(97, 60, 24, 0.35);
+        border: 1px solid var(--c-panel-border);
+        border-radius: 2px;
+        padding: 1px 5px;
+        font-size: 10px;
+        color: var(--c-primary-dim);
+        font-family: 'Courier New', monospace;
+        min-width: 32px;
+        text-align: center;
+        flex-shrink: 0;
+        line-height: 1.4;
+      }
+
+      .ed-key-desc {
+        color: var(--c-text-muted);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
+      .ed-shortcut-group-label {
+        font-size: 10px;
+        color: #4a3618;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+        margin-top: 2px;
+      }
     </style>
   </head>
   <body>
     <div id="editor"></div>
+
+    <div id="editor-overlay">
+      <div class="ed-sidebar">
+
+        <div class="ed-header">Map Editor</div>
+
+        <!-- Map info -->
+        <div class="ed-section">
+          <div class="ed-section-title">Map</div>
+          <div class="ed-row">
+            <span class="ed-label">Name</span>
+            <span class="ed-value" id="ed-map-name">–</span>
+          </div>
+          <div class="ed-row">
+            <span class="ed-label">Size</span>
+            <span class="ed-value" id="ed-map-size">–</span>
+          </div>
+          <div class="ed-row">
+            <span class="ed-label">Dirty</span>
+            <span class="ed-value" id="ed-dirty">clean</span>
+          </div>
+        </div>
+
+        <!-- Tool mode -->
+        <div class="ed-section">
+          <div class="ed-section-title">Mode</div>
+          <div class="ed-mode-row">
+            <button class="ed-mode-btn is-active" id="ed-mode-terrain">Terrain</button>
+            <button class="ed-mode-btn" id="ed-mode-object">Object</button>
+          </div>
+        </div>
+
+        <!-- Brush (terrain mode) -->
+        <div class="ed-section" id="ed-brush-section">
+          <div class="ed-section-title">Brush</div>
+          <div class="ed-preview-row">
+            <div class="ed-preview-wrap">
+              <img class="ed-preview-img" id="ed-preview-selected" alt="" />
+            </div>
+            <div class="ed-preview-info">
+              <div class="ed-preview-name" id="ed-brush-label">–</div>
+              <div class="ed-preview-meta" id="ed-brush-idx">–</div>
+              <div class="ed-preview-meta" id="ed-brush-flip">–</div>
+            </div>
+          </div>
+          <div class="ed-brush-size-row">
+            <span class="ed-label">Size</span>
+            <button class="ed-size-btn" id="ed-size-dec">−</button>
+            <div class="ed-size-pips">
+              <div class="ed-size-pip is-active" id="ed-pip-1"></div>
+              <div class="ed-size-pip" id="ed-pip-2"></div>
+              <div class="ed-size-pip" id="ed-pip-3"></div>
+              <div class="ed-size-pip" id="ed-pip-4"></div>
+            </div>
+            <button class="ed-size-btn" id="ed-size-inc">+</button>
+          </div>
+          <button class="ed-browse-btn" id="ed-palette-open">Browse Tiles  [P]</button>
+        </div>
+
+        <!-- Object (object mode) -->
+        <div class="ed-section" id="ed-object-section" style="display:none">
+          <div class="ed-section-title">Object</div>
+          <div class="ed-preview-row">
+            <div class="ed-preview-wrap" id="ed-obj-preview-wrap">
+              <img class="ed-preview-img" id="ed-preview-object" alt="" style="display:none" />
+              <canvas class="ed-color-swatch" id="ed-obj-color-swatch" width="40" height="40" style="display:none"></canvas>
+            </div>
+            <div class="ed-preview-info">
+              <div class="ed-preview-name" id="ed-object-name">–</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hover info -->
+        <div class="ed-section">
+          <div class="ed-section-title">Hover</div>
+          <div class="ed-row">
+            <span class="ed-label">Tile</span>
+            <span class="ed-value" id="ed-hover-tile">–</span>
+          </div>
+          <div class="ed-row">
+            <span class="ed-label">Terrain</span>
+            <span class="ed-value" id="ed-hover-terrain">–</span>
+          </div>
+          <div class="ed-row">
+            <span class="ed-label">Art</span>
+            <span class="ed-value" id="ed-hover-art">–</span>
+          </div>
+          <div class="ed-row">
+            <span class="ed-label">Object</span>
+            <span class="ed-value" id="ed-hover-object">–</span>
+          </div>
+          <div class="ed-row">
+            <span class="ed-label">Chunk</span>
+            <span class="ed-value" id="ed-hover-chunk">–</span>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="ed-status" id="ed-status">Ready.</div>
+
+        <!-- Shortcuts -->
+        <div class="ed-section ed-shortcuts">
+          <div class="ed-section-title">Shortcuts</div>
+
+          <div class="ed-shortcut-group">
+            <div class="ed-shortcut-group-label">Camera</div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">WASD</span>
+              <span class="ed-key-desc">pan</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">scroll</span>
+              <span class="ed-key-desc">zoom</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">C</span>
+              <span class="ed-key-desc">center on map</span>
+            </div>
+          </div>
+
+          <div class="ed-shortcut-group">
+            <div class="ed-shortcut-group-label">Terrain</div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">1–5</span>
+              <span class="ed-key-desc">family</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">Q / E</span>
+              <span class="ed-key-desc">cycle brush</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">F / V</span>
+              <span class="ed-key-desc">flip X / Y</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">{ / }</span>
+              <span class="ed-key-desc">brush size −/+</span>
+            </div>
+          </div>
+
+          <div class="ed-shortcut-group">
+            <div class="ed-shortcut-group-label">Objects</div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">Q / E</span>
+              <span class="ed-key-desc">cycle object</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">Del</span>
+              <span class="ed-key-desc">remove hovered</span>
+            </div>
+          </div>
+
+          <div class="ed-shortcut-group">
+            <div class="ed-shortcut-group-label">Map</div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">Ctrl+S</span>
+              <span class="ed-key-desc">save to file</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">L</span>
+              <span class="ed-key-desc">load from file</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">R</span>
+              <span class="ed-key-desc">resize</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">X</span>
+              <span class="ed-key-desc">export (clipboard)</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">U</span>
+              <span class="ed-key-desc">export dirty</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">J</span>
+              <span class="ed-key-desc">import dirty</span>
+            </div>
+            <div class="ed-shortcut-row">
+              <span class="ed-key">N</span>
+              <span class="ed-key-desc">name chunk</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Tile palette (toggled by P key or Browse button) -->
+      <div id="ed-palette" class="ed-palette" style="display:none">
+        <div class="ed-palette-header">
+          <span>Tile Palette</span>
+          <button class="ed-palette-close" id="ed-palette-close">×</button>
+        </div>
+        <div class="ed-palette-tabs" id="ed-palette-tabs"></div>
+        <div class="ed-palette-grid" id="ed-palette-grid"></div>
+      </div>
+
+    </div>
+
     <script type="module" src="/src/apps/editor/main.ts"></script>
   </body>
 </html>
