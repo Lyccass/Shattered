@@ -173,6 +173,12 @@ Resource depletion is saved as sparse world state:
 
 This means resource depletion belongs to `WorldMapSnapshotState`, not `PlayerSaveState`.
 
+## World Chunk Authoring Link
+
+Player/local save state remains separate from authored world data. Large overworld maps should be authored as `WorldManifest -> RegionManifest -> WorldChunkDefinition`, while runtime changes such as depleted resources belong to sparse `WorldChunkRuntimeState` / `WorldMapSnapshotState` data.
+
+This matters for MMO readiness: another player harvesting a node should change runtime chunk state, not the static authored chunk file and not the local player's inventory/state.
+
 ## Inventory Snapshot Direction
 
 Runtime item/resource helpers are still typed for the current prototype ids, but save snapshots now use open records:

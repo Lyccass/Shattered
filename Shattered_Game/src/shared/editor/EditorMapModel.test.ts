@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEditorMap,
+  createEditorMapFromWorldChunkDefinition,
   addEditorPlacedObject,
   exportEditorMapToMapDefinition,
+  exportEditorMapToWorldChunkDefinition,
   getEditorTerrainTilePaint,
   paintTerrain,
   paintTerrainTile,
@@ -126,6 +128,29 @@ describe('EditorMapModel', () => {
         tileY: 2,
       },
     ]);
+  });
+
+  it('exports and reimports world chunk definitions for chunk-authoring workflows', () => {
+    const map = createEditorMap(2, 2, 'grass', 'editor_test_map', 'Editor Test Map', GRASS_TILE);
+    paintTerrainTile(map, 1, 1, FLIPPED_STONE_TILE);
+
+    const chunk = exportEditorMapToWorldChunkDefinition(map, {
+      worldId: 'the_wake',
+      regionId: 'editor_region',
+      chunkX: 0,
+      chunkY: 0,
+    });
+    const reimported = createEditorMapFromWorldChunkDefinition(chunk);
+
+    expect(chunk.worldId).toBe('the_wake');
+    expect(chunk.terrain.encoding).toBe('palette');
+    expect(chunk.metadata).toMatchObject({
+      editorTerrainTiles: {
+        '1,1': FLIPPED_STONE_TILE,
+      },
+    });
+    expect(reimported.terrain).toEqual(map.terrain);
+    expect(getEditorTerrainTilePaint(reimported, 1, 1)).toEqual(FLIPPED_STONE_TILE);
   });
 
   it('serializes a plain JSON map definition', () => {

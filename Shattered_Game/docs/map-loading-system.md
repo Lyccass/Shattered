@@ -57,3 +57,5 @@ This structure is meant to stay export-friendly for LDtk, Tiled, or a custom edi
 Map authoring now has a separate editor app entrypoint. The playable game consumes validated map data; the editor produces compatible map data; shared code owns the plain map schema, terrain family ids, validation helpers, and pure isometric coordinate helpers. Editor behavior must stay in `src/editor/` and must not be merged into `GameScene` or other gameplay runtime systems.
 
 For the main game, visible map transitions are still prototype scaffolding and special-space travel support. The long-term overworld direction remains one seamless player-facing world, with regions/chunks as internal scalability boundaries rather than player-facing rooms.
+
+For large overworld authoring, whole-map `MapDefinition` files are prototype scaffolding too. The Wake should move toward `WorldManifest -> RegionManifest -> WorldChunkDefinition` static data, with runtime changes stored separately as sparse `WorldChunkRuntimeState`. Fixed enemy spawns are not the final overworld design; authored chunks should define habitats/spawn rules and let runtime world state decide current creature groups later.

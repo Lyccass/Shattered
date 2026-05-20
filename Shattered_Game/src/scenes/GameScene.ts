@@ -6,10 +6,11 @@ import { createEnemyAnimations, preloadEnemyAssets } from '../combat/EnemyAssets
 import { TelegraphSystem } from '../combat/TelegraphSystem';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
 import { GameEventBus } from '../events/GameEventBus';
+import { GameInteractionController } from '../game/input/GameInteractionController';
+import { GameSaveController } from '../game/persistence/GameSaveController';
 import { InputSystem } from '../input/InputSystem';
 import type { InputCallbacks, InputMode } from '../input/InputTypes';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
-import { LocalSaveService } from '../persistence/LocalSaveService';
 import {
   createPlayerAnimations,
   PLAYER_TEXTURE_KEY,
@@ -26,16 +27,10 @@ import {
   WorldRuntimeCoordinator,
 } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
-import type { InteractionTarget } from '../interactions/InteractionTypes';
 import type { InteractionResult } from '../interactions/InteractionTypes';
 
-type SceneInteractionTargetType = InteractionTarget['definition']['interactionType'];
-
 export class GameScene extends Phaser.Scene {
-  private static readonly MOVE_TARGET_TELEGRAPH_ID = 'player-move-target';
-  private static readonly MOVE_TARGET_HIGHLIGHT_MS = 30_000;
   private readonly gameEventBus = new GameEventBus();
-  private readonly localSaveService = new LocalSaveService();
   private player?: Phaser.GameObjects.Sprite;
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
@@ -43,17 +38,12 @@ export class GameScene extends Phaser.Scene {
   private combatSandboxSystem?: CombatSandboxSystem;
   private debugOverlaySystem?: DebugOverlaySystem;
   private uiManager?: UiManager;
+  private interactionController?: GameInteractionController;
+  private saveController?: GameSaveController;
   private sfxSystem?: SfxSystem;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private inputSystem?: InputSystem;
   private controlMode: 'explore' | 'combat' = 'explore';
-  private pendingPointerInteraction: {
-    interactionType: SceneInteractionTargetType;
-    targetId: string;
-    action: 'use' | 'inspect';
-  } | null = null;
-  private lastInteractionAt = 0;
-  private lastAutosaveAt = 0;
   private hasShutdown = false;
 
   constructor() {
@@ -82,6 +72,15 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.initializeWorldRuntime('test_home_island', 'default');
     this.uiManager = new UiManager(this);
+    this.saveController = new GameSaveController(this);
+    this.interactionController = new GameInteractionController(this, {
+      getWorldRuntimeCoordinator: () => this.worldRuntimeCoordinator,
+      getPlayerController: () => this.playerController,
+      getTelegraphSystem: () => this.telegraphSystem,
+      getUiManager: () => this.uiManager,
+      getControlMode: () => this.controlMode,
+      handleGameplayResult: (result, options) => this.handleGameplayResult(result, options),
+    });
     this.inputSystem = new InputSystem(this, this.buildInputCallbacks());
     this.input.mouse?.disableContextMenu();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
@@ -103,7 +102,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
-    this.resolvePendingPointerInteraction();
+    this.interactionController?.resolvePendingPointerInteraction();
     uiResults.forEach((result) => this.handleGameplayResult(result, { allowAutosave: true }));
     const combatResults =
       this.combatSandboxSystem && this.playerController
@@ -121,7 +120,7 @@ export class GameScene extends Phaser.Scene {
       this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot(),
       this.combatSandboxSystem?.getUiSnapshot(this.time.now) ?? null,
     );
-    this.syncMoveTargetTelegraph();
+    this.interactionController?.syncMoveTargetTelegraph();
     this.debugOverlaySystem?.update();
   }
 
@@ -148,6 +147,8 @@ export class GameScene extends Phaser.Scene {
     this.telegraphSystem = undefined;
     this.uiManager?.destroy();
     this.uiManager = undefined;
+    this.interactionController = undefined;
+    this.saveController = undefined;
     this.sfxSystem?.destroy();
     this.sfxSystem = undefined;
     this.worldRuntimeCoordinator?.destroy();
@@ -158,7 +159,7 @@ export class GameScene extends Phaser.Scene {
 
   private buildInputCallbacks(): InputCallbacks {
     return {
-      onInteract: () => this.tryTriggerActiveInteraction(),
+      onInteract: () => this.interactionController?.triggerActiveInteraction(),
       onStartPlacement: () => this.tryStartPlacementMode(),
       onUseItem: (itemId) => this.tryUseItem(itemId),
       onCancelAction: () => this.cancelActiveActionForUi(),
@@ -167,19 +168,21 @@ export class GameScene extends Phaser.Scene {
       onGuardStart: () => this.combatSandboxSystem?.setGuardHeld(true),
       onGuardEnd: () => this.combatSandboxSystem?.setGuardHeld(false),
       onPlayerLightAttack: () => this.tryPlayerLightAttack(),
-      onMoveToPointer: (worldX, worldY) => this.tryMoveToPointer(worldX, worldY),
-      onPointerInteract: (worldX, worldY) => this.tryPointerInteraction(worldX, worldY),
-      onPointerContext: (worldX, worldY) => this.tryPointerContext(worldX, worldY),
+      onMoveToPointer: (worldX, worldY) => this.interactionController?.moveToPointer(worldX, worldY),
+      onPointerInteract: (worldX, worldY) =>
+        this.interactionController?.pointerInteraction(worldX, worldY),
+      onPointerContext: (worldX, worldY) =>
+        this.interactionController?.pointerContext(worldX, worldY),
       onToggleControlMode: () => this.toggleControlMode(),
       onMenuMoveUp: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
       onMenuConfirm: () => this.tryConfirmChoiceMenu(),
-      onMenuPointer: (screenX, screenY) => this.tryMenuPointer(screenX, screenY),
+      onMenuPointer: (screenX, screenY) => this.interactionController?.menuPointer(screenX, screenY),
       onMenuCancel: () => {
         const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
         if (msg) this.uiManager?.showInfo(msg);
       },
-      onPlacementConfirm: () => this.tryConfirmPlacementMode(),
+      onPlacementConfirm: () => this.interactionController?.confirmPlacementMode(),
       onPlacementCancel: () => {
         const msg = this.worldRuntimeCoordinator?.cancelPlacementMode();
         if (msg) this.uiManager?.showInfo(msg);
@@ -187,9 +190,9 @@ export class GameScene extends Phaser.Scene {
       onToggleInventory: () => this.uiManager?.toggleInventory(),
       onToggleJournal: () => this.uiManager?.toggleJournal(),
       onToggleSkills: () => this.uiManager?.toggleSkills(),
-      onSaveNow: () => this.saveNow(),
-      onLoadSave: () => this.loadSavedGame(),
-      onClearSave: () => this.clearSavedGame(),
+      onSaveNow: () => this.saveController?.saveNow(this.getSaveControllerContext()),
+      onLoadSave: () => this.saveController?.loadSavedGame(this.getSaveControllerContext()),
+      onClearSave: () => this.saveController?.clearSavedGame(this.getSaveControllerContext()),
       onDebugCycleZoom: () => this.cameraSystem?.cycleZoom(),
       onDebugToggleGrid: () => this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode(),
       onDebugToggleChunk: () => this.worldRuntimeCoordinator?.getIsoTilemap().toggleChunkDebug(),
@@ -301,28 +304,6 @@ export class GameScene extends Phaser.Scene {
     this.bindCombatSandboxToRuntime();
   }
 
-  private tryTriggerActiveInteraction(): void {
-    if (!this.worldRuntimeCoordinator || !this.uiManager) {
-      return;
-    }
-
-    const now = this.time.now;
-
-    if (now - this.lastInteractionAt < 250) {
-      return;
-    }
-
-    const result = this.worldRuntimeCoordinator.triggerActiveInteraction();
-
-    if (!result) {
-      return;
-    }
-
-    this.clearPendingPointerInteraction();
-    this.lastInteractionAt = now;
-    this.handleGameplayResult(result, { allowAutosave: true });
-  }
-
   private tryStartPlacementMode(): void {
     if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
@@ -330,27 +311,6 @@ export class GameScene extends Phaser.Scene {
 
     this.uiManager.showInfo(this.worldRuntimeCoordinator.startPlacementMode());
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
-  }
-
-  private tryConfirmPlacementMode(): void {
-    if (!this.worldRuntimeCoordinator || !this.uiManager) {
-      return;
-    }
-
-    const now = this.time.now;
-
-    if (now - this.lastInteractionAt < 250) {
-      return;
-    }
-
-    const result = this.worldRuntimeCoordinator.confirmPlacementMode();
-
-    if (!result) {
-      return;
-    }
-
-    this.lastInteractionAt = now;
-    this.handleGameplayResult(result, { allowAutosave: false });
   }
 
   private tryUseItem(itemId: PlayerItemKey): void {
@@ -374,7 +334,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (isDeferredInteractionAction(result)) {
-      this.beginDeferredInteractionAction(result);
+      this.interactionController?.beginDeferredInteractionAction(result);
       return;
     }
 
@@ -393,101 +353,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryAutoLoadSave(): void {
-    const loadResult = this.localSaveService.load();
-
-    if (loadResult.status === 'no_save') {
-      return;
-    }
-
-    this.applyLoadResult(loadResult, true);
+    this.saveController?.tryAutoLoadSave(this.getSaveControllerContext());
   }
 
-  private saveNow(): void {
-    if (!this.worldRuntimeCoordinator || !this.uiManager) {
-      return;
-    }
-
-    const saveGame = this.worldRuntimeCoordinator.createPrototypeSaveSnapshot(this.time.now);
-    const result = this.localSaveService.save(saveGame);
-
-    if (!result.ok) {
-      this.uiManager.showInfo(result.error);
-      return;
-    }
-
-    this.lastAutosaveAt = this.time.now;
-    this.uiManager.showInfo('Game saved.');
-  }
-
-  private loadSavedGame(): void {
-    this.applyLoadResult(this.localSaveService.load(), false);
-  }
-
-  private clearSavedGame(): void {
-    if (!this.uiManager) {
-      return;
-    }
-
-    if (!this.localSaveService.hasSave()) {
-      this.uiManager.showInfo('No save found.');
-      return;
-    }
-
-    const cleared = this.localSaveService.clearSave();
-    this.uiManager.showInfo(cleared ? 'Save cleared.' : 'Save could not be cleared.');
-  }
-
-  private applyLoadResult(
-    loadResult: ReturnType<LocalSaveService['load']>,
-    automatic: boolean,
-  ): void {
-    if (!this.uiManager || !this.worldRuntimeCoordinator) {
-      return;
-    }
-
-    switch (loadResult.status) {
-      case 'success': {
-        const restoreResult = this.worldRuntimeCoordinator.restorePrototypeSaveSnapshot(
-          loadResult.saveGame,
-          this.time.now,
-        );
-
-        if (!restoreResult.ok) {
-          this.uiManager.showInfo(`Save load failed. ${restoreResult.message}`);
-          return;
-        }
-
-        this.bindRuntimeSupportSystems();
-        this.lastAutosaveAt = this.time.now;
-        this.uiManager.showInfo(automatic ? 'Save loaded on startup.' : restoreResult.message);
-        restoreResult.warnings.forEach((warning) => this.uiManager?.showInfo(warning));
-        return;
-      }
-
-      case 'no_save':
-        if (!automatic) {
-          this.uiManager.showInfo('No save found.');
-        }
-        return;
-
-      case 'invalid_json':
-        this.uiManager.showInfo(`Save invalid. ${loadResult.error}`);
-        return;
-
-      case 'unsupported_version':
-        this.uiManager.showInfo(
-          `Save version ${loadResult.version ?? 'unknown'} is unsupported.`,
-        );
-        return;
-
-      case 'validation_failed':
-        this.uiManager.showInfo(`Save invalid. ${loadResult.error}`);
-        return;
-
-      case 'storage_unavailable':
-        this.uiManager.showInfo(loadResult.error);
-        return;
-    }
+  private getSaveControllerContext() {
+    return {
+      uiManager: this.uiManager,
+      worldRuntimeCoordinator: this.worldRuntimeCoordinator,
+      onRestored: () => this.bindRuntimeSupportSystems(),
+    };
   }
 
   private handleGameplayResult(
@@ -507,29 +381,7 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
 
     if (allowAutosave) {
-      this.maybeAutosaveForResult(result);
-    }
-  }
-
-  private maybeAutosaveForResult(result: InteractionResult): void {
-    if (!this.worldRuntimeCoordinator) {
-      return;
-    }
-
-    const shouldAutosave = Boolean(result.transitionRequest) || result.sfxId === 'contract_completed';
-
-    if (!shouldAutosave || this.time.now - this.lastAutosaveAt < 5_000) {
-      return;
-    }
-
-    const saveGame = this.worldRuntimeCoordinator.createPrototypeSaveSnapshot(this.time.now);
-    const writeResult = this.localSaveService.save(saveGame);
-
-    if (writeResult.ok) {
-      this.lastAutosaveAt = this.time.now;
-      this.uiManager?.showInfo('Autosaved.');
-    } else {
-      this.uiManager?.showInfo(writeResult.error);
+      this.saveController?.maybeAutosaveForResult(result, this.getSaveControllerContext());
     }
   }
 
@@ -538,7 +390,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.clearPendingPointerInteraction();
+    this.interactionController?.clearPendingPointerInteraction();
     const pointer = this.input.activePointer;
     const targetWorldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
     const targetWorldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
@@ -584,192 +436,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private tryPointerInteraction(worldX: number, worldY: number): void {
-    if (!this.worldRuntimeCoordinator || !this.playerController) {
-      return;
-    }
-
-    const clickedTarget = this.worldRuntimeCoordinator.findInteractionTargetAtWorldPoint(worldX, worldY);
-
-    if (!clickedTarget) {
-      this.tryMoveToPointer(worldX, worldY);
-      return;
-    }
-
-    const interactionType = clickedTarget.definition.interactionType;
-    const targetId = clickedTarget.definition.id;
-
-    if (this.worldRuntimeCoordinator.isTargetInInteractionRange(interactionType, targetId)) {
-      this.clearPendingPointerInteraction();
-      const result = this.worldRuntimeCoordinator.triggerTargetInteractionByRef(
-        interactionType,
-        targetId,
-      );
-
-      if (result) {
-        this.handleGameplayResult(result, { allowAutosave: true });
-      }
-      return;
-    }
-
-    const approachPoint = this.worldRuntimeCoordinator.findInteractionApproachWorldPoint(
-      interactionType,
-      targetId,
-    );
-
-    if (!approachPoint) {
-      return;
-    }
-
-    this.pendingPointerInteraction = {
-      interactionType,
-      targetId,
-      action: 'use',
-    };
-    this.tryMoveToPointer(approachPoint.x, approachPoint.y, true);
-  }
-
-  private tryPointerContext(worldX: number, worldY: number): void {
-    if (!this.worldRuntimeCoordinator) {
-      return;
-    }
-
-    const clickedTarget = this.worldRuntimeCoordinator.findInteractionTargetAtWorldPoint(worldX, worldY);
-
-    if (!clickedTarget) {
-      return;
-    }
-
-    this.clearPendingPointerInteraction();
-    this.worldRuntimeCoordinator.openInteractionChoiceMenuByRef(
-      clickedTarget.definition.interactionType,
-      clickedTarget.definition.id,
-    );
-  }
-
-  private tryMenuPointer(screenX: number, screenY: number): void {
-    if (!this.uiManager || !this.worldRuntimeCoordinator) {
-      return;
-    }
-
-    const optionIndex = this.uiManager.getChoiceMenuOptionIndexAt(screenX, screenY);
-
-    if (optionIndex === null) {
-      return;
-    }
-
-    this.worldRuntimeCoordinator.setChoiceMenuSelection(optionIndex);
-    this.tryConfirmChoiceMenu();
-  }
-
-  private resolvePendingPointerInteraction(): void {
-    if (!this.pendingPointerInteraction || !this.worldRuntimeCoordinator || !this.playerController) {
-      return;
-    }
-
-    if (
-      this.worldRuntimeCoordinator.isChoiceMenuOpen()
-      || this.worldRuntimeCoordinator.isPlacementModeActive()
-      || this.worldRuntimeCoordinator.isActionInProgress()
-    ) {
-      return;
-    }
-
-    const { interactionType, targetId, action } = this.pendingPointerInteraction;
-
-    if (!this.worldRuntimeCoordinator.isTargetInInteractionRange(interactionType, targetId)) {
-      if (!this.playerController.hasClickMoveTarget()) {
-        this.clearPendingPointerInteraction();
-      }
-
-      return;
-    }
-
-    this.playerController.clearClickMoveTarget();
-    this.clearPendingPointerInteraction();
-    const result = action === 'inspect'
-      ? this.worldRuntimeCoordinator.inspectTargetByRef(interactionType, targetId)
-      : this.worldRuntimeCoordinator.triggerTargetInteractionByRef(interactionType, targetId);
-
-    if (result) {
-      this.handleGameplayResult(result, { allowAutosave: true });
-    }
-  }
-
-  private tryMoveToPointer(worldX: number, worldY: number, preservePendingInteraction = false): void {
-    if (!this.playerController || !this.worldRuntimeCoordinator || !this.telegraphSystem) {
-      return;
-    }
-
-    const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
-    const targetTile = isoTilemap.transform.worldToTile(worldX, worldY);
-
-    if (!isoTilemap.isTileInBounds(targetTile.x, targetTile.y)) {
-      if (!preservePendingInteraction) {
-        this.playerController.clearClickMoveTarget();
-        this.clearPendingPointerInteraction();
-      }
-      return;
-    }
-
-    const tileCenter = isoTilemap.transform.getTileCenterWorld(targetTile.x, targetTile.y);
-    const tilePoints = isoTilemap.transform.getTileDiamondPoints(targetTile.x, targetTile.y);
-    const walkable = isoTilemap.isTileWalkable(targetTile.x, targetTile.y);
-
-    this.telegraphSystem.showTelegraph({
-      id: GameScene.MOVE_TARGET_TELEGRAPH_ID,
-      worldX: tileCenter.x,
-      worldY: tileCenter.y,
-      shape: {
-        kind: 'polygon',
-        points: tilePoints.map((point) => ({
-          x: point.x - tileCenter.x,
-          y: point.y - tileCenter.y,
-        })),
-      },
-      startedAtMs: this.time.now,
-      durationMs: GameScene.MOVE_TARGET_HIGHLIGHT_MS,
-      warningColor: walkable ? 0x60a5fa : 0xef4444,
-      strokeAlpha: 0.9,
-      fillAlphaMultiplier: 0.3,
-    });
-
-    if (!walkable) {
-      this.playerController.clearClickMoveTarget();
-      if (!preservePendingInteraction) {
-        this.clearPendingPointerInteraction();
-      }
-      return;
-    }
-
-    if (!preservePendingInteraction) {
-      this.clearPendingPointerInteraction();
-    }
-
-    this.playerController.setClickMoveTarget(
-      tileCenter.x,
-      tileCenter.y,
-      this.controlMode === 'combat' ? 4 : undefined,
-    );
-  }
-
-  private syncMoveTargetTelegraph(): void {
-    if (!this.playerController || !this.telegraphSystem) {
-      return;
-    }
-
-    if (!this.playerController.hasClickMoveTarget()) {
-      this.telegraphSystem.removeTelegraph(GameScene.MOVE_TARGET_TELEGRAPH_ID);
-    }
-  }
-
-  private clearPendingPointerInteraction(): void {
-    this.pendingPointerInteraction = null;
-  }
-
   private toggleControlMode(): void {
     this.controlMode = this.controlMode === 'combat' ? 'explore' : 'combat';
-    this.clearPendingPointerInteraction();
+    this.interactionController?.clearPendingPointerInteraction();
 
     if (this.controlMode === 'combat') {
       this.playerController?.clearClickMoveTarget();
@@ -778,28 +447,6 @@ export class GameScene extends Phaser.Scene {
     this.uiManager?.showInfo(
       this.controlMode === 'combat' ? 'Combat controls enabled.' : 'Explore controls enabled.',
     );
-  }
-
-  private beginDeferredInteractionAction(action: DeferredInteractionAction): void {
-    if (!this.worldRuntimeCoordinator) {
-      return;
-    }
-
-    const approachPoint = this.worldRuntimeCoordinator.findInteractionApproachWorldPoint(
-      action.interactionType,
-      action.targetId,
-    );
-
-    if (!approachPoint) {
-      return;
-    }
-
-    this.pendingPointerInteraction = {
-      interactionType: action.interactionType,
-      targetId: action.targetId,
-      action: action.action,
-    };
-    this.tryMoveToPointer(approachPoint.x, approachPoint.y, true);
   }
 }
 

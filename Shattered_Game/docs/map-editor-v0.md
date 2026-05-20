@@ -55,10 +55,13 @@ The current Vite build is multi-page, so `npm run build` validates and builds bo
 - `D`, `Delete`, or `Backspace` removes an object at the hovered tile.
 - `R` opens a simple resize prompt using `width,height`.
 - `C` centers the camera on the current map.
-- `X` exports the map JSON to the clipboard when available and always logs it to the console.
+- `X` exports game-compatible `MapDefinition` JSON to the clipboard when available and always logs it to the console.
+- `Y` exports `WorldChunkDefinition` JSON for the future chunk-authoring workflow.
 - `I` opens a simple paste prompt for importing compatible map JSON.
 
 The editor shows the current mode, selected tile id, selected object id, selected texture key, selected flip direction, hovered grid coordinate, hovered terrain family, hovered tile art id, hovered object id, current map dimensions, and two previews: selected tile and hovered tile. Rendering is intentionally simple in v0, but it uses the same isometric coordinate convention and terrain art keys as the game.
+
+Import supports both current `MapDefinition` JSON and new `WorldChunkDefinition` JSON. This keeps authored maps re-editable while the game still uses current map loading.
 
 The editor renders terrain in `16x16` chunks and redraws affected chunks when painting. Chunk outlines are visible as a light blue editor overlay.
 
@@ -128,3 +131,4 @@ The natural next editor pass is object/resource/spawn authoring:
 - enemy spawn layer
 - transition trigger and visual anchor layer
 - validation that mirrors runtime map loading constraints
+- dirty chunk save/load instead of whole-map editing

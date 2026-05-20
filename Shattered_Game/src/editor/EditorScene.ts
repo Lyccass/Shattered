@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
   addEditorPlacedObject,
+  createEditorMapFromWorldChunkDefinition,
   createEditorMapFromMapDefinition,
   createSampleEditorMap,
   getEditorTerrainAt,
@@ -8,6 +9,7 @@ import {
   parseEditorMapJson,
   removeEditorPlacedObjectsAtTile,
   resizeEditorMap,
+  serializeEditorMapAsWorldChunk,
   serializeEditorMap,
   type EditorMapDefinition,
 } from '../shared/editor/EditorMapModel';
@@ -18,6 +20,8 @@ import {
   type IsoTransformConfig,
 } from '../shared/iso/IsoCoordinates';
 import type { TerrainFamily } from '../shared/map/TerrainTypes';
+import { validateWorldChunkDefinition } from '../shared/world/ChunkValidation';
+import type { WorldChunkDefinition } from '../shared/world/ChunkTypes';
 import { preloadTerrainAssets, createTerrainRenderTextures } from '../world/terrain/TerrainAssets';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import {
@@ -266,6 +270,11 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
+      if (event.code === 'KeyY') {
+        void this.exportWorldChunk();
+        return;
+      }
+
       if (event.code === 'KeyI') {
         this.importMap();
         return;
@@ -478,7 +487,7 @@ export class EditorScene extends Phaser.Scene {
       `Mode: T terrain, O object`,
       `Terrain: 1-5 family, Q/E or [/] exact tile, F/V flip brush`,
       `Object: Q/E or [/] object, left click place, Shift+click/D/Del remove`,
-      `Map: R resize, C center, X export, I import`,
+      `Map: R resize, C center, X map export, Y chunk export, I import`,
     ]);
   }
 
@@ -514,18 +523,32 @@ export class EditorScene extends Phaser.Scene {
 
   private async exportMap(): Promise<void> {
     const json = serializeEditorMap(this.map);
+    await this.writeExport(json, 'MapDefinition export');
+  }
+
+  private async exportWorldChunk(): Promise<void> {
+    const json = serializeEditorMapAsWorldChunk(this.map, {
+      worldId: 'the_wake',
+      regionId: 'editor_region',
+      chunkX: 0,
+      chunkY: 0,
+    });
+    await this.writeExport(json, 'WorldChunkDefinition export');
+  }
+
+  private async writeExport(json: string, label: string): Promise<void> {
     console.log(json);
 
     if (!navigator.clipboard) {
-      this.setStatus('Export printed to console.');
+      this.setStatus(`${label} printed to console.`);
       return;
     }
 
     try {
       await navigator.clipboard.writeText(json);
-      this.setStatus('Export copied to clipboard.');
+      this.setStatus(`${label} copied to clipboard.`);
     } catch {
-      this.setStatus('Clipboard blocked. Export printed to console.');
+      this.setStatus(`Clipboard blocked. ${label} printed to console.`);
     }
   }
 
@@ -537,7 +560,7 @@ export class EditorScene extends Phaser.Scene {
     }
 
     try {
-      this.map = createEditorMapFromMapDefinition(parseEditorMapJson(json));
+      this.map = this.parseEditorImport(json);
       this.centerCameraOnMap();
       this.redrawTerrain();
       this.redrawObjects();
@@ -547,6 +570,22 @@ export class EditorScene extends Phaser.Scene {
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Map import failed.');
     }
+  }
+
+  private parseEditorImport(json: string): EditorMapDefinition {
+    const parsed: unknown = JSON.parse(json);
+
+    if (isWorldChunkDefinitionLike(parsed)) {
+      const validation = validateWorldChunkDefinition(parsed);
+
+      if (!validation.ok) {
+        throw new Error(validation.errors.join('\n'));
+      }
+
+      return createEditorMapFromWorldChunkDefinition(parsed);
+    }
+
+    return createEditorMapFromMapDefinition(parseEditorMapJson(json));
   }
 
   private promptResizeMap(): void {
@@ -678,4 +717,16 @@ function tileKey(tileX: number, tileY: number): string {
 
 function formatFlip(paint: { flipX: boolean; flipY: boolean }): string {
   return `${paint.flipX ? 'X' : '-'} ${paint.flipY ? 'Y' : '-'}`;
+}
+
+function isWorldChunkDefinitionLike(value: unknown): value is WorldChunkDefinition {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'worldId' in value &&
+    'regionId' in value &&
+    'objectLayer' in value &&
+    'resourceLayer' in value &&
+    'habitatLayer' in value
+  );
 }

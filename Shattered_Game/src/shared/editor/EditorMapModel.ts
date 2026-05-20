@@ -1,6 +1,12 @@
 import type { MapDefinition, MapPlacedObject } from '../map/MapTypes';
 import type { TerrainFamily } from '../map/TerrainTypes';
 import { assertValidMapShape } from '../map/MapValidation';
+import {
+  mapDefinitionToSingleWorldChunk,
+  worldChunkDefinitionToMapDefinition,
+  type MapToChunkOptions,
+} from '../world/ChunkAdapters';
+import type { WorldChunkDefinition } from '../world/ChunkTypes';
 
 export type EditorTerrainTilePaint = {
   id: string;
@@ -220,6 +226,13 @@ export function exportEditorMapToMapDefinition(map: EditorMapDefinition): MapDef
   return mapDefinition;
 }
 
+export function exportEditorMapToWorldChunkDefinition(
+  map: EditorMapDefinition,
+  options: MapToChunkOptions,
+): WorldChunkDefinition {
+  return mapDefinitionToSingleWorldChunk(exportEditorMapToMapDefinition(map), options);
+}
+
 export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapDefinition {
   assertValidMapShape(map);
 
@@ -240,8 +253,19 @@ export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapD
   };
 }
 
+export function createEditorMapFromWorldChunkDefinition(chunk: WorldChunkDefinition): EditorMapDefinition {
+  return createEditorMapFromMapDefinition(worldChunkDefinitionToMapDefinition(chunk));
+}
+
 export function serializeEditorMap(map: EditorMapDefinition): string {
   return JSON.stringify(exportEditorMapToMapDefinition(map), null, 2);
+}
+
+export function serializeEditorMapAsWorldChunk(
+  map: EditorMapDefinition,
+  options: MapToChunkOptions,
+): string {
+  return JSON.stringify(exportEditorMapToWorldChunkDefinition(map, options), null, 2);
 }
 
 export function parseEditorMapJson(json: string): MapDefinition {
