@@ -64,8 +64,8 @@ export class EnemySystem {
     this.shadow = this.scene.add.ellipse(origin.x, origin.y - 4, 28, 12, 0x020617, 0.2);
     this.visual = this.scene.add.sprite(origin.x, origin.y - 8, ENEMY_WOLF_IDLE_SHEET_KEY, 0);
     this.healthBarGraphics = this.scene.add.graphics();
-    this.visual.setOrigin(0.5, 0.72);
-    this.visual.setScale(1.2);
+    this.visual.setOrigin(0.5, 0.4 );
+    this.visual.setScale(2);
     this.visual.play(ENEMY_WOLF_IDLE_ANIMATION_KEY);
     this.currentAnimationKey = ENEMY_WOLF_IDLE_ANIMATION_KEY;
   }
