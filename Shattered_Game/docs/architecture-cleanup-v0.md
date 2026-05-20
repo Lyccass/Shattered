@@ -144,8 +144,12 @@ This keeps mouse movement and dodge behavior easier to reason about without chan
 - camera pan/zoom/centering moved into `EditorViewportController`
 - import/export/resize prompt parsing moved into `EditorMapIoController`
 - HUD text and selected/hovered tile previews moved into `EditorHudController`
+- terrain brush selection, flipping, drag-stroke debounce, and paint mutation moved into `EditorTerrainToolController`
+- object selection, placement, replacement, and deletion moved into `EditorObjectToolController`
+- pointer/keyboard shortcut routing moved into `EditorInputController`
+- changed chunk tracking moved into `EditorDirtyChunkTracker`
 
-The scene still owns terrain/object tool orchestration for now. Those should be split next, especially before adding more layers such as resources, spawns, zones, chunk dirty-state, or object inspectors.
+The scene still owns command callbacks and render refresh ordering. Dirty chunks are now tracked separately so later editor persistence can export/save only changed chunks instead of treating every edit as a full-map rewrite. Future editor layers should follow the same pattern: a focused tool controller plus renderer/import-export support, not more monolithic scene branches.
 
 ## Ownership Rules
 
@@ -185,5 +189,5 @@ Recommended order:
 1. Split `WorldRuntimeCoordinator` into map runtime, interaction runtime, placement runtime, object runtime, and save snapshot adapter.
 2. Split `CombatSandboxSystem` into pure combat rules, enemy runtime, player combat runtime, and Phaser visual feedback.
 3. Continue `PlayerController` cleanup by extracting collision recovery/facing/animation coordination if those areas start causing bugs.
-4. Continue `EditorScene` cleanup by extracting terrain tool, object tool, chunk dirty-state, and future layer tools.
+4. Continue `EditorScene` cleanup by extracting future resource/spawn/zone tools and adding dirty-chunk export/import workflows.
 5. Move folders into final app/domain structure once file ownership is clear.

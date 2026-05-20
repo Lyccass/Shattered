@@ -11,6 +11,7 @@ import { GameSaveController } from '../game/persistence/GameSaveController';
 import { InputSystem } from '../input/InputSystem';
 import type { InputCallbacks, InputMode } from '../input/InputTypes';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
+import { RENDER_DEPTHS } from '../render/RenderLayers';
 import {
   createPlayerAnimations,
   PLAYER_TEXTURE_KEY,
@@ -73,8 +74,14 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.initializeWorldRuntime('test_home_island', 'default');
     this.uiManager = new UiManager(this, {
-      onCombatToggle: () => this.toggleControlMode(),
-      onSprintToggle: () => this.tryToggleSprint(),
+      onCombatToggle:      () => this.toggleControlMode(),
+      onSprintToggle:      () => this.tryToggleSprint(),
+      onChoiceMenuSelect:  (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
+      onChoiceMenuConfirm: () => this.tryConfirmChoiceMenu(),
+      onChoiceMenuCancel:  () => {
+        const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
+        if (msg) this.uiManager?.showInfo(msg);
+      },
     });
     this.saveController = new GameSaveController(this);
     this.interactionController = new GameInteractionController(this, {
@@ -86,6 +93,7 @@ export class GameScene extends Phaser.Scene {
       handleGameplayResult: (result, options) => this.handleGameplayResult(result, options),
     });
     this.tileHighlight = this.add.graphics();
+    this.tileHighlight.setDepth(RENDER_DEPTHS.GRID + 1);
 
     this.inputSystem = new InputSystem(this, this.buildInputCallbacks());
     this.input.mouse?.disableContextMenu();
@@ -141,8 +149,8 @@ export class GameScene extends Phaser.Scene {
     const transform = this.worldRuntimeCoordinator?.getIsoTransform();
     if (!tiles || !transform) return;
 
-    g.lineStyle(2, 0xffd700, 0.85);
-    g.fillStyle(0xffd700, 0.12);
+    g.lineStyle(2, 0xe8a045, 0.90);
+    g.fillStyle(0xe8a045, 0.15);
     tiles.forEach(({ x, y }) => {
       const pts = transform.getTileDiamondPoints(x, y);
       g.fillPoints(pts, true);
@@ -202,11 +210,11 @@ export class GameScene extends Phaser.Scene {
       onPointerContext: (worldX, worldY) =>
         this.interactionController?.pointerContext(worldX, worldY),
       onToggleControlMode: () => this.toggleControlMode(),
-      onMenuMoveUp: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
+      onMenuMoveUp:   () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
-      onMenuConfirm: () => this.tryConfirmChoiceMenu(),
-      onMenuPointer: (screenX, screenY) => this.interactionController?.menuPointer(screenX, screenY),
-      onMenuCancel: () => {
+      onMenuConfirm:  () => this.tryConfirmChoiceMenu(),
+      onMenuPointer:  () => { /* handled by HTML popup click events */ },
+      onMenuCancel:   () => {
         const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
         if (msg) this.uiManager?.showInfo(msg);
       },

@@ -70,13 +70,13 @@
   /* ── Dimensions ───────────────────────────────────── */
   /*
     Panel height and icon bar height must match.
-    Icon bar total = 7 × --icon-btn-h + 7 × 4px (gaps) + 8px (padding)
-    = 7×60 + 28 + 8 = 456px + spacer → set taskbar height to --panel-h
+    Icon bar total = 8 × --icon-btn-h + 8 × 4px (gaps) + 8px (padding)
+    = 8×52 + 32 + 8 = 456px + spacer → set taskbar height to --panel-h
   */
   --panel-w:     245px;
   --panel-h:     480px;   /* = taskbar column height */
   --icon-col-w:  62px;
-  --icon-btn-h:  60px;
+  --icon-btn-h:  52px;
   --slot-size:   55px;
   --minimap-size:185px;
   --orb-size:    36px;
@@ -453,6 +453,7 @@
 .taskbar-btn--sprint.sprint-on               { background: rgba(255, 210, 60, 0.10); box-shadow: inset -3px 0 0 #FFD23C; }
 .taskbar-btn--sprint.sprint-on .taskbar-icon { background-color: #FFD23C; }
 
+
 /* Tooltip — opens to the LEFT */
 .taskbar-btn[title]:hover::after {
   content: attr(title);
@@ -602,6 +603,69 @@
 .equip-slot[data-slot="feet"]     { grid-area: feet; }
 .equip-slot[data-slot="weapon"]   { grid-area: weapon; }
 .equip-slot[data-slot="shield"]   { grid-area: shield; }
+
+
+/* ═══════════════════════════════════════════════════════
+   SKILLS TAB
+   ═══════════════════════════════════════════════════════ */
+
+.skills-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  gap: var(--sp-3);
+}
+
+.skill-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.skill-name {
+  font-size: var(--fs-sm);
+  color: var(--c-text);
+  letter-spacing: 0.04em;
+}
+
+.skill-level {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  letter-spacing: 0.06em;
+}
+.skill-level::before { content: 'Lv '; }
+
+.skill-bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--c-hp-bg);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.skill-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--c-secondary) 0%, #c87c3a 100%);
+  border-radius: 3px;
+  transition: width 400ms ease;
+}
+
+.skill-xp {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  letter-spacing: 0.04em;
+  text-align: right;
+}
 
 
 /* ═══════════════════════════════════════════════════════
@@ -806,3 +870,247 @@
   color: var(--c-text-error);
 }
 .chat-tab--report:hover { color: #ff6666; }
+
+/* ═══════════════════════════════════════════════════════
+   POPUP WINDOW — reusable centred modal
+   ═══════════════════════════════════════════════════════ */
+
+.ui-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: all;
+  z-index: 200;
+}
+
+.ui-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 201;
+  width: 500px;
+  max-width: calc(100% - 48px);
+  max-height: calc(100% - 80px);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel-bg);
+  border: 1px solid var(--c-panel-border);
+  color: var(--c-text);
+  font-family: var(--font);
+  pointer-events: all;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 252, 195, 0.06);
+}
+
+.ui-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 10px 16px;
+  border-bottom: 1px solid var(--c-panel-border);
+  background: rgba(97, 60, 24, 0.22);
+  flex-shrink: 0;
+}
+
+.ui-popup-title {
+  font-size: var(--fs-sm);
+  color: var(--c-primary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ui-popup-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--c-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--tr), border-color var(--tr), background var(--tr);
+}
+.ui-popup-close::before { content: '✕'; }
+.ui-popup-close:hover {
+  color: var(--c-text);
+  border-color: var(--c-secondary);
+  background: var(--c-slot-hover);
+}
+
+.ui-popup-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-secondary) transparent;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CHOICE MENU POPUP — workbench, contracts, npc menus
+   ═══════════════════════════════════════════════════════ */
+
+.choice-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 340px;
+}
+
+/* ── Option list ──────────────────────────────────────── */
+.choice-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--c-text-dim);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--tr), border-color var(--tr), color var(--tr);
+}
+
+.choice-option::before {
+  content: '';
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--c-text-muted);
+  transition: background var(--tr), border-color var(--tr);
+}
+
+.choice-option:hover:not(.is-disabled) {
+  background: var(--c-slot-hover);
+  border-color: var(--c-secondary);
+  color: var(--c-text);
+}
+
+.choice-option.is-selected {
+  background: rgba(229, 146, 220, 0.08);
+  border-color: var(--c-icon-active);
+  color: var(--c-primary);
+}
+
+.choice-option.is-selected::before {
+  background: var(--c-icon-active);
+  border-color: var(--c-icon-active);
+}
+
+.choice-option.is-disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.choice-option-label {
+  flex: 1;
+}
+
+.choice-option-badge {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 2px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.choice-option-badge--disabled {
+  background: rgba(255, 68, 68, 0.15);
+  color: var(--c-text-error);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+}
+
+/* Status badges for task states (Accepted / Ready) */
+.choice-option-badge--accepted {
+  background: rgba(160, 196, 255, 0.12);
+  color: var(--c-text-system);
+  border: 1px solid rgba(160, 196, 255, 0.25);
+}
+
+.choice-option-badge--ready {
+  background: rgba(61, 138, 61, 0.18);
+  color: #6dbf6d;
+  border: 1px solid rgba(61, 138, 61, 0.35);
+}
+
+/* ── Details card ─────────────────────────────────────── */
+.choice-menu-details {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: var(--c-surface-alt);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 2px;
+  border-left: 3px solid var(--c-secondary);
+}
+
+.choice-menu-details.has-content {
+  display: flex;
+}
+
+.choice-detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}
+
+.choice-detail-label {
+  flex-shrink: 0;
+  min-width: 60px;
+  color: var(--c-text-muted);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.choice-detail-value {
+  color: var(--c-text-dim);
+  line-height: 1.4;
+}
+
+/* ── Footer key hints ─────────────────────────────────── */
+.choice-menu-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--c-secondary-dark);
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+}
+
+.choice-menu-footer kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 252, 195, 0.06);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 2px;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+
+.choice-menu-footer span {
+  margin-right: 8px;
+}

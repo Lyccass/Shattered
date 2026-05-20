@@ -1,6 +1,7 @@
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
+import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
 import { UI_TOKENS, type TabId } from '../UITokens';
 import { EquipmentTabContent } from './EquipmentTabContent';
@@ -8,6 +9,7 @@ import { InventoryTabContent } from './InventoryTabContent';
 import { JournalTabContent } from './JournalTabContent';
 import { MapTabContent } from './MapTabContent';
 import { SettingsTabContent } from './SettingsTabContent';
+import { SkillsTabContent } from './SkillsTabContent';
 
 interface TabDef {
   id: TabId;
@@ -18,6 +20,7 @@ interface TabDef {
 const TABS_TOP: TabDef[] = [
   { id: 'equipment', label: 'Equipment', iconUrl: UI_TOKENS.icons.equipment },
   { id: 'inventory', label: 'Inventory', iconUrl: UI_TOKENS.icons.inventory },
+  { id: 'skills',    label: 'Skills',    iconUrl: UI_TOKENS.icons.skills },
   { id: 'journal',   label: 'Journal',   iconUrl: UI_TOKENS.icons.journal },
   { id: 'map',       label: 'Map',       iconUrl: UI_TOKENS.icons.map },
 ];
@@ -37,6 +40,7 @@ export class TaskbarPanel {
 
   private readonly inventoryContent: InventoryTabContent;
   private readonly equipmentContent: EquipmentTabContent;
+  private readonly skillsContent: SkillsTabContent;
   private readonly journalContent: JournalTabContent;
   private readonly mapContent: MapTabContent;
   private readonly settingsContent: SettingsTabContent;
@@ -99,6 +103,7 @@ export class TaskbarPanel {
     // Build tab content instances
     this.inventoryContent = new InventoryTabContent();
     this.equipmentContent = new EquipmentTabContent();
+    this.skillsContent    = new SkillsTabContent();
     this.journalContent   = new JournalTabContent();
     this.mapContent       = new MapTabContent();
     this.settingsContent  = new SettingsTabContent();
@@ -149,6 +154,7 @@ export class TaskbarPanel {
     switch (tabId) {
       case 'inventory':  return this.inventoryContent.el;
       case 'equipment':  return this.equipmentContent.el;
+      case 'skills':     return this.skillsContent.el;
       case 'journal':    return this.journalContent.el;
       case 'map':        return this.mapContent.el;
       case 'settings':   return this.settingsContent.el;
@@ -191,9 +197,10 @@ export class TaskbarPanel {
     journalEntries: TaskJournalEntry[],
     reputation: ReputationSnapshot,
     activeTaskCount: number,
+    skills: SkillSnapshot[],
   ): void {
-    // Always update active content so data is fresh when panel opens
     this.inventoryContent.update(inventory, currency);
+    this.skillsContent.update(skills);
     this.journalContent.update(journalEntries, reputation, activeTaskCount);
     this.equipmentContent.update();
     this.mapContent.update();

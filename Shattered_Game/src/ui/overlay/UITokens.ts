@@ -33,7 +33,8 @@ export const UI_TOKENS = {
     settings:   '/assets/Game_icons_test/Sttings.svg',
     combatOn:   '/assets/Game_icons_test/combat_active.svg',
     combatOff:  '/assets/Game_icons_test/combat_inactive.svg',
-    sprint:     '/assets/Game_icons_test/Skills.svg',
+    skills:     '/assets/Game_icons_test/Skills.svg',
+    sprint:     '/assets/Game_icons_test/Run.svg',
   },
   sizes: {
     sidebarWidth: 196,
@@ -48,7 +49,7 @@ export const UI_TOKENS = {
   },
 } as const;
 
-export type TabId = 'equipment' | 'inventory' | 'journal' | 'map' | 'settings';
+export type TabId = 'equipment' | 'inventory' | 'skills' | 'journal' | 'map' | 'settings';
 export type ChatChannel = 'all' | 'game' | 'combat' | 'system';
 
 export interface ChatMessage {
@@ -60,4 +61,7 @@ export interface ChatMessage {
 export interface UIOverlayCallbacks {
   onCombatToggle: () => void;
   onSprintToggle: () => void;
+  onChoiceMenuSelect: (index: number) => void;
+  onChoiceMenuConfirm: () => void;
+  onChoiceMenuCancel: () => void;
 }

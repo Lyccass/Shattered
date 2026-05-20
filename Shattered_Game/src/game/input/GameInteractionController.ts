@@ -159,22 +159,8 @@ export class GameInteractionController {
     );
   }
 
-  menuPointer(screenX: number, screenY: number): void {
-    const uiManager = this.deps.getUiManager();
-    const worldRuntimeCoordinator = this.deps.getWorldRuntimeCoordinator();
-
-    if (!uiManager || !worldRuntimeCoordinator) {
-      return;
-    }
-
-    const optionIndex = uiManager.getChoiceMenuOptionIndexAt(screenX, screenY);
-
-    if (optionIndex === null) {
-      return;
-    }
-
-    worldRuntimeCoordinator.setChoiceMenuSelection(optionIndex);
-    this.confirmChoiceMenuViaCallback();
+  menuPointer(_screenX: number, _screenY: number): void {
+    // Choice menu clicks are handled by the HTML popup — nothing to do here.
   }
 
   resolvePendingPointerInteraction(): void {
@@ -238,31 +224,32 @@ export class GameInteractionController {
     const tilePoints = isoTilemap.transform.getTileDiamondPoints(targetTile.x, targetTile.y);
     const walkable = isoTilemap.isTileWalkable(targetTile.x, targetTile.y);
 
-    telegraphSystem.showTelegraph({
-      id: GameInteractionController.MOVE_TARGET_TELEGRAPH_ID,
-      worldX: tileCenter.x,
-      worldY: tileCenter.y,
-      shape: {
-        kind: 'polygon',
-        points: tilePoints.map((point) => ({
-          x: point.x - tileCenter.x,
-          y: point.y - tileCenter.y,
-        })),
-      },
-      startedAtMs: this.scene.time.now,
-      durationMs: GameInteractionController.MOVE_TARGET_HIGHLIGHT_MS,
-      warningColor: walkable ? 0x60a5fa : 0xef4444,
-      strokeAlpha: 0.9,
-      fillAlphaMultiplier: 0.3,
-    });
-
     if (!walkable) {
+      telegraphSystem.showTelegraph({
+        id: GameInteractionController.MOVE_TARGET_TELEGRAPH_ID,
+        worldX: tileCenter.x,
+        worldY: tileCenter.y,
+        shape: {
+          kind: 'polygon',
+          points: tilePoints.map((point) => ({
+            x: point.x - tileCenter.x,
+            y: point.y - tileCenter.y,
+          })),
+        },
+        startedAtMs: this.scene.time.now,
+        durationMs: GameInteractionController.MOVE_TARGET_HIGHLIGHT_MS,
+        warningColor: 0xef4444,
+        strokeAlpha: 0.9,
+        fillAlphaMultiplier: 0.3,
+      });
       playerController.clearClickMoveTarget();
       if (!preservePendingInteraction) {
         this.clearPendingPointerInteraction();
       }
       return;
     }
+
+    telegraphSystem.removeTelegraph(GameInteractionController.MOVE_TARGET_TELEGRAPH_ID);
 
     if (!preservePendingInteraction) {
       this.clearPendingPointerInteraction();
@@ -320,30 +307,4 @@ export class GameInteractionController {
     }
   }
 
-  private confirmChoiceMenuViaCallback(): void {
-    const worldRuntimeCoordinator = this.deps.getWorldRuntimeCoordinator();
-
-    if (!worldRuntimeCoordinator) {
-      return;
-    }
-
-    const result = worldRuntimeCoordinator.confirmChoiceMenu();
-
-    if (!result) {
-      return;
-    }
-
-    if (isDeferredInteractionAction(result)) {
-      this.beginDeferredInteractionAction(result);
-      return;
-    }
-
-    this.deps.handleGameplayResult(result, { allowAutosave: true });
-  }
-}
-
-function isDeferredInteractionAction(
-  value: InteractionResult | DeferredInteractionAction,
-): value is DeferredInteractionAction {
-  return 'kind' in value && value.kind === 'deferred_interaction_action';
 }

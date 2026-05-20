@@ -2,7 +2,6 @@ import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
 import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
 import { formatSkillXpToastLines } from './UiFormatters';
-import { ChoiceMenuPanel } from './ChoiceMenuPanel';
 import { ToastSystem } from './ToastSystem';
 import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
 import { UIOverlayManager } from './overlay/UIOverlayManager';
@@ -10,12 +9,14 @@ import { UIOverlayManager } from './overlay/UIOverlayManager';
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
   onSprintToggle: () => void;
+  onChoiceMenuSelect: (index: number) => void;
+  onChoiceMenuConfirm: () => void;
+  onChoiceMenuCancel: () => void;
 }
 
 export class UiManager {
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
   private readonly actionProgressPanel: ActionProgressPanel;
-  private readonly choiceMenuPanel: ChoiceMenuPanel;
   private readonly toastSystem: ToastSystem;
   private readonly overlay: UIOverlayManager;
 
@@ -25,17 +26,22 @@ export class UiManager {
   ) {
     this.uiCamera = this.scene.cameras.add(0, 0, this.scene.scale.width, this.scene.scale.height);
 
-    // Phaser panels: only choice menus and action progress (no hint text)
     this.actionProgressPanel = new ActionProgressPanel(scene);
-    this.choiceMenuPanel     = new ChoiceMenuPanel(scene);
     this.toastSystem         = new ToastSystem(scene);
 
-    // HTML overlay handles all main game UI panels
-    this.overlay = new UIOverlayManager({ onCombatToggle: callbacks.onCombatToggle, onSprintToggle: callbacks.onSprintToggle });
+    this.overlay = new UIOverlayManager({
+      onCombatToggle:      callbacks.onCombatToggle,
+      onSprintToggle:      callbacks.onSprintToggle,
+      onChoiceMenuSelect:  callbacks.onChoiceMenuSelect,
+      onChoiceMenuConfirm: callbacks.onChoiceMenuConfirm,
+      onChoiceMenuCancel:  callbacks.onChoiceMenuCancel,
+    });
 
     const displayObjects = this.getPhaserDisplayObjects();
-    this.scene.cameras.main.ignore(displayObjects);
-    this.ignoreWorldForUiCamera(displayObjects);
+    if (displayObjects.length > 0) {
+      this.scene.cameras.main.ignore(displayObjects);
+      this.ignoreWorldForUiCamera(displayObjects);
+    }
     this.registerResizeHandler();
     this.layout();
   }
@@ -46,7 +52,6 @@ export class UiManager {
     controlMode: 'explore' | 'combat' = 'explore',
   ): void {
     this.actionProgressPanel.update(state.actionProgress);
-    this.choiceMenuPanel.update(state.choiceMenu);
     this.toastSystem.update();
 
     this.overlay.update(state, combat, controlMode);
@@ -90,7 +95,7 @@ export class UiManager {
   }
 
   getChoiceMenuOptionIndexAt(screenX: number, screenY: number): number | null {
-    return this.choiceMenuPanel.getOptionIndexAt(screenX, screenY);
+    return this.overlay.getChoiceMenuOptionIndexAt(screenX, screenY);
   }
 
   destroy(): void {
@@ -125,14 +130,12 @@ export class UiManager {
     const width  = this.scene.scale.width;
     const height = this.scene.scale.height;
     this.actionProgressPanel.layout(width, height);
-    this.choiceMenuPanel.layout(width, height);
     this.toastSystem.layout(width);
   }
 
   private getPhaserDisplayObjects(): Phaser.GameObjects.GameObject[] {
     return [
       ...this.actionProgressPanel.getDisplayObjects(),
-      ...this.choiceMenuPanel.getDisplayObjects(),
       ...this.toastSystem.getDisplayObjects(),
     ];
   }

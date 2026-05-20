@@ -1,10 +1,7 @@
 import Phaser from 'phaser';
 import {
-  addEditorPlacedObject,
   createSampleEditorMap,
   getEditorTerrainAt,
-  paintTerrainTile,
-  removeEditorPlacedObjectsAtTile,
   type EditorMapDefinition,
 } from '../shared/editor/EditorMapModel';
 import {
@@ -16,23 +13,16 @@ import type { TerrainFamily } from '../shared/map/TerrainTypes';
 import { preloadTerrainAssets, createTerrainRenderTextures } from '../world/terrain/TerrainAssets';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import {
-  createEditorTerrainCatalog,
-  getBrushAtOffset,
-  getDefaultBrushForFamily,
-  withBrushFlip,
-  type EditorTerrainBrush,
-} from './terrain/EditorTerrainCatalog';
-import {
+  EDITOR_CHUNK_SIZE,
   EditorTerrainChunkRenderer,
-  toPaint,
 } from './terrain/EditorTerrainChunkRenderer';
+import { EditorTerrainToolController } from './terrain/EditorTerrainToolController';
 import { EditorHudController } from './ui/EditorHudController';
-import {
-  createEditorObjectCatalog,
-  getObjectAtOffset,
-} from './objects/EditorObjectCatalog';
 import { EditorObjectLayerRenderer } from './objects/EditorObjectLayerRenderer';
+import { EditorObjectToolController } from './objects/EditorObjectToolController';
+import { EditorDirtyChunkTracker } from './chunks/EditorDirtyChunkTracker';
 import { EditorMapIoController } from './io/EditorMapIoController';
+import { EditorInputController, type EditorToolMode } from './input/EditorInputController';
 import { EditorViewportController } from './viewport/EditorViewportController';
 
 const TILE_WIDTH = 64;
@@ -44,23 +34,12 @@ const MIN_CAMERA_ZOOM = 0.45;
 const MAX_CAMERA_ZOOM = 2.2;
 const ZOOM_STEP = 0.12;
 
-const BRUSH_KEYS: Record<string, TerrainFamily> = {
-  Digit1: 'grass',
-  Digit2: 'dirt',
-  Digit3: 'stone',
-  Digit4: 'water',
-  Digit5: 'sand',
-};
-
-type EditorToolMode = 'terrain' | 'object';
-
 export class EditorScene extends Phaser.Scene {
-  private readonly terrainCatalog = createEditorTerrainCatalog();
-  private readonly objectCatalog = createEditorObjectCatalog();
+  private readonly terrainTool = new EditorTerrainToolController();
+  private readonly objectTool = new EditorObjectToolController();
+  private readonly dirtyChunks = new EditorDirtyChunkTracker(EDITOR_CHUNK_SIZE);
   private readonly mapIo = new EditorMapIoController();
-  private selectedBrush: EditorTerrainBrush = getDefaultBrushForFamily(this.terrainCatalog, 'grass');
-  private selectedObjectDefinition = this.objectCatalog.all[0];
-  private map: EditorMapDefinition = createSampleEditorMap(toPaint(this.selectedBrush));
+  private map: EditorMapDefinition = createSampleEditorMap(this.terrainTool.getSelectedPaint());
   private readonly transform: IsoTransformConfig = {
     originX: MAP_ORIGIN_X,
     originY: MAP_ORIGIN_Y,
@@ -77,7 +56,6 @@ export class EditorScene extends Phaser.Scene {
   private objectRenderer?: EditorObjectLayerRenderer;
   private viewport?: EditorViewportController;
   private toolMode: EditorToolMode = 'terrain';
-  private lastPaintedTileKey?: string;
 
   preload(): void {
     preloadTerrainAssets(this);
@@ -89,12 +67,12 @@ export class EditorScene extends Phaser.Scene {
     this.input.mouse?.disableContextMenu();
     createTerrainRenderTextures(this);
 
-    this.terrainRenderer = new EditorTerrainChunkRenderer(this, this.transform, this.terrainCatalog);
-    this.objectRenderer = new EditorObjectLayerRenderer(this, this.transform, this.objectCatalog);
+    this.terrainRenderer = new EditorTerrainChunkRenderer(this, this.transform, this.terrainTool.getCatalog());
+    this.objectRenderer = new EditorObjectLayerRenderer(this, this.transform, this.objectTool.getCatalog());
     this.overlayGraphics = this.add.graphics();
     this.chunkOverlayGraphics = this.add.graphics();
     this.hud = new EditorHudController(this);
-    this.hud.create(this.selectedBrush);
+    this.hud.create(this.terrainTool.getSelectedBrush());
     this.viewport = new EditorViewportController(this, {
       maxZoom: MAX_CAMERA_ZOOM,
       minZoom: MIN_CAMERA_ZOOM,
@@ -105,7 +83,7 @@ export class EditorScene extends Phaser.Scene {
     });
 
     this.createUiCamera();
-    this.registerInput();
+    this.registerInputController();
     this.redrawTerrain();
     this.redrawObjects();
     this.centerCameraOnMap();
@@ -132,139 +110,56 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
-  private registerInput(): void {
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      this.viewport?.updatePointerPan(pointer);
-      this.hoverTile = this.getTileFromPointer(pointer);
-
-      if (pointer.leftButtonDown() && !this.viewport?.isPanning()) {
-        this.applyHoveredPrimaryAction(pointer);
-      }
-
-      this.redrawOverlay();
-      this.updateInfoText();
+  private registerInputController(): void {
+    const inputController = new EditorInputController(this, {
+      applyPrimaryAction: (pointer) => this.applyHoveredPrimaryAction(pointer),
+      centerCameraOnMap: () => this.centerCameraOnMap(),
+      cycleSelection: (offset) => this.cycleSelection(offset),
+      exportMap: () => { void this.exportMap(); },
+      exportWorldChunk: () => { void this.exportWorldChunk(); },
+      flipSelectedBrush: (axis) => this.flipSelectedBrush(axis),
+      getToolMode: () => this.toolMode,
+      importMap: () => this.importMap(),
+      isPointerPanning: () => this.viewport?.isPanning() ?? false,
+      redrawPointerState: () => this.redrawPointerState(),
+      removeHoveredObject: () => this.removeHoveredObject(),
+      resetTerrainStroke: () => this.terrainTool.resetStroke(),
+      resizeMap: () => this.promptResizeMap(),
+      selectBrushForFamily: (family) => this.selectBrushForFamily(family),
+      setToolMode: (mode) => this.setToolMode(mode),
+      startPointerPan: (pointer) => this.viewport?.startPointerPan(pointer),
+      stopPointerPan: () => this.viewport?.stopPointerPan(),
+      updateHoverFromPointer: (pointer) => {
+        this.hoverTile = this.getTileFromPointer(pointer);
+      },
+      updatePointerPan: (pointer) => this.viewport?.updatePointerPan(pointer),
+      zoom: (direction) => this.viewport?.adjustZoom(direction),
     });
+    inputController.register();
+  }
 
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      this.lastPaintedTileKey = undefined;
+  private redrawPointerState(): void {
+    this.redrawOverlay();
+    this.updateInfoText();
+  }
 
-      if (pointer.rightButtonDown() || pointer.middleButtonDown()) {
-        this.viewport?.startPointerPan(pointer);
-        return;
-      }
-
-      if (pointer.leftButtonDown()) {
-        this.applyHoveredPrimaryAction(pointer);
-      }
-    });
-
-    this.input.on('pointerup', () => {
-      this.viewport?.stopPointerPan();
-      this.lastPaintedTileKey = undefined;
-    });
-
-    this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _objects: unknown[], _deltaX: number, deltaY: number) => {
-      this.viewport?.adjustZoom(deltaY > 0 ? 'out' : 'in');
-    });
-
-    this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
-      const brushFamily = BRUSH_KEYS[event.code];
-
-      if (brushFamily && this.toolMode === 'terrain') {
-        this.selectBrushForFamily(brushFamily);
-        return;
-      }
-
-      if (event.code === 'KeyT') {
-        this.toolMode = 'terrain';
-        this.updateInfoText();
-        this.setStatus('Terrain mode.');
-        return;
-      }
-
-      if (event.code === 'KeyO') {
-        this.toolMode = 'object';
-        this.updateInfoText();
-        this.setStatus('Object mode.');
-        return;
-      }
-
-      if (event.code === 'KeyQ' || event.code === 'BracketLeft') {
-        this.cycleSelection(-1);
-        return;
-      }
-
-      if (event.code === 'KeyE' || event.code === 'BracketRight') {
-        this.cycleSelection(1);
-        return;
-      }
-
-      if (event.code === 'KeyF' && this.toolMode === 'terrain') {
-        this.flipSelectedBrush('x');
-        return;
-      }
-
-      if (event.code === 'KeyV' && this.toolMode === 'terrain') {
-        this.flipSelectedBrush('y');
-        return;
-      }
-
-      if (event.code === 'Backspace' || event.code === 'Delete' || event.code === 'KeyD') {
-        this.removeHoveredObject();
-        return;
-      }
-
-      if (event.code === 'KeyX') {
-        void this.exportMap();
-        return;
-      }
-
-      if (event.code === 'KeyY') {
-        void this.exportWorldChunk();
-        return;
-      }
-
-      if (event.code === 'KeyI') {
-        this.importMap();
-        return;
-      }
-
-      if (event.code === 'KeyR') {
-        this.promptResizeMap();
-        return;
-      }
-
-      if (event.code === 'KeyC') {
-        this.centerCameraOnMap();
-        return;
-      }
-
-      if (event.code === 'Equal' || event.code === 'NumpadAdd') {
-        this.viewport?.adjustZoom('in');
-        return;
-      }
-
-      if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
-        this.viewport?.adjustZoom('out');
-      }
-    });
+  private setToolMode(mode: EditorToolMode): void {
+    this.toolMode = mode;
+    this.updateInfoText();
+    this.setStatus(mode === 'terrain' ? 'Terrain mode.' : 'Object mode.');
   }
 
   private selectBrushForFamily(family: TerrainFamily): void {
-    this.selectedBrush = getDefaultBrushForFamily(this.terrainCatalog, family);
+    const selectedBrush = this.terrainTool.selectFamily(family);
     this.updateInfoText();
-    this.setStatus(`Selected ${this.selectedBrush.label}. Use Q/E or [/] to choose a specific tile.`);
+    this.setStatus(`Selected ${selectedBrush.label}. Use Q/E or [/] to choose a specific tile.`);
   }
 
   private cycleSelection(offset: number): void {
     if (this.toolMode === 'object') {
-      this.selectedObjectDefinition = getObjectAtOffset(
-        this.objectCatalog,
-        this.selectedObjectDefinition.id,
-        offset,
-      );
+      const selectedObjectDefinition = this.objectTool.cycle(offset);
       this.updateInfoText();
-      this.setStatus(`Selected object ${this.selectedObjectDefinition.displayName}.`);
+      this.setStatus(`Selected object ${selectedObjectDefinition.displayName}.`);
       return;
     }
 
@@ -272,20 +167,20 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private cycleSelectedBrush(offset: number): void {
-    this.selectedBrush = getBrushAtOffset(this.terrainCatalog, this.selectedBrush, offset);
+    const selectedBrush = this.terrainTool.cycle(offset);
     this.updateInfoText();
-    this.setStatus(`Selected tile ${this.selectedBrush.label}.`);
+    this.setStatus(`Selected tile ${selectedBrush.label}.`);
   }
 
   private flipSelectedBrush(axis: 'x' | 'y'): void {
-    this.selectedBrush = withBrushFlip(this.selectedBrush, axis);
+    this.terrainTool.flip(axis);
     this.updateInfoText();
     this.setStatus(axis === 'x' ? 'Selected brush flipped left/right.' : 'Selected brush flipped up/down.');
   }
 
   private applyHoveredPrimaryAction(pointer: Phaser.Input.Pointer): void {
     if (this.toolMode === 'object') {
-      if (this.isDeletePointerAction(pointer)) {
+      if (this.objectTool.shouldDeleteWithPointer(pointer)) {
         this.removeHoveredObject();
         return;
       }
@@ -306,18 +201,12 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private paintTile(tileX: number, tileY: number): void {
-    const key = tileKey(tileX, tileY);
-
-    if (this.lastPaintedTileKey === key) {
+    if (!this.terrainTool.paintTile(this.map, tileX, tileY)) {
       return;
     }
 
-    if (!paintTerrainTile(this.map, tileX, tileY, toPaint(this.selectedBrush))) {
-      return;
-    }
-
-    this.lastPaintedTileKey = key;
     this.terrainRenderer?.renderChunksAroundTile(this.map, tileX, tileY);
+    this.dirtyChunks.markTileDirty(tileX, tileY);
     this.redrawObjects();
     this.redrawOverlay();
     this.updateInfoText();
@@ -328,14 +217,8 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
-    const objectId = `editor_object_${Date.now()}_${this.map.objects.length}`;
-    this.map = removeEditorPlacedObjectsAtTile(this.map, this.hoverTile.x, this.hoverTile.y);
-    this.map = addEditorPlacedObject(this.map, {
-      id: objectId,
-      definitionId: this.selectedObjectDefinition.id,
-      tileX: this.hoverTile.x,
-      tileY: this.hoverTile.y,
-    });
+    this.map = this.objectTool.placeObject(this.map, this.hoverTile.x, this.hoverTile.y);
+    this.dirtyChunks.markTileDirty(this.hoverTile.x, this.hoverTile.y);
     this.redrawObjects();
     this.updateInfoText();
   }
@@ -345,12 +228,17 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
-    const previousObjectCount = this.map.objects.length;
-    this.map = removeEditorPlacedObjectsAtTile(this.map, this.hoverTile.x, this.hoverTile.y);
+    const result = this.objectTool.removeObject(this.map, this.hoverTile.x, this.hoverTile.y);
+    this.map = result.map;
+
+    if (result.removed) {
+      this.dirtyChunks.markTileDirty(this.hoverTile.x, this.hoverTile.y);
+    }
+
     this.redrawObjects();
     this.updateInfoText();
     this.setStatus(
-      this.map.objects.length < previousObjectCount
+      result.removed
         ? 'Removed object at hovered tile.'
         : 'No object at hovered tile.',
     );
@@ -418,7 +306,8 @@ export class EditorScene extends Phaser.Scene {
     const hoverFamily = hover ? getEditorTerrainAt(this.map, hover.x, hover.y) : null;
     const hoverPaint = hover ? this.terrainRenderer?.getTilePaint(this.map, hover.x, hover.y) ?? null : null;
     const hoverObject = hover ? this.objectRenderer?.getObjectAtTile(this.map, hover.x, hover.y) ?? null : null;
-    const selectedIndex = this.getSelectedBrushIndexLabel();
+    const selectedBrush = this.terrainTool.getSelectedBrush();
+    const selectedObjectDefinition = this.objectTool.getSelectedDefinition();
 
     this.hud.update({
       hover: {
@@ -427,22 +316,19 @@ export class EditorScene extends Phaser.Scene {
         paint: hoverPaint,
         tile: hover,
       },
+      dirtyChunks: this.dirtyChunks.getSummary(),
       map: this.map,
-      selectedBrush: this.selectedBrush,
-      selectedBrushIndexLabel: selectedIndex,
-      selectedObjectDisplayName: this.selectedObjectDefinition.displayName,
+      selectedBrush,
+      selectedBrushIndexLabel: this.terrainTool.getSelectedBrushIndexLabel(),
+      selectedObjectDisplayName: selectedObjectDefinition.displayName,
       toolMode: this.toolMode,
     });
   }
 
-  private getSelectedBrushIndexLabel(): string {
-    const familyBrushes = this.terrainCatalog.byFamily[this.selectedBrush.family];
-    const index = familyBrushes.findIndex((brush) => brush.id === this.selectedBrush.id);
-    return index >= 0 ? `(${index + 1}/${familyBrushes.length})` : '';
-  }
-
   private async exportMap(): Promise<void> {
     const result = await this.mapIo.exportMap(this.map);
+    this.dirtyChunks.clear();
+    this.updateInfoText();
     this.setStatus(
       result === 'clipboard'
         ? 'MapDefinition export copied to clipboard.'
@@ -457,6 +343,8 @@ export class EditorScene extends Phaser.Scene {
       chunkX: 0,
       chunkY: 0,
     });
+    this.dirtyChunks.clear();
+    this.updateInfoText();
     this.setStatus(
       result === 'clipboard'
         ? 'WorldChunkDefinition export copied to clipboard.'
@@ -473,6 +361,7 @@ export class EditorScene extends Phaser.Scene {
       }
 
       this.map = importedMap;
+      this.dirtyChunks.clear();
       this.centerCameraOnMap();
       this.redrawTerrain();
       this.redrawObjects();
@@ -486,7 +375,7 @@ export class EditorScene extends Phaser.Scene {
 
   private promptResizeMap(): void {
     try {
-      const resizedMap = this.mapIo.resizeFromPrompt(this.map, toPaint(this.selectedBrush));
+      const resizedMap = this.mapIo.resizeFromPrompt(this.map, this.terrainTool.getSelectedPaint());
 
       if (!resizedMap) {
         return;
@@ -494,11 +383,12 @@ export class EditorScene extends Phaser.Scene {
 
       this.map = resizedMap;
       this.hoverTile = null;
+      this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
       this.redrawTerrain();
       this.redrawObjects();
       this.redrawOverlay();
       this.updateInfoText();
-      this.setStatus(`Map resized to ${this.map.width}x${this.map.height}. New tiles filled with ${this.selectedBrush.label}.`);
+      this.setStatus(`Map resized to ${this.map.width}x${this.map.height}. New tiles filled with ${this.terrainTool.getSelectedBrush().label}.`);
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Resize failed.');
     }
@@ -531,16 +421,4 @@ export class EditorScene extends Phaser.Scene {
     this.uiCamera?.ignore(worldObjects);
   }
 
-  private isDeletePointerAction(pointer: Phaser.Input.Pointer): boolean {
-    return (
-      this.toolMode === 'object' &&
-      pointer.leftButtonDown() &&
-      'shiftKey' in pointer.event &&
-      pointer.event.shiftKey
-    );
-  }
-}
-
-function tileKey(tileX: number, tileY: number): string {
-  return `${tileX},${tileY}`;
 }

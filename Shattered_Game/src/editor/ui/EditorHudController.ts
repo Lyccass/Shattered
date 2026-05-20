@@ -14,6 +14,10 @@ type EditorHudHoverState = {
 };
 
 export type EditorHudState = {
+  dirtyChunks: {
+    count: number;
+    keys: string[];
+  };
   hover: EditorHudHoverState;
   map: EditorMapDefinition;
   selectedBrush: EditorTerrainBrush;
@@ -81,6 +85,7 @@ export class EditorHudController {
     this.infoText.setText([
       `Map: ${state.map.displayName} (${state.map.width}x${state.map.height})`,
       `Mode: ${state.toolMode}`,
+      `Dirty chunks: ${formatDirtyChunks(state.dirtyChunks)}`,
       `Selected: ${state.selectedBrush.label} ${state.selectedBrushIndexLabel}`,
       `Selected object: ${state.selectedObjectDisplayName}`,
       `Selected art: ${state.selectedBrush.textureKey}`,
@@ -127,4 +132,14 @@ export class EditorHudController {
 
 function formatFlip(paint: { flipX: boolean; flipY: boolean }): string {
   return `${paint.flipX ? 'X' : '-'} ${paint.flipY ? 'Y' : '-'}`;
+}
+
+function formatDirtyChunks(summary: { count: number; keys: string[] }): string {
+  if (summary.count === 0) {
+    return 'clean';
+  }
+
+  const preview = summary.keys.slice(0, 4).join(' ');
+  const suffix = summary.count > 4 ? ` +${summary.count - 4}` : '';
+  return `${summary.count} (${preview}${suffix})`;
 }
