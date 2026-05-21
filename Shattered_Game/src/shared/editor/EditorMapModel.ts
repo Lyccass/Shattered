@@ -615,8 +615,27 @@ export function parseEditorObjectDefinitions(value: unknown): ObjectDefinition[]
       return [];
     }
 
-    return [definition as ObjectDefinition];
+    return [normalizeImportedObjectDefinition(definition as ObjectDefinition)];
   });
+}
+
+function normalizeImportedObjectDefinition(definition: ObjectDefinition): ObjectDefinition {
+  return {
+    ...definition,
+    visual: {
+      parts: definition.visual.parts.map((part) => {
+        if (part.shape !== 'sprite' || !part.editorTextureDataUrl) {
+          return part;
+        }
+
+        return {
+          ...part,
+          originX: 0.5,
+          originY: 0.5,
+        };
+      }),
+    },
+  };
 }
 
 function parseEditorEnemySpawns(value: unknown): EditorEnemySpawn[] {

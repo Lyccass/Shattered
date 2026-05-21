@@ -25,6 +25,7 @@ type IsoTilemapConfig = {
     id: string;
     family: TileType;
     textureKey: string;
+    textureScale?: number;
     walkable: boolean;
     flipX: boolean;
     flipY: boolean;

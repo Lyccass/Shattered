@@ -52,16 +52,18 @@ export class GroundItemSystem {
     }
   }
 
-  /** Returns interaction targets for all current drops. Call each frame before updateActiveInteraction. */
+  /** Returns interaction targets for all current drops. Only rebuilds when drops have changed. */
   buildDynamicTargets(
     worldToTile: (wx: number, wy: number) => { x: number; y: number },
   ): GroundItemInteractionTarget[] {
-    const targets: GroundItemInteractionTarget[] = [];
+    if (!this.dirty) return this.cachedTargets;
+    this.dirty = false;
+    this.cachedTargets = [];
     for (const drop of this.drops.values()) {
       const tile = worldToTile(drop.worldX, drop.worldY);
       const meta = getInventoryItemMeta(drop.itemId);
       const countStr = drop.count > 1 ? ` ×${drop.count}` : '';
-      targets.push({
+      this.cachedTargets.push({
         definition: {
           id: drop.id,
           interactionType: 'ground_item',
@@ -75,7 +77,7 @@ export class GroundItemSystem {
         count: drop.count,
       });
     }
-    return targets;
+    return this.cachedTargets;
   }
 
   /** Remove a drop and return its contents. Returns null if the drop no longer exists. */
@@ -83,6 +85,7 @@ export class GroundItemSystem {
     const drop = this.drops.get(id);
     if (!drop) return null;
     this.removeDrop(id);
+    this.dirty = true;
     return { itemId: drop.itemId, count: drop.count };
   }
 

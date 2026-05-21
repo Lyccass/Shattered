@@ -87,9 +87,9 @@ Current shortcuts:
 
 Visible sidebar actions:
 
-- `Create Custom Tile`: clone the selected tile or drop an image into the in-editor form, set its category, and set its walkability
+- `Create Custom Tile`: clone the selected tile or drop an image into the in-editor form, set its category, and set its walkability. Dropped tile images keep their source pixels and get a saved uniform display scale so they sit inside one isometric ground diamond without stretching.
 - `Delete Custom Tile`: remove the selected custom tile; painted instances are replaced with the default tile for that terrain family
-- `Create Custom Object`: clone the selected object or drop an image into the in-editor form, set its category, footprint size, and whether it blocks movement. Dropped object images are cleaned, cropped to visible pixels, and uniformly fitted to the chosen 1x1, 1x2, 2x2, or larger footprint without stretching.
+- `Create Custom Object`: clone the selected object or drop an image into the in-editor form, set its category, footprint size, and whether it blocks movement. Dropped object images are cleaned, cropped to visible pixels, centered on the footprint ground plane, and uniformly fitted to the chosen 1x1, 1x2, 2x2, or larger footprint without stretching.
 - `Delete Custom Object`: remove the selected custom object and its placed instances
 
 Top-right map/chunk actions:
@@ -174,9 +174,9 @@ Normal game reloads use registered game maps, so a work-in-progress editor map
 cannot break the default game boot.
 
 The game supports custom definitions cloned from already-loaded textures and
-custom images embedded by the editor. Imported object images keep their aspect
-ratio and source pixels; the editor stores the uniform display scale with the
-object definition so the game renders the same result.
+custom images embedded by the editor. Imported tile and object images keep
+their aspect ratio and source pixels; the editor stores the uniform display
+scale and ground-plane anchor data so the game renders the same result.
 
 ## Target Content Pipeline
 

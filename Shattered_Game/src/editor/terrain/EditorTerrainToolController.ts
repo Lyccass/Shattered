@@ -49,8 +49,8 @@ export class EditorTerrainToolController {
         label: paint.id,
         family: paint.family,
         textureKey: paint.textureKey,
-        textureDataUrl: paint.textureDataUrl,
-        textureScale: paint.textureScale,
+        ...(paint.textureDataUrl !== undefined ? { textureDataUrl: paint.textureDataUrl } : {}),
+        ...(paint.textureScale !== undefined ? { textureScale: paint.textureScale } : {}),
         source: 'custom',
         walkable: paint.walkable,
         flipX: paint.flipX,
@@ -75,8 +75,8 @@ export class EditorTerrainToolController {
       label,
       source: 'custom',
       textureKey,
-      textureDataUrl,
-      textureScale,
+      ...(textureDataUrl !== undefined ? { textureDataUrl } : {}),
+      ...(textureScale !== undefined ? { textureScale } : {}),
       walkable,
     };
     addCustomTerrainBrushes(this.catalog, [brush]);
