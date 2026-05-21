@@ -7,7 +7,7 @@ import type {
   PlayerItemKey,
 } from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
-import type { SkillXpDelta } from '../skills/SkillTypes';
+import type { LevelUpEvent, SkillXpDelta } from '../skills/SkillTypes';
 import type { ToastKind } from '../ui/ToastTypes';
 import type {
   MapContractBoardAnchor,
@@ -26,7 +26,8 @@ export type InteractionType =
   | 'contract_board'
   | 'placed_object'
   | 'item_use'
-  | 'generic_debug';
+  | 'generic_debug'
+  | 'ground_item';
 
 export type InteractionTile = {
   x: number;
@@ -82,6 +83,13 @@ export type PlacedObjectInteractionTarget = BaseInteractionTarget & {
   placedObjectKind: 'placed_firestarter_set' | 'campfire';
 };
 
+export type GroundItemInteractionTarget = BaseInteractionTarget & {
+  definition: InteractionDefinition & { interactionType: 'ground_item' };
+  dropId: string;
+  itemId: string;
+  count: number;
+};
+
 export type InteractionTarget =
   | MapTransitionInteractionTarget
   | ResourceNodeInteractionTarget
@@ -89,7 +97,8 @@ export type InteractionTarget =
   | WorkbenchInteractionTarget
   | ContractBoardInteractionTarget
   | PlacedObjectInteractionTarget
-  | GenericDebugInteractionTarget;
+  | GenericDebugInteractionTarget
+  | GroundItemInteractionTarget;
 
 export type ActiveInteraction = {
   target: InteractionTarget;
@@ -115,6 +124,7 @@ export type InteractionResult = {
   currencyDelta?: Partial<CurrencySnapshot>;
   reputationDelta?: Partial<ReputationSnapshot>;
   xpDelta?: SkillXpDelta;
+  levelUps?: LevelUpEvent[];
   toastKind?: ToastKind;
 };
 
@@ -126,6 +136,7 @@ export type InteractionHandlers = {
   onContractBoard: (target: ContractBoardInteractionTarget) => InteractionResult;
   onPlacedObject: (target: PlacedObjectInteractionTarget) => InteractionResult;
   onGenericDebug: (target: GenericDebugInteractionTarget) => InteractionResult;
+  onGroundItem: (target: GroundItemInteractionTarget) => InteractionResult;
 };
 
 export function createSingleTileInteractionTiles(tileX: number, tileY: number): InteractionTile[] {

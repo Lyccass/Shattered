@@ -5,9 +5,11 @@ import {
 } from '../../shared/editor/EditorMapModel';
 import type { TerrainFamily } from '../../shared/map/TerrainTypes';
 import {
+  addCustomTerrainBrushes,
   createEditorTerrainCatalog,
   getBrushAtOffset,
   getDefaultBrushForFamily,
+  removeCustomTerrainBrush,
   withBrushFlip,
   type EditorTerrainBrush,
   type EditorTerrainCatalog,
@@ -36,6 +38,60 @@ export class EditorTerrainToolController {
     const familyBrushes = this.catalog.byFamily[this.selectedBrush.family];
     const index = familyBrushes.findIndex((brush) => brush.id === this.selectedBrush.id);
     return index >= 0 ? `(${index + 1}/${familyBrushes.length})` : '';
+  }
+
+  addCustomPaints(paints: EditorTerrainTilePaint[]): void {
+    addCustomTerrainBrushes(
+      this.catalog,
+      paints.map((paint): EditorTerrainBrush => ({
+        id: paint.id,
+        category: paint.category,
+        label: paint.id,
+        family: paint.family,
+        textureKey: paint.textureKey,
+        textureDataUrl: paint.textureDataUrl,
+        textureScale: paint.textureScale,
+        source: 'custom',
+        walkable: paint.walkable,
+        flipX: paint.flipX,
+        flipY: paint.flipY,
+      })),
+    );
+  }
+
+  createCustomBrushFromSelected(
+    id: string,
+    label: string,
+    walkable: boolean,
+    textureKey = this.selectedBrush.textureKey,
+    textureDataUrl?: string,
+    category?: string,
+    textureScale?: number,
+  ): EditorTerrainBrush {
+    const brush: EditorTerrainBrush = {
+      ...this.selectedBrush,
+      id,
+      category,
+      label,
+      source: 'custom',
+      textureKey,
+      textureDataUrl,
+      textureScale,
+      walkable,
+    };
+    addCustomTerrainBrushes(this.catalog, [brush]);
+    this.selectedBrush = { ...brush };
+    return this.selectedBrush;
+  }
+
+  deleteCustomBrush(id: string): boolean {
+    const deleted = removeCustomTerrainBrush(this.catalog, id);
+
+    if (deleted && this.selectedBrush.id === id) {
+      this.selectedBrush = getDefaultBrushForFamily(this.catalog, this.selectedBrush.family);
+    }
+
+    return deleted;
   }
 
   getBrushSize(): number {

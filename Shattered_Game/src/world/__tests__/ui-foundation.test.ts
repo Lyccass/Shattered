@@ -95,13 +95,17 @@ describe('UiFormatters', () => {
   });
 
   it('formats skill panel data from XP snapshots', () => {
+    const snap = (id: string, displayName: string, xp: number) => ({
+      id, displayName, xp, level: 1, rank: 1, stage: 1, xpIntoStage: xp, xpForStage: 50,
+    } as import('../../skills/SkillTypes').SkillSnapshot);
+
     const text = formatSkillPanelText([
-      { id: 'gathering', displayName: 'Gathering', xp: 15, level: 1 },
-      { id: 'trade', displayName: 'Trade', xp: 10, level: 1 },
+      snap('woodworking', 'Woodworking', 15),
+      snap('trade',       'Trade',       10),
     ]);
 
     expect(text).toContain('[Skills]');
-    expect(text).toContain('Gathering   XP 15   Lv 1');
+    expect(text).toContain('Woodworking   XP 15   Lv 1');
     expect(text).toContain('Trade   XP 10   Lv 1');
   });
 });

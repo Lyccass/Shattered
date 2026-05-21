@@ -37,6 +37,13 @@ export type EnemyAttackDefinition = {
   knockback?: { forceTiles: number };
 };
 
+export type EnemyLootEntry = {
+  itemId: string;
+  minCount: number;
+  maxCount: number;
+  chance: number; // 0–1
+};
+
 export type EnemyDefinition = {
   id: string;
   displayName: string;
@@ -46,6 +53,7 @@ export type EnemyDefinition = {
   aggroRangeTiles: number;
   leashRangeTiles: number;
   attacks: EnemyAttackDefinition[];
+  lootTable?: EnemyLootEntry[];
 };
 
 export type EnemySpawnDefinition = {

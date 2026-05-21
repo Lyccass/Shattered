@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PROTOTYPE_SCALE } from '../../config/prototypeScale';
 import {
   addEditorPlacedObject,
   removeEditorPlacedObjectsAtTile,
@@ -6,8 +7,10 @@ import {
 } from '../../shared/editor/EditorMapModel';
 import type { ObjectDefinition, SpriteVisualPart } from '../../objects/ObjectTypes';
 import {
+  addCustomObjectDefinitions,
   createEditorObjectCatalog,
   getObjectAtOffset,
+  removeCustomObjectDefinition,
   type EditorObjectCatalog,
 } from './EditorObjectCatalog';
 
@@ -26,6 +29,70 @@ export class EditorObjectToolController {
 
   getSelectedDefinition(): ObjectDefinition {
     return this.selectedObjectDefinition;
+  }
+
+  addCustomDefinitions(definitions: ObjectDefinition[]): void {
+    addCustomObjectDefinitions(this.catalog, definitions);
+  }
+
+  createCustomDefinitionFromSelected(
+    id: string,
+    displayName: string,
+    blocksMovement: boolean,
+    textureKey?: string,
+    textureDataUrl?: string,
+    category = this.selectedObjectDefinition.category,
+    footprintWidth = getFootprintWidth(this.selectedObjectDefinition.collisionFootprint),
+    footprintHeight = getFootprintHeight(this.selectedObjectDefinition.collisionFootprint),
+    textureWidth?: number,
+    textureHeight?: number,
+  ): ObjectDefinition {
+    const definition: ObjectDefinition = {
+      ...structuredCloneObjectDefinition(this.selectedObjectDefinition),
+      id,
+      category,
+      collisionFootprint: createRectFootprint(footprintWidth, footprintHeight),
+      displayName,
+      blocksMovement,
+      debug: {
+        ...this.selectedObjectDefinition.debug,
+        color: blocksMovement ? 0xef4444 : 0x3b82f6,
+        label: displayName,
+      },
+    };
+
+    if (textureKey) {
+      const fitScale = getFootprintFitScale(textureWidth, textureHeight, footprintWidth, footprintHeight);
+      definition.visual = {
+        parts: replaceFirstSpritePart(
+          definition.visual.parts,
+          textureKey,
+          textureDataUrl,
+          footprintWidth,
+          footprintHeight,
+          fitScale,
+          fitScale !== undefined ? 'ground' : 'preserve',
+        ),
+      };
+    } else {
+      definition.visual = {
+        parts: centreSpritePartsForFootprint(definition.visual.parts, footprintWidth, footprintHeight),
+      };
+    }
+
+    addCustomObjectDefinitions(this.catalog, [definition]);
+    this.selectedObjectDefinition = definition;
+    return definition;
+  }
+
+  deleteCustomDefinition(id: string): boolean {
+    const deleted = removeCustomObjectDefinition(this.catalog, id);
+
+    if (deleted && this.selectedObjectDefinition.id === id) {
+      this.selectedObjectDefinition = this.catalog.all[0];
+    }
+
+    return deleted;
   }
 
   /** Returns the textureKey of the first sprite part, or null for geometry-only objects. */
@@ -86,4 +153,125 @@ export class EditorObjectToolController {
       pointer.event.shiftKey
     );
   }
+}
+
+function structuredCloneObjectDefinition(definition: ObjectDefinition): ObjectDefinition {
+  return JSON.parse(JSON.stringify(definition)) as ObjectDefinition;
+}
+
+function createRectFootprint(width: number, height: number): ObjectDefinition['collisionFootprint'] {
+  const safeWidth = Math.max(1, Math.min(8, Math.trunc(width)));
+  const safeHeight = Math.max(1, Math.min(8, Math.trunc(height)));
+  const footprint: Array<{ x: number; y: number }> = [];
+
+  for (let y = 0; y < safeHeight; y += 1) {
+    for (let x = 0; x < safeWidth; x += 1) {
+      footprint.push({ x, y });
+    }
+  }
+
+  return footprint;
+}
+
+function getFootprintWidth(footprint: ObjectDefinition['collisionFootprint']): number {
+  return Math.max(1, ...footprint.map((tile) => tile.x + 1));
+}
+
+function getFootprintHeight(footprint: ObjectDefinition['collisionFootprint']): number {
+  return Math.max(1, ...footprint.map((tile) => tile.y + 1));
+}
+
+function replaceFirstSpritePart(
+  parts: ObjectDefinition['visual']['parts'],
+  textureKey: string,
+  textureDataUrl?: string,
+  footprintWidth = 1,
+  footprintHeight = 1,
+  fitScale?: number,
+  anchorMode: 'ground' | 'preserve' = 'preserve',
+): ObjectDefinition['visual']['parts'] {
+  const nextParts = centreSpritePartsForFootprint(parts, footprintWidth, footprintHeight);
+  const spritePart = nextParts.find((part): part is SpriteVisualPart => part.shape === 'sprite');
+  const center = getFootprintCenterOffset(footprintWidth, footprintHeight);
+
+  if (spritePart) {
+    spritePart.textureKey = textureKey;
+    spritePart.editorTextureDataUrl = textureDataUrl;
+    spritePart.localOffsetX = center.x;
+    spritePart.localOffsetY = center.y;
+    if (fitScale !== undefined) {
+      spritePart.scale = fitScale;
+    }
+    if (anchorMode === 'ground') {
+      spritePart.originX = 0.5;
+      spritePart.originY = 0.5;
+    }
+    return nextParts;
+  }
+
+  return [
+    {
+      shape: 'sprite',
+      textureKey,
+      editorTextureDataUrl: textureDataUrl,
+      scale: fitScale ?? 1,
+      originX: 0.5,
+      originY: anchorMode === 'ground' ? 0.5 : 1,
+      localOffsetX: center.x,
+      localOffsetY: center.y,
+    },
+  ];
+}
+
+function centreSpritePartsForFootprint(
+  parts: ObjectDefinition['visual']['parts'],
+  footprintWidth: number,
+  footprintHeight: number,
+): ObjectDefinition['visual']['parts'] {
+  const center = getFootprintCenterOffset(footprintWidth, footprintHeight);
+  return parts.map((part) => {
+    if (part.shape !== 'sprite') {
+      return { ...part };
+    }
+
+    return {
+      ...part,
+      localOffsetX: center.x,
+      localOffsetY: center.y,
+    };
+  });
+}
+
+function getFootprintCenterOffset(footprintWidth: number, footprintHeight: number): { x: number; y: number } {
+  return {
+    x: ((footprintWidth - footprintHeight) * PROTOTYPE_SCALE.tileWidth) / 4,
+    y: ((footprintWidth + footprintHeight - 2) * PROTOTYPE_SCALE.tileHeight) / 4,
+  };
+}
+
+function getFootprintFitScale(
+  textureWidth: number | undefined,
+  textureHeight: number | undefined,
+  footprintWidth: number,
+  footprintHeight: number,
+): number | undefined {
+  if (
+    textureWidth === undefined ||
+    textureHeight === undefined ||
+    textureWidth <= 0 ||
+    textureHeight <= 0
+  ) {
+    return undefined;
+  }
+
+  const safeFootprintWidth = Math.max(1, Math.min(8, Math.trunc(footprintWidth)));
+  const safeFootprintHeight = Math.max(1, Math.min(8, Math.trunc(footprintHeight)));
+  const footprintPixelWidth = ((safeFootprintWidth + safeFootprintHeight) * PROTOTYPE_SCALE.tileWidth) / 2;
+  const footprintPixelHeight = Math.max(
+    PROTOTYPE_SCALE.tileHeight * 2,
+    (safeFootprintWidth + safeFootprintHeight) * PROTOTYPE_SCALE.tileHeight,
+  );
+  const fitScale = Math.min(footprintPixelWidth / textureWidth, footprintPixelHeight / textureHeight);
+
+  return Math.max(0.05, Math.min(1, fitScale));
 }

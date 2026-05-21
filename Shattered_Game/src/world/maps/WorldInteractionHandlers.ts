@@ -3,6 +3,7 @@ import type { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import type {
   ContractBoardInteractionTarget,
   GenericDebugInteractionTarget,
+  GroundItemInteractionTarget,
   InteractionHandlers,
   InteractionResult,
   InteractionTarget,
@@ -39,6 +40,13 @@ export class WorldInteractionHandlers {
       onContractBoard: (target) => this.handleContractBoard(target),
       onPlacedObject: (target) => this.handlePlacedObject(target),
       onGenericDebug: (target) => this.handleGenericDebug(target),
+      // Stub — overridden in WorldRuntimeCoordinator with the real collector
+      onGroundItem: (target: GroundItemInteractionTarget) => ({
+        ok: false,
+        interactionType: 'ground_item' as const,
+        targetId: target.dropId,
+        message: 'Cannot pick up item.',
+      }),
     };
   }
 
@@ -102,6 +110,14 @@ export class WorldInteractionHandlers {
           interactionType: 'generic_debug',
           targetId: target.definition.id,
           message: (target as GenericDebugInteractionTarget).anchor.message,
+          toastKind: 'info',
+        };
+      case 'ground_item':
+        return {
+          ok: true,
+          interactionType: 'ground_item',
+          targetId: target.definition.id,
+          message: (target as GroundItemInteractionTarget).definition.promptText,
           toastKind: 'info',
         };
     }

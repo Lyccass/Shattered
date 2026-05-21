@@ -16,7 +16,8 @@ type PaletteCallbacks = {
 export class EditorTilePaletteController {
   private isOpen = false;
   private currentMode: PaletteMode = 'terrain';
-  private currentFamily: TerrainFamily = 'grass';
+  private currentObjectCategory = 'all';
+  private currentTerrainTab = 'grass';
 
   private readonly panel: HTMLElement;
   private readonly tabContainer: HTMLElement;
@@ -43,7 +44,7 @@ export class EditorTilePaletteController {
 
   openForTerrain(selectedBrush: EditorTerrainBrush): void {
     this.currentMode   = 'terrain';
-    this.currentFamily = selectedBrush.family;
+    this.currentTerrainTab = getTerrainTabId(selectedBrush);
     this.titleEl.textContent = 'Tile Palette';
     this.isOpen = true;
     this.panel.style.display = 'flex';
@@ -53,10 +54,11 @@ export class EditorTilePaletteController {
 
   openForObjects(selectedObjectId: string): void {
     this.currentMode = 'object';
+    this.currentObjectCategory = 'all';
     this.titleEl.textContent = 'Object Palette';
     this.isOpen = true;
     this.panel.style.display = 'flex';
-    this.tabContainer.innerHTML = '';
+    this.buildObjectTabs();
     this.buildObjectGrid(selectedObjectId);
   }
 
@@ -83,12 +85,9 @@ export class EditorTilePaletteController {
       return;
     }
 
-    if (brush.family !== this.currentFamily) {
-      this.currentFamily = brush.family;
-      this.buildTerrainTabs();
-      this.buildTerrainGrid(brush);
-      return;
-    }
+    this.currentTerrainTab = getTerrainTabId(brush);
+    this.buildTerrainTabs();
+    this.buildTerrainGrid(brush);
 
     this.highlightCell(brush.id);
   }
@@ -106,14 +105,14 @@ export class EditorTilePaletteController {
   private buildTerrainTabs(): void {
     this.tabContainer.innerHTML = '';
 
-    for (const family of TERRAIN_FAMILY_ORDER) {
+    for (const tab of this.getTerrainTabs()) {
       const btn = document.createElement('button');
       btn.className = 'ed-pal-tab';
-      btn.textContent = family;
-      btn.dataset['family'] = family;
-      btn.classList.toggle('is-active', family === this.currentFamily);
+      btn.textContent = tab.label;
+      btn.dataset['family'] = tab.id;
+      btn.classList.toggle('is-active', tab.id === this.currentTerrainTab);
       btn.addEventListener('click', () => {
-        this.currentFamily = family;
+        this.currentTerrainTab = tab.id;
         this.buildTerrainTabs();
         this.buildTerrainGrid();
       });
@@ -123,7 +122,7 @@ export class EditorTilePaletteController {
 
   private buildTerrainGrid(selectedBrush?: EditorTerrainBrush): void {
     this.grid.innerHTML = '';
-    const brushes = this.terrainCatalog.byFamily[this.currentFamily] ?? [];
+    const brushes = this.terrainCatalog.all.filter((brush) => getTerrainTabId(brush) === this.currentTerrainTab);
 
     for (const brush of brushes) {
       const cell = this.makeCell(brush.id, brush.label);
@@ -156,7 +155,9 @@ export class EditorTilePaletteController {
   private buildObjectGrid(selectedObjectId?: string): void {
     this.grid.innerHTML = '';
 
-    for (const def of this.objectCatalog.all) {
+    for (const def of this.objectCatalog.all.filter((definition) =>
+      this.currentObjectCategory === 'all' || definition.category === this.currentObjectCategory,
+    )) {
       const cell = this.makeCell(def.id, def.displayName);
 
       if (selectedObjectId && def.id === selectedObjectId) {
@@ -188,6 +189,24 @@ export class EditorTilePaletteController {
       });
 
       this.grid.appendChild(cell);
+    }
+  }
+
+  private buildObjectTabs(): void {
+    this.tabContainer.innerHTML = '';
+    const tabs = ['all', ...new Set(this.objectCatalog.all.map((definition) => definition.category))];
+
+    for (const tab of tabs) {
+      const btn = document.createElement('button');
+      btn.className = 'ed-pal-tab';
+      btn.textContent = tab;
+      btn.classList.toggle('is-active', tab === this.currentObjectCategory);
+      btn.addEventListener('click', () => {
+        this.currentObjectCategory = tab;
+        this.buildObjectTabs();
+        this.buildObjectGrid();
+      });
+      this.tabContainer.appendChild(btn);
     }
   }
 
@@ -243,4 +262,20 @@ export class EditorTilePaletteController {
       c.classList.toggle('is-active', c.dataset['cellId'] === id);
     });
   }
+
+  private getTerrainTabs(): Array<{ id: string; label: string }> {
+    const customTabs = this.terrainCatalog.all
+      .filter((brush) => brush.source === 'custom' && brush.category)
+      .map((brush) => brush.category!)
+      .filter((category, index, categories) => categories.indexOf(category) === index);
+
+    return [
+      ...TERRAIN_FAMILY_ORDER.map((family) => ({ id: family, label: family })),
+      ...customTabs.map((category) => ({ id: `custom:${category}`, label: category })),
+    ];
+  }
+}
+
+function getTerrainTabId(brush: EditorTerrainBrush): string {
+  return brush.source === 'custom' && brush.category ? `custom:${brush.category}` : brush.family;
 }

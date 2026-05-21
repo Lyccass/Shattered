@@ -287,7 +287,7 @@ export class PlacedStructureSystem {
     if (placedObject.kind === 'campfire') {
       const recipe = this.requireCampfireRecipe();
 
-      if (canCraftRecipe(recipe, inventory)) {
+      if (canCraftRecipe(recipe, inventory, (id) => playerSessionState.getSkillProgressionSystem().getLevel(id))) {
         applyRecipeToInventory(recipe, inventory);
         playerSessionState.getSkillProgressionSystem().addXpDelta(recipe.xpRewards ?? {});
         return {

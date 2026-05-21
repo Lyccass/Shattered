@@ -1,4 +1,3 @@
-import type { PlayerItemKey } from '../../player/PlayerInventoryState';
 
 /**
  * Design tokens mirrored from public/ui.css :root block.
@@ -63,7 +62,10 @@ export interface ChatMessage {
 export interface UIOverlayCallbacks {
   onCombatToggle: () => void;
   onSprintToggle: () => void;
-  onInventoryItemUse: (itemId: PlayerItemKey) => void;
+  onInventoryItemUse: (itemId: string) => void;
+  onInventoryItemDrop: (itemId: string) => void;
+  onInventoryItemInspect: (itemId: string) => void;
+  onInventoryItemCombine: (sourceId: string, targetId: string) => void;
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;

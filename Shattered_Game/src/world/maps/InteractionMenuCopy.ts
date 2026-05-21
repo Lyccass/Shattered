@@ -21,6 +21,8 @@ export function getInteractionMenuTitle(target: InteractionTarget): string {
         : 'Firestarter';
     case 'generic_debug':
       return 'Inspect';
+    case 'ground_item':
+      return 'Item';
   }
 }
 
@@ -42,6 +44,8 @@ export function getInteractionUseLabel(target: InteractionTarget): string {
         : 'Light Firestarter';
     case 'generic_debug':
       return 'Use';
+    case 'ground_item':
+      return 'Pick Up';
   }
 }
 
@@ -63,5 +67,7 @@ export function getInteractionUseDetails(target: InteractionTarget): string {
         : 'Try to light it.';
     case 'generic_debug':
       return 'Interact with it.';
+    case 'ground_item':
+      return 'Add to your inventory.';
   }
 }

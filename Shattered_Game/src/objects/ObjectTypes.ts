@@ -22,7 +22,8 @@ export type ObjectCategory =
   | 'resource'
   | 'workbench'
   | 'npc'
-  | 'crafted';
+  | 'crafted'
+  | (string & {});
 
 export type GridFootprint = ReadonlyArray<{ x: number; y: number }>;
 
@@ -53,6 +54,7 @@ export type ShapeVisualPart = BaseVisualPart & {
 export type SpriteVisualPart = BaseVisualPart & {
   shape: 'sprite';
   textureKey: string;
+  editorTextureDataUrl?: string;
   scale: number;
   originX?: number;
   originY?: number;

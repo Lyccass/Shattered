@@ -23,12 +23,16 @@ import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { UiManager } from '../ui/UiManager';
 import { emptyUiStateSnapshot } from '../ui/UiTypes';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
+import { getPublishedEditorMapId } from '../world/maps/MapDefinitions';
 import {
   type DeferredInteractionAction,
   WorldRuntimeCoordinator,
 } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
 import type { InteractionResult } from '../interactions/InteractionTypes';
+import { GroundItemSystem } from '../world/items/GroundItemSystem';
+import type { EnemyKilledEvent } from '../combat/CombatSandboxSystem';
+import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
@@ -44,6 +48,7 @@ export class GameScene extends Phaser.Scene {
   private sfxSystem?: SfxSystem;
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private inputSystem?: InputSystem;
+  private groundItemSystem?: GroundItemSystem;
   private controlMode: 'explore' | 'combat' = 'explore';
   private tileHighlight?: Phaser.GameObjects.Graphics;
   private hasShutdown = false;
@@ -66,20 +71,28 @@ export class GameScene extends Phaser.Scene {
 
     this.telegraphSystem = new TelegraphSystem(this);
     this.sfxSystem = new SfxSystem(this, this.gameEventBus);
+    this.groundItemSystem = new GroundItemSystem(this);
     this.combatSandboxSystem = new CombatSandboxSystem(
       this,
       this.gameEventBus,
       this.telegraphSystem,
+      (evt: EnemyKilledEvent) => this.handleEnemyKilled(evt),
     );
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
-    this.initializeWorldRuntime('test_home_island', 'default');
+    this.worldRuntimeCoordinator.setGroundItemCollector(
+      (id) => this.groundItemSystem?.collectDrop(id) ?? null,
+    );
+    this.initializeWorldRuntime(getPublishedEditorMapId() ?? 'test_home_island', 'default');
     this.uiManager = new UiManager(this, {
-      onCombatToggle:      () => this.toggleControlMode(),
-      onSprintToggle:      () => this.tryToggleSprint(),
-      onInventoryItemUse:  (itemId) => this.tryUseItem(itemId),
-      onChoiceMenuSelect:  (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
-      onChoiceMenuConfirm: () => this.tryConfirmChoiceMenu(),
-      onChoiceMenuCancel:  () => {
+      onCombatToggle:         () => this.toggleControlMode(),
+      onSprintToggle:         () => this.tryToggleSprint(),
+      onInventoryItemUse:     (itemId) => this.tryUseItem(itemId),
+      onInventoryItemDrop:    (itemId) => this.tryDropItem(itemId),
+      onInventoryItemInspect: (itemId) => this.tryInspectItem(itemId),
+      onInventoryItemCombine: (sourceId, targetId) => this.tryCombineItems(sourceId, targetId),
+      onChoiceMenuSelect:     (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
+      onChoiceMenuConfirm:    () => this.tryConfirmChoiceMenu(),
+      onChoiceMenuCancel:     () => {
         const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
         if (msg) this.uiManager?.showInfo(msg);
       },
@@ -116,6 +129,8 @@ export class GameScene extends Phaser.Scene {
       this.playerController?.update(delta, this.time.now);
     }
 
+    this.groundItemSystem?.tick(this.time.now);
+    this.refreshGroundItemTargets();
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     this.interactionController?.resolvePendingPointerInteraction();
     uiResults.forEach((result) => this.handleGameplayResult(result, { allowAutosave: true }));
@@ -179,6 +194,8 @@ export class GameScene extends Phaser.Scene {
     this.tileHighlight = undefined;
     this.combatSandboxSystem?.destroy();
     this.combatSandboxSystem = undefined;
+    this.groundItemSystem?.destroy();
+    this.groundItemSystem = undefined;
     this.telegraphSystem?.destroy();
     this.telegraphSystem = undefined;
     this.uiManager?.destroy();
@@ -338,13 +355,59 @@ export class GameScene extends Phaser.Scene {
     this.bindCombatSandboxToRuntime();
   }
 
-  private tryUseItem(itemId: PlayerItemKey): void {
+  private tryUseItem(itemId: string): void {
     if (!this.worldRuntimeCoordinator || !this.uiManager) {
       return;
     }
 
-    const result = this.worldRuntimeCoordinator.useItem(itemId);
+    const result = this.worldRuntimeCoordinator.useItem(itemId as PlayerItemKey);
     this.handleGameplayResult(result, { allowAutosave: false });
+  }
+
+  private tryDropItem(itemId: string): void {
+    if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
+    const drop = this.worldRuntimeCoordinator.dropItemFromInventory(itemId);
+    if (drop.ok) {
+      const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+      const tile = isoTilemap.transform.worldToTile(drop.worldX, drop.worldY);
+      const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
+      this.groundItemSystem.spawnDrop(itemId, 1, center.x, center.y, this.time.now, this.time.now + 60_000);
+      this.uiManager?.showInfo('Dropped item.');
+    }
+  }
+
+  private tryInspectItem(itemId: string): void {
+    if (!this.worldRuntimeCoordinator) return;
+    const data = this.worldRuntimeCoordinator.getItemDisplayData(itemId);
+    if (data) {
+      this.uiManager?.showInfo(`${data.displayName}: ${data.description}`);
+    }
+  }
+
+  private tryCombineItems(sourceId: string, targetId: string): void {
+    if (!this.worldRuntimeCoordinator) return;
+    const result = this.worldRuntimeCoordinator.tryHandCraft(sourceId, targetId);
+    this.uiManager?.handleResult(result);
+  }
+
+  private handleEnemyKilled(evt: EnemyKilledEvent): void {
+    if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
+    const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === evt.enemyDefinitionId);
+    const lootTable = enemyDef?.lootTable;
+    if (!lootTable || lootTable.length === 0) return;
+    const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    const tile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
+    const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
+    this.groundItemSystem.spawnFromLootTable(lootTable, center.x, center.y, this.time.now);
+  }
+
+  private refreshGroundItemTargets(): void {
+    if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
+    const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    const targets = this.groundItemSystem.buildDynamicTargets(
+      (wx, wy) => isoTilemap.transform.worldToTile(wx, wy),
+    );
+    this.worldRuntimeCoordinator.setDynamicInteractionTargets(targets);
   }
 
   private tryConfirmChoiceMenu(): void {

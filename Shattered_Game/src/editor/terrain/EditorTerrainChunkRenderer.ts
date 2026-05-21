@@ -144,6 +144,17 @@ export class EditorTerrainChunkRenderer {
     }
 
     const center = getTileCenterWorld(this.transform, tileX, tileY);
+    const textureScale = paint.textureScale;
+
+    if (textureScale !== undefined) {
+      const image = this.scene.add.image(center.x, center.y, paint.textureKey);
+      image.setOrigin(0.5, 0.5);
+      image.setScale(textureScale);
+      image.setFlip(paint.flipX, paint.flipY);
+      image.setDepth(TERRAIN_DEPTH);
+      return image;
+    }
+
     const image = this.scene.add.image(center.x, center.y - this.transform.tileHeight / 2, paint.textureKey);
     image.setOrigin(0.5, 0);
     image.setFlip(paint.flipX, paint.flipY);
@@ -178,15 +189,23 @@ export class EditorTerrainChunkRenderer {
 
 export function toPaint(brush: {
   id: string;
+  category?: string;
   family: TerrainFamily;
   textureKey: string;
+  textureDataUrl?: string;
+  textureScale?: number;
+  walkable: boolean;
   flipX: boolean;
   flipY: boolean;
 }): EditorTerrainTilePaint {
   return {
     id: brush.id,
+    category: brush.category,
     family: brush.family,
     textureKey: brush.textureKey,
+    textureDataUrl: brush.textureDataUrl,
+    textureScale: brush.textureScale,
+    walkable: brush.walkable,
     flipX: brush.flipX,
     flipY: brush.flipY,
   };

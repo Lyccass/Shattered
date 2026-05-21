@@ -14,6 +14,7 @@ const grassPaint: EditorTerrainTilePaint = {
   id: 'grass_test',
   family: 'grass',
   textureKey: 'grass_texture',
+  walkable: true,
   flipX: false,
   flipY: false,
 };
@@ -22,6 +23,7 @@ const stonePaint: EditorTerrainTilePaint = {
   id: 'stone_test',
   family: 'stone',
   textureKey: 'stone_texture',
+  walkable: true,
   flipX: true,
   flipY: false,
 };

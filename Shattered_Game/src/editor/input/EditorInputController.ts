@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { TerrainFamily } from '../../shared/map/TerrainTypes';
 
-export type EditorToolMode = 'terrain' | 'object';
+export type EditorToolMode = 'terrain' | 'object' | 'walkability' | 'elevation';
 type ZoomDirection = 'in' | 'out';
 
 type EditorInputHandlers = {
@@ -197,16 +197,6 @@ export class EditorInputController {
 
     if (event.code === 'Backspace' || event.code === 'Delete') {
       this.handlers.removeHoveredObject();
-      return;
-    }
-
-    if (event.code === 'KeyX') {
-      this.handlers.exportMap();
-      return;
-    }
-
-    if (event.code === 'KeyY') {
-      this.handlers.exportWorldChunk();
       return;
     }
 

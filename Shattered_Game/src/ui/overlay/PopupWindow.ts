@@ -50,6 +50,11 @@ export class PopupWindow {
     this.body.appendChild(contentEl);
   }
 
+  /** Add a BEM modifier class to the popup root (e.g. 'ui-popup--skill'). */
+  addModifier(cls: string): void {
+    this.el.classList.add(cls);
+  }
+
   open(contentEl?: HTMLElement): void {
     if (contentEl) this.setContent(contentEl);
     if (this._isOpen) return;

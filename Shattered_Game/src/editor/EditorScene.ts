@@ -1,8 +1,14 @@
 import Phaser from 'phaser';
 import {
+  createEditorMap,
   createSampleEditorMap,
+  getEditorTerrainElevationAt,
   getEditorTerrainAt,
   type EditorMapDefinition,
+  getEditorTerrainWalkabilityAt,
+  paintTerrainElevation,
+  paintTerrainWalkability,
+  resizeEditorMap,
 } from '../shared/editor/EditorMapModel';
 import {
   getTileDiamondPoints,
@@ -21,7 +27,20 @@ import { EditorHudController } from './ui/EditorHudController';
 import { EditorObjectLayerRenderer } from './objects/EditorObjectLayerRenderer';
 import { EditorObjectToolController } from './objects/EditorObjectToolController';
 import { EditorDirtyChunkTracker } from './chunks/EditorDirtyChunkTracker';
+import { createDirtyChunkBundle } from './chunks/EditorDirtyChunkBundle';
 import { EditorMapIoController } from './io/EditorMapIoController';
+import {
+  applySavedChunkBundle,
+  deleteSavedChunkBundle,
+  deleteSavedMap,
+  listSavedChunkBundles,
+  listSavedMaps,
+  loadSavedMap,
+  saveDirtyChunkBundleToLocalLibrary,
+  saveMapToLocalLibrary,
+  type SavedDirtyChunkBundleRecord,
+  type SavedEditorMapRecord,
+} from './io/EditorLocalLibrary';
 import { EditorInputController, type EditorToolMode } from './input/EditorInputController';
 import { EditorViewportController } from './viewport/EditorViewportController';
 import { EditorChunkNameRenderer } from './chunks/EditorChunkNameRenderer';
@@ -35,6 +54,23 @@ const CAMERA_PAN_SPEED = 620;
 const MIN_CAMERA_ZOOM = 0.45;
 const MAX_CAMERA_ZOOM = 2.2;
 const ZOOM_STEP = 0.12;
+
+type LoadedChunkWindowContext = {
+  chunkSize: number;
+  loadedChunks: Set<string>;
+  occupiedChunks: Set<string>;
+  originChunkX: number;
+  originChunkY: number;
+  sourceDisplayName: string;
+  sourceMapId: string;
+  sourceRecordId: string;
+};
+
+type PreparedDefinitionImage = {
+  dataUrl: string;
+  height: number;
+  width: number;
+};
 
 export class EditorScene extends Phaser.Scene {
   private readonly terrainTool = new EditorTerrainToolController();
@@ -59,7 +95,12 @@ export class EditorScene extends Phaser.Scene {
   private chunkNameRenderer?: EditorChunkNameRenderer;
   private palette?: EditorTilePaletteController;
   private viewport?: EditorViewportController;
+  private definitionPanelSubmit: (() => void | Promise<void>) | null = null;
+  private pendingChunkRename: { chunkX: number; chunkY: number } | null = null;
   private toolMode: EditorToolMode = 'terrain';
+  private selectedWalkable = true;
+  private selectedElevation = 0;
+  private loadedChunkWindow: LoadedChunkWindowContext | null = null;
 
   preload(): void {
     preloadTerrainAssets(this);
@@ -78,8 +119,26 @@ export class EditorScene extends Phaser.Scene {
     this.chunkOverlayGraphics = this.add.graphics();
     this.hud = new EditorHudController(this, {
       onAdjustBrushSize: (delta) => this.adjustBrushSize(delta),
+      onAdjustElevation: (delta) => this.adjustElevation(delta),
+      onClearGameMap: () => this.clearPublishedGameMap(),
+      onCreateCustomObject: () => this.createCustomObjectDefinition(),
+      onCreateCustomTile: () => this.createCustomTerrainBrush(),
+      onDeleteCustomObject: () => this.deleteSelectedCustomObjectDefinition(),
+      onDeleteCustomTile: () => this.deleteSelectedCustomTerrainBrush(),
+      onExportDirtyChunks: () => this.saveDirtyChunksToLibrary(),
+      onExportMap: () => { void this.exportMap(); },
+      onExportWorldChunk: () => { void this.exportWorldChunk(); },
+      onImportDirtyChunks: () => this.openChunkLibrary(),
+      onImportMap: () => this.openMapLibrary(),
+      onOpenChunkWindow: () => this.openChunkWindowPanel(),
       onOpenPalette: () => this.togglePalette(),
+      onOpenMap: () => this.openMapLibrary(),
+      onRenameMap: (displayName) => this.renameMap(displayName),
+      onSaveMap: () => this.saveMapToLibrary(),
+      onSetWalkabilityBrush: (walkable) => this.setWalkabilityBrush(walkable),
       onSetMode: (mode) => this.setToolMode(mode as EditorToolMode),
+      onTestInGame: () => this.testMapInGame(),
+      onResizeMap: () => this.openResizePanel(),
     });
     this.hud.create(this.terrainTool.getSelectedBrush());
     this.palette = new EditorTilePaletteController(
@@ -102,6 +161,19 @@ export class EditorScene extends Phaser.Scene {
 
     this.createUiCamera();
     this.registerInputController();
+    document.getElementById('ed-library-close')?.addEventListener('click', () => this.hideLibraryPanel());
+    document.getElementById('ed-definition-close')?.addEventListener('click', () => this.hideDefinitionPanel());
+    document.getElementById('ed-definition-cancel')?.addEventListener('click', () => this.hideDefinitionPanel());
+    document.getElementById('ed-definition-create')?.addEventListener('click', () => { void this.definitionPanelSubmit?.(); });
+    document.getElementById('ed-chunk-window-close')?.addEventListener('click', () => this.hideChunkWindowPanel());
+    document.getElementById('ed-chunk-window-cancel')?.addEventListener('click', () => this.hideChunkWindowPanel());
+    document.getElementById('ed-chunk-window-load')?.addEventListener('click', () => this.loadChunkWindowFromPanel());
+    document.getElementById('ed-resize-close')?.addEventListener('click', () => this.hideResizePanel());
+    document.getElementById('ed-resize-cancel')?.addEventListener('click', () => this.hideResizePanel());
+    document.getElementById('ed-resize-apply')?.addEventListener('click', () => this.applyResizeFromPanel());
+    document.getElementById('ed-chunk-name-close')?.addEventListener('click', () => this.hideChunkNamePanel());
+    document.getElementById('ed-chunk-name-cancel')?.addEventListener('click', () => this.hideChunkNamePanel());
+    document.getElementById('ed-chunk-name-apply')?.addEventListener('click', () => this.applyChunkNameFromPanel());
     this.redrawTerrain();
     this.redrawObjects();
     this.centerCameraOnMap();
@@ -132,22 +204,22 @@ export class EditorScene extends Phaser.Scene {
       adjustBrushSize: (delta) => this.adjustBrushSize(delta),
       centerCameraOnMap: () => this.centerCameraOnMap(),
       cycleSelection: (offset) => this.cycleSelection(offset),
-      exportDirtyChunks: () => { void this.exportDirtyChunks(); },
+      exportDirtyChunks: () => this.saveDirtyChunksToLibrary(),
       exportMap: () => { void this.exportMap(); },
       exportWorldChunk: () => { void this.exportWorldChunk(); },
       flipSelectedBrush: (axis) => this.flipSelectedBrush(axis),
       getToolMode: () => this.toolMode,
-      importDirtyChunks: () => this.importDirtyChunks(),
-      importMap: () => this.importMap(),
+      importDirtyChunks: () => this.openChunkLibrary(),
+      importMap: () => this.openMapLibrary(),
       isPaletteOpen: () => this.palette?.isVisible() ?? false,
       isPointerPanning: () => this.viewport?.isPanning() ?? false,
-      openMapFromFile: () => { void this.openMapFromFile(); },
+      openMapFromFile: () => this.openMapLibrary(),
       redrawPointerState: () => this.redrawPointerState(),
       removeHoveredObject: () => this.removeHoveredObject(),
       renameHoveredChunk: () => this.renameHoveredChunk(),
       resetTerrainStroke: () => this.terrainTool.resetStroke(),
-      resizeMap: () => this.promptResizeMap(),
-      saveMapToFile: () => { void this.saveMapToFile(); },
+      resizeMap: () => this.openResizePanel(),
+      saveMapToFile: () => this.saveMapToLibrary(),
       selectBrushForFamily: (family) => this.selectBrushForFamily(family),
       setToolMode: (mode) => this.setToolMode(mode),
       startPointerPan: (pointer) => this.viewport?.startPointerPan(pointer),
@@ -170,7 +242,7 @@ export class EditorScene extends Phaser.Scene {
   private setToolMode(mode: EditorToolMode): void {
     this.toolMode = mode;
     this.updateInfoText();
-    this.setStatus(mode === 'terrain' ? 'Terrain mode.' : 'Object mode.');
+    this.setStatus(formatToolModeStatus(mode));
   }
 
   private selectBrushForFamily(family: TerrainFamily): void {
@@ -192,6 +264,163 @@ export class EditorScene extends Phaser.Scene {
     this.palette?.updateObjectSelection(def.id);
     this.updateInfoText();
     this.setStatus(`Selected object ${def.displayName}.`);
+  }
+
+  private createCustomTerrainBrush(): void {
+    const base = this.terrainTool.getSelectedBrush();
+    this.showDefinitionPanel({
+      flagChecked: base.walkable,
+      flagLabel: 'Walkable tile',
+      idValue: `custom_${base.id}`,
+      nameValue: base.label,
+      categoryValue: base.category ?? base.family,
+      previewColor: null,
+      previewSrc: this.getTexturePreviewDataUrl(base.textureKey),
+      title: 'Create Custom Tile',
+      assetKind: 'terrainTile',
+      onCreate: ({ category, flag, id, name, textureDataUrl, textureHeight, textureKey, textureWidth }) => {
+        const brush = this.terrainTool.createCustomBrushFromSelected(
+          id,
+          name,
+          flag,
+          textureKey,
+          textureDataUrl,
+          category,
+          getTerrainTileFitScale(textureWidth, textureHeight),
+        );
+        const paint = this.terrainTool.getSelectedPaint();
+        this.map = {
+          ...this.map,
+          customTerrainBrushes: upsertById(this.map.customTerrainBrushes, paint),
+        };
+        this.palette?.updateTerrainSelection(brush);
+        this.updateInfoText();
+        this.hideDefinitionPanel();
+        this.setStatus(`Added custom tile ${brush.label} (${flag ? 'walkable' : 'blocked'}).`);
+      },
+    });
+  }
+
+  private createCustomObjectDefinition(): void {
+    const base = this.objectTool.getSelectedDefinition();
+    this.showDefinitionPanel({
+      flagChecked: base.blocksMovement,
+      flagLabel: 'Blocks movement',
+      idValue: `custom_${base.id}`,
+      nameValue: base.displayName,
+      categoryValue: base.category,
+      footprintHeight: getFootprintHeight(base.collisionFootprint),
+      footprintWidth: getFootprintWidth(base.collisionFootprint),
+      previewColor: this.objectTool.getPreviewColor(),
+      previewSrc: this.getTexturePreviewDataUrl(this.objectTool.getPreviewTextureKey()),
+      title: 'Create Custom Object',
+      assetKind: 'object',
+      onCreate: ({
+        category,
+        flag,
+        footprintHeight,
+        footprintWidth,
+        id,
+        name,
+        textureDataUrl,
+        textureHeight,
+        textureKey,
+        textureWidth,
+      }) => {
+        const definition = this.objectTool.createCustomDefinitionFromSelected(
+          id,
+          name,
+          flag,
+          textureKey,
+          textureDataUrl,
+          category,
+          footprintWidth,
+          footprintHeight,
+          textureWidth,
+          textureHeight,
+        );
+        this.map = {
+          ...this.map,
+          customObjectDefinitions: upsertById(this.map.customObjectDefinitions, definition),
+        };
+        this.palette?.updateObjectSelection(definition.id);
+        this.updateInfoText();
+        this.hideDefinitionPanel();
+        this.setStatus(`Added custom object ${definition.displayName} (${flag ? 'blocking' : 'walkable'}).`);
+      },
+    });
+  }
+
+  private deleteSelectedCustomTerrainBrush(): void {
+    const brush = this.terrainTool.getSelectedBrush();
+
+    if (brush.source !== 'custom') {
+      this.setStatus('Only custom tiles can be deleted.');
+      return;
+    }
+
+    const replacementBrush = this.terrainTool.selectFamily(brush.family);
+    const replacementPaint = this.terrainTool.getSelectedPaint();
+    let replacedTiles = 0;
+
+    for (const [key, paint] of Object.entries(this.map.terrainTiles)) {
+      if (paint.id !== brush.id) {
+        continue;
+      }
+
+      const [tileX, tileY] = parseTileKey(key);
+      this.map.terrain[tileY][tileX] = replacementPaint.family;
+      this.map.terrainTiles[key] = { ...replacementPaint };
+      this.map.terrainWalkability[key] = replacementPaint.walkable;
+      replacedTiles += 1;
+    }
+
+    const deleted = this.terrainTool.deleteCustomBrush(brush.id);
+
+    if (!deleted) {
+      this.setStatus('Custom tile could not be deleted.');
+      return;
+    }
+
+    this.map = {
+      ...this.map,
+      customTerrainBrushes: this.map.customTerrainBrushes.filter((paint) => paint.id !== brush.id),
+    };
+    this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
+    this.palette?.updateTerrainSelection(replacementBrush);
+    this.redrawTerrain();
+    this.redrawOverlay();
+    this.updateInfoText();
+    this.setStatus(`Deleted custom tile ${brush.label}. Replaced ${replacedTiles} painted tile(s).`);
+  }
+
+  private deleteSelectedCustomObjectDefinition(): void {
+    const definition = this.objectTool.getSelectedDefinition();
+
+    if (!definition.id.startsWith('custom_')) {
+      this.setStatus('Only custom objects can be deleted.');
+      return;
+    }
+
+    const removedObjects = this.map.objects.filter((object) => object.definitionId === definition.id).length;
+    const deleted = this.objectTool.deleteCustomDefinition(definition.id);
+
+    if (!deleted) {
+      this.setStatus('Custom object could not be deleted.');
+      return;
+    }
+
+    const selected = this.objectTool.getSelectedDefinition();
+    this.map = {
+      ...this.map,
+      customObjectDefinitions: this.map.customObjectDefinitions.filter((candidate) => candidate.id !== definition.id),
+      objects: this.map.objects.filter((object) => object.definitionId !== definition.id),
+    };
+    this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
+    this.palette?.updateObjectSelection(selected.id);
+    this.redrawObjects();
+    this.updateInfoText();
+    this.setStatus(`Deleted custom object ${definition.displayName}. Removed ${removedObjects} placed instance(s).`);
   }
 
   private cycleSelection(offset: number): void {
@@ -222,7 +451,7 @@ export class EditorScene extends Phaser.Scene {
 
   private togglePalette(): void {
     this.palette?.toggle(
-      this.toolMode,
+      this.toolMode === 'object' ? 'object' : 'terrain',
       this.terrainTool.getSelectedBrush(),
       this.objectTool.getSelectedDefinition().id,
     );
@@ -243,6 +472,16 @@ export class EditorScene extends Phaser.Scene {
       }
 
       this.placeHoveredObject();
+      return;
+    }
+
+    if (this.toolMode === 'walkability') {
+      this.paintHoveredWalkability();
+      return;
+    }
+
+    if (this.toolMode === 'elevation') {
+      this.paintHoveredElevation();
       return;
     }
 
@@ -270,6 +509,42 @@ export class EditorScene extends Phaser.Scene {
     }
 
     this.redrawObjects();
+    this.redrawOverlay();
+    this.updateInfoText();
+  }
+
+  private paintHoveredWalkability(): void {
+    if (!this.hoverTile) {
+      return;
+    }
+
+    const paintedTiles = this.terrainTool.getBrushFootprint(this.hoverTile.x, this.hoverTile.y)
+      .filter((tile) => paintTerrainWalkability(this.map, tile.x, tile.y, this.selectedWalkable));
+
+    this.markPaintedTilesDirty(paintedTiles);
+  }
+
+  private paintHoveredElevation(): void {
+    if (!this.hoverTile) {
+      return;
+    }
+
+    const paintedTiles = this.terrainTool.getBrushFootprint(this.hoverTile.x, this.hoverTile.y)
+      .filter((tile) => paintTerrainElevation(this.map, tile.x, tile.y, this.selectedElevation));
+
+    this.markPaintedTilesDirty(paintedTiles);
+  }
+
+  private markPaintedTilesDirty(tiles: Array<{ x: number; y: number }>): void {
+    if (tiles.length === 0) {
+      return;
+    }
+
+    for (const tile of tiles) {
+      this.terrainRenderer?.renderChunksAroundTile(this.map, tile.x, tile.y);
+      this.dirtyChunks.markTileDirty(tile.x, tile.y);
+    }
+
     this.redrawOverlay();
     this.updateInfoText();
   }
@@ -332,12 +607,12 @@ export class EditorScene extends Phaser.Scene {
     }
 
     graphics.clear();
+    graphics.setDepth(9_000);
+    this.drawTileDataOverlay(graphics);
 
     if (!this.hoverTile || !this.isTileInBounds(this.hoverTile.x, this.hoverTile.y)) {
       return;
     }
-
-    graphics.setDepth(9_000);
 
     const footprint = this.toolMode === 'terrain'
       ? this.terrainTool.getBrushFootprint(this.hoverTile.x, this.hoverTile.y)
@@ -356,6 +631,35 @@ export class EditorScene extends Phaser.Scene {
       graphics.fillPoints(points, true);
       graphics.lineStyle(isCenter ? 2 : 1, 0xf8fafc, isCenter ? 0.95 : 0.45);
       graphics.strokePoints(points, true);
+    }
+  }
+
+  private drawTileDataOverlay(graphics: Phaser.GameObjects.Graphics): void {
+    if (this.toolMode !== 'walkability' && this.toolMode !== 'elevation') {
+      return;
+    }
+
+    for (let tileY = 0; tileY < this.map.height; tileY += 1) {
+      for (let tileX = 0; tileX < this.map.width; tileX += 1) {
+        const points = getTileDiamondPoints(this.transform, tileX, tileY)
+          .map((point) => new Phaser.Geom.Point(point.x, point.y));
+
+        if (this.toolMode === 'walkability') {
+          const walkable = getEditorTerrainWalkabilityAt(this.map, tileX, tileY) ?? true;
+          graphics.fillStyle(walkable ? 0x22c55e : 0xef4444, walkable ? 0.08 : 0.28);
+          graphics.fillPoints(points, true);
+          continue;
+        }
+
+        const elevation = getEditorTerrainElevationAt(this.map, tileX, tileY) ?? 0;
+
+        if (elevation <= 0) {
+          continue;
+        }
+
+        graphics.fillStyle(0x60a5fa, Math.min(0.42, 0.1 + elevation * 0.055));
+        graphics.fillPoints(points, true);
+      }
     }
   }
 
@@ -380,6 +684,8 @@ export class EditorScene extends Phaser.Scene {
       : null;
     const hoverFamily = hover ? getEditorTerrainAt(this.map, hover.x, hover.y) : null;
     const hoverPaint = hover ? this.terrainRenderer?.getTilePaint(this.map, hover.x, hover.y) ?? null : null;
+    const hoverWalkable = hover ? getEditorTerrainWalkabilityAt(this.map, hover.x, hover.y) : null;
+    const hoverElevation = hover ? getEditorTerrainElevationAt(this.map, hover.x, hover.y) : null;
     const hoverObject = hover ? this.objectRenderer?.getObjectAtTile(this.map, hover.x, hover.y) ?? null : null;
     const hoverChunk = hover ? this.getChunkInfo(hover.x, hover.y) : null;
     const selectedBrush = this.terrainTool.getSelectedBrush();
@@ -391,10 +697,12 @@ export class EditorScene extends Phaser.Scene {
         chunkName: hoverChunk?.chunkName ?? null,
         chunkX: hoverChunk?.chunkX ?? null,
         chunkY: hoverChunk?.chunkY ?? null,
+        elevation: hoverElevation,
         family: hoverFamily,
         objectDefinitionId: hoverObject?.definitionId ?? null,
         paint: hoverPaint,
         tile: hover,
+        walkable: hoverWalkable,
       },
       dirtyChunks: this.dirtyChunks.getSummary(),
       map: this.map,
@@ -402,9 +710,40 @@ export class EditorScene extends Phaser.Scene {
       objectPreviewTextureKey: this.objectTool.getPreviewTextureKey(),
       selectedBrush,
       selectedBrushIndexLabel: this.terrainTool.getSelectedBrushIndexLabel(),
+      selectedElevation: this.selectedElevation,
+      selectedWalkable: this.selectedWalkable,
       selectedObjectDisplayName: selectedObjectDefinition.displayName,
       toolMode: this.toolMode,
     });
+  }
+
+  private setWalkabilityBrush(walkable: boolean): void {
+    this.selectedWalkable = walkable;
+    this.updateInfoText();
+    this.setStatus(walkable ? 'Painting walkable tiles.' : 'Painting blocked tiles.');
+  }
+
+  private adjustElevation(delta: number): void {
+    this.selectedElevation = Math.max(0, Math.min(9, this.selectedElevation + delta));
+    this.updateInfoText();
+    this.setStatus(`Painting height ${this.selectedElevation}.`);
+  }
+
+  private renameMap(displayName: string): void {
+    const trimmed = displayName.trim();
+
+    if (!trimmed || trimmed === this.map.displayName) {
+      this.updateInfoText();
+      return;
+    }
+
+    this.map = {
+      ...this.map,
+      displayName: trimmed,
+      id: slugifyMapId(trimmed),
+    };
+    this.updateInfoText();
+    this.setStatus(`Map renamed to ${trimmed}.`);
   }
 
   private async exportMap(): Promise<void> {
@@ -434,129 +773,725 @@ export class EditorScene extends Phaser.Scene {
     );
   }
 
-  private async exportDirtyChunks(): Promise<void> {
-    const dirtyChunks = this.dirtyChunks.getDirtyChunks();
-
-    if (dirtyChunks.length === 0) {
-      this.setStatus('No dirty chunks to export.');
-      return;
-    }
-
-    const result = await this.mapIo.exportDirtyChunks(this.map, dirtyChunks, {
-      chunkSize: EDITOR_CHUNK_SIZE,
-      regionId: 'editor_region',
-      worldId: 'the_wake',
-    });
-    this.dirtyChunks.clear();
-    this.updateInfoText();
-    this.setStatus(
-      result === 'clipboard'
-        ? `Dirty chunk bundle copied to clipboard (${dirtyChunks.length} chunks).`
-        : `Dirty chunk bundle printed to console (${dirtyChunks.length} chunks).`,
-    );
-  }
-
-  private importMap(): void {
+  private saveDirtyChunksToLibrary(): void {
     try {
-      const importedMap = this.mapIo.importFromPrompt();
+      const dirtyChunks = this.dirtyChunks.getDirtyChunks();
 
-      if (!importedMap) {
+      if (dirtyChunks.length === 0) {
+        this.setStatus('No dirty chunks to save.');
         return;
       }
 
-      this.map = importedMap;
+      const bundle = createDirtyChunkBundle(this.map, dirtyChunks, {
+        chunkSize: EDITOR_CHUNK_SIZE,
+        originChunkX: this.loadedChunkWindow?.originChunkX ?? 0,
+        originChunkY: this.loadedChunkWindow?.originChunkY ?? 0,
+        regionId: 'editor_region',
+        sourceMapId: this.loadedChunkWindow?.sourceMapId,
+        worldId: 'the_wake',
+      });
+      const record = saveDirtyChunkBundleToLocalLibrary(bundle);
       this.dirtyChunks.clear();
-      this.centerCameraOnMap();
-      this.redrawTerrain();
-      this.redrawObjects();
-      this.redrawOverlay();
       this.updateInfoText();
-      this.setStatus('Map loaded.');
+      this.setStatus(`Saved ${record.chunkCount} dirty chunk(s) to editor library.`);
     } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Map import failed.');
+      this.setStatus(error instanceof Error ? error.message : 'Dirty chunk save failed.');
     }
   }
 
-  private importDirtyChunks(): void {
+  private saveMapToLibrary(): void {
     try {
-      const result = this.mapIo.importDirtyChunksFromPrompt(this.map);
-
-      if (!result) {
-        return;
-      }
-
-      this.map = result.map;
-      this.dirtyChunks.clear();
-      this.redrawTerrain();
-      this.redrawObjects();
-      this.redrawOverlay();
-      this.updateInfoText();
-      this.setStatus(`Dirty chunk bundle imported (${result.bundle.chunks.length} chunks).`);
-    } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Dirty chunk import failed.');
-    }
-  }
-
-  private async saveMapToFile(): Promise<void> {
-    try {
-      const result = await this.mapIo.quickSaveToFile(this.map);
-
-      if (result === 'cancelled') {
-        return;
-      }
-
+      const record = saveMapToLocalLibrary(this.map);
       this.dirtyChunks.clear();
       this.updateInfoText();
-      this.setStatus(
-        result === 'no-file-api'
-          ? 'Map export copied/printed because file save is unavailable.'
-          : 'Map saved.',
-      );
+      this.setStatus(`Saved ${record.displayName} to editor library.`);
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Map save failed.');
     }
   }
 
-  private async openMapFromFile(): Promise<void> {
+  private openMapLibrary(): void {
+    this.showLibraryPanel({
+      emptyMessage: 'No saved maps yet.',
+      records: listSavedMaps(),
+      title: 'Open Map',
+      type: 'map',
+    });
+  }
+
+  private openChunkLibrary(): void {
+    this.showLibraryPanel({
+      emptyMessage: 'No saved chunk bundles yet.',
+      records: listSavedChunkBundles(),
+      title: 'Apply Chunks',
+      type: 'chunks',
+    });
+  }
+
+  private loadMapFromLibrary(recordId: string): void {
     try {
-      const importedMap = await this.mapIo.openFromFile();
-
-      if (!importedMap) {
-        return;
-      }
-
-      this.map = importedMap;
+      this.map = loadSavedMap(recordId);
+      this.loadedChunkWindow = null;
+      this.applyMapCustomDefinitions();
       this.dirtyChunks.clear();
       this.centerCameraOnMap();
       this.redrawTerrain();
       this.redrawObjects();
       this.redrawOverlay();
       this.updateInfoText();
-      this.setStatus('Map loaded from file.');
+      this.hideLibraryPanel();
+      this.setStatus('Map loaded from editor library.');
     } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Map file open failed.');
+      this.setStatus(error instanceof Error ? error.message : 'Map library load failed.');
     }
   }
 
-  private promptResizeMap(): void {
+  private loadChunksFromLibrary(recordId: string): void {
     try {
-      const resizedMap = this.mapIo.resizeFromPrompt(this.map, this.terrainTool.getSelectedPaint());
+      this.map = applySavedChunkBundle(
+        this.map,
+        recordId,
+        this.loadedChunkWindow?.originChunkX ?? 0,
+        this.loadedChunkWindow?.originChunkY ?? 0,
+      );
+      this.dirtyChunks.clear();
+      this.redrawTerrain();
+      this.redrawObjects();
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.hideLibraryPanel();
+      this.setStatus('Chunk bundle loaded from editor library.');
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Chunk library load failed.');
+    }
+  }
 
-      if (!resizedMap) {
+  private openChunkWindowPanel(): void {
+    const panel = document.getElementById('ed-chunk-window');
+    const select = document.getElementById('ed-chunk-window-map') as HTMLSelectElement | null;
+    const chunkX = document.getElementById('ed-chunk-window-x') as HTMLInputElement | null;
+    const chunkY = document.getElementById('ed-chunk-window-y') as HTMLInputElement | null;
+    const radius = document.getElementById('ed-chunk-window-radius') as HTMLInputElement | null;
+
+    if (!panel || !select || !chunkX || !chunkY || !radius) {
+      return;
+    }
+
+    const maps = listSavedMaps();
+
+    if (maps.length === 0) {
+      this.setStatus('Save a map before loading chunk windows.');
+      return;
+    }
+
+    select.innerHTML = '';
+
+    for (const map of maps) {
+      const option = document.createElement('option');
+      option.value = map.id;
+      option.textContent = `${map.displayName} (${map.width}x${map.height})`;
+      select.appendChild(option);
+    }
+
+    chunkX.value = String(this.loadedChunkWindow?.originChunkX ?? 0);
+    chunkY.value = String(this.loadedChunkWindow?.originChunkY ?? 0);
+    radius.value = '0';
+    panel.style.display = 'flex';
+  }
+
+  private hideChunkWindowPanel(): void {
+    const panel = document.getElementById('ed-chunk-window');
+
+    if (panel) {
+      panel.style.display = 'none';
+    }
+  }
+
+  private loadChunkWindowFromPanel(): void {
+    try {
+      const select = document.getElementById('ed-chunk-window-map') as HTMLSelectElement | null;
+      const chunkXInput = document.getElementById('ed-chunk-window-x') as HTMLInputElement | null;
+      const chunkYInput = document.getElementById('ed-chunk-window-y') as HTMLInputElement | null;
+      const radiusInput = document.getElementById('ed-chunk-window-radius') as HTMLInputElement | null;
+
+      if (!select || !chunkXInput || !chunkYInput || !radiusInput) {
         return;
       }
 
-      this.map = resizedMap;
+      const recordId = select.value;
+      const centerChunkX = parseIntegerInput(chunkXInput.value, 0);
+      const centerChunkY = parseIntegerInput(chunkYInput.value, 0);
+      const radius = Math.max(0, parseIntegerInput(radiusInput.value, 0));
+      const sourceMap = loadSavedMap(recordId);
+      const { context, map } = this.createChunkWindowMap(sourceMap, recordId, centerChunkX, centerChunkY, radius);
+
+      this.map = map;
+      this.loadedChunkWindow = context;
+      this.applyMapCustomDefinitions();
+      this.dirtyChunks.clear();
+      this.hoverTile = null;
+      this.centerCameraOnMap();
+      this.redrawTerrain();
+      this.redrawObjects();
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.hideChunkWindowPanel();
+      this.setStatus(`Loaded ${context.sourceDisplayName} chunk window at ${context.originChunkX},${context.originChunkY}.`);
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Chunk window load failed.');
+    }
+  }
+
+  private openResizePanel(): void {
+    const panel = document.getElementById('ed-resize');
+    const widthInput = document.getElementById('ed-resize-width') as HTMLInputElement | null;
+    const heightInput = document.getElementById('ed-resize-height') as HTMLInputElement | null;
+
+    if (!panel || !widthInput || !heightInput) {
+      return;
+    }
+
+    widthInput.value = String(Math.ceil(this.map.width / EDITOR_CHUNK_SIZE));
+    heightInput.value = String(Math.ceil(this.map.height / EDITOR_CHUNK_SIZE));
+    panel.style.display = 'flex';
+    widthInput.focus();
+    widthInput.select();
+  }
+
+  private hideResizePanel(): void {
+    const panel = document.getElementById('ed-resize');
+
+    if (panel) {
+      panel.style.display = 'none';
+    }
+  }
+
+  private applyResizeFromPanel(): void {
+    try {
+      const widthInput = document.getElementById('ed-resize-width') as HTMLInputElement | null;
+      const heightInput = document.getElementById('ed-resize-height') as HTMLInputElement | null;
+
+      if (!widthInput || !heightInput) {
+        return;
+      }
+
+      const widthChunks = parseIntegerInput(widthInput.value, Math.ceil(this.map.width / EDITOR_CHUNK_SIZE));
+      const heightChunks = parseIntegerInput(heightInput.value, Math.ceil(this.map.height / EDITOR_CHUNK_SIZE));
+      const width = widthChunks * EDITOR_CHUNK_SIZE;
+      const height = heightChunks * EDITOR_CHUNK_SIZE;
+      const guardrailError = this.getResizeGuardrailError(width, height);
+
+      if (guardrailError) {
+        this.setStatus(guardrailError);
+        return;
+      }
+
+      this.map = resizeEditorMap(this.map, width, height, this.terrainTool.getSelectedPaint());
+      this.refreshLoadedChunkWindowAfterResize(width, height);
       this.hoverTile = null;
       this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
       this.redrawTerrain();
       this.redrawObjects();
       this.redrawOverlay();
       this.updateInfoText();
-      this.setStatus(`Map resized to ${this.map.width}x${this.map.height}. New tiles filled with ${this.terrainTool.getSelectedBrush().label}.`);
+      this.hideResizePanel();
+      this.setStatus(`Map resized to ${widthChunks}x${heightChunks} chunks (${this.map.width}x${this.map.height} tiles).`);
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Resize failed.');
     }
+  }
+
+  private createChunkWindowMap(
+    sourceMap: EditorMapDefinition,
+    sourceRecordId: string,
+    centerChunkX: number,
+    centerChunkY: number,
+    radius: number,
+  ): { context: LoadedChunkWindowContext; map: EditorMapDefinition } {
+    const maxChunkX = Math.max(0, Math.ceil(sourceMap.width / EDITOR_CHUNK_SIZE) - 1);
+    const maxChunkY = Math.max(0, Math.ceil(sourceMap.height / EDITOR_CHUNK_SIZE) - 1);
+    const startChunkX = clamp(centerChunkX - radius, 0, maxChunkX);
+    const startChunkY = clamp(centerChunkY - radius, 0, maxChunkY);
+    const endChunkX = clamp(centerChunkX + radius, 0, maxChunkX);
+    const endChunkY = clamp(centerChunkY + radius, 0, maxChunkY);
+    const startX = startChunkX * EDITOR_CHUNK_SIZE;
+    const startY = startChunkY * EDITOR_CHUNK_SIZE;
+    const width = Math.min(sourceMap.width - startX, (endChunkX - startChunkX + 1) * EDITOR_CHUNK_SIZE);
+    const height = Math.min(sourceMap.height - startY, (endChunkY - startChunkY + 1) * EDITOR_CHUNK_SIZE);
+    const fallbackPaint = Object.values(sourceMap.terrainTiles)[0] ?? this.terrainTool.getSelectedPaint();
+    const map = createEditorMap(
+      width,
+      height,
+      sourceMap.terrain[startY]?.[startX] ?? fallbackPaint.family,
+      `${sourceMap.id}_window_${startChunkX}_${startChunkY}_${endChunkX}_${endChunkY}`,
+      `${sourceMap.displayName} ${startChunkX},${startChunkY}-${endChunkX},${endChunkY}`,
+      fallbackPaint,
+    );
+
+    map.terrain = Array.from({ length: height }, (_, localY) =>
+      Array.from({ length: width }, (_, localX) => sourceMap.terrain[startY + localY][startX + localX]),
+    );
+    map.terrainTiles = copyTileRecordWindow(sourceMap.terrainTiles, startX, startY, width, height);
+    map.terrainWalkability = copyTileRecordWindow(sourceMap.terrainWalkability, startX, startY, width, height);
+    map.terrainElevation = copyTileRecordWindow(sourceMap.terrainElevation, startX, startY, width, height);
+    map.customTerrainBrushes = [...sourceMap.customTerrainBrushes];
+    map.customObjectDefinitions = [...sourceMap.customObjectDefinitions];
+    map.chunkNames = copyChunkNamesWindow(sourceMap.chunkNames, startChunkX, startChunkY, endChunkX, endChunkY);
+    map.objects = sourceMap.objects
+      .filter((object) => isInsideRect(object.tileX, object.tileY, startX, startY, width, height))
+      .map((object) => ({
+        ...object,
+        tileX: object.tileX - startX,
+        tileY: object.tileY - startY,
+      }));
+    map.enemySpawns = sourceMap.enemySpawns
+      .filter((spawn) => isInsideRect(spawn.tileX, spawn.tileY, startX, startY, width, height))
+      .map((spawn) => ({
+        ...spawn,
+        tileX: spawn.tileX - startX,
+        tileY: spawn.tileY - startY,
+      }));
+
+    const context: LoadedChunkWindowContext = {
+      chunkSize: EDITOR_CHUNK_SIZE,
+      loadedChunks: createChunkKeySet(startChunkX, startChunkY, endChunkX, endChunkY),
+      occupiedChunks: createChunkKeySet(0, 0, maxChunkX, maxChunkY),
+      originChunkX: startChunkX,
+      originChunkY: startChunkY,
+      sourceDisplayName: sourceMap.displayName,
+      sourceMapId: sourceMap.id,
+      sourceRecordId,
+    };
+
+    return { context, map };
+  }
+
+  private getResizeGuardrailError(width: number, height: number): string | null {
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+      return 'Width and height must be positive chunk counts.';
+    }
+
+    if (!this.loadedChunkWindow) {
+      return null;
+    }
+
+    const nextChunks = createLocalWindowChunkKeys(
+      this.loadedChunkWindow.originChunkX,
+      this.loadedChunkWindow.originChunkY,
+      width,
+      height,
+      this.loadedChunkWindow.chunkSize,
+    );
+
+    for (const key of nextChunks) {
+      if (this.loadedChunkWindow.occupiedChunks.has(key) && !this.loadedChunkWindow.loadedChunks.has(key)) {
+        return `Blocked resize: chunk ${key} already exists in ${this.loadedChunkWindow.sourceDisplayName}. Load a larger window before editing it.`;
+      }
+    }
+
+    return null;
+  }
+
+  private refreshLoadedChunkWindowAfterResize(width: number, height: number): void {
+    if (!this.loadedChunkWindow) {
+      return;
+    }
+
+    this.loadedChunkWindow.loadedChunks = createLocalWindowChunkKeys(
+      this.loadedChunkWindow.originChunkX,
+      this.loadedChunkWindow.originChunkY,
+      width,
+      height,
+      this.loadedChunkWindow.chunkSize,
+    );
+  }
+
+  private testMapInGame(): void {
+    try {
+      this.mapIo.publishToGame(this.map);
+      window.open('/index.html?editorMap=1', '_blank', 'noopener,noreferrer');
+      this.setStatus(`Testing ${this.map.displayName} in game.`);
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Test in game failed.');
+    }
+  }
+
+  private clearPublishedGameMap(): void {
+    this.mapIo.clearPublishedGameMap();
+    this.setStatus('Cleared the editor test map from game startup.');
+  }
+
+  private applyMapCustomDefinitions(): void {
+    this.registerMapEmbeddedTextures(this.map);
+    this.terrainTool.addCustomPaints(this.map.customTerrainBrushes);
+    this.objectTool.addCustomDefinitions(this.map.customObjectDefinitions);
+  }
+
+  private registerMapEmbeddedTextures(map: EditorMapDefinition): void {
+    for (const paint of map.customTerrainBrushes) {
+      if (paint.textureDataUrl && !this.textures.exists(paint.textureKey)) {
+        this.textures.addBase64(paint.textureKey, paint.textureDataUrl);
+      }
+    }
+
+    for (const definition of map.customObjectDefinitions) {
+      for (const part of definition.visual.parts) {
+        if (part.shape === 'sprite' && part.editorTextureDataUrl && !this.textures.exists(part.textureKey)) {
+          this.textures.addBase64(part.textureKey, part.editorTextureDataUrl);
+        }
+      }
+    }
+  }
+
+  private showLibraryPanel(config:
+    | {
+      emptyMessage: string;
+      records: SavedEditorMapRecord[];
+      title: string;
+      type: 'map';
+    }
+    | {
+      emptyMessage: string;
+      records: SavedDirtyChunkBundleRecord[];
+      title: string;
+      type: 'chunks';
+    },
+  ): void {
+    const panel = document.getElementById('ed-library');
+    const title = document.getElementById('ed-library-title');
+    const grid = document.getElementById('ed-library-grid');
+    const empty = document.getElementById('ed-library-empty');
+
+    if (!panel || !title || !grid || !empty) {
+      return;
+    }
+
+    title.textContent = config.title;
+    grid.innerHTML = '';
+    empty.textContent = config.emptyMessage;
+    empty.style.display = config.records.length === 0 ? '' : 'none';
+
+    if (config.type === 'map') {
+      for (const record of config.records) {
+        grid.appendChild(this.createLibraryCard({
+          actionLabel: 'Open',
+          meta: `${record.width}x${record.height} saved ${formatShortDate(record.savedAt)}`,
+          name: record.displayName,
+          onDelete: () => {
+            deleteSavedMap(record.id);
+            this.openMapLibrary();
+          },
+          onLoad: () => this.loadMapFromLibrary(record.id),
+          previewDataUrl: record.previewDataUrl,
+        }));
+      }
+    } else {
+      for (const record of config.records) {
+        grid.appendChild(this.createLibraryCard({
+          actionLabel: 'Apply',
+          meta: `${record.sourceMapId} saved ${formatShortDate(record.savedAt)}`,
+          name: `${record.regionId} (${record.chunkCount} chunks)`,
+          onDelete: () => {
+            deleteSavedChunkBundle(record.id);
+            this.openChunkLibrary();
+          },
+          onLoad: () => this.loadChunksFromLibrary(record.id),
+          previewDataUrl: record.previewDataUrl,
+        }));
+      }
+    }
+
+    panel.style.display = 'flex';
+  }
+
+  private createLibraryCard(options: {
+    actionLabel: string;
+    meta: string;
+    name: string;
+    onDelete: () => void;
+    onLoad: () => void;
+    previewDataUrl: string;
+  }): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'ed-library-card';
+    card.role = 'button';
+    card.tabIndex = 0;
+
+    const preview = document.createElement('img');
+    preview.className = 'ed-library-preview';
+    preview.src = options.previewDataUrl;
+    preview.alt = '';
+
+    const name = document.createElement('div');
+    name.className = 'ed-library-name';
+    name.textContent = options.name;
+
+    const meta = document.createElement('div');
+    meta.className = 'ed-library-meta';
+    meta.textContent = options.meta;
+
+    const actions = document.createElement('div');
+    actions.className = 'ed-library-actions';
+
+    const load = document.createElement('button');
+    load.className = 'ed-library-action';
+    load.type = 'button';
+    load.textContent = options.actionLabel;
+    load.addEventListener('click', (event) => {
+      event.stopPropagation();
+      options.onLoad();
+    });
+
+    const remove = document.createElement('button');
+    remove.className = 'ed-library-action';
+    remove.type = 'button';
+    remove.textContent = 'Delete';
+    remove.addEventListener('click', (event) => {
+      event.stopPropagation();
+      options.onDelete();
+    });
+
+    actions.append(load, remove);
+    card.append(preview, name, meta, actions);
+    card.addEventListener('click', options.onLoad);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        options.onLoad();
+      }
+    });
+    return card;
+  }
+
+  private hideLibraryPanel(): void {
+    const panel = document.getElementById('ed-library');
+
+    if (panel) {
+      panel.style.display = 'none';
+    }
+  }
+
+  private showDefinitionPanel(options: {
+    assetKind: 'object' | 'terrainTile';
+    categoryValue: string;
+    flagChecked: boolean;
+    flagLabel: string;
+    footprintHeight?: number;
+    footprintWidth?: number;
+    idValue: string;
+    nameValue: string;
+    onCreate: (values: {
+      category: string;
+      flag: boolean;
+      footprintHeight: number;
+      footprintWidth: number;
+      id: string;
+      name: string;
+      textureDataUrl?: string;
+      textureHeight?: number;
+      textureKey?: string;
+      textureWidth?: number;
+    }) => void;
+    previewColor: number | null;
+    previewSrc: string | null;
+    title: string;
+  }): void {
+    const panel = document.getElementById('ed-definition');
+    const title = document.getElementById('ed-definition-title');
+    const idInput = document.getElementById('ed-definition-id') as HTMLInputElement | null;
+    const nameInput = document.getElementById('ed-definition-name') as HTMLInputElement | null;
+    const categoryInput = document.getElementById('ed-definition-category') as HTMLInputElement | null;
+    const footprintPanel = document.getElementById('ed-definition-footprint');
+    const footprintWidthInput = document.getElementById('ed-definition-footprint-width') as HTMLInputElement | null;
+    const footprintHeightInput = document.getElementById('ed-definition-footprint-height') as HTMLInputElement | null;
+    const flagInput = document.getElementById('ed-definition-flag') as HTMLInputElement | null;
+    const flagLabel = document.getElementById('ed-definition-flag-label');
+    const fileInput = document.getElementById('ed-definition-file') as HTMLInputElement | null;
+    const previewImg = document.getElementById('ed-definition-preview-img') as HTMLImageElement | null;
+    const previewColor = document.getElementById('ed-definition-preview-color') as HTMLCanvasElement | null;
+
+    if (
+      !panel ||
+      !title ||
+      !idInput ||
+      !nameInput ||
+      !categoryInput ||
+      !footprintPanel ||
+      !footprintWidthInput ||
+      !footprintHeightInput ||
+      !flagInput ||
+      !flagLabel ||
+      !fileInput ||
+      !previewImg ||
+      !previewColor
+    ) {
+      return;
+    }
+
+    title.textContent = options.title;
+    idInput.value = options.idValue;
+    nameInput.value = options.nameValue;
+    categoryInput.value = options.categoryValue;
+    footprintPanel.style.display = options.assetKind === 'object' ? '' : 'none';
+    footprintWidthInput.value = String(options.footprintWidth ?? 1);
+    footprintHeightInput.value = String(options.footprintHeight ?? 1);
+    flagInput.checked = options.flagChecked;
+    flagLabel.textContent = options.flagLabel;
+    fileInput.value = '';
+
+    if (options.previewSrc) {
+      previewImg.src = options.previewSrc;
+      previewImg.style.display = '';
+      previewColor.style.display = 'none';
+    } else {
+      previewImg.style.display = 'none';
+      previewColor.style.display = '';
+      this.drawDefinitionColorPreview(previewColor, options.previewColor ?? 0xfacc15);
+    }
+
+    let pendingImage: PreparedDefinitionImage | null = null;
+
+    const setPreviewImage = (image: PreparedDefinitionImage): void => {
+      pendingImage = image;
+      previewImg.src = image.dataUrl;
+      previewImg.style.display = '';
+      previewColor.style.display = 'none';
+    };
+    const prepareAndSetPreviewDataUrl = (rawDataUrl: string): void => {
+      void prepareDefinitionImageDataUrl(rawDataUrl, options.assetKind)
+        .then(setPreviewImage)
+        .catch((error: unknown) => {
+          this.setStatus(error instanceof Error ? error.message : 'Image import failed.');
+        });
+    };
+
+    fileInput.onchange = () => {
+      const file = fileInput.files?.[0];
+
+      if (!file) {
+        return;
+      }
+
+      void readFileAsDataUrl(file).then(prepareAndSetPreviewDataUrl);
+    };
+    panel.ondragover = (event) => {
+      event.preventDefault();
+    };
+    panel.ondrop = (event) => {
+      event.preventDefault();
+      const file = Array.from(event.dataTransfer?.files ?? [])
+        .find((candidate) => candidate.type.startsWith('image/'));
+
+      if (file) {
+        void readFileAsDataUrl(file).then(prepareAndSetPreviewDataUrl);
+      }
+    };
+
+    this.definitionPanelSubmit = async () => {
+      const id = idInput.value.trim();
+      const name = nameInput.value.trim() || id;
+      const category = categoryInput.value.trim() || (options.assetKind === 'object' ? 'custom' : 'custom tiles');
+
+      if (!id) {
+        this.setStatus('Custom definition needs an id.');
+        return;
+      }
+
+      const file = fileInput.files?.[0];
+      const preparedImage = pendingImage ?? (file
+        ? await prepareDefinitionImageDataUrl(await readFileAsDataUrl(file), options.assetKind)
+        : null);
+      const textureKey = preparedImage
+        ? await this.loadDroppedTexture(slugifyMapId(`editor_asset_${id}`), preparedImage.dataUrl)
+        : undefined;
+
+      options.onCreate({
+        flag: flagInput.checked,
+        category,
+        footprintHeight: Math.max(1, parseIntegerInput(footprintHeightInput.value, 1)),
+        footprintWidth: Math.max(1, parseIntegerInput(footprintWidthInput.value, 1)),
+        id,
+        name,
+        textureDataUrl: preparedImage?.dataUrl,
+        textureHeight: preparedImage?.height,
+        textureKey,
+        textureWidth: preparedImage?.width,
+      });
+    };
+
+    panel.style.display = 'flex';
+    idInput.focus();
+    idInput.select();
+  }
+
+  private hideDefinitionPanel(): void {
+    const panel = document.getElementById('ed-definition');
+
+    if (panel) {
+      panel.style.display = 'none';
+    }
+
+    this.definitionPanelSubmit = null;
+  }
+
+  private getTexturePreviewDataUrl(textureKey: string | null): string | null {
+    if (!textureKey || !this.textures.exists(textureKey)) {
+      return null;
+    }
+
+    return this.textures.getBase64(textureKey);
+  }
+
+  private drawDefinitionColorPreview(canvas: HTMLCanvasElement, color: number): void {
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      return;
+    }
+
+    const cssColor = `#${color.toString(16).padStart(6, '0')}`;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = cssColor;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 6);
+    ctx.lineTo(canvas.width - 6, canvas.height / 2);
+    ctx.lineTo(canvas.width / 2, canvas.height - 6);
+    ctx.lineTo(6, canvas.height / 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  private loadDroppedTexture(textureKey: string, dataUrl: string): Promise<string> {
+    if (this.textures.exists(textureKey)) {
+      this.textures.remove(textureKey);
+    }
+
+    return new Promise((resolve, reject) => {
+      const onLoad = (loadedKey: string): void => {
+        if (loadedKey !== textureKey) {
+          return;
+        }
+
+        cleanup();
+        resolve(textureKey);
+      };
+      const onError = (failedKey: string): void => {
+        if (failedKey !== textureKey) {
+          return;
+        }
+
+        cleanup();
+        reject(new Error(`Could not load image for ${textureKey}.`));
+      };
+      const cleanup = (): void => {
+        this.textures.off('onload', onLoad);
+        this.textures.off('onerror', onError);
+      };
+
+      this.textures.on('onload', onLoad);
+      this.textures.on('onerror', onError);
+      this.textures.addBase64(textureKey, dataUrl);
+    });
   }
 
   private renameHoveredChunk(): void {
@@ -566,18 +1501,50 @@ export class EditorScene extends Phaser.Scene {
     }
 
     const chunk = this.getChunkInfo(this.hoverTile.x, this.hoverTile.y);
-    const nextName = window.prompt(
-      `Name chunk ${chunk.chunkX},${chunk.chunkY}`,
-      chunk.chunkName,
-    );
+    const panel = document.getElementById('ed-chunk-name-panel');
+    const title = document.getElementById('ed-chunk-name-title');
+    const input = document.getElementById('ed-chunk-name-input') as HTMLInputElement | null;
 
-    if (nextName === null) {
+    if (!panel || !title || !input) {
       return;
     }
 
-    const key = `${chunk.chunkX},${chunk.chunkY}`;
+    this.pendingChunkRename = {
+      chunkX: chunk.chunkX,
+      chunkY: chunk.chunkY,
+    };
+    title.textContent = `Name Chunk ${chunk.chunkX},${chunk.chunkY}`;
+    input.value = chunk.chunkName;
+    panel.style.display = 'flex';
+    input.focus();
+    input.select();
+  }
+
+  private hideChunkNamePanel(): void {
+    const panel = document.getElementById('ed-chunk-name-panel');
+
+    if (panel) {
+      panel.style.display = 'none';
+    }
+
+    this.pendingChunkRename = null;
+  }
+
+  private applyChunkNameFromPanel(): void {
+    if (!this.pendingChunkRename) {
+      return;
+    }
+
+    const input = document.getElementById('ed-chunk-name-input') as HTMLInputElement | null;
+
+    if (!input) {
+      return;
+    }
+
+    const { chunkX, chunkY } = this.pendingChunkRename;
+    const key = `${chunkX},${chunkY}`;
     const chunkNames = { ...(this.map.chunkNames ?? {}) };
-    const trimmed = nextName.trim();
+    const trimmed = input.value.trim();
 
     if (trimmed) {
       chunkNames[key] = trimmed;
@@ -589,9 +1556,10 @@ export class EditorScene extends Phaser.Scene {
       ...this.map,
       chunkNames,
     };
-    this.chunkNameRenderer?.setChunkName(chunk.chunkX, chunk.chunkY, chunkNames);
-    this.dirtyChunks.markChunkDirty({ chunkX: chunk.chunkX, chunkY: chunk.chunkY });
+    this.chunkNameRenderer?.setChunkName(chunkX, chunkY, chunkNames);
+    this.dirtyChunks.markChunkDirty({ chunkX, chunkY });
     this.updateInfoText();
+    this.hideChunkNamePanel();
     this.setStatus(trimmed ? `Chunk ${key} named "${trimmed}".` : `Chunk ${key} name cleared.`);
   }
 
@@ -629,4 +1597,380 @@ export class EditorScene extends Phaser.Scene {
     this.uiCamera?.ignore(worldObjects);
   }
 
+}
+
+function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
+  const next = items.filter((candidate) => candidate.id !== item.id);
+  next.push(item);
+  return next;
+}
+
+function formatShortDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatToolModeStatus(mode: EditorToolMode): string {
+  switch (mode) {
+    case 'elevation':
+      return 'Height paint mode.';
+    case 'object':
+      return 'Object mode.';
+    case 'walkability':
+      return 'Walkability paint mode.';
+    case 'terrain':
+    default:
+      return 'Terrain mode.';
+  }
+}
+
+function slugifyMapId(displayName: string): string {
+  const slug = displayName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return slug || 'editor_map';
+}
+
+function parseIntegerInput(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseTileKey(key: string): [number, number] {
+  const [tileX, tileY] = key.split(',').map((part) => Number.parseInt(part, 10));
+  return [Number.isFinite(tileX) ? tileX : -1, Number.isFinite(tileY) ? tileY : -1];
+}
+
+function getFootprintWidth(footprint: ReadonlyArray<{ x: number; y: number }>): number {
+  return Math.max(1, ...footprint.map((tile) => tile.x + 1));
+}
+
+function getFootprintHeight(footprint: ReadonlyArray<{ x: number; y: number }>): number {
+  return Math.max(1, ...footprint.map((tile) => tile.y + 1));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getTerrainTileFitScale(
+  textureWidth: number | undefined,
+  textureHeight: number | undefined,
+): number | undefined {
+  if (
+    textureWidth === undefined ||
+    textureHeight === undefined ||
+    textureWidth <= 0 ||
+    textureHeight <= 0
+  ) {
+    return undefined;
+  }
+
+  const scale = Math.min(TILE_WIDTH / textureWidth, TILE_HEIGHT / textureHeight);
+  return Math.max(0.05, Math.min(1, scale));
+}
+
+function copyTileRecordWindow<T>(
+  source: Record<string, T>,
+  startX: number,
+  startY: number,
+  width: number,
+  height: number,
+): Record<string, T> {
+  const result: Record<string, T> = {};
+
+  for (let localY = 0; localY < height; localY += 1) {
+    for (let localX = 0; localX < width; localX += 1) {
+      const value = source[`${startX + localX},${startY + localY}`];
+
+      if (value !== undefined) {
+        result[`${localX},${localY}`] = (typeof value === 'object' && value !== null
+          ? { ...value }
+          : value) as T;
+      }
+    }
+  }
+
+  return result;
+}
+
+function copyChunkNamesWindow(
+  names: Record<string, string> | undefined,
+  startChunkX: number,
+  startChunkY: number,
+  endChunkX: number,
+  endChunkY: number,
+): Record<string, string> | undefined {
+  if (!names) {
+    return undefined;
+  }
+
+  const result: Record<string, string> = {};
+
+  for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY += 1) {
+    for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX += 1) {
+      const name = names[`${chunkX},${chunkY}`];
+
+      if (name) {
+        result[`${chunkX - startChunkX},${chunkY - startChunkY}`] = name;
+      }
+    }
+  }
+
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function createChunkKeySet(startChunkX: number, startChunkY: number, endChunkX: number, endChunkY: number): Set<string> {
+  const keys = new Set<string>();
+
+  for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY += 1) {
+    for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX += 1) {
+      keys.add(`${chunkX},${chunkY}`);
+    }
+  }
+
+  return keys;
+}
+
+function createLocalWindowChunkKeys(
+  originChunkX: number,
+  originChunkY: number,
+  width: number,
+  height: number,
+  chunkSize: number,
+): Set<string> {
+  const endChunkX = originChunkX + Math.max(0, Math.ceil(width / chunkSize) - 1);
+  const endChunkY = originChunkY + Math.max(0, Math.ceil(height / chunkSize) - 1);
+  return createChunkKeySet(originChunkX, originChunkY, endChunkX, endChunkY);
+}
+
+function isInsideRect(
+  tileX: number,
+  tileY: number,
+  rectX: number,
+  rectY: number,
+  width: number,
+  height: number,
+): boolean {
+  return tileX >= rectX && tileY >= rectY && tileX < rectX + width && tileY < rectY + height;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error(`Could not read ${file.name}.`));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function prepareDefinitionImageDataUrl(
+  dataUrl: string,
+  assetKind: 'object' | 'terrainTile',
+): Promise<PreparedDefinitionImage> {
+  const canvas = await cleanImportedAssetImage(dataUrl, assetKind);
+
+  return {
+    dataUrl: canvas.toDataURL('image/png'),
+    height: canvas.height,
+    width: canvas.width,
+  };
+}
+
+async function cleanImportedAssetImage(
+  dataUrl: string,
+  assetKind: 'object' | 'terrainTile',
+): Promise<HTMLCanvasElement> {
+  const image = await loadImageFromDataUrl(dataUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Could not create tile import canvas.');
+  }
+
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0);
+  removeEdgeBackgroundPixels(ctx, canvas.width, canvas.height, assetKind);
+  removeNearBlackPixels(ctx, canvas.width, canvas.height);
+  return cropTransparentBounds(ctx, canvas.width, canvas.height);
+}
+
+function removeEdgeBackgroundPixels(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  assetKind: 'object' | 'terrainTile',
+): void {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const background = sampleDominantCornerColor(data, width, height);
+
+  if (!background) {
+    return;
+  }
+
+  const tolerance = assetKind === 'object' ? 26 : 18;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const alpha = data[index + 3] ?? 0;
+
+    if (alpha === 0) {
+      continue;
+    }
+
+    const red = data[index] ?? 0;
+    const green = data[index + 1] ?? 0;
+    const blue = data[index + 2] ?? 0;
+
+    if (colorDistance(red, green, blue, background.red, background.green, background.blue) <= tolerance) {
+      data[index + 3] = 0;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function sampleDominantCornerColor(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+): { blue: number; green: number; red: number } | null {
+  const samples = [
+    getPixel(data, width, 0, 0),
+    getPixel(data, width, width - 1, 0),
+    getPixel(data, width, 0, height - 1),
+    getPixel(data, width, width - 1, height - 1),
+  ].filter((sample): sample is { blue: number; green: number; red: number } => sample !== null);
+
+  if (samples.length === 0) {
+    return null;
+  }
+
+  return samples
+    .map((sample) => ({
+      sample,
+      matches: samples.filter((candidate) =>
+        colorDistance(sample.red, sample.green, sample.blue, candidate.red, candidate.green, candidate.blue) <= 18,
+      ).length,
+    }))
+    .sort((a, b) => b.matches - a.matches)[0]?.sample ?? null;
+}
+
+function getPixel(
+  data: Uint8ClampedArray,
+  width: number,
+  x: number,
+  y: number,
+): { blue: number; green: number; red: number } | null {
+  const index = (y * width + x) * 4;
+  const alpha = data[index + 3] ?? 0;
+
+  if (alpha === 0) {
+    return null;
+  }
+
+  return {
+    red: data[index] ?? 0,
+    green: data[index + 1] ?? 0,
+    blue: data[index + 2] ?? 0,
+  };
+}
+
+function colorDistance(
+  redA: number,
+  greenA: number,
+  blueA: number,
+  redB: number,
+  greenB: number,
+  blueB: number,
+): number {
+  return Math.max(Math.abs(redA - redB), Math.abs(greenA - greenB), Math.abs(blueA - blueB));
+}
+
+function removeNearBlackPixels(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const red = data[index] ?? 0;
+    const green = data[index + 1] ?? 0;
+    const blue = data[index + 2] ?? 0;
+
+    if (red <= 8 && green <= 8 && blue <= 8) {
+      data[index + 3] = 0;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function cropTransparentBounds(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+): HTMLCanvasElement {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = data[(y * width + x) * 4 + 3] ?? 0;
+
+      if (alpha <= 0) {
+        continue;
+      }
+
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  if (maxX < minX || maxY < minY) {
+    const empty = document.createElement('canvas');
+    empty.width = 1;
+    empty.height = 1;
+    return empty;
+  }
+
+  const cropped = document.createElement('canvas');
+  cropped.width = maxX - minX + 1;
+  cropped.height = maxY - minY + 1;
+  const croppedCtx = cropped.getContext('2d');
+
+  if (!croppedCtx) {
+    return cropped;
+  }
+
+  croppedCtx.imageSmoothingEnabled = false;
+  croppedCtx.putImageData(ctx.getImageData(minX, minY, cropped.width, cropped.height), 0, 0);
+  return cropped;
+}
+
+function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not load dropped image.'));
+    image.src = dataUrl;
+  });
 }

@@ -151,7 +151,7 @@ describe('Local Persistence v0', () => {
     const worldSessionState = new WorldSessionState();
 
     playerSessionState.getCurrencyState().addCopper(12_345);
-    playerSessionState.getSkillProgressionSystem().addXp('gathering', 10);
+    playerSessionState.getSkillProgressionSystem().addXp('woodworking', 10);
     playerSessionState.getSkillProgressionSystem().addXp('trade', 5);
 
     const save = createPrototypeSaveV1({

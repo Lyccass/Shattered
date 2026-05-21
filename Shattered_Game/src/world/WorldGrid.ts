@@ -8,14 +8,24 @@ export class WorldGrid {
   readonly height: number;
 
   private readonly tiles: TileType[][];
+  private readonly terrainWalkabilityOverrides: Record<string, boolean>;
+  private readonly terrainElevation: Record<string, number>;
   // Map<tileKey, Set<sourceId>> — tracks which object sources block each tile.
   private readonly objectBlocked = new Map<string, Set<string>>();
   private terrainBlockedCount: number;
 
-  constructor(width: number, height: number, tiles: TileType[][]) {
+  constructor(
+    width: number,
+    height: number,
+    tiles: TileType[][],
+    terrainWalkabilityOverrides: Record<string, boolean> = {},
+    terrainElevation: Record<string, number> = {},
+  ) {
     this.width = width;
     this.height = height;
     this.tiles = tiles.map((row) => [...row]);
+    this.terrainWalkabilityOverrides = { ...terrainWalkabilityOverrides };
+    this.terrainElevation = { ...terrainElevation };
     this.terrainBlockedCount = this.countTerrainBlocked();
   }
 
@@ -28,7 +38,7 @@ export class WorldGrid {
     if (!this.isTileInBounds(tileX, tileY)) return;
     const wasBlocked = this.isTerrainBlocked(tileX, tileY);
     this.tiles[tileY][tileX] = tileType;
-    const isNowBlocked = tileType === 'water';
+    const isNowBlocked = this.isTerrainTypeBlocked(tileX, tileY, tileType);
     if (wasBlocked && !isNowBlocked) this.terrainBlockedCount -= 1;
     else if (!wasBlocked && isNowBlocked) this.terrainBlockedCount += 1;
   }
@@ -46,12 +56,30 @@ export class WorldGrid {
 
   isTerrainBlocked(tileX: number, tileY: number): boolean {
     if (!this.isTileInBounds(tileX, tileY)) return true;
-    return this.tiles[tileY][tileX] === 'water';
+    return this.isTerrainTypeBlocked(tileX, tileY, this.tiles[tileY][tileX]);
   }
 
   // Unified walkability check: false if out-of-bounds, terrain-blocked, or object-blocked.
   isTileWalkable(tileX: number, tileY: number): boolean {
     return !this.isTerrainBlocked(tileX, tileY) && !this.isObjectBlocked(tileX, tileY);
+  }
+
+  getTerrainElevation(tileX: number, tileY: number): number | null {
+    if (!this.isTileInBounds(tileX, tileY)) return null;
+    return this.terrainElevation[tileKey(tileX, tileY)] ?? 0;
+  }
+
+  isStepWalkable(fromTileX: number, fromTileY: number, toTileX: number, toTileY: number, maxStepHeight = 1): boolean {
+    if (!this.isTileWalkable(toTileX, toTileY)) return false;
+
+    const fromElevation = this.getTerrainElevation(fromTileX, fromTileY);
+    const toElevation = this.getTerrainElevation(toTileX, toTileY);
+
+    if (fromElevation === null || toElevation === null) {
+      return false;
+    }
+
+    return Math.abs(toElevation - fromElevation) <= maxStepHeight;
   }
 
   getTerrainBlockedTileCount(): number {
@@ -95,9 +123,20 @@ export class WorldGrid {
 
   private countTerrainBlocked(): number {
     return this.tiles.reduce(
-      (count, row) => count + row.filter((t) => t === 'water').length,
+      (count, row, tileY) =>
+        count + row.filter((tileType, tileX) => this.isTerrainTypeBlocked(tileX, tileY, tileType)).length,
       0,
     );
+  }
+
+  private isTerrainTypeBlocked(tileX: number, tileY: number, tileType: TileType): boolean {
+    const override = this.terrainWalkabilityOverrides[tileKey(tileX, tileY)];
+
+    if (override !== undefined) {
+      return !override;
+    }
+
+    return tileType === 'water';
   }
 }
 

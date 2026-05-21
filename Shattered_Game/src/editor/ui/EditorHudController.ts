@@ -4,12 +4,15 @@ import type {
   EditorTerrainTilePaint,
 } from '../../shared/editor/EditorMapModel';
 import type { TerrainFamily } from '../../shared/map/TerrainTypes';
+import type { EditorToolMode } from '../input/EditorInputController';
 import type { EditorTerrainBrush } from '../terrain/EditorTerrainCatalog';
 
 type EditorHudHoverState = {
   family: TerrainFamily | null;
   objectDefinitionId: string | null;
   paint: EditorTerrainTilePaint | null;
+  walkable: boolean | null;
+  elevation: number | null;
   tile: { x: number; y: number } | null;
   chunkX: number | null;
   chunkY: number | null;
@@ -25,14 +28,34 @@ export type EditorHudState = {
   objectPreviewColor: number | null;
   selectedBrush: EditorTerrainBrush;
   selectedBrushIndexLabel: string;
+  selectedElevation: number;
+  selectedWalkable: boolean;
   selectedObjectDisplayName: string;
-  toolMode: string;
+  toolMode: EditorToolMode;
 };
 
 type EditorHudCallbacks = {
-  onSetMode: (mode: string) => void;
+  onSetMode: (mode: EditorToolMode) => void;
   onAdjustBrushSize: (delta: number) => void;
+  onAdjustElevation: (delta: number) => void;
+  onClearGameMap: () => void;
+  onCreateCustomObject: () => void;
+  onCreateCustomTile: () => void;
+  onDeleteCustomObject: () => void;
+  onDeleteCustomTile: () => void;
+  onExportDirtyChunks: () => void;
+  onExportMap: () => void;
+  onExportWorldChunk: () => void;
+  onImportDirtyChunks: () => void;
+  onImportMap: () => void;
+  onOpenChunkWindow: () => void;
   onOpenPalette: () => void;
+  onOpenMap: () => void;
+  onRenameMap: (displayName: string) => void;
+  onSetWalkabilityBrush: (walkable: boolean) => void;
+  onTestInGame: () => void;
+  onSaveMap: () => void;
+  onResizeMap: () => void;
 };
 
 const MAX_BRUSH_SIZE = 4;
@@ -40,12 +63,22 @@ const MAX_BRUSH_SIZE = 4;
 export class EditorHudController {
   private readonly els: {
     mapName: HTMLElement;
+    mapNameInput: HTMLInputElement;
     mapSize: HTMLElement;
     dirty: HTMLElement;
     modeTerrainBtn: HTMLButtonElement;
     modeObjectBtn: HTMLButtonElement;
+    modeWalkabilityBtn: HTMLButtonElement;
+    modeElevationBtn: HTMLButtonElement;
     brushSection: HTMLElement;
     objectSection: HTMLElement;
+    tileMetaSection: HTMLElement;
+    walkableOnBtn: HTMLButtonElement;
+    walkableOffBtn: HTMLButtonElement;
+    walkabilityLabel: HTMLElement;
+    elevationInc: HTMLButtonElement;
+    elevationDec: HTMLButtonElement;
+    elevationValue: HTMLElement;
     previewSelected: HTMLImageElement;
     brushLabel: HTMLElement;
     brushIdx: HTMLElement;
@@ -59,6 +92,8 @@ export class EditorHudController {
     hoverTile: HTMLElement;
     hoverTerrain: HTMLElement;
     hoverArt: HTMLElement;
+    hoverWalkability: HTMLElement;
+    hoverElevation: HTMLElement;
     hoverObject: HTMLElement;
     hoverChunk: HTMLElement;
     status: HTMLElement;
@@ -70,12 +105,22 @@ export class EditorHudController {
   ) {
     this.els = {
       mapName:        document.getElementById('ed-map-name')!,
+      mapNameInput:   document.getElementById('ed-map-name-input') as HTMLInputElement,
       mapSize:        document.getElementById('ed-map-size')!,
       dirty:          document.getElementById('ed-dirty')!,
       modeTerrainBtn: document.getElementById('ed-mode-terrain') as HTMLButtonElement,
       modeObjectBtn:  document.getElementById('ed-mode-object')  as HTMLButtonElement,
+      modeWalkabilityBtn: document.getElementById('ed-mode-walkability') as HTMLButtonElement,
+      modeElevationBtn: document.getElementById('ed-mode-elevation') as HTMLButtonElement,
       brushSection:   document.getElementById('ed-brush-section')!,
       objectSection:  document.getElementById('ed-object-section')!,
+      tileMetaSection: document.getElementById('ed-tile-meta-section')!,
+      walkableOnBtn: document.getElementById('ed-walkable-on') as HTMLButtonElement,
+      walkableOffBtn: document.getElementById('ed-walkable-off') as HTMLButtonElement,
+      walkabilityLabel: document.getElementById('ed-walkability-label')!,
+      elevationInc: document.getElementById('ed-elevation-inc') as HTMLButtonElement,
+      elevationDec: document.getElementById('ed-elevation-dec') as HTMLButtonElement,
+      elevationValue: document.getElementById('ed-elevation-value')!,
       previewSelected: document.getElementById('ed-preview-selected') as HTMLImageElement,
       brushLabel:     document.getElementById('ed-brush-label')!,
       brushIdx:       document.getElementById('ed-brush-idx')!,
@@ -89,6 +134,8 @@ export class EditorHudController {
       hoverTile:      document.getElementById('ed-hover-tile')!,
       hoverTerrain:   document.getElementById('ed-hover-terrain')!,
       hoverArt:       document.getElementById('ed-hover-art')!,
+      hoverWalkability: document.getElementById('ed-hover-walkability')!,
+      hoverElevation: document.getElementById('ed-hover-elevation')!,
       hoverObject:    document.getElementById('ed-hover-object')!,
       hoverChunk:     document.getElementById('ed-hover-chunk')!,
       status:         document.getElementById('ed-status')!,
@@ -96,10 +143,33 @@ export class EditorHudController {
 
     this.els.modeTerrainBtn.addEventListener('click', () => this.callbacks.onSetMode('terrain'));
     this.els.modeObjectBtn.addEventListener('click',  () => this.callbacks.onSetMode('object'));
+    this.els.modeWalkabilityBtn.addEventListener('click',  () => this.callbacks.onSetMode('walkability'));
+    this.els.modeElevationBtn.addEventListener('click',  () => this.callbacks.onSetMode('elevation'));
     this.els.sizeInc.addEventListener('click', () => this.callbacks.onAdjustBrushSize(1));
     this.els.sizeDec.addEventListener('click', () => this.callbacks.onAdjustBrushSize(-1));
+    this.els.walkableOnBtn.addEventListener('click', () => this.callbacks.onSetWalkabilityBrush(true));
+    this.els.walkableOffBtn.addEventListener('click', () => this.callbacks.onSetWalkabilityBrush(false));
+    this.els.elevationInc.addEventListener('click', () => this.callbacks.onAdjustElevation(1));
+    this.els.elevationDec.addEventListener('click', () => this.callbacks.onAdjustElevation(-1));
+    this.els.mapNameInput.addEventListener('change', () => this.callbacks.onRenameMap(this.els.mapNameInput.value));
+    this.els.mapNameInput.addEventListener('blur', () => this.callbacks.onRenameMap(this.els.mapNameInput.value));
     document.getElementById('ed-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
     document.getElementById('ed-obj-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
+    document.getElementById('ed-save-map')?.addEventListener('click', () => this.callbacks.onSaveMap());
+    document.getElementById('ed-open-map')?.addEventListener('click', () => this.callbacks.onOpenMap());
+    document.getElementById('ed-load-window')?.addEventListener('click', () => this.callbacks.onOpenChunkWindow());
+    document.getElementById('ed-test-game')?.addEventListener('click', () => this.callbacks.onTestInGame());
+    document.getElementById('ed-clear-game-map')?.addEventListener('click', () => this.callbacks.onClearGameMap());
+    document.getElementById('ed-export-map')?.addEventListener('click', () => this.callbacks.onExportMap());
+    document.getElementById('ed-export-chunk')?.addEventListener('click', () => this.callbacks.onExportWorldChunk());
+    document.getElementById('ed-export-dirty')?.addEventListener('click', () => this.callbacks.onExportDirtyChunks());
+    document.getElementById('ed-import-map')?.addEventListener('click', () => this.callbacks.onImportMap());
+    document.getElementById('ed-import-dirty')?.addEventListener('click', () => this.callbacks.onImportDirtyChunks());
+    document.getElementById('ed-resize-map')?.addEventListener('click', () => this.callbacks.onResizeMap());
+    document.getElementById('ed-create-custom-tile')?.addEventListener('click', () => this.callbacks.onCreateCustomTile());
+    document.getElementById('ed-create-custom-object')?.addEventListener('click', () => this.callbacks.onCreateCustomObject());
+    document.getElementById('ed-delete-custom-tile')?.addEventListener('click', () => this.callbacks.onDeleteCustomTile());
+    document.getElementById('ed-delete-custom-object')?.addEventListener('click', () => this.callbacks.onDeleteCustomObject());
   }
 
   // No Phaser display objects — HUD is pure HTML.
@@ -116,17 +186,26 @@ export class EditorHudController {
   update(state: EditorHudState): void {
     // Map info
     this.els.mapName.textContent = state.map.displayName;
+    if (document.activeElement !== this.els.mapNameInput) {
+      this.els.mapNameInput.value = state.map.displayName;
+    }
     this.els.mapSize.textContent = `${state.map.width} × ${state.map.height}`;
     const dirtyText = formatDirtyChunks(state.dirtyChunks);
     this.els.dirty.textContent = dirtyText;
     this.els.dirty.classList.toggle('is-dirty', state.dirtyChunks.count > 0);
 
     // Tool mode
+    const isTerrain = state.toolMode === 'terrain';
     const isObject = state.toolMode === 'object';
-    this.els.modeTerrainBtn.classList.toggle('is-active', !isObject);
+    const isWalkability = state.toolMode === 'walkability';
+    const isElevation = state.toolMode === 'elevation';
+    this.els.modeTerrainBtn.classList.toggle('is-active', isTerrain);
     this.els.modeObjectBtn.classList.toggle('is-active', isObject);
-    this.els.brushSection.style.display  = isObject ? 'none' : '';
+    this.els.modeWalkabilityBtn.classList.toggle('is-active', isWalkability);
+    this.els.modeElevationBtn.classList.toggle('is-active', isElevation);
+    this.els.brushSection.style.display = isTerrain ? '' : 'none';
     this.els.objectSection.style.display = isObject ? '' : 'none';
+    this.els.tileMetaSection.style.display = isWalkability || isElevation ? '' : 'none';
 
     // Brush (terrain mode)
     this.els.brushLabel.textContent = state.selectedBrush.label;
@@ -142,6 +221,12 @@ export class EditorHudController {
     this.els.sizeDec.disabled = state.brushSize <= 1;
     this.els.sizeInc.disabled = state.brushSize >= MAX_BRUSH_SIZE;
 
+    this.els.walkabilityLabel.textContent = state.selectedWalkable ? 'walkable' : 'blocked';
+    this.els.walkableOnBtn.classList.toggle('is-active', state.selectedWalkable);
+    this.els.walkableOffBtn.classList.toggle('is-active', !state.selectedWalkable);
+    this.els.elevationValue.textContent = String(state.selectedElevation);
+    this.els.elevationDec.disabled = state.selectedElevation <= 0;
+
     // Object preview (object mode)
     this.els.objectName.textContent = state.selectedObjectDisplayName;
     this.updateObjectPreview(state.objectPreviewTextureKey, state.objectPreviewColor);
@@ -150,6 +235,10 @@ export class EditorHudController {
     this.els.hoverTile.textContent    = state.hover.tile ? `${state.hover.tile.x}, ${state.hover.tile.y}` : '–';
     this.els.hoverTerrain.textContent = state.hover.family ?? '–';
     this.els.hoverArt.textContent     = state.hover.paint?.id ?? '–';
+    this.els.hoverWalkability.textContent = state.hover.walkable === null
+      ? '–'
+      : state.hover.walkable ? 'walkable' : 'blocked';
+    this.els.hoverElevation.textContent = state.hover.elevation === null ? '–' : String(state.hover.elevation);
     this.els.hoverObject.textContent  = state.hover.objectDefinitionId ?? '–';
 
     if (state.hover.chunkX !== null && state.hover.chunkY !== null) {

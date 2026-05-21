@@ -2,9 +2,9 @@ import type {
   PlayerItemKey,
   PlayerResourceKey,
 } from '../player/PlayerInventoryState';
-import type { SkillXpDelta } from '../skills/SkillTypes';
+import type { SkillId, SkillXpDelta } from '../skills/SkillTypes';
 
-export type CraftingStationType = 'workbench' | 'campfire';
+export type CraftingStationType = 'workbench' | 'campfire' | 'hand';
 
 export type RecipeInput =
   | {
@@ -37,6 +37,8 @@ export type RecipeDefinition = {
   inputs: RecipeInput[];
   outputs: RecipeOutput[];
   xpRewards?: SkillXpDelta;
+  // Absolute skill levels (1–100) required to attempt this recipe.
+  levelRequirements?: Partial<Record<SkillId, number>>;
   requiredActiveObjectType?: string;
   description: string;
 };

@@ -13,6 +13,38 @@ export function createEditorObjectCatalog(): EditorObjectCatalog {
   };
 }
 
+export function addCustomObjectDefinitions(
+  catalog: EditorObjectCatalog,
+  definitions: ObjectDefinition[],
+): void {
+  for (const definition of definitions) {
+    const existing = catalog.byId.get(definition.id);
+
+    if (existing) {
+      Object.assign(existing, definition);
+      continue;
+    }
+
+    catalog.all.push(definition);
+    catalog.byId.set(definition.id, definition);
+  }
+}
+
+export function removeCustomObjectDefinition(
+  catalog: EditorObjectCatalog,
+  definitionId: string,
+): boolean {
+  const definition = catalog.byId.get(definitionId);
+
+  if (!definition || !definition.id.startsWith('custom_')) {
+    return false;
+  }
+
+  catalog.byId.delete(definitionId);
+  catalog.all = catalog.all.filter((candidate) => candidate.id !== definitionId);
+  return true;
+}
+
 export function getObjectAtOffset(
   catalog: EditorObjectCatalog,
   currentDefinitionId: string,

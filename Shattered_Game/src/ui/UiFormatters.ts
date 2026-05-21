@@ -10,10 +10,12 @@ import type { SkillId, SkillSnapshot, SkillXpDelta } from '../skills/SkillTypes'
 import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
 
 const SKILL_SHORT_NAMES: Record<SkillId, string> = {
-  gathering: 'Gathering',
-  crafting: 'Crafting',
-  survival: 'Survival',
-  trade: 'Trade',
+  melee:        'Melee',
+  defence:      'Defence',
+  metalworking: 'Metalworking',
+  woodworking:  'Woodworking',
+  alchemy:      'Alchemy',
+  trade:        'Trade',
 };
 
 export function formatPromptPanelText(

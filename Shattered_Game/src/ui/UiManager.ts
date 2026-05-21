@@ -1,20 +1,26 @@
 import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
 import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
-import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { formatSkillXpToastLines } from './UiFormatters';
 import { ToastSystem } from './ToastSystem';
 import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
 import { UIOverlayManager } from './overlay/UIOverlayManager';
+import { SKILL_UNLOCKS } from '../skills/SkillUnlockData';
+import { SkillUnlockRegistry } from '../skills/SkillUnlockRegistry';
 
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
   onSprintToggle: () => void;
-  onInventoryItemUse: (itemId: PlayerItemKey) => void;
+  onInventoryItemUse: (itemId: string) => void;
+  onInventoryItemDrop: (itemId: string) => void;
+  onInventoryItemInspect: (itemId: string) => void;
+  onInventoryItemCombine: (sourceId: string, targetId: string) => void;
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
 }
+
+const UNLOCK_REGISTRY = new SkillUnlockRegistry(SKILL_UNLOCKS);
 
 export class UiManager {
   private readonly uiCamera: Phaser.Cameras.Scene2D.Camera;
@@ -32,12 +38,15 @@ export class UiManager {
     this.toastSystem         = new ToastSystem(scene);
 
     this.overlay = new UIOverlayManager({
-      onCombatToggle:      callbacks.onCombatToggle,
-      onSprintToggle:      callbacks.onSprintToggle,
-      onInventoryItemUse:  callbacks.onInventoryItemUse,
-      onChoiceMenuSelect:  callbacks.onChoiceMenuSelect,
-      onChoiceMenuConfirm: callbacks.onChoiceMenuConfirm,
-      onChoiceMenuCancel:  callbacks.onChoiceMenuCancel,
+      onCombatToggle:          callbacks.onCombatToggle,
+      onSprintToggle:          callbacks.onSprintToggle,
+      onInventoryItemUse:      callbacks.onInventoryItemUse,
+      onInventoryItemDrop:     callbacks.onInventoryItemDrop,
+      onInventoryItemInspect:  callbacks.onInventoryItemInspect,
+      onInventoryItemCombine:  callbacks.onInventoryItemCombine,
+      onChoiceMenuSelect:      callbacks.onChoiceMenuSelect,
+      onChoiceMenuConfirm:     callbacks.onChoiceMenuConfirm,
+      onChoiceMenuCancel:      callbacks.onChoiceMenuCancel,
     });
 
     const displayObjects = this.getPhaserDisplayObjects();
@@ -74,6 +83,21 @@ export class UiManager {
     formatSkillXpToastLines(result.xpDelta).forEach((line) => {
       this.overlay.pushMessage(line, 'reward');
     });
+
+    // Level-up announcements
+    if (result.levelUps) {
+      for (const lu of result.levelUps) {
+        const header = lu.rankedUp
+          ? `★ ${lu.displayName.toUpperCase()} RANK UP — Rank ${lu.rank} unlocked!`
+          : `↑ ${lu.displayName} — Rank ${lu.rank} · Stage ${lu.stage} reached!`;
+        this.overlay.pushMessage(header, 'reward');
+        const newUnlocks = UNLOCK_REGISTRY.getNewAtRankStage(lu.skillId, lu.rank, lu.stage);
+        for (const unlock of newUnlocks) {
+          const desc = unlock.description ? ` — ${unlock.description}` : '';
+          this.overlay.pushMessage(`  New: ${unlock.displayName}${desc}`, 'reward');
+        }
+      }
+    }
 
     // Only show a Phaser popup for hard errors so the player never misses them
     if (!result.ok) {

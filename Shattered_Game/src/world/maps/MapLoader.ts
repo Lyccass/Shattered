@@ -1,6 +1,13 @@
 import Phaser from 'phaser';
 import { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import { PROTOTYPE_SCALE } from '../../config/prototypeScale';
+import {
+  parseEditorObjectDefinitions,
+  parseEditorTerrainBrushes,
+  parseEditorTerrainElevation,
+  parseEditorTerrainTiles,
+  parseEditorTerrainWalkability,
+} from '../../shared/editor/EditorMapModel';
 import { generateOrganicIsland } from '../IslandGenerator';
 import { IsoTilemap } from '../IsoTilemap';
 import { getMapDefinition } from './MapDefinitions';
@@ -18,10 +25,14 @@ export class MapLoader {
 
     const definition = getMapDefinition(mapId);
     const activeSpawnId = this.resolveSpawnId(definition, spawnId);
+    this.registerEmbeddedEditorTextures(definition);
     const isoTilemap = new IsoTilemap(this.scene, {
       width: definition.width,
       height: definition.height,
       terrain: definition.terrain,
+      terrainElevation: parseEditorTerrainElevation(definition.metadata?.editorTerrainElevation),
+      terrainWalkability: parseEditorTerrainWalkability(definition.metadata?.editorTerrainWalkability),
+      exactTerrainPaints: parseEditorTerrainTiles(definition.metadata?.editorTerrainTiles),
     });
     const worldBounds = isoTilemap.render();
 
@@ -162,5 +173,26 @@ export class MapLoader {
     }
 
     return firstSpawnId;
+  }
+
+  private registerEmbeddedEditorTextures(definition: MapDefinition): void {
+    const terrainPaints = [
+      ...Object.values(parseEditorTerrainTiles(definition.metadata?.editorTerrainTiles)),
+      ...parseEditorTerrainBrushes(definition.metadata?.editorTerrainBrushes),
+    ];
+
+    for (const paint of terrainPaints) {
+      if (paint.textureDataUrl && !this.scene.textures.exists(paint.textureKey)) {
+        this.scene.textures.addBase64(paint.textureKey, paint.textureDataUrl);
+      }
+    }
+
+    for (const objectDefinition of parseEditorObjectDefinitions(definition.metadata?.editorObjectDefinitions)) {
+      for (const part of objectDefinition.visual.parts) {
+        if (part.shape === 'sprite' && part.editorTextureDataUrl && !this.scene.textures.exists(part.textureKey)) {
+          this.scene.textures.addBase64(part.textureKey, part.editorTextureDataUrl);
+        }
+      }
+    }
   }
 }

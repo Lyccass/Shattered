@@ -154,6 +154,10 @@ export class EnemySystem {
       || this.runtimeState.currentState !== 'idle';
   }
 
+  getDefinitionId(): string | null {
+    return this.definition?.id ?? null;
+  }
+
   getUiSnapshot(): EnemyUiSnapshot | null {
     if (!this.runtimeState || !this.definition) {
       return null;

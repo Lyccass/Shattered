@@ -65,6 +65,12 @@ function createHandlers(): InteractionHandlers {
       targetId: target.definition.id,
       message: target.anchor.message,
     }),
+    onGroundItem: (target) => ({
+      ok: false,
+      interactionType: 'ground_item',
+      targetId: target.dropId,
+      message: 'Cannot pick up item.',
+    }),
   };
 }
 

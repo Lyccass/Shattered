@@ -18,6 +18,7 @@ const GRASS_TILE: EditorTerrainTilePaint = {
   id: 'grassA01',
   family: 'grass',
   textureKey: 'terrain-grassA01',
+  walkable: true,
   flipX: false,
   flipY: false,
 };
@@ -26,6 +27,7 @@ const WATER_TILE: EditorTerrainTilePaint = {
   id: 'waterA',
   family: 'water',
   textureKey: 'terrain-waterA',
+  walkable: false,
   flipX: false,
   flipY: false,
 };
@@ -34,6 +36,7 @@ const FLIPPED_STONE_TILE: EditorTerrainTilePaint = {
   id: 'stoneGroundA08',
   family: 'stone',
   textureKey: 'terrain-groundA08',
+  walkable: true,
   flipX: true,
   flipY: true,
 };

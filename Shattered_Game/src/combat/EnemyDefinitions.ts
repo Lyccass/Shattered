@@ -6,6 +6,11 @@ export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
     id: 'training_wretch',
     displayName: 'Training Wretch',
     maxHealth: 5,
+    lootTable: [
+      { itemId: 'wood',  minCount: 1, maxCount: 3, chance: 1.0 },
+      { itemId: 'stone', minCount: 1, maxCount: 1, chance: 0.6 },
+      { itemId: 'herb',  minCount: 1, maxCount: 1, chance: 0.3 },
+    ],
     moveSpeed: PLAYER_CONFIG.movementSpeed * 0.42,
     collisionRadiusTiles: 0.65,
     aggroRangeTiles: 9.25,

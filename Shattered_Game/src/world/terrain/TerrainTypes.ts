@@ -62,6 +62,7 @@ export type TerrainTransform = {
   flipX: boolean;
   flipY: boolean;
   rotation: 0;
+  scale?: number;
 };
 
 export type TerrainNeighbourFamilies = {

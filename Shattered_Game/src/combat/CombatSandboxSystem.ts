@@ -28,6 +28,12 @@ import type { IsoTilemap } from '../world/IsoTilemap';
 import type { TelegraphSystem } from './TelegraphSystem';
 import type { GameEventBus } from '../events/GameEventBus';
 
+export type EnemyKilledEvent = {
+  enemyDefinitionId: string;
+  worldX: number;
+  worldY: number;
+};
+
 export class CombatSandboxSystem {
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
   private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
@@ -46,15 +52,18 @@ export class CombatSandboxSystem {
   private currentDodgeTileCount = 2;
   private hitStopUntilMs = 0;
   private pendingScreenShake = false;
+  private onEnemyKilled?: (event: EnemyKilledEvent) => void;
 
   constructor(
     scene: Phaser.Scene,
     private readonly eventBus: GameEventBus,
     telegraphSystem: TelegraphSystem,
+    onEnemyKilled?: (event: EnemyKilledEvent) => void,
   ) {
     this.enemySystem = new EnemySystem(scene, telegraphSystem);
     this.debugHitboxRenderer = new CombatDebugHitboxRenderer(scene);
     this.playerAttackFeedbackRenderer = new PlayerAttackFeedbackRenderer(scene, telegraphSystem);
+    this.onEnemyKilled = onEnemyKilled;
   }
 
   setMapContext(mapId: string, tilemap: IsoTilemap): void {
@@ -468,6 +477,15 @@ export class CombatSandboxSystem {
     this.playerCombatState.setNextRecoveryMs(320);
     this.playerCombatState.refundLightAttackStamina();
     this.emitSfx(outcome.killed ? 'enemy_down' : 'player_attack');
+
+    if (outcome.killed && this.onEnemyKilled) {
+      const pos = this.enemySystem.getWorldPosition();
+      const defId = this.enemySystem.getDefinitionId();
+      if (pos && defId) {
+        this.onEnemyKilled({ enemyDefinitionId: defId, worldX: pos.x, worldY: pos.y });
+      }
+    }
+
     results.push({
       ok: true,
       message: outcome.killed ? 'Enemy down.' : 'You landed a hit.',

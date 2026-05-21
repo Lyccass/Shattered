@@ -23,7 +23,10 @@ export type EditorDirtyChunkBundleV1 = {
 export type DirtyChunkExportOptions = {
   chunkSize: number;
   exportedAt?: string;
+  originChunkX?: number;
+  originChunkY?: number;
   regionId: string;
+  sourceMapId?: string;
   worldId: string;
 };
 
@@ -36,8 +39,8 @@ export function createDirtyChunkBundle(
     .map((coordinate) => createChunkMapSlice(map, coordinate, options.chunkSize))
     .filter((slice): slice is EditorChunkMapSlice => slice !== null)
     .map(({ coordinate, map: chunkMap }) => exportEditorMapToWorldChunkDefinition(chunkMap, {
-      chunkX: coordinate.chunkX,
-      chunkY: coordinate.chunkY,
+      chunkX: coordinate.chunkX + (options.originChunkX ?? 0),
+      chunkY: coordinate.chunkY + (options.originChunkY ?? 0),
       regionId: options.regionId,
       terrainPalette: createTerrainPalette([...new Set(chunkMap.terrain.flat())]),
       worldId: options.worldId,
@@ -45,7 +48,7 @@ export function createDirtyChunkBundle(
 
   return {
     version: 1,
-    sourceMapId: map.id,
+    sourceMapId: options.sourceMapId ?? map.id,
     exportedAt: options.exportedAt ?? new Date().toISOString(),
     chunkSize: options.chunkSize,
     worldId: options.worldId,
@@ -108,13 +111,25 @@ function createChunkMapSlice(
     Array.from({ length: width }, (_, localX) => map.terrain[startY + localY][startX + localX]),
   );
   chunkMap.terrainTiles = {};
+  chunkMap.terrainWalkability = {};
+  chunkMap.terrainElevation = {};
 
   for (let localY = 0; localY < height; localY += 1) {
     for (let localX = 0; localX < width; localX += 1) {
+      const sourceKey = tileKey(startX + localX, startY + localY);
+      const localKey = tileKey(localX, localY);
       const paint = map.terrainTiles[tileKey(startX + localX, startY + localY)];
 
       if (paint) {
-        chunkMap.terrainTiles[tileKey(localX, localY)] = { ...paint };
+        chunkMap.terrainTiles[localKey] = { ...paint };
+      }
+
+      if (map.terrainWalkability[sourceKey] !== undefined) {
+        chunkMap.terrainWalkability[localKey] = map.terrainWalkability[sourceKey];
+      }
+
+      if (map.terrainElevation[sourceKey] !== undefined) {
+        chunkMap.terrainElevation[localKey] = map.terrainElevation[sourceKey];
       }
     }
   }
@@ -166,17 +181,32 @@ function applyChunk(
 
   const terrain = map.terrain.map((row) => [...row]);
   const terrainTiles = { ...map.terrainTiles };
+  const terrainWalkability = { ...map.terrainWalkability };
+  const terrainElevation = { ...map.terrainElevation };
 
   for (let localY = 0; localY < chunkMap.height; localY += 1) {
     for (let localX = 0; localX < chunkMap.width; localX += 1) {
       terrain[startY + localY][startX + localX] = chunkMap.terrain[localY][localX];
       const absoluteKey = tileKey(startX + localX, startY + localY);
+      const localKey = tileKey(localX, localY);
       const paint = chunkMap.terrainTiles[tileKey(localX, localY)];
 
       if (paint) {
         terrainTiles[absoluteKey] = { ...paint };
       } else {
         delete terrainTiles[absoluteKey];
+      }
+
+      if (chunkMap.terrainWalkability[localKey] !== undefined) {
+        terrainWalkability[absoluteKey] = chunkMap.terrainWalkability[localKey];
+      } else {
+        delete terrainWalkability[absoluteKey];
+      }
+
+      if (chunkMap.terrainElevation[localKey] !== undefined) {
+        terrainElevation[absoluteKey] = chunkMap.terrainElevation[localKey];
+      } else {
+        delete terrainElevation[absoluteKey];
       }
     }
   }
@@ -185,6 +215,8 @@ function applyChunk(
     ...map,
     terrain,
     terrainTiles,
+    terrainWalkability,
+    terrainElevation,
     objects: [
       ...map.objects.filter((object) =>
         !isInsideRect(object.tileX, object.tileY, startX, startY, chunkMap.width, chunkMap.height),
@@ -242,6 +274,7 @@ function getFirstPaint(map: EditorMapDefinition): EditorTerrainTilePaint {
     id: map.terrain[0]?.[0] ?? 'grass',
     family: map.terrain[0]?.[0] ?? 'grass',
     textureKey: map.terrain[0]?.[0] ?? 'grass',
+    walkable: (map.terrain[0]?.[0] ?? 'grass') !== 'water',
     flipX: false,
     flipY: false,
   };

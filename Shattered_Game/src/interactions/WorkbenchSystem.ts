@@ -63,7 +63,7 @@ export class WorkbenchSystem {
         `Makes: ${this.getOutputSummary(recipe)}`,
         `XP: ${this.getXpRewardSummary(recipe)}`,
       ].join('\n'),
-      disabledReason: canCraftRecipe(recipe, playerSessionState.getInventoryState())
+      disabledReason: canCraftRecipe(recipe, playerSessionState.getInventoryState(), (id) => playerSessionState.getSkillProgressionSystem().getLevel(id))
         ? undefined
         : this.getMissingResourceMessage(recipe),
     }));
@@ -118,7 +118,7 @@ export class WorkbenchSystem {
 
     const inventory = playerSessionState.getInventoryState();
 
-    if (!canCraftRecipe(recipe, inventory)) {
+    if (!canCraftRecipe(recipe, inventory, (id) => playerSessionState.getSkillProgressionSystem().getLevel(id))) {
       return {
         ok: false,
         sfxId: 'craft_failed',

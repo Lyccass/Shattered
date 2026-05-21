@@ -21,7 +21,7 @@ describe('Persistence Prep v0', () => {
     playerSessionState.getInventoryState().addGenericItem('prototype_token', 4);
     playerSessionState.getCurrencyState().addCopper(155);
     playerSessionState.getReputationState().addHarborReputation(6);
-    playerSessionState.getSkillProgressionSystem().addXp('gathering', 15);
+    playerSessionState.getSkillProgressionSystem().addXp('woodworking', 15);
     playerSessionState.acceptContract('warmth_for_the_dockhands');
     playerSessionState.completeContract('camp_supplies', false);
     playerSessionState.getEffectSystem().applyEffect('warm_tea_warmth', 1_000);
@@ -43,7 +43,7 @@ describe('Persistence Prep v0', () => {
     expect(save.playerState.currency.copper).toBe(55);
     expect(save.playerState.currency.silver).toBe(1);
     expect(save.playerState.reputation.harborReputation).toBe(6);
-    expect(save.playerState.skillXp.gathering).toBe(15);
+    expect(save.playerState.skillXp.woodworking).toBe(15);
     expect(save.playerState.journal.acceptedContractIds).toContain('warmth_for_the_dockhands');
     expect(save.playerState.journal.completedNonRepeatableContractIds).toContain('camp_supplies');
     expect(save.playerState.activeEffects).toEqual([
@@ -60,7 +60,7 @@ describe('Persistence Prep v0', () => {
     originalPlayer.getInventoryState().addGenericItem('prototype_token', 3);
     originalPlayer.getCurrencyState().addCopper(10_255);
     originalPlayer.getReputationState().addHarborReputation(4);
-    originalPlayer.getSkillProgressionSystem().addXp('crafting', 20);
+    originalPlayer.getSkillProgressionSystem().addXp('woodworking', 20);
     originalPlayer.getSkillProgressionSystem().addXp('trade', 8);
     originalPlayer.acceptContract('warmth_for_the_dockhands');
     originalPlayer.completeContract('camp_supplies', false);
@@ -93,7 +93,7 @@ describe('Persistence Prep v0', () => {
       platinum: 0,
     });
     expect(restoredPlayer.getReputationSnapshot()).toEqual({ harborReputation: 4 });
-    expect(restoredPlayer.getSkillProgressionSystem().getXp('crafting')).toBe(20);
+    expect(restoredPlayer.getSkillProgressionSystem().getXp('woodworking')).toBe(20);
     expect(restoredPlayer.getSkillProgressionSystem().getXp('trade')).toBe(8);
     expect(restoredPlayer.isContractAccepted('warmth_for_the_dockhands')).toBe(true);
     expect(restoredPlayer.isContractCompletedNonRepeatable('camp_supplies')).toBe(true);

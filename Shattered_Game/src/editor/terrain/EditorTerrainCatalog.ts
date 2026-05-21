@@ -4,10 +4,14 @@ import { TERRAIN_TRANSITION_DEFINITIONS } from '../../world/terrain/TerrainTrans
 
 export type EditorTerrainBrush = {
   id: string;
+  category?: string;
   label: string;
   family: TerrainFamily;
   textureKey: string;
-  source: 'base' | 'transition';
+  textureDataUrl?: string;
+  textureScale?: number;
+  source: 'base' | 'transition' | 'custom';
+  walkable: boolean;
   flipX: boolean;
   flipY: boolean;
 };
@@ -27,6 +31,7 @@ export function createEditorTerrainCatalog(): EditorTerrainCatalog {
     family: definition.family,
     textureKey: definition.spriteFrame,
     source: 'base',
+    walkable: definition.walkable,
     flipX: false,
     flipY: false,
   }));
@@ -37,6 +42,7 @@ export function createEditorTerrainCatalog(): EditorTerrainCatalog {
       id: `sand_${brush.id}`,
       label: `sand ${brush.label}`,
       family: 'sand',
+      walkable: true,
     }));
   const transitionBrushes = TERRAIN_TRANSITION_DEFINITIONS
     .filter((definition) => definition.enabled)
@@ -46,6 +52,7 @@ export function createEditorTerrainCatalog(): EditorTerrainCatalog {
       family: definition.fromFamily,
       textureKey: definition.spriteFrame,
       source: 'transition',
+      walkable: definition.fromFamily !== 'water',
       flipX: false,
       flipY: false,
     }));
@@ -62,6 +69,37 @@ export function createEditorTerrainCatalog(): EditorTerrainCatalog {
     byFamily,
     byId: new Map(all.map((brush) => [brush.id, brush])),
   };
+}
+
+export function addCustomTerrainBrushes(
+  catalog: EditorTerrainCatalog,
+  brushes: EditorTerrainBrush[],
+): void {
+  for (const brush of brushes) {
+    const existing = catalog.byId.get(brush.id);
+
+    if (existing) {
+      Object.assign(existing, brush);
+      continue;
+    }
+
+    catalog.all.push(brush);
+    catalog.byId.set(brush.id, brush);
+    catalog.byFamily[brush.family].push(brush);
+  }
+}
+
+export function removeCustomTerrainBrush(catalog: EditorTerrainCatalog, brushId: string): boolean {
+  const brush = catalog.byId.get(brushId);
+
+  if (!brush || brush.source !== 'custom') {
+    return false;
+  }
+
+  catalog.byId.delete(brushId);
+  catalog.all = catalog.all.filter((candidate) => candidate.id !== brushId);
+  catalog.byFamily[brush.family] = catalog.byFamily[brush.family].filter((candidate) => candidate.id !== brushId);
+  return true;
 }
 
 export function getDefaultBrushForFamily(

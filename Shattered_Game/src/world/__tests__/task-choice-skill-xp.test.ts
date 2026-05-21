@@ -78,7 +78,7 @@ describe('WorkbenchSystem menus and XP', () => {
     expect(result.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getCount('wood')).toBe(0);
     expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(1);
-    expect(playerSessionState.getSkillProgressionSystem().getXp('crafting')).toBe(10);
+    expect(playerSessionState.getSkillProgressionSystem().getXp('woodworking')).toBe(40);
   });
 });
 
@@ -105,7 +105,7 @@ describe('Gathering and campfire XP', () => {
     system.setMapNodes('test_wild_island', [node], mapObjects, 0);
     system.gatherNode('driftwood_01', playerSessionState, 0, { removeObject });
 
-    expect(playerSessionState.getSkillProgressionSystem().getXp('gathering')).toBe(5);
+    expect(playerSessionState.getSkillProgressionSystem().getXp('woodworking')).toBe(25);
   });
 
   it('brewing warm tea grants Survival XP', () => {
@@ -143,7 +143,7 @@ describe('Gathering and campfire XP', () => {
 
     expect(result.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(1);
-    expect(playerSessionState.getSkillProgressionSystem().getXp('survival')).toBe(8);
+    expect(playerSessionState.getSkillProgressionSystem().getXp('alchemy')).toBe(30);
   });
 });
 

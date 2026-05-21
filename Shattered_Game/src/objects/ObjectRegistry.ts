@@ -8,8 +8,21 @@ export class ObjectRegistry {
   private readonly definitions = new Map<string, ObjectDefinition>();
 
   constructor(definitions: readonly ObjectDefinition[]) {
+    this.registerDefinitions(definitions, 'throw');
+  }
+
+  addDefinitions(definitions: readonly ObjectDefinition[]): void {
+    this.registerDefinitions(definitions, 'replace');
+  }
+
+  private registerDefinitions(
+    definitions: readonly ObjectDefinition[],
+    duplicatePolicy: 'throw' | 'replace',
+  ): void {
     for (const def of definitions) {
-      if (this.definitions.has(def.id)) {
+      const existing = this.definitions.get(def.id);
+
+      if (existing && duplicatePolicy === 'throw') {
         throw new Error(`ObjectRegistry: duplicate object definition id "${def.id}"`);
       }
       this.definitions.set(def.id, def);

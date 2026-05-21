@@ -99,6 +99,17 @@ describe('WorldGrid', () => {
       ]);
       expect(grid.getTerrainBlockedTileCount()).toBe(3);
     });
+
+    it('honors editor-authored terrain walkability overrides', () => {
+      const grid = new WorldGrid(2, 1, [['grass', 'water']] as any, {
+        '0,0': false,
+        '1,0': true,
+      });
+
+      expect(grid.isTerrainBlocked(0, 0)).toBe(true);
+      expect(grid.isTerrainBlocked(1, 0)).toBe(false);
+      expect(grid.getTerrainBlockedTileCount()).toBe(1);
+    });
   });
 
   describe('getTile', () => {

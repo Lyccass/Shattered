@@ -1,5 +1,5 @@
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
-import type { PlayerInventorySnapshot, PlayerItemKey } from '../../../player/PlayerInventoryState';
+import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
@@ -49,7 +49,11 @@ export class TaskbarPanel {
     overlay: HTMLElement,
     private readonly onCombatToggle: () => void,
     private readonly onSprintToggle: () => void,
-    private readonly onInventoryItemUse: (itemId: PlayerItemKey) => void,
+    private readonly onInventoryItemUse: (itemId: string) => void,
+    private readonly onInventoryItemDrop: (itemId: string) => void,
+    private readonly onInventoryItemInspect: (itemId: string) => void,
+    private readonly onInventoryItemCombine: (sourceId: string, targetId: string) => void,
+    private readonly onSkillOpen: (skill: SkillSnapshot) => void,
   ) {
     this.root = document.createElement('div');
     this.root.id = 'ui-sidebar';
@@ -102,9 +106,14 @@ export class TaskbarPanel {
     overlay.appendChild(this.root);
 
     // Build tab content instances
-    this.inventoryContent = new InventoryTabContent(this.onInventoryItemUse);
+    this.inventoryContent = new InventoryTabContent({
+      onItemUse:     this.onInventoryItemUse,
+      onItemDrop:    this.onInventoryItemDrop,
+      onItemInspect: this.onInventoryItemInspect,
+      onItemCombine: this.onInventoryItemCombine,
+    });
     this.equipmentContent = new EquipmentTabContent();
-    this.skillsContent    = new SkillsTabContent();
+    this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
     this.mapContent       = new MapTabContent();
     this.settingsContent  = new SettingsTabContent();

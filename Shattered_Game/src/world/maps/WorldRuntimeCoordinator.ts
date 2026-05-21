@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
+import { parseEditorObjectDefinitions } from '../../shared/editor/EditorMapModel';
 import type { ActionProgressSnapshot } from '../../actions/ActionProgressTypes';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
 import { ContractRegistry } from '../../contracts/ContractRegistry';
 import { RECIPE_DEFINITIONS } from '../../crafting/RecipeDefinitions';
 import { RecipeRegistry } from '../../crafting/RecipeRegistry';
+import { canCraftRecipe, applyRecipeToInventory } from '../../crafting/RecipeInventory';
 import { OBJECT_DEFINITIONS } from '../../objects/ObjectDefinitions';
 import { ObjectDebugRenderer } from '../../objects/ObjectDebugRenderer';
 import { ObjectOcclusionSystem } from '../../objects/ObjectOcclusionSystem';
@@ -20,6 +22,7 @@ import { InteractionActionFactory } from '../../interactions/InteractionActionFa
 import { InteractionSystem } from '../../interactions/InteractionSystem';
 import {
   type ActiveInteraction,
+  type GroundItemInteractionTarget,
   type InteractionResult,
   type InteractionTarget,
 } from '../../interactions/InteractionTypes';
@@ -100,6 +103,7 @@ export class WorldRuntimeCoordinator {
   private readonly pendingUiResults: InteractionResult[] = [];
   private activeInteractionTiles: Array<{ x: number; y: number }> | null = null;
   private destroyed = false;
+  private groundItemCollector: ((id: string) => { itemId: string; count: number } | null) | null = null;
 
   private readonly actionFactory: InteractionActionFactory;
   private readonly uiAggregator: UiStateAggregator;
@@ -125,7 +129,10 @@ export class WorldRuntimeCoordinator {
       this.placedStructureSystem,
       () => this.objectManager.getPlacementSystem(),
     );
-    this.interactionSystem = new InteractionSystem(this.interactionHandlers.build());
+    this.interactionSystem = new InteractionSystem({
+      ...this.interactionHandlers.build(),
+      onGroundItem: (target) => this.handleGroundItemInteraction(target),
+    });
 
     this.mapRuntimeConfigurator = new WorldMapRuntimeConfigurator({
       contractBoardSystem: this.contractBoardSystem,
@@ -226,6 +233,9 @@ export class WorldRuntimeCoordinator {
     this.actionProgressSystem.cancel();
 
     const runtime = this.mapLoader.loadMap(mapId, spawnId);
+    this.objectRegistry.addDefinitions(
+      parseEditorObjectDefinitions(runtime.definition.metadata?.editorObjectDefinitions),
+    );
     this.currentRuntime = runtime;
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
@@ -326,14 +336,7 @@ export class WorldRuntimeCoordinator {
     const itemDefinition = this.itemRegistry.get(itemId);
 
     if (itemDefinition.useMode === 'place') {
-      const message = this.startPlacementMode(itemId);
-      return {
-        ok: this.placementModeSystem.isActive(),
-        interactionType: 'item_use',
-        targetId: itemId,
-        message,
-        toastKind: this.placementModeSystem.isActive() ? 'info' : 'error',
-      };
+      return this.placeItemInFacingDirection(itemId);
     }
 
     const result = this.itemUseSystem.useItem(
@@ -344,6 +347,138 @@ export class WorldRuntimeCoordinator {
 
     this.actionBroker.emitResultSfx(result);
     return result;
+  }
+
+  placeItemInFacingDirection(itemId: PlayerItemKey): InteractionResult {
+    if (!this.bindings || !this.currentRuntime) {
+      return { ok: false, interactionType: 'item_use', targetId: itemId, message: 'Placement unavailable.' };
+    }
+
+    const inventory = this.playerSessionState.getInventoryState();
+    if (!inventory.hasItemAtLeast(itemId, 1)) {
+      return {
+        ok: false,
+        interactionType: 'item_use',
+        targetId: itemId,
+        message: `No ${this.itemRegistry.get(itemId).displayName} in inventory.`,
+      };
+    }
+
+    const placementState = this.placementModeSystem.startPlacement(itemId);
+    if (!placementState) {
+      return { ok: false, interactionType: 'item_use', targetId: itemId, message: `${this.itemRegistry.get(itemId).displayName} cannot be placed.` };
+    }
+
+    const preview = this.placementModeSystem.updatePreview(this.bindings.playerController);
+    if (!preview?.valid) {
+      this.placementModeSystem.cancelPlacement();
+      return {
+        ok: false,
+        interactionType: 'item_use',
+        targetId: itemId,
+        message: preview?.invalidReason ?? `Can't place ${this.itemRegistry.get(itemId).displayName} here.`,
+        toastKind: 'error',
+      };
+    }
+
+    const result = this.confirmPlacementMode();
+    return result ?? { ok: false, interactionType: 'item_use', targetId: itemId, message: 'Placement failed.' };
+  }
+
+  collectGroundItem(itemId: string, count: number): void {
+    const inventory = this.playerSessionState.getInventoryState();
+    const def = this.itemRegistry.find(itemId);
+    if (def?.category === 'resource') {
+      inventory.addGenericResource(itemId, count);
+    } else {
+      inventory.addGenericItem(itemId, count);
+    }
+  }
+
+  setGroundItemCollector(fn: (id: string) => { itemId: string; count: number } | null): void {
+    this.groundItemCollector = fn;
+  }
+
+  setDynamicInteractionTargets(targets: InteractionTarget[]): void {
+    this.interactionSystem.setDynamicTargets(targets);
+  }
+
+  private handleGroundItemInteraction(target: GroundItemInteractionTarget): InteractionResult {
+    const collected = this.groundItemCollector?.(target.dropId) ?? null;
+    if (!collected) {
+      return { ok: false, interactionType: 'ground_item', targetId: target.dropId, message: 'Item already gone.' };
+    }
+    this.collectGroundItem(collected.itemId, collected.count);
+    const meta = this.itemRegistry.find(collected.itemId);
+    const label = meta?.displayName ?? collected.itemId;
+    const countStr = collected.count > 1 ? `${collected.count}× ` : '';
+    return {
+      ok: true,
+      interactionType: 'ground_item',
+      targetId: target.dropId,
+      message: `Picked up ${countStr}${label}.`,
+      toastKind: 'success',
+    };
+  }
+
+  dropItemFromInventory(itemId: string): { ok: boolean; worldX: number; worldY: number } {
+    const inventory = this.playerSessionState.getInventoryState();
+    const playerController = this.bindings?.playerController;
+    if (!playerController) return { ok: false, worldX: 0, worldY: 0 };
+
+    const consumed =
+      inventory.consumeGenericItem(itemId, 1) ||
+      inventory.consumeGenericResource(itemId, 1);
+    if (!consumed) return { ok: false, worldX: 0, worldY: 0 };
+
+    const feet = playerController.getFeetPoint();
+    return { ok: true, worldX: feet.x, worldY: feet.y };
+  }
+
+  getItemDisplayData(itemId: string): { displayName: string; description: string } | undefined {
+    const def = this.itemRegistry.find(itemId);
+    return def ? { displayName: def.displayName, description: def.description } : undefined;
+  }
+
+  tryHandCraft(sourceId: string, targetId: string): InteractionResult {
+    const recipe = this.recipeRegistry.findHandRecipeForItems(sourceId, targetId);
+    if (!recipe) {
+      return {
+        ok: false,
+        interactionType: 'generic_debug',
+        targetId: sourceId,
+        message: `Nothing interesting happens.`,
+        toastKind: 'info',
+      };
+    }
+
+    const inventory = this.playerSessionState.getInventoryState();
+    if (!canCraftRecipe(recipe, inventory)) {
+      return {
+        ok: false,
+        interactionType: 'generic_debug',
+        targetId: sourceId,
+        message: `You don't have the required materials.`,
+        toastKind: 'error',
+      };
+    }
+
+    applyRecipeToInventory(recipe, inventory);
+    const xpDelta = recipe.xpRewards ?? {};
+    const levelUps = Object.keys(xpDelta).length > 0
+      ? this.playerSessionState.getSkillProgressionSystem().addXpDelta(xpDelta)
+      : [];
+
+    return {
+      ok: true,
+      interactionType: 'generic_debug',
+      targetId: recipe.id,
+      message: `You crafted: ${recipe.displayName}.`,
+      sfxId: 'craft_success',
+      toastKind: 'reward',
+      xpDelta,
+      levelUps: levelUps.length > 0 ? levelUps : undefined,
+    };
   }
 
   getCurrentRuntime(): LoadedMapRuntime {

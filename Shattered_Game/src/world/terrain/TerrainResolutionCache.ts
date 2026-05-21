@@ -1,9 +1,22 @@
 import { sampleTerrainNeighbours } from './TerrainNeighbourSampler';
 import { TerrainResolver } from './TerrainResolver';
-import type { ResolvedTerrainTile, TerrainFamily } from './TerrainTypes';
+import {
+  createUniformTerrainEdges,
+  getRenderTerrainFamily,
+  type ResolvedTerrainTile,
+  type TerrainFamily,
+} from './TerrainTypes';
 import { WorldGrid } from '../WorldGrid';
 
 type TerrainResolverLike = Pick<TerrainResolver, 'resolve'>;
+type ExactTerrainPaint = {
+  id: string;
+  family: TerrainFamily;
+  textureKey: string;
+  textureScale?: number;
+  flipX: boolean;
+  flipY: boolean;
+};
 
 export class TerrainResolutionCache {
   private readonly cache = new Map<string, ResolvedTerrainTile>();
@@ -11,6 +24,7 @@ export class TerrainResolutionCache {
   constructor(
     private readonly worldGrid: WorldGrid,
     private readonly terrainResolver: TerrainResolverLike = new TerrainResolver(),
+    private readonly exactTerrainPaints: Record<string, ExactTerrainPaint> = {},
   ) {}
 
   resolveTile(tileX: number, tileY: number): ResolvedTerrainTile | null {
@@ -25,6 +39,14 @@ export class TerrainResolutionCache {
 
     if (cached) {
       return cached;
+    }
+
+    const exactPaint = this.exactTerrainPaints[key];
+
+    if (exactPaint) {
+      const resolved = createExactResolvedTerrainTile(exactPaint);
+      this.cache.set(key, resolved);
+      return resolved;
     }
 
     const resolved = this.terrainResolver.resolve({
@@ -53,4 +75,50 @@ export class TerrainResolutionCache {
 
 function cacheKey(tileX: number, tileY: number): string {
   return `${tileX},${tileY}`;
+}
+
+function createExactResolvedTerrainTile(paint: ExactTerrainPaint): ResolvedTerrainTile {
+  const renderFamily = getRenderTerrainFamily(paint.family);
+
+  return {
+    baseTileDefinition: {
+      id: paint.id,
+      family: renderFamily,
+      role: 'full',
+      spriteFrame: paint.textureKey,
+      weight: 1,
+      walkable: true,
+      edges: createUniformTerrainEdges(renderFamily),
+      allowFlipX: true,
+      allowFlipY: true,
+      allowRotation: false,
+    },
+    baseTransform: {
+      flipX: paint.flipX,
+      flipY: paint.flipY,
+      rotation: 0,
+      ...(paint.textureScale !== undefined ? { scale: paint.textureScale } : {}),
+    },
+    transitionOverlays: [],
+    debugInfo: {
+      neighbourFamilies: {
+        edges: {
+          xPlus: paint.family,
+          xMinus: paint.family,
+          yPlus: paint.family,
+          yMinus: paint.family,
+        },
+        corners: {
+          xPlusYPlus: paint.family,
+          xPlusYMinus: paint.family,
+          xMinusYPlus: paint.family,
+          xMinusYMinus: paint.family,
+        },
+      },
+      edgeCandidates: [],
+      outerCornerCandidates: [],
+      innerCornerCandidates: [],
+      shorelineCandidates: [],
+    },
+  };
 }

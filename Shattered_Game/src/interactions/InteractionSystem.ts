@@ -2,6 +2,7 @@ import type {
   ActiveInteraction,
   ContractBoardInteractionTarget,
   GenericDebugInteractionTarget,
+  GroundItemInteractionTarget,
   InteractionHandlers,
   InteractionResult,
   InteractionTarget,
@@ -14,6 +15,7 @@ import type {
 
 export class InteractionSystem {
   private targets: InteractionTarget[] = [];
+  private dynamicTargets: InteractionTarget[] = [];
   private activeInteraction: ActiveInteraction | null = null;
 
   constructor(private readonly handlers: InteractionHandlers) {}
@@ -23,8 +25,12 @@ export class InteractionSystem {
     this.activeInteraction = null;
   }
 
+  setDynamicTargets(targets: InteractionTarget[]): void {
+    this.dynamicTargets = targets;
+  }
+
   getTargets(): InteractionTarget[] {
-    return this.targets;
+    return [...this.targets, ...this.dynamicTargets];
   }
 
   getActiveInteraction(): ActiveInteraction | null {
@@ -35,7 +41,7 @@ export class InteractionSystem {
     interactionType: InteractionTarget['definition']['interactionType'],
     targetId: string,
   ): InteractionTarget | null {
-    return this.targets.find((target) =>
+    return [...this.targets, ...this.dynamicTargets].find((target) =>
       target.definition.interactionType === interactionType
       && target.definition.id === targetId,
     ) ?? null;
@@ -44,7 +50,7 @@ export class InteractionSystem {
   findTargetAtTile(targetTileX: number, targetTileY: number): InteractionTarget | null {
     let bestTarget: InteractionTarget | null = null;
 
-    for (const target of this.targets) {
+    for (const target of [...this.targets, ...this.dynamicTargets]) {
       if (!target.tiles.some((tile) => tile.x === targetTileX && tile.y === targetTileY)) {
         continue;
       }
@@ -65,7 +71,7 @@ export class InteractionSystem {
   ): ActiveInteraction | null {
     let bestInteraction: ActiveInteraction | null = null;
 
-    for (const target of this.targets) {
+    for (const target of [...this.targets, ...this.dynamicTargets]) {
       if (!target.tiles.some((tile) => tile.x === targetTileX && tile.y === targetTileY)) {
         continue;
       }
@@ -97,7 +103,7 @@ export class InteractionSystem {
   updateActiveInteraction(tileX: number, tileY: number): ActiveInteraction | null {
     let bestInteraction: ActiveInteraction | null = null;
 
-    for (const target of this.targets) {
+    for (const target of [...this.targets, ...this.dynamicTargets]) {
       const distanceTiles = getInteractionDistanceTiles(target, tileX, tileY);
 
       if (distanceTiles > target.definition.interactionRangeTiles) {
@@ -143,6 +149,8 @@ export class InteractionSystem {
         return this.handlers.onPlacedObject(target as PlacedObjectInteractionTarget);
       case 'generic_debug':
         return this.handlers.onGenericDebug(target as GenericDebugInteractionTarget);
+      case 'ground_item':
+        return this.handlers.onGroundItem(target as GroundItemInteractionTarget);
     }
   }
 }

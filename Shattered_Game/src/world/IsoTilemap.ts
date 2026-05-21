@@ -19,6 +19,16 @@ type IsoTilemapConfig = {
   width?: number;
   height?: number;
   terrain?: TileType[][];
+  terrainElevation?: Record<string, number>;
+  terrainWalkability?: Record<string, boolean>;
+  exactTerrainPaints?: Record<string, {
+    id: string;
+    family: TileType;
+    textureKey: string;
+    walkable: boolean;
+    flipX: boolean;
+    flipY: boolean;
+  }>;
 };
 
 type WorldPoint = {
@@ -73,8 +83,14 @@ export class IsoTilemap {
       this.width,
       this.height,
       terrain ?? generateOrganicIsland(this.width, this.height),
+      buildTerrainWalkabilityOverrides(config.terrainWalkability, config.exactTerrainPaints),
+      config.terrainElevation,
     );
-    this.terrainResolutionCache = new TerrainResolutionCache(this.worldGrid);
+    this.terrainResolutionCache = new TerrainResolutionCache(
+      this.worldGrid,
+      undefined,
+      config.exactTerrainPaints,
+    );
   }
 
   render(): Phaser.Geom.Rectangle {
@@ -129,6 +145,14 @@ export class IsoTilemap {
   // Unified walkability check — terrain and future object blocking both feed in here.
   isTileWalkable(tileX: number, tileY: number): boolean {
     return this.worldGrid.isTileWalkable(tileX, tileY);
+  }
+
+  getTerrainElevation(tileX: number, tileY: number): number | null {
+    return this.worldGrid.getTerrainElevation(tileX, tileY);
+  }
+
+  isStepWalkable(fromTileX: number, fromTileY: number, toTileX: number, toTileY: number, maxStepHeight = 1): boolean {
+    return this.worldGrid.isStepWalkable(fromTileX, fromTileY, toTileX, toTileY, maxStepHeight);
   }
 
   // Fractional grid position walkability check (used by the debug overlay).
@@ -224,6 +248,18 @@ export class IsoTilemap {
     const maxY = bounds.bottom + MAP_MARGIN;
     return new Phaser.Geom.Rectangle(minX, minY, maxX - minX, maxY - minY);
   }
+}
+
+function buildTerrainWalkabilityOverrides(
+  terrainWalkability: Record<string, boolean> | undefined,
+  exactTerrainPaints: IsoTilemapConfig['exactTerrainPaints'],
+): Record<string, boolean> {
+  return {
+    ...(exactTerrainPaints
+      ? Object.fromEntries(Object.entries(exactTerrainPaints).map(([key, paint]) => [key, paint.walkable]))
+      : {}),
+    ...(terrainWalkability ?? {}),
+  };
 }
 
 function validateTerrainLayer(terrain: TileType[][]): void {

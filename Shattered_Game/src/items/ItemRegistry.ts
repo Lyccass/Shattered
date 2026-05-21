@@ -18,4 +18,8 @@ export class ItemRegistry {
 
     return definition;
   }
+
+  find(itemId: string): ItemDefinition | undefined {
+    return this.byId.get(itemId as ItemId);
+  }
 }

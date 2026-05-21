@@ -41,7 +41,7 @@ export function emptyUiStateSnapshot(): UiStateSnapshot {
   };
 }
 
-export type UiHandledResult = Pick<InteractionResult, 'ok' | 'message' | 'xpDelta' | 'toastKind'>;
+export type UiHandledResult = Pick<InteractionResult, 'ok' | 'message' | 'xpDelta' | 'levelUps' | 'toastKind'>;
 
 export type SkillToastEntry = {
   skillId: SkillId;
