@@ -1,3 +1,5 @@
+import { requireElement } from '../../domUtils';
+
 export class MinimapPanel {
   private readonly root: HTMLElement;
   private readonly locationLabel: HTMLElement;
@@ -33,11 +35,11 @@ export class MinimapPanel {
       </div>
     `;
 
-    this.locationLabel = this.root.querySelector('.minimap-location-inside')!;
-    this.hpFill   = this.root.querySelector('.orb-hp .orb-fill')!;
-    this.hpValue  = this.root.querySelector('.orb-hp .orb-value')!;
-    this.stamFill = this.root.querySelector('.orb-stam .orb-fill')!;
-    this.stamValue = this.root.querySelector('.orb-stam .orb-value')!;
+    this.locationLabel = requireElement(this.root, '.minimap-location-inside');
+    this.hpFill        = requireElement(this.root, '.orb-hp .orb-fill');
+    this.hpValue       = requireElement(this.root, '.orb-hp .orb-value');
+    this.stamFill      = requireElement(this.root, '.orb-stam .orb-fill');
+    this.stamValue     = requireElement(this.root, '.orb-stam .orb-value');
 
     this.setLocation('The Veil');
 

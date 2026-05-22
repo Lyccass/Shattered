@@ -10,6 +10,36 @@ import {
 } from './EnemyAssets';
 import type { EnemyDefinition, EnemyRuntimeState } from './EnemyTypes';
 
+const ANIM = {
+  windupLiftMax:     8,
+  windupSqueezeX:    0.06,
+  windupSqueezeY:    0.08,
+  jumpArcLiftMax:    44,
+  jumpScaleX:        1.08,
+  jumpScaleY:        0.94,
+  landSquashX:       0.28,
+  landSquashY:       0.22,
+  windupScaleBump:   1.08,
+  activeScaleBump:   1.12,
+  recoveryScaleBump: 0.96,
+  deadScale:         0.9,
+  hitFlashScale:     0.12,
+};
+
+const SHADOW = {
+  offsetY:  4,
+  radiusX:  28,
+  radiusY:  12,
+  color:    0x020617,
+  alpha:    0.2,
+};
+
+const BAR = {
+  width:    40,
+  height:   4,
+  offsetY:  60,
+};
+
 export class EnemyVisualController {
   private static readonly HIT_FLASH_MS = 120;
 
@@ -23,7 +53,7 @@ export class EnemyVisualController {
 
   spawn(state: EnemyRuntimeState): void {
     this.destroy();
-    this.shadow = this.scene.add.ellipse(state.worldX, state.worldY - 4, 28, 12, 0x020617, 0.2);
+    this.shadow = this.scene.add.ellipse(state.worldX, state.worldY - SHADOW.offsetY, SHADOW.radiusX, SHADOW.radiusY, SHADOW.color, SHADOW.alpha);
     this.visual = this.scene.add.sprite(state.worldX, state.worldY - 8, ENEMY_WOLF_IDLE_SHEET_KEY, 0);
     this.healthBarGraphics = this.scene.add.graphics();
     this.visual.setOrigin(0.5, 0.4);
@@ -56,18 +86,18 @@ export class EnemyVisualController {
 
     if (activeAttack?.kind === 'jump') {
       if (state.currentState === 'windup') {
-        lift = 8 * easeOut(phaseProgress);
-        scaleX = 1.0 + 0.06 * phaseProgress;
-        scaleY = 1.0 - 0.08 * phaseProgress;
+        lift = ANIM.windupLiftMax * easeOut(phaseProgress);
+        scaleX = 1.0 + ANIM.windupSqueezeX * phaseProgress;
+        scaleY = 1.0 - ANIM.windupSqueezeY * phaseProgress;
       } else if (state.currentState === 'active') {
         const arc = 4 * phaseProgress * (1 - phaseProgress);
-        lift = 44 * arc;
-        scaleX = 1.08;
-        scaleY = 0.94;
+        lift = ANIM.jumpArcLiftMax * arc;
+        scaleX = ANIM.jumpScaleX;
+        scaleY = ANIM.jumpScaleY;
       } else if (state.currentState === 'recovery') {
         const squash = Math.max(0, 1 - phaseProgress * 5);
-        scaleX = 1.0 + 0.28 * squash;
-        scaleY = 1.0 - 0.22 * squash;
+        scaleX = 1.0 + ANIM.landSquashX * squash;
+        scaleY = 1.0 - ANIM.landSquashY * squash;
       }
     }
 
@@ -95,19 +125,19 @@ export class EnemyVisualController {
     switch (state.currentState) {
       case 'windup':
         this.visual.setTint(0xf59e0b);
-        this.visual.setScale(scaleX * 1.08, scaleY * 1.08);
+        this.visual.setScale(scaleX * ANIM.windupScaleBump, scaleY * ANIM.windupScaleBump);
         break;
       case 'active':
         this.visual.setTint(activeAttack?.kind === 'jump' ? 0xffffff : 0xdc2626);
-        this.visual.setScale(scaleX * 1.12, scaleY * 1.12);
+        this.visual.setScale(scaleX * ANIM.activeScaleBump, scaleY * ANIM.activeScaleBump);
         break;
       case 'recovery':
         this.visual.setTint(0xfb7185);
-        this.visual.setScale(scaleX * 0.96, scaleY * 0.96);
+        this.visual.setScale(scaleX * ANIM.recoveryScaleBump, scaleY * ANIM.recoveryScaleBump);
         break;
       case 'dead':
         this.visual.setTint(0x6b7280);
-        this.visual.setScale(0.9);
+        this.visual.setScale(ANIM.deadScale);
         break;
       default:
         break;
@@ -117,8 +147,8 @@ export class EnemyVisualController {
       const flashT = (this.hitFlashUntilMs - nowMs) / EnemyVisualController.HIT_FLASH_MS;
       this.visual.setTint(0xffffff);
       this.visual.setScale(
-        this.visual.scaleX * (1 + 0.12 * flashT),
-        this.visual.scaleY * (1 + 0.12 * flashT),
+        this.visual.scaleX * (1 + ANIM.hitFlashScale * flashT),
+        this.visual.scaleY * (1 + ANIM.hitFlashScale * flashT),
       );
     }
 
@@ -155,10 +185,10 @@ export class EnemyVisualController {
 
     const maxHp = definition.maxHealth;
     const pct = maxHp > 0 ? Math.max(0, state.health / maxHp) : 0;
-    const barW = 40;
-    const barH = 4;
+    const barW = BAR.width;
+    const barH = BAR.height;
     const x = state.worldX - barW / 2;
-    const y = state.worldY - 8 - lift - 60;
+    const y = state.worldY - 8 - lift - BAR.offsetY;
 
     this.healthBarGraphics.clear();
     this.healthBarGraphics.fillStyle(0x7f1d1d, 0.92);

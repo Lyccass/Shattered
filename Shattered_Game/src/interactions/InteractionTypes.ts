@@ -139,6 +139,42 @@ export type InteractionHandlers = {
   onGroundItem: (target: GroundItemInteractionTarget) => InteractionResult;
 };
 
+// ─── Type predicates ─────────────────────────────────────────────────────────
+
+export function isMapTransitionTarget(t: InteractionTarget): t is MapTransitionInteractionTarget {
+  return t.definition.interactionType === 'map_transition';
+}
+
+export function isResourceNodeTarget(t: InteractionTarget): t is ResourceNodeInteractionTarget {
+  return t.definition.interactionType === 'resource_node';
+}
+
+export function isNpcTarget(t: InteractionTarget): t is NpcInteractionTarget {
+  return t.definition.interactionType === 'npc';
+}
+
+export function isWorkbenchTarget(t: InteractionTarget): t is WorkbenchInteractionTarget {
+  return t.definition.interactionType === 'workbench';
+}
+
+export function isContractBoardTarget(t: InteractionTarget): t is ContractBoardInteractionTarget {
+  return t.definition.interactionType === 'contract_board';
+}
+
+export function isPlacedObjectTarget(t: InteractionTarget): t is PlacedObjectInteractionTarget {
+  return t.definition.interactionType === 'placed_object';
+}
+
+export function isGenericDebugTarget(t: InteractionTarget): t is GenericDebugInteractionTarget {
+  return t.definition.interactionType === 'generic_debug';
+}
+
+export function isGroundItemTarget(t: InteractionTarget): t is GroundItemInteractionTarget {
+  return t.definition.interactionType === 'ground_item';
+}
+
+// ─── Tile helpers ─────────────────────────────────────────────────────────────
+
 export function createSingleTileInteractionTiles(tileX: number, tileY: number): InteractionTile[] {
   return [{ x: tileX, y: tileY }];
 }

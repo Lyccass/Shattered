@@ -3,8 +3,8 @@ import type {
   ActiveInteraction,
   InteractionResult,
   InteractionTarget,
-  MapTransitionInteractionTarget,
 } from '../../interactions/InteractionTypes';
+import { isMapTransitionTarget } from '../../interactions/InteractionTypes';
 import type { InteractionSystem } from '../../interactions/InteractionSystem';
 import { findInteractionApproachWorldPoint as findApproachWorldPoint } from './InteractionApproachFinder';
 import type { LoadedMapRuntime } from './MapRuntime';
@@ -31,10 +31,9 @@ export class WorldInteractionTargetCoordinator {
   updateActiveInteraction(tileX: number, tileY: number): ActiveInteraction | null {
     this.deps.mapTransitionSystem.updateActiveTransition(tileX, tileY);
     const activeInteraction = this.deps.interactionSystem.updateActiveInteraction(tileX, tileY);
+    const activeTarget = activeInteraction?.target;
     const highlightedTransitionId =
-      activeInteraction?.target.definition.interactionType === 'map_transition'
-        ? (activeInteraction.target as MapTransitionInteractionTarget).transition.id
-        : null;
+      activeTarget && isMapTransitionTarget(activeTarget) ? activeTarget.transition.id : null;
 
     this.deps.mapTransitionVisualSystem.setActiveTransition(highlightedTransitionId);
     return activeInteraction;

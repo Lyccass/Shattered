@@ -2,12 +2,14 @@ import type { ChoiceMenuCoordinator } from '../../interactions/ChoiceMenuCoordin
 import type { InteractionActionFactory } from '../../interactions/InteractionActionFactory';
 import type { InteractionSystem } from '../../interactions/InteractionSystem';
 import type {
-  ContractBoardInteractionTarget,
   InteractionResult,
   InteractionTarget,
-  PlacedObjectInteractionTarget,
-  ResourceNodeInteractionTarget,
-  WorkbenchInteractionTarget,
+} from '../../interactions/InteractionTypes';
+import {
+  isContractBoardTarget,
+  isPlacedObjectTarget,
+  isResourceNodeTarget,
+  isWorkbenchTarget,
 } from '../../interactions/InteractionTypes';
 import type { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
@@ -114,23 +116,22 @@ export class WorldInteractionOrchestrator {
       return null;
     }
 
-    if (target.definition.interactionType === 'resource_node') {
+    if (isResourceNodeTarget(target)) {
       this.markActiveTiles(target);
       this.deps.actionBroker.start(
-        this.deps.actionFactory.createGatherAction(target as ResourceNodeInteractionTarget),
+        this.deps.actionFactory.createGatherAction(target),
       );
       return null;
     }
 
-    if (target.definition.interactionType === 'workbench') {
-      const workbenchTarget = target as WorkbenchInteractionTarget;
-      const recipes = this.deps.workbenchSystem.getRecipesForWorkbench(workbenchTarget.anchor.id);
+    if (isWorkbenchTarget(target)) {
+      const recipes = this.deps.workbenchSystem.getRecipesForWorkbench(target.anchor.id);
 
       if (recipes.length === 1) {
         this.markActiveTiles(target);
         this.deps.actionBroker.start(
           this.deps.actionFactory.createWorkbenchCraftAction(
-            workbenchTarget.anchor.id,
+            target.anchor.id,
             recipes[0].id,
           ),
         );
@@ -138,9 +139,9 @@ export class WorldInteractionOrchestrator {
       }
     }
 
-    if (target.definition.interactionType === 'placed_object') {
+    if (isPlacedObjectTarget(target)) {
       const action = this.deps.actionFactory.createPlacedObjectAction(
-        target as PlacedObjectInteractionTarget,
+        target,
         this.deps.playerSessionState.getInventoryState(),
       );
 
@@ -214,15 +215,13 @@ export class WorldInteractionOrchestrator {
   }
 
   private tryOpenSystemMenu(target: InteractionTarget): boolean {
-    if (target.definition.interactionType === 'workbench') {
-      const workbenchTarget = target as WorkbenchInteractionTarget;
-      const handler = this.deps.workbenchSystem.createMenuHandler(workbenchTarget.anchor.id);
+    if (isWorkbenchTarget(target)) {
+      const handler = this.deps.workbenchSystem.createMenuHandler(target.anchor.id);
       return this.deps.choiceMenuCoordinator.tryOpen(handler, this.deps.playerSessionState);
     }
 
-    if (target.definition.interactionType === 'contract_board') {
-      const contractBoardTarget = target as ContractBoardInteractionTarget;
-      const handler = this.deps.contractBoardSystem.createMenuHandler(contractBoardTarget.anchor.id);
+    if (isContractBoardTarget(target)) {
+      const handler = this.deps.contractBoardSystem.createMenuHandler(target.anchor.id);
       return this.deps.choiceMenuCoordinator.tryOpen(handler, this.deps.playerSessionState);
     }
 

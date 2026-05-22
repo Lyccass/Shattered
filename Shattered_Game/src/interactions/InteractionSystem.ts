@@ -1,16 +1,18 @@
 import type {
   ActiveInteraction,
-  ContractBoardInteractionTarget,
-  GenericDebugInteractionTarget,
-  GroundItemInteractionTarget,
   InteractionHandlers,
   InteractionResult,
   InteractionTarget,
-  MapTransitionInteractionTarget,
-  NpcInteractionTarget,
-  PlacedObjectInteractionTarget,
-  ResourceNodeInteractionTarget,
-  WorkbenchInteractionTarget,
+} from './InteractionTypes';
+import {
+  isContractBoardTarget,
+  isGenericDebugTarget,
+  isGroundItemTarget,
+  isMapTransitionTarget,
+  isNpcTarget,
+  isPlacedObjectTarget,
+  isResourceNodeTarget,
+  isWorkbenchTarget,
 } from './InteractionTypes';
 
 export class InteractionSystem {
@@ -134,24 +136,16 @@ export class InteractionSystem {
   }
 
   triggerTarget(target: InteractionTarget): InteractionResult {
-    switch (target.definition.interactionType) {
-      case 'map_transition':
-        return this.handlers.onMapTransition(target as MapTransitionInteractionTarget);
-      case 'resource_node':
-        return this.handlers.onResourceNode(target as ResourceNodeInteractionTarget);
-      case 'npc':
-        return this.handlers.onNpc(target as NpcInteractionTarget);
-      case 'workbench':
-        return this.handlers.onWorkbench(target as WorkbenchInteractionTarget);
-      case 'contract_board':
-        return this.handlers.onContractBoard(target as ContractBoardInteractionTarget);
-      case 'placed_object':
-        return this.handlers.onPlacedObject(target as PlacedObjectInteractionTarget);
-      case 'generic_debug':
-        return this.handlers.onGenericDebug(target as GenericDebugInteractionTarget);
-      case 'ground_item':
-        return this.handlers.onGroundItem(target as GroundItemInteractionTarget);
-    }
+    const { interactionType } = target.definition;
+    if (isMapTransitionTarget(target)) return this.handlers.onMapTransition(target);
+    if (isResourceNodeTarget(target)) return this.handlers.onResourceNode(target);
+    if (isNpcTarget(target)) return this.handlers.onNpc(target);
+    if (isWorkbenchTarget(target)) return this.handlers.onWorkbench(target);
+    if (isContractBoardTarget(target)) return this.handlers.onContractBoard(target);
+    if (isPlacedObjectTarget(target)) return this.handlers.onPlacedObject(target);
+    if (isGenericDebugTarget(target)) return this.handlers.onGenericDebug(target);
+    if (isGroundItemTarget(target)) return this.handlers.onGroundItem(target);
+    throw new Error(`Unhandled interaction type: ${interactionType}`);
   }
 }
 

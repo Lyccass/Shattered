@@ -1,73 +1,41 @@
-import type {
-  InteractionTarget,
-  PlacedObjectInteractionTarget,
-} from '../../interactions/InteractionTypes';
+import type { InteractionTarget } from '../../interactions/InteractionTypes';
+import { isPlacedObjectTarget } from '../../interactions/InteractionTypes';
 
 export function getInteractionMenuTitle(target: InteractionTarget): string {
-  switch (target.definition.interactionType) {
-    case 'map_transition':
-      return 'Travel';
-    case 'resource_node':
-      return 'Resource';
-    case 'npc':
-      return 'Interaction';
-    case 'workbench':
-      return 'Workbench';
-    case 'contract_board':
-      return 'Contracts';
-    case 'placed_object':
-      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-        ? 'Campfire'
-        : 'Firestarter';
-    case 'generic_debug':
-      return 'Inspect';
-    case 'ground_item':
-      return 'Item';
-  }
+  const { interactionType } = target.definition;
+  if (interactionType === 'map_transition') return 'Travel';
+  if (interactionType === 'resource_node') return 'Resource';
+  if (interactionType === 'npc') return 'Interaction';
+  if (interactionType === 'workbench') return 'Workbench';
+  if (interactionType === 'contract_board') return 'Contracts';
+  if (isPlacedObjectTarget(target)) return target.placedObjectKind === 'campfire' ? 'Campfire' : 'Firestarter';
+  if (interactionType === 'generic_debug') return 'Inspect';
+  if (interactionType === 'ground_item') return 'Item';
+  throw new Error(`Unhandled interaction type: ${interactionType}`);
 }
 
 export function getInteractionUseLabel(target: InteractionTarget): string {
-  switch (target.definition.interactionType) {
-    case 'map_transition':
-      return 'Use Route';
-    case 'resource_node':
-      return 'Gather';
-    case 'npc':
-      return 'Talk';
-    case 'workbench':
-      return 'Use Workbench';
-    case 'contract_board':
-      return 'Read Contracts';
-    case 'placed_object':
-      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-        ? 'Use Campfire'
-        : 'Light Firestarter';
-    case 'generic_debug':
-      return 'Use';
-    case 'ground_item':
-      return 'Pick Up';
-  }
+  const { interactionType } = target.definition;
+  if (interactionType === 'map_transition') return 'Use Route';
+  if (interactionType === 'resource_node') return 'Gather';
+  if (interactionType === 'npc') return 'Talk';
+  if (interactionType === 'workbench') return 'Use Workbench';
+  if (interactionType === 'contract_board') return 'Read Contracts';
+  if (isPlacedObjectTarget(target)) return target.placedObjectKind === 'campfire' ? 'Use Campfire' : 'Light Firestarter';
+  if (interactionType === 'generic_debug') return 'Use';
+  if (interactionType === 'ground_item') return 'Pick Up';
+  throw new Error(`Unhandled interaction type: ${interactionType}`);
 }
 
 export function getInteractionUseDetails(target: InteractionTarget): string {
-  switch (target.definition.interactionType) {
-    case 'map_transition':
-      return 'Travel onward.';
-    case 'resource_node':
-      return 'Harvest what you can carry.';
-    case 'npc':
-      return 'Start a conversation.';
-    case 'workbench':
-      return 'Craft using the workbench.';
-    case 'contract_board':
-      return 'Review and manage posted tasks.';
-    case 'placed_object':
-      return (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-        ? 'Brew or use the fire.'
-        : 'Try to light it.';
-    case 'generic_debug':
-      return 'Interact with it.';
-    case 'ground_item':
-      return 'Add to your inventory.';
-  }
+  const { interactionType } = target.definition;
+  if (interactionType === 'map_transition') return 'Travel onward.';
+  if (interactionType === 'resource_node') return 'Harvest what you can carry.';
+  if (interactionType === 'npc') return 'Start a conversation.';
+  if (interactionType === 'workbench') return 'Craft using the workbench.';
+  if (interactionType === 'contract_board') return 'Review and manage posted tasks.';
+  if (isPlacedObjectTarget(target)) return target.placedObjectKind === 'campfire' ? 'Brew or use the fire.' : 'Try to light it.';
+  if (interactionType === 'generic_debug') return 'Interact with it.';
+  if (interactionType === 'ground_item') return 'Add to your inventory.';
+  throw new Error(`Unhandled interaction type: ${interactionType}`);
 }

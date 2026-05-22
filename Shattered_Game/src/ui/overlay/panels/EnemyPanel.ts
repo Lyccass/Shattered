@@ -1,4 +1,5 @@
 import type { CombatUiSnapshot } from '../../../combat/CombatUiTypes';
+import { requireElement } from '../../domUtils';
 
 const LOW_HP_THRESHOLD = 0.25;
 
@@ -21,16 +22,16 @@ export class EnemyPanel {
       </div>
       <div class="enemy-hp-wrap">
         <div class="enemy-hp-track">
-          <div class="enemy-hp-fill" style="width:100%"></div>
+          <div class="enemy-hp-fill"></div>
         </div>
         <div class="enemy-hp-text"></div>
       </div>
     `;
 
-    this.nameEl = this.root.querySelector('.enemy-name')!;
-    this.tierEl = this.root.querySelector('.enemy-tier')!;
-    this.hpFill = this.root.querySelector('.enemy-hp-fill')!;
-    this.hpText = this.root.querySelector('.enemy-hp-text')!;
+    this.nameEl = requireElement(this.root, '.enemy-name');
+    this.tierEl = requireElement(this.root, '.enemy-tier');
+    this.hpFill = requireElement(this.root, '.enemy-hp-fill');
+    this.hpText = requireElement(this.root, '.enemy-hp-text');
 
     overlay.appendChild(this.root);
   }

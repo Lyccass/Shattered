@@ -3,17 +3,13 @@ import type { PlayerInventorySnapshot } from '../../../player/PlayerInventorySta
 import { getInventoryItemMeta } from '../../inventory/InventoryItemMeta';
 import { ItemContextMenu } from '../../inventory/ItemContextMenu';
 import { UI_TOKENS } from '../UITokens';
+import { requireElement } from '../../domUtils';
 
 export type InventoryCallbacks = {
   onItemUse: (itemId: string) => void;
   onItemDrop: (itemId: string) => void;
   onItemInspect: (itemId: string) => void;
   onItemCombine: (sourceId: string, targetId: string) => void;
-};
-
-type SlotData = {
-  itemId: string;
-  count: number;
 };
 
 function getAllActiveItems(snapshot: PlayerInventorySnapshot): Map<string, number> {
@@ -97,10 +93,10 @@ export class InventoryTabContent {
       </div>
     `;
 
-    this.coinEls.platinum = purse.querySelector('.coin-plat')!;
-    this.coinEls.gold      = purse.querySelector('.coin-gold')!;
-    this.coinEls.silver    = purse.querySelector('.coin-silver')!;
-    this.coinEls.copper    = purse.querySelector('.coin-copper')!;
+    this.coinEls.platinum = requireElement(purse, '.coin-plat');
+    this.coinEls.gold      = requireElement(purse, '.coin-gold');
+    this.coinEls.silver    = requireElement(purse, '.coin-silver');
+    this.coinEls.copper    = requireElement(purse, '.coin-copper');
 
     this.el.appendChild(grid);
     this.el.appendChild(purse);
@@ -282,8 +278,4 @@ export class InventoryTabContent {
     this.selectedSlot = null;
   }
 
-  // Kept for external callers that previously used the old single-callback form
-  getSlotData(): SlotData[] {
-    return this.slotOrder.map((id) => ({ itemId: id, count: 0 }));
-  }
 }

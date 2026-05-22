@@ -1015,15 +1015,11 @@ export class EditorScene extends Phaser.Scene {
     radius.value = '0';
     if (worldIdInput) worldIdInput.value = this.worldId;
     if (regionIdInput) regionIdInput.value = this.regionId;
-    panel.style.display = 'flex';
+    panel.classList.remove('editor-hidden');
   }
 
   private hideChunkWindowPanel(): void {
-    const panel = document.getElementById('ed-chunk-window');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
+    document.getElementById('ed-chunk-window')?.classList.add('editor-hidden');
   }
 
   private loadChunkWindowFromPanel(): void {
@@ -1084,17 +1080,13 @@ export class EditorScene extends Phaser.Scene {
 
     widthInput.value = String(Math.ceil(this.map.width / EDITOR_CHUNK_SIZE));
     heightInput.value = String(Math.ceil(this.map.height / EDITOR_CHUNK_SIZE));
-    panel.style.display = 'flex';
+    panel.classList.remove('editor-hidden');
     widthInput.focus();
     widthInput.select();
   }
 
   private hideResizePanel(): void {
-    const panel = document.getElementById('ed-resize');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
+    document.getElementById('ed-resize')?.classList.add('editor-hidden');
   }
 
   private applyResizeFromPanel(): void {
@@ -1387,18 +1379,13 @@ export class EditorScene extends Phaser.Scene {
     };
     title.textContent = `Name Chunk ${chunk.chunkX},${chunk.chunkY}`;
     input.value = chunk.chunkName;
-    panel.style.display = 'flex';
+    panel.classList.remove('editor-hidden');
     input.focus();
     input.select();
   }
 
   private hideChunkNamePanel(): void {
-    const panel = document.getElementById('ed-chunk-name-panel');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
-
+    document.getElementById('ed-chunk-name-panel')?.classList.add('editor-hidden');
     this.pendingChunkRename = null;
   }
 

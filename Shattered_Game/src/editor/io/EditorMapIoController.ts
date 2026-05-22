@@ -48,9 +48,8 @@ export class EditorMapIoController {
   }
 
   private async writeExport(json: string): Promise<'clipboard' | 'console'> {
-    console.log(json);
-
     if (!navigator.clipboard) {
+      console.log(json);
       return 'console';
     }
 
@@ -58,6 +57,7 @@ export class EditorMapIoController {
       await navigator.clipboard.writeText(json);
       return 'clipboard';
     } catch {
+      console.log(json);
       return 'console';
     }
   }

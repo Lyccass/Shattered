@@ -108,11 +108,11 @@ export function drawDefinitionFitPreview(
   previewImg.style.transform = `translate(-50%, -50%) translate(${imageX - width / 2}px, ${imageY - height / 2}px) scale(${scale * zoom})`;
 
   if (image) {
-    resizeHandle.style.display = '';
+    resizeHandle.classList.remove('editor-hidden');
     resizeHandle.style.left = `${imageX + imageWidth / 2 - 5}px`;
     resizeHandle.style.top = `${imageY + imageHeight / 2 - 5}px`;
   } else {
-    resizeHandle.style.display = 'none';
+    resizeHandle.classList.add('editor-hidden');
   }
 
   return { anchorX, anchorY, imageHeight, imageWidth, imageX, imageY, zoom };
@@ -168,14 +168,14 @@ export function drawDefinitionFitStage(
   const imageWidth = image.width * scale * zoom;
   const imageHeight = image.height * scale * zoom;
 
-  fitImage.style.display = '';
+  fitImage.classList.remove('editor-hidden');
   fitImage.style.left = `${imageX - imageWidth / 2}px`;
   fitImage.style.top = `${imageY - imageHeight / 2}px`;
   fitImage.style.width = `${imageWidth}px`;
   fitImage.style.height = `${imageHeight}px`;
   fitImage.style.transform = 'none';
 
-  selection.style.display = '';
+  selection.classList.remove('editor-hidden');
   selection.style.left = `${imageX - imageWidth / 2}px`;
   selection.style.top = `${imageY - imageHeight / 2}px`;
   selection.style.width = `${imageWidth}px`;

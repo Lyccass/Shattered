@@ -1,4 +1,5 @@
 import type { ChatChannel, ChatMessage } from '../UITokens';
+import { requireElement } from '../../domUtils';
 
 const MAX_MESSAGES = 200;
 
@@ -23,7 +24,7 @@ export class ChatPanel {
       </div>
     `;
 
-    this.logEl = this.root.querySelector('.chat-log')!;
+    this.logEl = requireElement(this.root, '.chat-log');
     this.bindTabs();
 
     overlay.appendChild(this.root);

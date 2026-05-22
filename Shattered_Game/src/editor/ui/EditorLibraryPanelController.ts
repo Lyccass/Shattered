@@ -59,11 +59,7 @@ export class EditorLibraryPanelController {
   }
 
   close(): void {
-    const panel = document.getElementById('ed-library');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
+    document.getElementById('ed-library')?.classList.add('editor-hidden');
   }
 
   private show<T>(config: {
@@ -84,13 +80,13 @@ export class EditorLibraryPanelController {
     title.textContent = config.title;
     grid.innerHTML = '';
     empty.textContent = config.emptyMessage;
-    empty.style.display = config.records.length === 0 ? '' : 'none';
+    empty.classList.toggle('editor-hidden', config.records.length !== 0);
 
     for (const record of config.records) {
       grid.appendChild(config.renderCard(record));
     }
 
-    panel.style.display = 'flex';
+    panel.classList.remove('editor-hidden');
   }
 }
 

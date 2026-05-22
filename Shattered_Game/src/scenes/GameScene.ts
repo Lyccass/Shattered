@@ -262,8 +262,7 @@ export class GameScene extends Phaser.Scene {
       onDebugToggleGrid: () => this.worldRuntimeCoordinator?.getIsoTilemap()?.cycleGridMode(),
       onDebugToggleChunk: () => this.worldRuntimeCoordinator?.getIsoTilemap()?.toggleChunkDebug(),
       onDebugToggleObjects: () => this.worldRuntimeCoordinator?.getObjectDebugRenderer()?.toggle(),
-      onDebugLogPlacement: () =>
-        this.worldRuntimeCoordinator?.getObjectPlacementSystem()?.debugLogPlacementInfo(),
+      onDebugLogPlacement: () => {},
     };
   }
 

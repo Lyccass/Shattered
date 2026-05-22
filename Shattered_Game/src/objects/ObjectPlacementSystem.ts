@@ -181,21 +181,6 @@ export class ObjectPlacementSystem {
     return this.instances.get(firstId);
   }
 
-  // Debug helper: writes placement state to the console.
-  debugLogPlacementInfo(): void {
-    console.log('[ObjectPlacementSystem] instances:', this.instances.size);
-    console.log('[WorldGrid] object-blocked tile count:', this.worldGrid.getObjectBlockedTileCount());
-
-    for (const instance of this.instances.values()) {
-      const def = this.registry.get(instance.definitionId);
-      const footprintTiles = getObjectFootprintTiles(def, instance.tileX, instance.tileY)
-        .map((tile) => `(${tile.x},${tile.y})`)
-        .join(' ');
-      const status = def.blocksMovement ? 'blocking' : 'non-blocking';
-      console.log(`  ${instance.id}  ${status}  footprint=${footprintTiles}`);
-    }
-  }
-
   private indexFootprint(instance: ObjectInstance, definition: ObjectDefinition): void {
     for (const tile of getObjectFootprintTiles(definition, instance.tileX, instance.tileY)) {
       const key = tileKey(tile.x, tile.y);

@@ -47,7 +47,7 @@ export class EditorTilePaletteController {
     this.currentTerrainTab = getTerrainTabId(selectedBrush);
     this.titleEl.textContent = 'Tile Palette';
     this.isOpen = true;
-    this.panel.style.display = 'flex';
+    this.panel.classList.remove('editor-hidden');
     this.buildTerrainTabs();
     this.buildTerrainGrid(selectedBrush);
   }
@@ -57,14 +57,14 @@ export class EditorTilePaletteController {
     this.currentObjectCategory = 'all';
     this.titleEl.textContent = 'Object Palette';
     this.isOpen = true;
-    this.panel.style.display = 'flex';
+    this.panel.classList.remove('editor-hidden');
     this.buildObjectTabs();
     this.buildObjectGrid(selectedObjectId);
   }
 
   close(): void {
     this.isOpen = false;
-    this.panel.style.display = 'none';
+    this.panel.classList.add('editor-hidden');
   }
 
   toggle(mode: PaletteMode, selectedBrush: EditorTerrainBrush, selectedObjectId: string): void {

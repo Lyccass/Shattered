@@ -117,7 +117,7 @@ export class EditorDefinitionPanelController {
     idInput.value = options.idValue;
     nameInput.value = options.nameValue;
     categoryInput.value = options.categoryValue;
-    footprintPanel.style.display = options.assetKind === 'object' ? '' : 'none';
+    footprintPanel.classList.toggle('editor-hidden', options.assetKind !== 'object');
     footprintWidthInput.value = String(options.footprintWidth ?? 1);
     footprintHeightInput.value = String(options.footprintHeight ?? 1);
     flagInput.checked = options.flagChecked;
@@ -127,17 +127,17 @@ export class EditorDefinitionPanelController {
     offsetXInput.value = '0';
     offsetYInput.value = '0';
     cleanInput.checked = false;
-    fitPanel.style.display = 'none';
+    fitPanel.classList.add('editor-hidden');
 
     if (options.previewSrc) {
       previewImg.src = options.previewSrc;
-      previewImg.style.display = '';
-      previewColor.style.display = 'none';
-      resizeHandle.style.display = '';
+      previewImg.classList.remove('editor-hidden');
+      previewColor.classList.add('editor-hidden');
+      resizeHandle.classList.remove('editor-hidden');
     } else {
-      previewImg.style.display = 'none';
-      previewColor.style.display = '';
-      resizeHandle.style.display = 'none';
+      previewImg.classList.add('editor-hidden');
+      previewColor.classList.remove('editor-hidden');
+      resizeHandle.classList.add('editor-hidden');
       drawDefinitionColorPreview(previewColor, options.previewColor ?? 0xfacc15);
     }
 
@@ -157,9 +157,9 @@ export class EditorDefinitionPanelController {
     const setPreviewImage = (image: PreparedDefinitionImage): void => {
       pendingImage = image;
       previewImg.src = image.dataUrl;
-      previewImg.style.display = '';
-      previewColor.style.display = 'none';
-      resizeHandle.style.display = '';
+      previewImg.classList.remove('editor-hidden');
+      previewColor.classList.add('editor-hidden');
+      resizeHandle.classList.remove('editor-hidden');
       previewProjection = drawDefinitionFitPreview(
         preview,
         fitGrid,
@@ -242,6 +242,7 @@ export class EditorDefinitionPanelController {
       );
     };
     const fitHandles = Array.from(fitSelection.querySelectorAll<HTMLDivElement>('.ed-fit-handle'));
+    let fitPanelVisible = false;
     let fitDraft: DefinitionFitDraft | null = null;
     let fitProjection: DefinitionFitProjection | null = null;
     let fitMoveStart: {
@@ -270,7 +271,7 @@ export class EditorDefinitionPanelController {
       fitScaleNumber.value = scale;
     };
     const drawFitEditor = (): void => {
-      if (!pendingImage || !fitDraft || fitPanel.style.display === 'none') {
+      if (!pendingImage || !fitDraft || !fitPanelVisible) {
         return;
       }
 
@@ -286,7 +287,8 @@ export class EditorDefinitionPanelController {
       );
     };
     const closeFitEditor = (): void => {
-      fitPanel.style.display = 'none';
+      fitPanel.classList.add('editor-hidden');
+      fitPanelVisible = false;
       fitMoveStart = null;
       fitResizeStart = null;
       fitDraft = null;
@@ -303,7 +305,8 @@ export class EditorDefinitionPanelController {
         scale: clamp(parseNumberInput(scaleInput.value, 1), 0.05, 4),
       };
       fitStageImage.src = pendingImage.dataUrl;
-      fitPanel.style.display = 'flex';
+      fitPanel.classList.remove('editor-hidden');
+      fitPanelVisible = true;
       drawFitEditor();
     };
     const updateFitDraftScale = (value: string): void => {
@@ -571,23 +574,14 @@ export class EditorDefinitionPanelController {
       });
     };
 
-    panel.style.display = 'flex';
+    panel.classList.remove('editor-hidden');
     idInput.focus();
     idInput.select();
   }
 
   close(): void {
-    const panel = document.getElementById('ed-definition');
-    const fitPanel = document.getElementById('ed-fit-panel');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
-
-    if (fitPanel) {
-      fitPanel.style.display = 'none';
-    }
-
+    document.getElementById('ed-definition')?.classList.add('editor-hidden');
+    document.getElementById('ed-fit-panel')?.classList.add('editor-hidden');
     this.submitHandler = null;
   }
 }

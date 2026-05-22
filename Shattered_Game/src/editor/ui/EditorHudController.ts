@@ -178,6 +178,12 @@ export class EditorHudController {
     document.getElementById('ed-delete-all-instances')?.addEventListener('click', () => this.callbacks.onDeleteAllInstances());
     document.getElementById('ed-delete-custom-tile')?.addEventListener('click', () => this.callbacks.onDeleteCustomTile());
     document.getElementById('ed-delete-custom-object')?.addEventListener('click', () => this.callbacks.onDeleteCustomObject());
+    document.getElementById('ed-help-toggle')?.addEventListener('click', () => {
+      const panel = document.getElementById('ed-help-panel');
+      const btn   = document.getElementById('ed-help-toggle');
+      const open  = panel?.classList.toggle('is-visible') ?? false;
+      btn?.classList.toggle('is-active', open);
+    });
   }
 
   // No Phaser display objects — HUD is pure HTML.
@@ -215,9 +221,9 @@ export class EditorHudController {
     this.els.modeObjectBtn.classList.toggle('is-active', isObject);
     this.els.modeWalkabilityBtn.classList.toggle('is-active', isWalkability);
     this.els.modeElevationBtn.classList.toggle('is-active', isElevation);
-    this.els.brushSection.style.display = isTerrain ? '' : 'none';
-    this.els.objectSection.style.display = isObject ? '' : 'none';
-    this.els.tileMetaSection.style.display = isWalkability || isElevation ? '' : 'none';
+    this.els.brushSection.classList.toggle('editor-hidden', !isTerrain);
+    this.els.objectSection.classList.toggle('editor-hidden', !isObject);
+    this.els.tileMetaSection.classList.toggle('editor-hidden', !(isWalkability || isElevation));
 
     // Brush (terrain mode)
     this.els.brushLabel.textContent = state.selectedBrush.label;
@@ -265,11 +271,11 @@ export class EditorHudController {
     const { textureKey, flipX, flipY } = brush;
 
     if (!this.scene.textures.exists(textureKey)) {
-      el.style.display = 'none';
+      el.classList.add('editor-hidden');
       return;
     }
 
-    el.style.display = '';
+    el.classList.remove('editor-hidden');
 
     if (el.dataset['texture'] !== textureKey) {
       el.src = this.scene.textures.getBase64(textureKey);
@@ -288,14 +294,14 @@ export class EditorHudController {
         this.els.previewObject.src = this.scene.textures.getBase64(textureKey);
         this.els.previewObject.dataset['texture'] = textureKey;
       }
-      this.els.previewObject.style.display   = '';
-      this.els.objColorSwatch.style.display  = 'none';
+      this.els.previewObject.classList.remove('editor-hidden');
+      this.els.objColorSwatch.classList.add('editor-hidden');
       return;
     }
 
     // Fallback: render a coloured diamond on the canvas swatch
-    this.els.previewObject.style.display  = 'none';
-    this.els.objColorSwatch.style.display = '';
+    this.els.previewObject.classList.add('editor-hidden');
+    this.els.objColorSwatch.classList.remove('editor-hidden');
     const ctx = this.els.objColorSwatch.getContext('2d');
 
     if (ctx && color !== null) {

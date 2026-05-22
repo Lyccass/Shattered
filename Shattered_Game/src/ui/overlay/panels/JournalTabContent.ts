@@ -26,8 +26,8 @@ export class JournalTabContent {
     activeTaskCount: number,
   ): void {
     this.statsRow.innerHTML = `
-      <span>Reputation <strong style="color:var(--c-primary)">${reputation.harborReputation}</strong></span>
-      <span>Tasks <strong style="color:var(--c-primary)">${activeTaskCount}</strong></span>
+      <span>Reputation <strong class="journal-stat-highlight">${reputation.harborReputation}</strong></span>
+      <span>Tasks <strong class="journal-stat-highlight">${activeTaskCount}</strong></span>
     `;
 
     this.entriesContainer.innerHTML = '';

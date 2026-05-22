@@ -13,6 +13,16 @@ import type {
   ResourceNodeInteractionTarget,
   WorkbenchInteractionTarget,
 } from '../../interactions/InteractionTypes';
+import {
+  isContractBoardTarget,
+  isGenericDebugTarget,
+  isGroundItemTarget,
+  isMapTransitionTarget,
+  isNpcTarget,
+  isPlacedObjectTarget,
+  isResourceNodeTarget,
+  isWorkbenchTarget,
+} from '../../interactions/InteractionTypes';
 import type { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem';
 import type { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import type { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
@@ -55,76 +65,50 @@ export class WorldInteractionHandlers {
   }
 
   inspectTarget(target: InteractionTarget): InteractionResult {
-    switch (target.definition.interactionType) {
-      case 'map_transition':
-        return {
-          ok: true,
-          interactionType: 'map_transition',
-          targetId: target.definition.id,
-          message: `A route leading to ${getMapDisplayName((target as MapTransitionInteractionTarget).transition.targetMapId)}.`,
-          toastKind: 'info',
-        };
-      case 'resource_node':
-        return {
-          ok: true,
-          interactionType: 'resource_node',
-          targetId: target.definition.id,
-          message: describeResourceNode((target as ResourceNodeInteractionTarget).anchor.resourceNodeType),
-          toastKind: 'info',
-        };
-      case 'npc':
-        return {
-          ok: true,
-          interactionType: 'npc',
-          targetId: target.definition.id,
-          message: (target as NpcInteractionTarget).anchor.promptLabel
-            ? `${(target as NpcInteractionTarget).anchor.promptLabel}.`
-            : 'Someone worth talking to.',
-          toastKind: 'info',
-        };
-      case 'workbench':
-        return {
-          ok: true,
-          interactionType: 'workbench',
-          targetId: target.definition.id,
-          message: 'A rough workbench for simple field crafting.',
-          toastKind: 'info',
-        };
-      case 'contract_board':
-        return {
-          ok: true,
-          interactionType: 'contract_board',
-          targetId: target.definition.id,
-          message: 'A contract board covered in requests, notices, and harbour jobs.',
-          toastKind: 'info',
-        };
-      case 'placed_object':
-        return {
-          ok: true,
-          interactionType: 'placed_object',
-          targetId: target.definition.id,
-          message: (target as PlacedObjectInteractionTarget).placedObjectKind === 'campfire'
-            ? 'A campfire. Good for warmth and brewing.'
-            : 'A prepared firestarter waiting for a spark.',
-          toastKind: 'info',
-        };
-      case 'generic_debug':
-        return {
-          ok: true,
-          interactionType: 'generic_debug',
-          targetId: target.definition.id,
-          message: (target as GenericDebugInteractionTarget).anchor.message,
-          toastKind: 'info',
-        };
-      case 'ground_item':
-        return {
-          ok: true,
-          interactionType: 'ground_item',
-          targetId: target.definition.id,
-          message: (target as GroundItemInteractionTarget).definition.promptText,
-          toastKind: 'info',
-        };
-    }
+    const { id, interactionType } = target.definition;
+    if (isMapTransitionTarget(target)) return {
+      ok: true, interactionType: 'map_transition', targetId: id,
+      message: `A route leading to ${getMapDisplayName(target.transition.targetMapId)}.`,
+      toastKind: 'info',
+    };
+    if (isResourceNodeTarget(target)) return {
+      ok: true, interactionType: 'resource_node', targetId: id,
+      message: describeResourceNode(target.anchor.resourceNodeType),
+      toastKind: 'info',
+    };
+    if (isNpcTarget(target)) return {
+      ok: true, interactionType: 'npc', targetId: id,
+      message: target.anchor.promptLabel ? `${target.anchor.promptLabel}.` : 'Someone worth talking to.',
+      toastKind: 'info',
+    };
+    if (isWorkbenchTarget(target)) return {
+      ok: true, interactionType: 'workbench', targetId: id,
+      message: 'A rough workbench for simple field crafting.',
+      toastKind: 'info',
+    };
+    if (isContractBoardTarget(target)) return {
+      ok: true, interactionType: 'contract_board', targetId: id,
+      message: 'A contract board covered in requests, notices, and harbour jobs.',
+      toastKind: 'info',
+    };
+    if (isPlacedObjectTarget(target)) return {
+      ok: true, interactionType: 'placed_object', targetId: id,
+      message: target.placedObjectKind === 'campfire'
+        ? 'A campfire. Good for warmth and brewing.'
+        : 'A prepared firestarter waiting for a spark.',
+      toastKind: 'info',
+    };
+    if (isGenericDebugTarget(target)) return {
+      ok: true, interactionType: 'generic_debug', targetId: id,
+      message: target.anchor.message,
+      toastKind: 'info',
+    };
+    if (isGroundItemTarget(target)) return {
+      ok: true, interactionType: 'ground_item', targetId: id,
+      message: target.definition.promptText,
+      toastKind: 'info',
+    };
+    throw new Error(`Unhandled interaction type: ${interactionType}`);
   }
 
   private handleMapTransition(target: MapTransitionInteractionTarget): InteractionResult {

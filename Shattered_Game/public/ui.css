@@ -119,6 +119,7 @@
    TOP-LEFT: ENEMY NAMEPLATE
    ═══════════════════════════════════════════════════════ */
 
+/* ── Container ──────────────────────────────────────── */
 #ui-enemy {
   position: absolute;
   top: 60px;
@@ -141,6 +142,7 @@
   background: linear-gradient(90deg, transparent, var(--c-secondary), transparent);
 }
 
+/* ── Name / tier row ────────────────────────────────── */
 .enemy-name-row {
   padding: var(--sp-1) var(--sp-3);
   display: flex;
@@ -161,6 +163,7 @@
   opacity: 0.75;
 }
 
+/* ── Health bar ─────────────────────────────────────── */
 .enemy-hp-wrap { padding: 0 var(--sp-3) var(--sp-2); }
 .enemy-hp-track {
   width: 100%;
@@ -171,6 +174,7 @@
   overflow: hidden;
 }
 .enemy-hp-fill {
+  width: 100%;
   height: 100%;
   background: var(--c-hp-fill);
   border-radius: 2px;
@@ -870,6 +874,7 @@
    SKILLS TAB
    ═══════════════════════════════════════════════════════ */
 
+/* ── Container ──────────────────────────────────────── */
 .skills-tab {
   height: 100%;
   display: flex;
@@ -879,6 +884,7 @@
   gap: var(--sp-3);
 }
 
+/* ── Skill row ──────────────────────────────────────── */
 .skill-row {
   display: flex;
   flex-direction: column;
@@ -921,6 +927,7 @@
 }
 .skill-sep { opacity: 0.5; margin: 0 2px; }
 
+/* ── XP bar ─────────────────────────────────────────── */
 .skill-bar-track {
   width: 100%;
   height: 6px;
@@ -987,6 +994,7 @@
 .journal-entry-status.in-progress   { color: var(--c-text-muted); }
 
 .journal-empty { font-size: var(--fs-sm); color: var(--c-text-muted); text-align: center; padding: 40px var(--sp-2); }
+.journal-stat-highlight { color: var(--c-primary); }
 
 
 /* ═══════════════════════════════════════════════════════
@@ -1072,6 +1080,7 @@
    BOTTOM-LEFT: CHAT
    ═══════════════════════════════════════════════════════ */
 
+/* ── Container ──────────────────────────────────────── */
 #ui-chat {
   position: absolute;
   bottom: 0;
@@ -1082,6 +1091,7 @@
   pointer-events: auto;
 }
 
+/* ── Message log ────────────────────────────────────── */
 .chat-log {
   height: var(--chat-h);
   background: var(--c-panel-bg);
@@ -1102,6 +1112,7 @@
 .chat-log::-webkit-scrollbar-track { background: transparent; }
 .chat-log::-webkit-scrollbar-thumb { background: var(--c-secondary); border-radius: 2px; }
 
+/* ── Message lines ──────────────────────────────────── */
 .chat-line { font-size: var(--fs-sm); line-height: 1.5; margin: 0; word-break: break-word; }
 .chat-line + .chat-line { margin-top: 1px; }
 
@@ -1111,6 +1122,7 @@
 .chat-line--reward { color: var(--c-text-reward); }
 .chat-line--error  { color: var(--c-text-error); }
 
+/* ── Tab bar ────────────────────────────────────────── */
 .chat-tabs-row {
   display: flex;
   align-items: center;
