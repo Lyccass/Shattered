@@ -47,8 +47,8 @@ export class CombatSandboxSystem {
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
   private playerAttackTargetWorld: { x: number; y: number } | null = null;
   private playerAttackHitResolved = false;
-  private static readonly SPEAR_MAX_TILE_REACH = 3;
   private static readonly HIT_STOP_MS = 70;
+  private currentLightAttackReachTiles = 1;
 
   private currentDodgeTileCount = 2;
   private hitStopUntilMs = 0;
@@ -262,7 +262,7 @@ export class CombatSandboxSystem {
       targetWorldX,
       targetWorldY,
       aimRad: attackAimRad,
-      maxTileReach: CombatSandboxSystem.SPEAR_MAX_TILE_REACH,
+      maxTileReach: this.currentLightAttackReachTiles,
     });
     this.playerAttackHitResolved = false;
     return null;
@@ -278,6 +278,10 @@ export class CombatSandboxSystem {
 
   syncMaxHp(maxHp: number): void {
     this.playerCombatState.updateMaxHp(maxHp);
+  }
+
+  syncAttackReach(tiles: number): void {
+    this.currentLightAttackReachTiles = Math.max(0.5, tiles);
   }
 
   getUiSnapshot(nowMs: number): CombatUiSnapshot | null {
@@ -543,7 +547,7 @@ export class CombatSandboxSystem {
           tilemap: this.currentTilemap,
           playerController,
           targetWorld: this.playerAttackTargetWorld,
-          maxTileReach: CombatSandboxSystem.SPEAR_MAX_TILE_REACH,
+          maxTileReach: this.currentLightAttackReachTiles,
         });
         break;
       case 'active':

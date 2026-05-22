@@ -40,8 +40,6 @@ import {
   saveEditorWorkingDraft,
   saveDirtyChunkBundleToProjectLibrary,
   saveMapToProjectLibrary,
-  type SavedDirtyChunkBundleRecord,
-  type SavedEditorMapRecord,
 } from './io/EditorLocalLibrary';
 import { EditorInputController, type EditorToolMode } from './input/EditorInputController';
 import { EditorViewportController } from './viewport/EditorViewportController';
@@ -51,6 +49,7 @@ import { EditorHistoryStack } from './EditorHistoryStack';
 import { EditorAssetLibraryController } from './assets/EditorAssetLibraryController';
 import { loadImageFromDataUrl } from './assets/EditorDefinitionImage';
 import { EditorDefinitionPanelController } from './ui/EditorDefinitionPanelController';
+import { EditorLibraryPanelController } from './ui/EditorLibraryPanelController';
 
 const TILE_WIDTH = 64;
 const TILE_HEIGHT = 32;
@@ -85,6 +84,7 @@ export class EditorScene extends Phaser.Scene {
     loadTexture: (textureKey, dataUrl) => this.loadDroppedTexture(textureKey, dataUrl),
     setStatus: (message) => this.setStatus(message),
   });
+  private readonly libraryPanel = new EditorLibraryPanelController();
   private map: EditorMapDefinition = createSampleEditorMap(this.terrainTool.getSelectedPaint());
   private worldId = 'the_wake';
   private regionId = 'editor_region';
@@ -175,7 +175,7 @@ export class EditorScene extends Phaser.Scene {
 
     this.createUiCamera();
     this.registerInputController();
-    document.getElementById('ed-library-close')?.addEventListener('click', () => this.hideLibraryPanel());
+    this.libraryPanel.bindGlobalEvents();
     this.definitionPanel.bindGlobalEvents();
     document.getElementById('ed-chunk-window-close')?.addEventListener('click', () => this.hideChunkWindowPanel());
     document.getElementById('ed-chunk-window-cancel')?.addEventListener('click', () => this.hideChunkWindowPanel());
@@ -917,20 +917,22 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private async openMapLibrary(): Promise<void> {
-    this.showLibraryPanel({
-      emptyMessage: 'No saved maps yet.',
-      records: await listSavedMapsFromProjectLibrary(),
-      title: 'Open Map',
-      type: 'map',
+    this.libraryPanel.showMaps(await listSavedMapsFromProjectLibrary(), {
+      onDelete: (recordId) => {
+        deleteSavedMap(recordId);
+        void this.openMapLibrary();
+      },
+      onLoad: (recordId) => this.loadMapFromLibrary(recordId),
     });
   }
 
   private async openChunkLibrary(): Promise<void> {
-    this.showLibraryPanel({
-      emptyMessage: 'No saved chunk bundles yet.',
-      records: await listSavedChunkBundlesFromProjectLibrary(),
-      title: 'Apply Chunks',
-      type: 'chunks',
+    this.libraryPanel.showChunks(await listSavedChunkBundlesFromProjectLibrary(), {
+      onDelete: (recordId) => {
+        deleteSavedChunkBundle(recordId);
+        void this.openChunkLibrary();
+      },
+      onLoad: (recordId) => this.loadChunksFromLibrary(recordId),
     });
   }
 
@@ -948,7 +950,7 @@ export class EditorScene extends Phaser.Scene {
         this.redrawOverlay();
         this.updateInfoText();
       });
-      this.hideLibraryPanel();
+      this.libraryPanel.close();
       this.setStatus('Map loaded from editor library.');
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Map library load failed.');
@@ -972,7 +974,7 @@ export class EditorScene extends Phaser.Scene {
         this.redrawOverlay();
         this.updateInfoText();
       });
-      this.hideLibraryPanel();
+      this.libraryPanel.close();
       this.setStatus('Chunk bundle loaded from editor library.');
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Chunk library load failed.');
@@ -1323,134 +1325,6 @@ export class EditorScene extends Phaser.Scene {
     });
   }
 
-  private showLibraryPanel(config:
-    | {
-      emptyMessage: string;
-      records: SavedEditorMapRecord[];
-      title: string;
-      type: 'map';
-    }
-    | {
-      emptyMessage: string;
-      records: SavedDirtyChunkBundleRecord[];
-      title: string;
-      type: 'chunks';
-    },
-  ): void {
-    const panel = document.getElementById('ed-library');
-    const title = document.getElementById('ed-library-title');
-    const grid = document.getElementById('ed-library-grid');
-    const empty = document.getElementById('ed-library-empty');
-
-    if (!panel || !title || !grid || !empty) {
-      return;
-    }
-
-    title.textContent = config.title;
-    grid.innerHTML = '';
-    empty.textContent = config.emptyMessage;
-    empty.style.display = config.records.length === 0 ? '' : 'none';
-
-    if (config.type === 'map') {
-      for (const record of config.records) {
-        grid.appendChild(this.createLibraryCard({
-          actionLabel: 'Open',
-          meta: `${record.width}x${record.height} saved ${formatShortDate(record.savedAt)}`,
-          name: record.displayName,
-          onDelete: () => {
-            deleteSavedMap(record.id);
-            this.openMapLibrary();
-          },
-          onLoad: () => this.loadMapFromLibrary(record.id),
-          previewDataUrl: record.previewDataUrl,
-        }));
-      }
-    } else {
-      for (const record of config.records) {
-        grid.appendChild(this.createLibraryCard({
-          actionLabel: 'Apply',
-          meta: `${record.sourceMapId} saved ${formatShortDate(record.savedAt)}`,
-          name: `${record.regionId} (${record.chunkCount} chunks)`,
-          onDelete: () => {
-            deleteSavedChunkBundle(record.id);
-            this.openChunkLibrary();
-          },
-          onLoad: () => this.loadChunksFromLibrary(record.id),
-          previewDataUrl: record.previewDataUrl,
-        }));
-      }
-    }
-
-    panel.style.display = 'flex';
-  }
-
-  private createLibraryCard(options: {
-    actionLabel: string;
-    meta: string;
-    name: string;
-    onDelete: () => void;
-    onLoad: () => void;
-    previewDataUrl: string;
-  }): HTMLElement {
-    const card = document.createElement('div');
-    card.className = 'ed-library-card';
-    card.role = 'button';
-    card.tabIndex = 0;
-
-    const preview = document.createElement('img');
-    preview.className = 'ed-library-preview';
-    preview.src = options.previewDataUrl;
-    preview.alt = '';
-
-    const name = document.createElement('div');
-    name.className = 'ed-library-name';
-    name.textContent = options.name;
-
-    const meta = document.createElement('div');
-    meta.className = 'ed-library-meta';
-    meta.textContent = options.meta;
-
-    const actions = document.createElement('div');
-    actions.className = 'ed-library-actions';
-
-    const load = document.createElement('button');
-    load.className = 'ed-library-action';
-    load.type = 'button';
-    load.textContent = options.actionLabel;
-    load.addEventListener('click', (event) => {
-      event.stopPropagation();
-      options.onLoad();
-    });
-
-    const remove = document.createElement('button');
-    remove.className = 'ed-library-action';
-    remove.type = 'button';
-    remove.textContent = 'Delete';
-    remove.addEventListener('click', (event) => {
-      event.stopPropagation();
-      options.onDelete();
-    });
-
-    actions.append(load, remove);
-    card.append(preview, name, meta, actions);
-    card.addEventListener('click', options.onLoad);
-    card.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        options.onLoad();
-      }
-    });
-    return card;
-  }
-
-  private hideLibraryPanel(): void {
-    const panel = document.getElementById('ed-library');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
-  }
-
   private getTexturePreviewDataUrl(textureKey: string | null): string | null {
     if (!textureKey || !this.textures.exists(textureKey)) {
       return null;
@@ -1625,10 +1499,6 @@ export class EditorScene extends Phaser.Scene {
 
 }
 
-function formatShortDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
-}
 
 function formatToolModeStatus(mode: EditorToolMode): string {
   switch (mode) {

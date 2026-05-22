@@ -136,7 +136,9 @@ export class GameScene extends Phaser.Scene {
     this.groundItemSystem?.tick(this.time.now);
     this.refreshGroundItemTargets();
     if (this.combatSandboxSystem && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
-      this.combatSandboxSystem.syncMaxHp(this.worldRuntimeCoordinator.getDerivedStats().maxHp);
+      const derived = this.worldRuntimeCoordinator.getDerivedStats();
+      this.combatSandboxSystem.syncMaxHp(derived.maxHp);
+      this.combatSandboxSystem.syncAttackReach(derived.reachTiles);
     }
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     this.interactionController?.resolvePendingPointerInteraction();

@@ -106,7 +106,7 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     attack: 1,
     accuracy: 50,
     attackSpeedMs: 1000,
-    reachTiles: 0.6,
+    reachTiles: 1.0,
     attackStaminaCost: 12,
     dodgeChance: 0,
     physicalDefence: 0,

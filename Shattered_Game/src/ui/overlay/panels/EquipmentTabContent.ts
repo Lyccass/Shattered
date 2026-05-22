@@ -99,20 +99,18 @@ export class EquipmentTabContent {
     const s = this.snapshot.derivedStats;
 
     this.appendGroup(wrap, 'Offence', [
-      ['Attack',      String(s.attack),                             'Maximum possible hit. Actual damage rolls between 1 and this value.'],
-      ['Precision',   `${s.accuracy}%`,                            'Narrows the damage roll toward your max hit. Higher precision means most strikes land near maximum damage.'],
-      ['Atk Speed',   `${(s.attackSpeedMs / 1000).toFixed(2)}s`,  'Full attack cycle time: wind-up, active frames, and recovery.'],
-      ['Reach',       `${s.reachTiles.toFixed(1)} tiles`,          'How far your attack hitbox extends from your position.'],
-      ['Stam. Cost',  String(s.attackStaminaCost),                 'Stamina consumed each time you attack.'],
+      ['Attack',      String(s.attack),                            'Maximum possible hit. Actual damage rolls between 1 and this value.'],
+      ['Atk Speed',   `${(s.attackSpeedMs / 1000).toFixed(2)}s`, 'Full attack cycle time: wind-up, active frames, and recovery.'],
+      ['Reach',       `${s.reachTiles.toFixed(1)} tiles`,         'How far your attack can reach from your position.'],
+      ['Stam. Cost',  String(s.attackStaminaCost),                'Stamina consumed each time you attack.'],
     ]);
 
     this.appendGroup(wrap, 'Defence', [
-      ['Phys. Def',      String(s.physicalDefence),    'Flat reduction applied to all incoming physical damage.'],
-      ['Slash Res',      String(s.slashDefence),       'Damage reduction against slash-type physical attacks.'],
-      ['Pierce Res',     String(s.pierceDefence),      'Damage reduction against pierce-type physical attacks.'],
-      ['Crush Res',      String(s.crushDefence),       'Damage reduction against crush-type physical attacks.'],
-      ['Poise',          String(s.poise),              'Reduces stagger points added by incoming hits.'],
-      ['Stagger Thres.', String(s.staggerThreshold),  'Stagger accumulates from hits and dodgerolls. Reaching this limit staggers you briefly.'],
+      ['Slash Res',      String(s.slashDefence),      'Reduces incoming slash damage. High values let you roll the damage roll multiple times and take the lowest.'],
+      ['Pierce Res',     String(s.pierceDefence),     'Reduces incoming pierce damage. High values let you roll the damage roll multiple times and take the lowest.'],
+      ['Crush Res',      String(s.crushDefence),      'Reduces incoming crush damage. High values let you roll the damage roll multiple times and take the lowest.'],
+      ['Poise',          String(s.poise),             'Reduces stagger points added by incoming hits.'],
+      ['Stagger Thres.', String(s.staggerThreshold), 'Stagger accumulates from hits and dodgerolls. Reaching this limit staggers you briefly.'],
     ]);
 
     this.appendGroup(wrap, 'Resistances', [
@@ -149,18 +147,23 @@ export class EquipmentTabContent {
         <span class="equip-stats-value">${value}</span>
       `;
       if (tooltip) {
+        let hoverTimer: ReturnType<typeof setTimeout> | null = null;
         row.addEventListener('mouseenter', () => {
-          const tip = getStatTooltipEl();
-          tip.textContent = tooltip;
-          const rect = row.getBoundingClientRect();
-          tip.style.left   = `${rect.left}px`;
-          tip.style.width  = `${rect.width}px`;
-          tip.style.top    = `${rect.top - 6}px`;
-          tip.style.transform = 'translateY(-100%)';
-          tip.classList.add('stat-tooltip--visible');
+          hoverTimer = setTimeout(() => {
+            const tip = getStatTooltipEl();
+            tip.textContent = tooltip;
+            const rect = row.getBoundingClientRect();
+            tip.style.left      = `${rect.left}px`;
+            tip.style.width     = `${rect.width}px`;
+            tip.style.top       = `${rect.top - 6}px`;
+            tip.style.transform = 'translateY(-100%)';
+            tip.classList.add('stat-tooltip--visible');
+          }, 500);
         });
         row.addEventListener('mouseleave', () => {
-          getStatTooltipEl().classList.remove('stat-tooltip--visible');
+          if (hoverTimer !== null) { clearTimeout(hoverTimer); hoverTimer = null; }
+          const tip = getStatTooltipEl();
+          tip.classList.remove('stat-tooltip--visible');
         });
       }
       wrap.appendChild(row);
