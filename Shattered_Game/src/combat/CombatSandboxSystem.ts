@@ -276,6 +276,10 @@ export class CombatSandboxSystem {
     return this.playerCombatState.getSnapshot(nowMs).combatModeActive;
   }
 
+  syncMaxHp(maxHp: number): void {
+    this.playerCombatState.updateMaxHp(maxHp);
+  }
+
   getUiSnapshot(nowMs: number): CombatUiSnapshot | null {
     if (!this.currentTilemap) {
       return null;

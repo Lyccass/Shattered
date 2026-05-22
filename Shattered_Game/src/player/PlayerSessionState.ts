@@ -2,8 +2,10 @@ import { ConsumableEffectSystem } from '../effects/ConsumableEffectSystem';
 import { EFFECT_DEFINITIONS } from '../effects/EffectDefinitions';
 import { EffectRegistry } from '../effects/EffectRegistry';
 import type { ActiveEffectSnapshot } from '../effects/EffectTypes';
+import type { EquipmentSnapshot, PlayerDerivedStats } from '../equipment/EquipmentTypes';
 import type { PlayerSaveState } from '../persistence/SaveTypes';
 import { PlayerCurrencyState, type CurrencySnapshot } from './PlayerCurrencyState';
+import { PlayerEquipmentState } from './PlayerEquipmentState';
 import { PlayerInventoryState, type PlayerInventorySnapshot } from './PlayerInventoryState';
 import { PlayerReputationState, type ReputationSnapshot } from './PlayerReputationState';
 import { SkillProgressionSystem } from '../skills/SkillProgressionSystem';
@@ -19,6 +21,7 @@ export class PlayerSessionState {
   private readonly effectSystem = new ConsumableEffectSystem(
     new EffectRegistry(EFFECT_DEFINITIONS),
   );
+  private readonly equipmentState = new PlayerEquipmentState();
 
   getInventoryState(): PlayerInventoryState {
     return this.inventoryState;
@@ -84,6 +87,24 @@ export class PlayerSessionState {
     return this.taskJournalState.completeContract(contractId, repeatable);
   }
 
+  getEquipmentState(): PlayerEquipmentState {
+    return this.equipmentState;
+  }
+
+  getDerivedStats(): PlayerDerivedStats {
+    return this.equipmentState.getDerivedStats({
+      melee: this.skillProgressionSystem.getLevel('melee'),
+      defence: this.skillProgressionSystem.getLevel('defence'),
+    });
+  }
+
+  getEquipmentSnapshot(): EquipmentSnapshot {
+    return this.equipmentState.getSnapshot({
+      melee: this.skillProgressionSystem.getLevel('melee'),
+      defence: this.skillProgressionSystem.getLevel('defence'),
+    });
+  }
+
   getActiveEffects(nowMs: number): ActiveEffectSnapshot[] {
     return this.effectSystem.getActiveEffects(nowMs);
   }
@@ -119,6 +140,7 @@ export class PlayerSessionState {
       skillXp: this.skillProgressionSystem.createSaveSnapshot(),
       journal: this.taskJournalState.createSaveSnapshot(),
       activeEffects: this.effectSystem.createSaveSnapshot(nowMs),
+      equippedSlots: this.equipmentState.createSaveSnapshot(),
     };
   }
 
@@ -132,5 +154,8 @@ export class PlayerSessionState {
     this.skillProgressionSystem.restoreSaveSnapshot(snapshot.skillXp);
     this.taskJournalState.restoreSaveSnapshot(snapshot.journal);
     this.effectSystem.restoreSaveSnapshot(snapshot.activeEffects, nowMs);
+    if (snapshot.equippedSlots) {
+      this.equipmentState.restoreSaveSnapshot(snapshot.equippedSlots);
+    }
   }
 }

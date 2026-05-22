@@ -735,13 +735,12 @@
   display: grid;
   grid-template-areas:
     ". head ."
-    "shoulder chest off"
-    ". belly ."
-    "ring legs ammo"
-    ". feet ."
-    "weapon . shield";
+    "back necklace ammo"
+    "gloves body ring"
+    "main_hand legs off_hand"
+    ". feet .";
   grid-template-columns: 1fr 1fr 1fr;
-  grid-template-rows: repeat(6, 1fr);
+  grid-template-rows: repeat(5, 1fr);
   gap: 4px;
   padding: var(--sp-2);
 }
@@ -780,17 +779,22 @@
   z-index: 1;
 }
 
-.equip-slot[data-slot="head"]     { grid-area: head; }
-.equip-slot[data-slot="shoulder"] { grid-area: shoulder; }
-.equip-slot[data-slot="chest"]    { grid-area: chest; }
-.equip-slot[data-slot="off"]      { grid-area: off; }
-.equip-slot[data-slot="belly"]    { grid-area: belly; }
-.equip-slot[data-slot="ring"]     { grid-area: ring; }
-.equip-slot[data-slot="legs"]     { grid-area: legs; }
-.equip-slot[data-slot="ammo"]     { grid-area: ammo; }
-.equip-slot[data-slot="feet"]     { grid-area: feet; }
-.equip-slot[data-slot="weapon"]   { grid-area: weapon; }
-.equip-slot[data-slot="shield"]   { grid-area: shield; }
+.equip-slot[data-slot="head"]      { grid-area: head; }
+.equip-slot[data-slot="back"]      { grid-area: back; }
+.equip-slot[data-slot="necklace"]  { grid-area: necklace; }
+.equip-slot[data-slot="ammo"]      { grid-area: ammo; }
+.equip-slot[data-slot="gloves"]    { grid-area: gloves; }
+.equip-slot[data-slot="body"]      { grid-area: body; }
+.equip-slot[data-slot="ring"]      { grid-area: ring; }
+.equip-slot[data-slot="main_hand"] { grid-area: main_hand; }
+.equip-slot[data-slot="legs"]      { grid-area: legs; }
+.equip-slot[data-slot="off_hand"]  { grid-area: off_hand; }
+.equip-slot[data-slot="feet"]      { grid-area: feet; }
+
+.equip-slot--filled .equip-slot-label {
+  color: var(--c-primary);
+  font-size: 9px;
+}
 
 /* ── Stats view ── */
 .equip-stats {
@@ -816,6 +820,25 @@
   transition: background var(--tr);
 }
 .equip-stats-row:hover { background: rgba(255, 255, 255, 0.03); }
+
+/* Stat tooltip — appended to <body>, escapes overflow:hidden panels */
+.stat-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #1a1209;
+  border: 1px solid rgba(97, 60, 24, 0.5);
+  color: var(--c-text-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+  white-space: normal;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.stat-tooltip--visible { opacity: 1; }
 
 .equip-stats-label {
   font-size: var(--fs-xs);

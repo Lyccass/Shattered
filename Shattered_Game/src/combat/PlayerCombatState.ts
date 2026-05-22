@@ -38,7 +38,7 @@ export type IncomingAttackResolution = {
 };
 
 const MAX_STAMINA = 100;
-const MAX_HP = 10;
+export const BASE_MAX_HP = 10;
 const WALK_DODGE_COST = 15;
 const SPRINT_DODGE_COST = 25;
 export const DODGE_DURATION_MS = 250;
@@ -47,7 +47,7 @@ const DODGE_COOLDOWN_MS = 350;
 const LIGHT_ATTACK_COST = 12;
 export const LIGHT_ATTACK_WINDUP_MS = 160;
 export const LIGHT_ATTACK_ACTIVE_MS = 200;
-export const LIGHT_ATTACK_RECOVERY_MS = 500;
+export const LIGHT_ATTACK_RECOVERY_MS = 640;
 const GUARD_STAMINA_COST_PER_DAMAGE = 10;
 const GUARD_BREAK_DURATION_MS = 650;
 const DOWNED_RECOVERY_MS = 1_500;
@@ -66,7 +66,11 @@ type ActiveLightAttackState = {
 
 export class PlayerCombatState {
   private combatModeActive = false;
-  private currentHp = MAX_HP;
+  private currentHp = BASE_MAX_HP;
+
+  constructor(private maxHp = BASE_MAX_HP) {
+    this.currentHp = maxHp;
+  }
   private stamina = MAX_STAMINA;
   private sprinting = false;
   private guardHeld = false;
@@ -259,6 +263,15 @@ export class PlayerCombatState {
     return { ok: true };
   }
 
+  updateMaxHp(newMax: number): void {
+    const clampedMax = Math.max(1, Math.round(newMax));
+    if (clampedMax === this.maxHp) return;
+    // Scale current HP proportionally when max changes
+    const ratio = this.currentHp / this.maxHp;
+    this.maxHp = clampedMax;
+    this.currentHp = Math.max(1, Math.min(clampedMax, Math.round(ratio * clampedMax)));
+  }
+
   refundLightAttackStamina(): void {
     this.stamina = Math.min(MAX_STAMINA, this.stamina + LIGHT_ATTACK_COST);
   }
@@ -339,7 +352,7 @@ export class PlayerCombatState {
   }
 
   resetAfterDownedRecovery(): void {
-    this.currentHp = MAX_HP;
+    this.currentHp = this.maxHp;
     this.stamina = MAX_STAMINA;
     this.guardHeld = false;
     this.sprinting = false;
@@ -377,7 +390,7 @@ export class PlayerCombatState {
     return {
       combatModeActive: this.combatModeActive,
       currentHp: this.currentHp,
-      maxHp: MAX_HP,
+      maxHp: this.maxHp,
       stamina: Math.round(this.stamina),
       maxStamina: MAX_STAMINA,
       isSprinting: this.sprinting,

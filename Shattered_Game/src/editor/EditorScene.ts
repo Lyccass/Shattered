@@ -48,6 +48,9 @@ import { EditorViewportController } from './viewport/EditorViewportController';
 import { EditorChunkNameRenderer } from './chunks/EditorChunkNameRenderer';
 import { EditorTilePaletteController } from './ui/EditorTilePaletteController';
 import { EditorHistoryStack } from './EditorHistoryStack';
+import { EditorAssetLibraryController } from './assets/EditorAssetLibraryController';
+import { loadImageFromDataUrl } from './assets/EditorDefinitionImage';
+import { EditorDefinitionPanelController } from './ui/EditorDefinitionPanelController';
 
 const TILE_WIDTH = 64;
 const TILE_HEIGHT = 32;
@@ -71,34 +74,17 @@ type LoadedChunkWindowContext = {
   worldId: string;
 };
 
-type PreparedDefinitionImage = {
-  dataUrl: string;
-  height: number;
-  width: number;
-};
-
-type DefinitionFitDraft = {
-  offsetX: number;
-  offsetY: number;
-  scale: number;
-};
-
-type DefinitionFitProjection = {
-  anchorX: number;
-  anchorY: number;
-  imageHeight: number;
-  imageWidth: number;
-  imageX: number;
-  imageY: number;
-  zoom: number;
-};
-
 export class EditorScene extends Phaser.Scene {
   private readonly terrainTool = new EditorTerrainToolController();
   private readonly objectTool = new EditorObjectToolController();
   private readonly dirtyChunks = new EditorDirtyChunkTracker(EDITOR_CHUNK_SIZE);
   private readonly mapIo = new EditorMapIoController();
   private readonly history = new EditorHistoryStack();
+  private readonly assetLibrary = new EditorAssetLibraryController(this, this.terrainTool, this.objectTool);
+  private readonly definitionPanel = new EditorDefinitionPanelController({
+    loadTexture: (textureKey, dataUrl) => this.loadDroppedTexture(textureKey, dataUrl),
+    setStatus: (message) => this.setStatus(message),
+  });
   private map: EditorMapDefinition = createSampleEditorMap(this.terrainTool.getSelectedPaint());
   private worldId = 'the_wake';
   private regionId = 'editor_region';
@@ -119,7 +105,6 @@ export class EditorScene extends Phaser.Scene {
   private chunkNameRenderer?: EditorChunkNameRenderer;
   private palette?: EditorTilePaletteController;
   private viewport?: EditorViewportController;
-  private definitionPanelSubmit: (() => void | Promise<void>) | null = null;
   private pendingChunkRename: { chunkX: number; chunkY: number } | null = null;
   private toolMode: EditorToolMode = 'terrain';
   private selectedWalkable = true;
@@ -141,7 +126,8 @@ export class EditorScene extends Phaser.Scene {
     this.chunkNameRenderer = new EditorChunkNameRenderer(this, this.transform);
     this.overlayGraphics = this.add.graphics();
     this.chunkOverlayGraphics = this.add.graphics();
-    const restoredWorkingDraft = this.restoreWorkingDraft();
+    const draftRestorePromise = this.assetLibrary.syncGlobalAssets()
+      .then(() => this.restoreWorkingDraft());
     this.hud = new EditorHudController(this, {
       onAdjustBrushSize: (delta) => this.adjustBrushSize(delta),
       onAdjustElevation: (delta) => this.adjustElevation(delta),
@@ -190,9 +176,7 @@ export class EditorScene extends Phaser.Scene {
     this.createUiCamera();
     this.registerInputController();
     document.getElementById('ed-library-close')?.addEventListener('click', () => this.hideLibraryPanel());
-    document.getElementById('ed-definition-close')?.addEventListener('click', () => this.hideDefinitionPanel());
-    document.getElementById('ed-definition-cancel')?.addEventListener('click', () => this.hideDefinitionPanel());
-    document.getElementById('ed-definition-create')?.addEventListener('click', () => { void this.definitionPanelSubmit?.(); });
+    this.definitionPanel.bindGlobalEvents();
     document.getElementById('ed-chunk-window-close')?.addEventListener('click', () => this.hideChunkWindowPanel());
     document.getElementById('ed-chunk-window-cancel')?.addEventListener('click', () => this.hideChunkWindowPanel());
     document.getElementById('ed-chunk-window-load')?.addEventListener('click', () => this.loadChunkWindowFromPanel());
@@ -202,13 +186,15 @@ export class EditorScene extends Phaser.Scene {
     document.getElementById('ed-chunk-name-close')?.addEventListener('click', () => this.hideChunkNamePanel());
     document.getElementById('ed-chunk-name-cancel')?.addEventListener('click', () => this.hideChunkNamePanel());
     document.getElementById('ed-chunk-name-apply')?.addEventListener('click', () => this.applyChunkNameFromPanel());
-    this.redrawTerrain();
-    this.redrawObjects();
-    this.centerCameraOnMap();
-    this.updateInfoText();
-    if (restoredWorkingDraft) {
-      this.setStatus(`Restored ${this.map.displayName} from editor draft.`);
-    }
+    void draftRestorePromise.then((restored) => {
+      this.redrawTerrain();
+      this.redrawObjects();
+      this.centerCameraOnMap();
+      this.updateInfoText();
+      if (restored) {
+        this.setStatus(`Restored ${this.map.displayName} from editor draft.`);
+      }
+    });
   }
 
   update(_time: number, deltaMs: number): void {
@@ -303,7 +289,7 @@ export class EditorScene extends Phaser.Scene {
 
   private createCustomTerrainBrush(): void {
     const base = this.terrainTool.getSelectedBrush();
-    this.showDefinitionPanel({
+    this.definitionPanel.show({
       flagChecked: base.walkable,
       flagLabel: 'Walkable tile',
       idValue: `custom_${base.id}`,
@@ -336,14 +322,11 @@ export class EditorScene extends Phaser.Scene {
           textureOffsetY,
         );
         const paint = this.terrainTool.getSelectedPaint();
-        this.map = {
-          ...this.map,
-          customTerrainBrushes: upsertById(this.map.customTerrainBrushes, paint),
-        };
+        this.assetLibrary.addTerrainPaint(paint);
         this.palette?.updateTerrainSelection(brush);
         this.updateInfoText();
         this.persistWorkingDraft();
-        this.hideDefinitionPanel();
+        this.definitionPanel.close();
         this.setStatus(`Added custom tile ${brush.label} (${flag ? 'walkable' : 'blocked'}).`);
       },
     });
@@ -351,7 +334,7 @@ export class EditorScene extends Phaser.Scene {
 
   private createCustomObjectDefinition(): void {
     const base = this.objectTool.getSelectedDefinition();
-    this.showDefinitionPanel({
+    this.definitionPanel.show({
       flagChecked: base.blocksMovement,
       flagLabel: 'Blocks movement',
       idValue: `custom_${base.id}`,
@@ -393,14 +376,12 @@ export class EditorScene extends Phaser.Scene {
           textureOffsetX,
           textureOffsetY,
         );
-        this.map = {
-          ...this.map,
-          customObjectDefinitions: upsertById(this.map.customObjectDefinitions, definition),
-        };
+        this.assetLibrary.addObjectDefinition(definition);
+        this.palette?.refresh(this.terrainTool.getSelectedBrush(), definition.id);
         this.palette?.updateObjectSelection(definition.id);
         this.updateInfoText();
         this.persistWorkingDraft();
-        this.hideDefinitionPanel();
+        this.definitionPanel.close();
         this.setStatus(`Added custom object ${definition.displayName} (${flag ? 'blocking' : 'walkable'}).`);
       },
     });
@@ -447,6 +428,7 @@ export class EditorScene extends Phaser.Scene {
       ...this.map,
       customTerrainBrushes: this.map.customTerrainBrushes.filter((paint) => paint.id !== brush.id),
     };
+    this.assetLibrary.removeTerrainPaint(brush.id);
     this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
     this.palette?.updateTerrainSelection(replacementBrush);
     this.redrawTerrain();
@@ -483,6 +465,7 @@ export class EditorScene extends Phaser.Scene {
       customObjectDefinitions: this.map.customObjectDefinitions.filter((candidate) => candidate.id !== definition.id),
       objects: this.map.objects.filter((object) => object.definitionId !== definition.id),
     };
+    this.assetLibrary.removeObjectDefinition(definition.id);
     this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
     this.palette?.updateObjectSelection(selected.id);
     this.redrawObjects();
@@ -844,7 +827,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private async exportMap(): Promise<void> {
-    const result = await this.mapIo.exportMap(this.map);
+    const result = await this.mapIo.exportMap(this.getSerializableMap());
     this.dirtyChunks.clear();
     this.updateInfoText();
     this.setStatus(
@@ -855,7 +838,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private async exportWorldChunk(): Promise<void> {
-    const result = await this.mapIo.exportWorldChunk(this.map, {
+    const result = await this.mapIo.exportWorldChunk(this.getSerializableMap(), {
       worldId: this.worldId,
       regionId: this.regionId,
       chunkX: 0,
@@ -870,7 +853,11 @@ export class EditorScene extends Phaser.Scene {
     );
   }
 
-  private restoreWorkingDraft(): boolean {
+  private getSerializableMap(): EditorMapDefinition {
+    return this.assetLibrary.hydrateMapForSerialization(this.map);
+  }
+
+  private async restoreWorkingDraft(): Promise<boolean> {
     const draft = loadEditorWorkingDraft();
 
     if (!draft) {
@@ -880,7 +867,7 @@ export class EditorScene extends Phaser.Scene {
     this.map = draft;
     this.loadedChunkWindow = null;
     this.history.clear();
-    this.applyMapCustomDefinitions();
+    await this.applyMapCustomDefinitions();
     return true;
   }
 
@@ -901,7 +888,7 @@ export class EditorScene extends Phaser.Scene {
         return;
       }
 
-      const bundle = createDirtyChunkBundle(this.map, dirtyChunks, {
+      const bundle = createDirtyChunkBundle(this.getSerializableMap(), dirtyChunks, {
         chunkSize: EDITOR_CHUNK_SIZE,
         originChunkX: this.loadedChunkWindow?.originChunkX ?? 0,
         originChunkY: this.loadedChunkWindow?.originChunkY ?? 0,
@@ -920,7 +907,7 @@ export class EditorScene extends Phaser.Scene {
 
   private async saveMapToLibrary(): Promise<void> {
     try {
-      const record = await saveMapToProjectLibrary(this.map);
+      const record = await saveMapToProjectLibrary(this.getSerializableMap());
       this.dirtyChunks.clear();
       this.updateInfoText();
       this.setStatus(`Saved ${record.displayName} to project map library.`);
@@ -952,14 +939,15 @@ export class EditorScene extends Phaser.Scene {
       this.map = loadSavedMap(recordId);
       this.loadedChunkWindow = null;
       this.history.clear();
-      this.applyMapCustomDefinitions();
       this.dirtyChunks.clear();
       this.persistWorkingDraft();
       this.centerCameraOnMap();
-      this.redrawTerrain();
-      this.redrawObjects();
-      this.redrawOverlay();
-      this.updateInfoText();
+      void this.applyMapCustomDefinitions().then(() => {
+        this.redrawTerrain();
+        this.redrawObjects();
+        this.redrawOverlay();
+        this.updateInfoText();
+      });
       this.hideLibraryPanel();
       this.setStatus('Map loaded from editor library.');
     } catch (error) {
@@ -978,10 +966,12 @@ export class EditorScene extends Phaser.Scene {
       );
       this.dirtyChunks.clear();
       this.persistWorkingDraft();
-      this.redrawTerrain();
-      this.redrawObjects();
-      this.redrawOverlay();
-      this.updateInfoText();
+      void this.applyMapCustomDefinitions().then(() => {
+        this.redrawTerrain();
+        this.redrawObjects();
+        this.redrawOverlay();
+        this.updateInfoText();
+      });
       this.hideLibraryPanel();
       this.setStatus('Chunk bundle loaded from editor library.');
     } catch (error) {
@@ -1058,15 +1048,16 @@ export class EditorScene extends Phaser.Scene {
 
       this.map = map;
       this.loadedChunkWindow = context;
-      this.applyMapCustomDefinitions();
       this.dirtyChunks.clear();
       this.hoverTile = null;
       this.persistWorkingDraft();
       this.centerCameraOnMap();
-      this.redrawTerrain();
-      this.redrawObjects();
-      this.redrawOverlay();
-      this.updateInfoText();
+      void this.applyMapCustomDefinitions().then(() => {
+        this.redrawTerrain();
+        this.redrawObjects();
+        this.redrawOverlay();
+        this.updateInfoText();
+      });
       this.hideChunkWindowPanel();
       const endChunkX = context.originChunkX + Math.ceil(map.width  / context.chunkSize) - 1;
       const endChunkY = context.originChunkY + Math.ceil(map.height / context.chunkSize) - 1;
@@ -1258,7 +1249,7 @@ export class EditorScene extends Phaser.Scene {
 
   private testMapInGame(): void {
     try {
-      this.mapIo.publishToGame(this.map);
+      this.mapIo.publishToGame(this.getSerializableMap());
       window.open('/index.html?editorMap=1', '_blank', 'noopener,noreferrer');
       this.setStatus(`Testing ${this.map.displayName} in game.`);
     } catch (error) {
@@ -1271,27 +1262,9 @@ export class EditorScene extends Phaser.Scene {
     this.setStatus('Cleared the editor test map from game startup.');
   }
 
-  private applyMapCustomDefinitions(): void {
-    this.registerMapEmbeddedTextures(this.map);
-    this.terrainTool.addCustomPaints(this.map.customTerrainBrushes);
-    this.objectTool.addCustomDefinitions(this.map.customObjectDefinitions);
+  private async applyMapCustomDefinitions(): Promise<void> {
+    await this.assetLibrary.applyMapDefinitions(this.map);
     this.repairImportedTerrainScales();
-  }
-
-  private registerMapEmbeddedTextures(map: EditorMapDefinition): void {
-    for (const paint of map.customTerrainBrushes) {
-      if (paint.textureDataUrl && !this.textures.exists(paint.textureKey)) {
-        this.textures.addBase64(paint.textureKey, paint.textureDataUrl);
-      }
-    }
-
-    for (const definition of map.customObjectDefinitions) {
-      for (const part of definition.visual.parts) {
-        if (part.shape === 'sprite' && part.editorTextureDataUrl && !this.textures.exists(part.textureKey)) {
-          this.textures.addBase64(part.textureKey, part.editorTextureDataUrl);
-        }
-      }
-    }
   }
 
   private repairImportedTerrainScales(): void {
@@ -1478,605 +1451,12 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  private showDefinitionPanel(options: {
-    assetKind: 'object' | 'terrainTile';
-    categoryValue: string;
-    flagChecked: boolean;
-    flagLabel: string;
-    footprintHeight?: number;
-    footprintWidth?: number;
-    idValue: string;
-    nameValue: string;
-    onCreate: (values: {
-      category: string;
-      flag: boolean;
-      footprintHeight: number;
-      footprintWidth: number;
-      id: string;
-      name: string;
-      textureDataUrl?: string;
-      textureHeight?: number;
-      textureKey?: string;
-      textureOffsetX?: number;
-      textureOffsetY?: number;
-      textureScale?: number;
-      textureWidth?: number;
-    }) => void;
-    previewColor: number | null;
-    previewSrc: string | null;
-    title: string;
-  }): void {
-    const panel = document.getElementById('ed-definition');
-    const title = document.getElementById('ed-definition-title');
-    const preview = document.getElementById('ed-definition-preview') as HTMLDivElement | null;
-    const fitGrid = document.getElementById('ed-definition-fit-grid') as HTMLCanvasElement | null;
-    const idInput = document.getElementById('ed-definition-id') as HTMLInputElement | null;
-    const nameInput = document.getElementById('ed-definition-name') as HTMLInputElement | null;
-    const categoryInput = document.getElementById('ed-definition-category') as HTMLInputElement | null;
-    const footprintPanel = document.getElementById('ed-definition-footprint');
-    const footprintWidthInput = document.getElementById('ed-definition-footprint-width') as HTMLInputElement | null;
-    const footprintHeightInput = document.getElementById('ed-definition-footprint-height') as HTMLInputElement | null;
-    const flagInput = document.getElementById('ed-definition-flag') as HTMLInputElement | null;
-    const flagLabel = document.getElementById('ed-definition-flag-label');
-    const fileInput = document.getElementById('ed-definition-file') as HTMLInputElement | null;
-    const scaleInput = document.getElementById('ed-definition-scale') as HTMLInputElement | null;
-    const offsetXInput = document.getElementById('ed-definition-offset-x') as HTMLInputElement | null;
-    const offsetYInput = document.getElementById('ed-definition-offset-y') as HTMLInputElement | null;
-    const fitButton = document.getElementById('ed-definition-fit') as HTMLButtonElement | null;
-    const openFitButton = document.getElementById('ed-definition-open-fit') as HTMLButtonElement | null;
-    const cleanInput = document.getElementById('ed-definition-clean') as HTMLInputElement | null;
-    const previewImg = document.getElementById('ed-definition-preview-img') as HTMLImageElement | null;
-    const previewColor = document.getElementById('ed-definition-preview-color') as HTMLCanvasElement | null;
-    const resizeHandle = document.getElementById('ed-definition-resize-handle') as HTMLDivElement | null;
-    const fitPanel = document.getElementById('ed-fit-panel') as HTMLDivElement | null;
-    const fitCloseButton = document.getElementById('ed-fit-close') as HTMLButtonElement | null;
-    const fitCancelButton = document.getElementById('ed-fit-cancel') as HTMLButtonElement | null;
-    const fitApplyButton = document.getElementById('ed-fit-apply') as HTMLButtonElement | null;
-    const fitStage = document.getElementById('ed-fit-stage') as HTMLDivElement | null;
-    const fitStageGrid = document.getElementById('ed-fit-grid') as HTMLCanvasElement | null;
-    const fitStageImage = document.getElementById('ed-fit-image') as HTMLImageElement | null;
-    const fitSelection = document.getElementById('ed-fit-selection') as HTMLDivElement | null;
-    const fitScaleRange = document.getElementById('ed-fit-scale-range') as HTMLInputElement | null;
-    const fitScaleNumber = document.getElementById('ed-fit-scale-number') as HTMLInputElement | null;
-
-    if (
-      !panel ||
-      !title ||
-      !preview ||
-      !fitGrid ||
-      !idInput ||
-      !nameInput ||
-      !categoryInput ||
-      !footprintPanel ||
-      !footprintWidthInput ||
-      !footprintHeightInput ||
-      !flagInput ||
-      !flagLabel ||
-      !fileInput ||
-      !scaleInput ||
-      !offsetXInput ||
-      !offsetYInput ||
-      !fitButton ||
-      !openFitButton ||
-      !cleanInput ||
-      !previewImg ||
-      !previewColor ||
-      !resizeHandle ||
-      !fitPanel ||
-      !fitCloseButton ||
-      !fitCancelButton ||
-      !fitApplyButton ||
-      !fitStage ||
-      !fitStageGrid ||
-      !fitStageImage ||
-      !fitSelection ||
-      !fitScaleRange ||
-      !fitScaleNumber
-    ) {
-      return;
-    }
-
-    title.textContent = options.title;
-    idInput.value = options.idValue;
-    nameInput.value = options.nameValue;
-    categoryInput.value = options.categoryValue;
-    footprintPanel.style.display = options.assetKind === 'object' ? '' : 'none';
-    footprintWidthInput.value = String(options.footprintWidth ?? 1);
-    footprintHeightInput.value = String(options.footprintHeight ?? 1);
-    flagInput.checked = options.flagChecked;
-    flagLabel.textContent = options.flagLabel;
-    fileInput.value = '';
-    scaleInput.value = '1';
-    offsetXInput.value = '0';
-    offsetYInput.value = '0';
-    cleanInput.checked = false;
-    fitPanel.style.display = 'none';
-
-    if (options.previewSrc) {
-      previewImg.src = options.previewSrc;
-      previewImg.style.display = '';
-      previewColor.style.display = 'none';
-      resizeHandle.style.display = '';
-    } else {
-      previewImg.style.display = 'none';
-      previewColor.style.display = '';
-      resizeHandle.style.display = 'none';
-      this.drawDefinitionColorPreview(previewColor, options.previewColor ?? 0xfacc15);
-    }
-
-    let pendingImage: PreparedDefinitionImage | null = null;
-    let previewProjection = drawDefinitionFitPreview(
-      preview,
-      fitGrid,
-      previewImg,
-      resizeHandle,
-      scaleInput,
-      offsetXInput,
-      offsetYInput,
-      pendingImage,
-      getDefinitionFitFootprint(options.assetKind, footprintWidthInput, footprintHeightInput),
-    );
-
-    const setPreviewImage = (image: PreparedDefinitionImage): void => {
-      pendingImage = image;
-      previewImg.src = image.dataUrl;
-      previewImg.style.display = '';
-      previewColor.style.display = 'none';
-      resizeHandle.style.display = '';
-      previewProjection = drawDefinitionFitPreview(
-        preview,
-        fitGrid,
-        previewImg,
-        resizeHandle,
-        scaleInput,
-        offsetXInput,
-        offsetYInput,
-        pendingImage,
-        getDefinitionFitFootprint(options.assetKind, footprintWidthInput, footprintHeightInput),
-      );
-    };
-    if (options.previewSrc) {
-      void loadImageFromDataUrl(options.previewSrc)
-        .then((image) => {
-          if (!pendingImage && options.previewSrc) {
-            setPreviewImage({
-              dataUrl: options.previewSrc,
-              height: image.height,
-              width: image.width,
-            });
-          }
-        })
-        .catch(() => {
-          this.setStatus('Could not prepare selected asset preview for fitting.');
-        });
-    }
-    const prepareAndSetPreviewDataUrl = (rawDataUrl: string): void => {
-      void prepareDefinitionImageDataUrl(rawDataUrl, options.assetKind, cleanInput.checked)
-        .then(setPreviewImage)
-        .catch((error: unknown) => {
-          this.setStatus(error instanceof Error ? error.message : 'Image import failed.');
-        });
-    };
-
-    fileInput.onchange = () => {
-      const file = fileInput.files?.[0];
-
-      if (!file) {
-        return;
-      }
-
-      void readFileAsDataUrl(file).then(prepareAndSetPreviewDataUrl);
-    };
-    cleanInput.onchange = () => {
-      const file = fileInput.files?.[0];
-
-      if (!file) {
-        return;
-      }
-
-      void readFileAsDataUrl(file).then(prepareAndSetPreviewDataUrl);
-    };
-    panel.ondragover = (event) => {
-      event.preventDefault();
-    };
-    panel.ondrop = (event) => {
-      event.preventDefault();
-      const file = Array.from(event.dataTransfer?.files ?? [])
-        .find((candidate) => candidate.type.startsWith('image/'));
-
-      if (file) {
-        void readFileAsDataUrl(file).then(prepareAndSetPreviewDataUrl);
-      }
-    };
-
-    const updateFitPreview = (): void => {
-      previewProjection = drawDefinitionFitPreview(
-        preview,
-        fitGrid,
-        previewImg,
-        resizeHandle,
-        scaleInput,
-        offsetXInput,
-        offsetYInput,
-        pendingImage,
-        getDefinitionFitFootprint(options.assetKind, footprintWidthInput, footprintHeightInput),
-      );
-    };
-    const fitHandles = Array.from(fitSelection.querySelectorAll<HTMLDivElement>('.ed-fit-handle'));
-    let fitDraft: DefinitionFitDraft | null = null;
-    let fitProjection: DefinitionFitProjection | null = null;
-    let fitMoveStart: {
-      offsetX: number;
-      offsetY: number;
-      pointerX: number;
-      pointerY: number;
-    } | null = null;
-    let fitResizeStart: {
-      anchorX: number;
-      anchorY: number;
-      corner: string;
-      oppositeX: number;
-      oppositeY: number;
-      startDistance: number;
-      startScale: number;
-      zoom: number;
-    } | null = null;
-    const syncFitScaleControls = (): void => {
-      if (!fitDraft) {
-        return;
-      }
-
-      const scale = String(Number(fitDraft.scale.toFixed(2)));
-      fitScaleRange.value = scale;
-      fitScaleNumber.value = scale;
-    };
-    const drawFitEditor = (): void => {
-      if (!pendingImage || !fitDraft || fitPanel.style.display === 'none') {
-        return;
-      }
-
-      syncFitScaleControls();
-      fitProjection = drawDefinitionFitStage(
-        fitStage,
-        fitStageGrid,
-        fitStageImage,
-        fitSelection,
-        pendingImage,
-        getDefinitionFitFootprint(options.assetKind, footprintWidthInput, footprintHeightInput),
-        fitDraft,
-      );
-    };
-    const closeFitEditor = (): void => {
-      fitPanel.style.display = 'none';
-      fitMoveStart = null;
-      fitResizeStart = null;
-      fitDraft = null;
-    };
-    const openFitEditor = (): void => {
-      if (!pendingImage) {
-        this.setStatus('Select or drop an image before opening the fit editor.');
-        return;
-      }
-
-      fitDraft = {
-        offsetX: parseNumberInput(offsetXInput.value, 0),
-        offsetY: parseNumberInput(offsetYInput.value, 0),
-        scale: clamp(parseNumberInput(scaleInput.value, 1), 0.05, 4),
-      };
-      fitStageImage.src = pendingImage.dataUrl;
-      fitPanel.style.display = 'flex';
-      drawFitEditor();
-    };
-    const updateFitDraftScale = (value: string): void => {
-      if (!fitDraft) {
-        return;
-      }
-
-      fitDraft.scale = clamp(parseNumberInput(value, fitDraft.scale), 0.05, 4);
-      drawFitEditor();
-    };
-    const startFitMove = (event: PointerEvent): void => {
-      if (!pendingImage || !fitDraft) {
-        return;
-      }
-
-      event.preventDefault();
-      fitStage.setPointerCapture(event.pointerId);
-      fitMoveStart = {
-        offsetX: fitDraft.offsetX,
-        offsetY: fitDraft.offsetY,
-        pointerX: event.clientX,
-        pointerY: event.clientY,
-      };
-    };
-    preview.ondblclick = openFitEditor;
-    openFitButton.onclick = openFitEditor;
-    fitCloseButton.onclick = closeFitEditor;
-    fitCancelButton.onclick = closeFitEditor;
-    fitScaleRange.oninput = () => updateFitDraftScale(fitScaleRange.value);
-    fitScaleNumber.oninput = () => updateFitDraftScale(fitScaleNumber.value);
-    fitApplyButton.onclick = () => {
-      if (!fitDraft) {
-        return;
-      }
-
-      scaleInput.value = String(Number(fitDraft.scale.toFixed(2)));
-      offsetXInput.value = String(Math.round(fitDraft.offsetX));
-      offsetYInput.value = String(Math.round(fitDraft.offsetY));
-      updateFitPreview();
-      closeFitEditor();
-    };
-    fitStageImage.onpointerdown = startFitMove;
-    fitSelection.onpointerdown = startFitMove;
-    fitStage.onpointermove = (event) => {
-      if (fitMoveStart && fitDraft && fitProjection) {
-        fitDraft.offsetX = fitMoveStart.offsetX + (event.clientX - fitMoveStart.pointerX) / fitProjection.zoom;
-        fitDraft.offsetY = fitMoveStart.offsetY + (event.clientY - fitMoveStart.pointerY) / fitProjection.zoom;
-        drawFitEditor();
-        return;
-      }
-
-      if (fitResizeStart && fitDraft && pendingImage) {
-        const currentDistance = Math.max(1, Math.hypot(
-          event.clientX - fitResizeStart.oppositeX,
-          event.clientY - fitResizeStart.oppositeY,
-        ));
-        const stageRect = fitStage.getBoundingClientRect();
-        const oppositeX = fitResizeStart.oppositeX - stageRect.left;
-        const oppositeY = fitResizeStart.oppositeY - stageRect.top;
-        const nextScale = clamp(
-          fitResizeStart.startScale * (currentDistance / fitResizeStart.startDistance),
-          0.05,
-          4,
-        );
-        const nextImageWidth = pendingImage.width * nextScale * fitResizeStart.zoom;
-        const nextImageHeight = pendingImage.height * nextScale * fitResizeStart.zoom;
-        const directionX = fitResizeStart.corner.includes('e') ? 1 : -1;
-        const directionY = fitResizeStart.corner.includes('s') ? 1 : -1;
-        const nextImageX = oppositeX + (nextImageWidth / 2) * directionX;
-        const nextImageY = oppositeY + (nextImageHeight / 2) * directionY;
-
-        fitDraft.scale = nextScale;
-        fitDraft.offsetX = (nextImageX - fitResizeStart.anchorX) / fitResizeStart.zoom;
-        fitDraft.offsetY = (nextImageY - fitResizeStart.anchorY) / fitResizeStart.zoom;
-        drawFitEditor();
-      }
-    };
-    fitStage.onpointerup = () => {
-      fitMoveStart = null;
-      fitResizeStart = null;
-    };
-    fitStage.onpointercancel = () => {
-      fitMoveStart = null;
-      fitResizeStart = null;
-    };
-    fitHandles.forEach((handle) => {
-      handle.onpointerdown = (event) => {
-        if (!fitProjection || !fitDraft) {
-          return;
-        }
-
-        event.preventDefault();
-        event.stopPropagation();
-        fitStage.setPointerCapture(event.pointerId);
-        const corner = handle.dataset.corner ?? 'se';
-        const stageRect = fitStage.getBoundingClientRect();
-        const oppositeX = stageRect.left + (corner.includes('e')
-          ? fitProjection.imageX - fitProjection.imageWidth / 2
-          : fitProjection.imageX + fitProjection.imageWidth / 2);
-        const oppositeY = stageRect.top + (corner.includes('s')
-          ? fitProjection.imageY - fitProjection.imageHeight / 2
-          : fitProjection.imageY + fitProjection.imageHeight / 2);
-        const cornerX = stageRect.left + (corner.includes('e')
-          ? fitProjection.imageX + fitProjection.imageWidth / 2
-          : fitProjection.imageX - fitProjection.imageWidth / 2);
-        const cornerY = stageRect.top + (corner.includes('s')
-          ? fitProjection.imageY + fitProjection.imageHeight / 2
-          : fitProjection.imageY - fitProjection.imageHeight / 2);
-
-        fitResizeStart = {
-          anchorX: fitProjection.anchorX,
-          anchorY: fitProjection.anchorY,
-          corner,
-          oppositeX,
-          oppositeY,
-          startDistance: Math.max(1, Math.hypot(cornerX - oppositeX, cornerY - oppositeY)),
-          startScale: fitDraft.scale,
-          zoom: fitProjection.zoom,
-        };
-      };
-    });
-    scaleInput.oninput = () => {
-      updateFitPreview();
-      if (fitDraft) {
-        fitDraft.scale = clamp(parseNumberInput(scaleInput.value, 1), 0.05, 4);
-        drawFitEditor();
-      }
-    };
-    offsetXInput.oninput = () => {
-      updateFitPreview();
-      if (fitDraft) {
-        fitDraft.offsetX = parseNumberInput(offsetXInput.value, 0);
-        drawFitEditor();
-      }
-    };
-    offsetYInput.oninput = () => {
-      updateFitPreview();
-      if (fitDraft) {
-        fitDraft.offsetY = parseNumberInput(offsetYInput.value, 0);
-        drawFitEditor();
-      }
-    };
-    footprintWidthInput.oninput = () => {
-      updateFitPreview();
-      drawFitEditor();
-    };
-    footprintHeightInput.oninput = () => {
-      updateFitPreview();
-      drawFitEditor();
-    };
-    fitButton.onclick = () => {
-      if (!pendingImage) {
-        return;
-      }
-
-      scaleInput.value = String(getDefaultDefinitionFitScale(
-        pendingImage.width,
-        pendingImage.height,
-        options.assetKind,
-      ));
-      offsetXInput.value = '0';
-      offsetYInput.value = '0';
-      updateFitPreview();
-    };
-    let dragStart: { offsetX: number; offsetY: number; pointerX: number; pointerY: number } | null = null;
-    let resizeStart: { pointerX: number; pointerY: number; scale: number } | null = null;
-    previewImg.onpointerdown = (event) => {
-      if (!pendingImage) {
-        return;
-      }
-
-      previewImg.setPointerCapture(event.pointerId);
-      dragStart = {
-        offsetX: parseNumberInput(offsetXInput.value, 0),
-        offsetY: parseNumberInput(offsetYInput.value, 0),
-        pointerX: event.clientX,
-        pointerY: event.clientY,
-      };
-    };
-    previewImg.onpointermove = (event) => {
-      if (!dragStart) {
-        return;
-      }
-
-      offsetXInput.value = String(Math.round(dragStart.offsetX + (event.clientX - dragStart.pointerX) / previewProjection.zoom));
-      offsetYInput.value = String(Math.round(dragStart.offsetY + (event.clientY - dragStart.pointerY) / previewProjection.zoom));
-      updateFitPreview();
-    };
-    previewImg.onpointerup = () => {
-      dragStart = null;
-    };
-    previewImg.onpointercancel = () => {
-      dragStart = null;
-    };
-    resizeHandle.onpointerdown = (event) => {
-      if (!pendingImage) {
-        return;
-      }
-
-      event.preventDefault();
-      resizeHandle.setPointerCapture(event.pointerId);
-      resizeStart = {
-        pointerX: event.clientX,
-        pointerY: event.clientY,
-        scale: parseNumberInput(scaleInput.value, 1),
-      };
-    };
-    resizeHandle.onpointermove = (event) => {
-      if (!resizeStart) {
-        return;
-      }
-
-      const delta = ((event.clientX - resizeStart.pointerX) + (event.clientY - resizeStart.pointerY)) / 120;
-      scaleInput.value = String(Number(clamp(resizeStart.scale + delta, 0.05, 4).toFixed(2)));
-      updateFitPreview();
-    };
-    resizeHandle.onpointerup = () => {
-      resizeStart = null;
-    };
-    resizeHandle.onpointercancel = () => {
-      resizeStart = null;
-    };
-
-    this.definitionPanelSubmit = async () => {
-      const id = idInput.value.trim();
-      const name = nameInput.value.trim() || id;
-      const category = categoryInput.value.trim() || (options.assetKind === 'object' ? 'custom' : 'custom tiles');
-
-      if (!id) {
-        this.setStatus('Custom definition needs an id.');
-        return;
-      }
-
-      const file = fileInput.files?.[0];
-      const preparedImage = pendingImage ?? (file
-        ? await prepareDefinitionImageDataUrl(await readFileAsDataUrl(file), options.assetKind, cleanInput.checked)
-        : null);
-      const textureKey = preparedImage
-        ? await this.loadDroppedTexture(slugifyMapId(`editor_asset_${id}`), preparedImage.dataUrl)
-        : undefined;
-      const textureScale = preparedImage
-        ? clamp(parseNumberInput(scaleInput.value, 1), 0.05, 4)
-        : undefined;
-      const textureOffsetX = preparedImage
-        ? Math.round(parseNumberInput(offsetXInput.value, 0))
-        : undefined;
-      const textureOffsetY = preparedImage
-        ? Math.round(parseNumberInput(offsetYInput.value, 0))
-        : undefined;
-
-      options.onCreate({
-        flag: flagInput.checked,
-        category,
-        footprintHeight: Math.max(1, parseIntegerInput(footprintHeightInput.value, 1)),
-        footprintWidth: Math.max(1, parseIntegerInput(footprintWidthInput.value, 1)),
-        id,
-        name,
-        textureDataUrl: preparedImage?.dataUrl,
-        textureHeight: preparedImage?.height,
-        textureKey,
-        textureOffsetX,
-        textureOffsetY,
-        textureScale,
-        textureWidth: preparedImage?.width,
-      });
-    };
-
-    panel.style.display = 'flex';
-    idInput.focus();
-    idInput.select();
-  }
-
-  private hideDefinitionPanel(): void {
-    const panel = document.getElementById('ed-definition');
-    const fitPanel = document.getElementById('ed-fit-panel');
-
-    if (panel) {
-      panel.style.display = 'none';
-    }
-
-    if (fitPanel) {
-      fitPanel.style.display = 'none';
-    }
-
-    this.definitionPanelSubmit = null;
-  }
-
   private getTexturePreviewDataUrl(textureKey: string | null): string | null {
     if (!textureKey || !this.textures.exists(textureKey)) {
       return null;
     }
 
     return this.textures.getBase64(textureKey);
-  }
-
-  private drawDefinitionColorPreview(canvas: HTMLCanvasElement, color: number): void {
-    const ctx = canvas.getContext('2d');
-
-    if (!ctx) {
-      return;
-    }
-
-    const cssColor = `#${color.toString(16).padStart(6, '0')}`;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = cssColor;
-    ctx.beginPath();
-    ctx.moveTo(canvas.width / 2, 6);
-    ctx.lineTo(canvas.width - 6, canvas.height / 2);
-    ctx.lineTo(canvas.width / 2, canvas.height - 6);
-    ctx.lineTo(6, canvas.height / 2);
-    ctx.closePath();
-    ctx.fill();
   }
 
   private loadDroppedTexture(textureKey: string, dataUrl: string): Promise<string> {
@@ -2245,12 +1625,6 @@ export class EditorScene extends Phaser.Scene {
 
 }
 
-function upsertById<T extends { id: string }>(items: T[], item: T): T[] {
-  const next = items.filter((candidate) => candidate.id !== item.id);
-  next.push(item);
-  return next;
-}
-
 function formatShortDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
@@ -2282,11 +1656,6 @@ function slugifyMapId(displayName: string): string {
 
 function parseIntegerInput(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function parseNumberInput(value: string, fallback: number): number {
-  const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
@@ -2322,244 +1691,6 @@ function getTerrainTileFitScale(
 
   const scale = Math.min(TILE_WIDTH / textureWidth, TILE_HEIGHT / textureHeight);
   return Math.max(0.05, Math.min(1, scale));
-}
-
-function getDefaultDefinitionFitScale(
-  textureWidth: number,
-  textureHeight: number,
-  assetKind: 'object' | 'terrainTile',
-): number {
-  const targetWidth = assetKind === 'terrainTile' ? TILE_WIDTH : TILE_WIDTH * 2;
-  const targetHeight = assetKind === 'terrainTile' ? TILE_HEIGHT : TILE_HEIGHT * 3;
-  const scale = Math.min(targetWidth / textureWidth, targetHeight / textureHeight);
-  return Number(Math.max(0.05, Math.min(4, scale)).toFixed(2));
-}
-
-function getDefinitionFitFootprint(
-  assetKind: 'object' | 'terrainTile',
-  footprintWidthInput: HTMLInputElement,
-  footprintHeightInput: HTMLInputElement,
-): { height: number; width: number } {
-  if (assetKind === 'terrainTile') {
-    return { height: 1, width: 1 };
-  }
-
-  return {
-    height: clamp(parseIntegerInput(footprintHeightInput.value, 1), 1, 16),
-    width: clamp(parseIntegerInput(footprintWidthInput.value, 1), 1, 16),
-  };
-}
-
-function drawDefinitionFitPreview(
-  preview: HTMLDivElement,
-  gridCanvas: HTMLCanvasElement,
-  previewImg: HTMLImageElement,
-  resizeHandle: HTMLDivElement,
-  scaleInput: HTMLInputElement,
-  offsetXInput: HTMLInputElement,
-  offsetYInput: HTMLInputElement,
-  image: PreparedDefinitionImage | null,
-  footprint: { height: number; width: number },
-): DefinitionFitProjection {
-  const width = preview.clientWidth || 156;
-  const height = preview.clientHeight || 132;
-  const dpr = window.devicePixelRatio || 1;
-
-  gridCanvas.width = Math.round(width * dpr);
-  gridCanvas.height = Math.round(height * dpr);
-  gridCanvas.style.width = `${width}px`;
-  gridCanvas.style.height = `${height}px`;
-
-  const ctx = gridCanvas.getContext('2d');
-  const bounds = getIsoFootprintBounds(footprint.width, footprint.height);
-  const zoom = Math.min(
-    2,
-    (width - 20) / Math.max(1, bounds.maxX - bounds.minX),
-    (height - 20) / Math.max(1, bounds.maxY - bounds.minY),
-  );
-  const originX = width / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom;
-  const originY = height / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom;
-  const center = getDefinitionFootprintCenterOffset(footprint.width, footprint.height);
-  const anchorX = originX + center.x * zoom;
-  const anchorY = originY + center.y * zoom;
-
-  if (ctx) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    ctx.lineWidth = 1;
-
-    for (let tileY = 0; tileY < footprint.height; tileY += 1) {
-      for (let tileX = 0; tileX < footprint.width; tileX += 1) {
-        const points = getIsoDiamondPoints(tileX, tileY)
-          .map((point) => ({
-            x: originX + point.x * zoom,
-            y: originY + point.y * zoom,
-          }));
-
-        ctx.beginPath();
-        points.forEach((point, index) => {
-          if (index === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        });
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(66, 107, 52, 0.32)';
-        ctx.strokeStyle = 'rgba(215, 243, 255, 0.68)';
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-
-    ctx.beginPath();
-    ctx.arc(anchorX, anchorY, 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#facc15';
-    ctx.fill();
-  }
-
-  const scale = clamp(parseNumberInput(scaleInput.value, 1), 0.05, 4);
-  const offsetX = parseNumberInput(offsetXInput.value, 0);
-  const offsetY = parseNumberInput(offsetYInput.value, 0);
-  const imageX = anchorX + offsetX * zoom;
-  const imageY = anchorY + offsetY * zoom;
-  const imageWidth = image ? image.width * scale * zoom : 0;
-  const imageHeight = image ? image.height * scale * zoom : 0;
-
-  previewImg.style.transform = `translate(-50%, -50%) translate(${imageX - width / 2}px, ${imageY - height / 2}px) scale(${scale * zoom})`;
-
-  if (image) {
-    resizeHandle.style.display = '';
-    resizeHandle.style.left = `${imageX + imageWidth / 2 - 5}px`;
-    resizeHandle.style.top = `${imageY + imageHeight / 2 - 5}px`;
-  } else {
-    resizeHandle.style.display = 'none';
-  }
-
-  return { anchorX, anchorY, imageHeight, imageWidth, imageX, imageY, zoom };
-}
-
-function drawDefinitionFitStage(
-  stage: HTMLDivElement,
-  gridCanvas: HTMLCanvasElement,
-  fitImage: HTMLImageElement,
-  selection: HTMLDivElement,
-  image: PreparedDefinitionImage,
-  footprint: { height: number; width: number },
-  draft: DefinitionFitDraft,
-): DefinitionFitProjection {
-  const width = stage.clientWidth || 696;
-  const height = stage.clientHeight || 430;
-  const dpr = window.devicePixelRatio || 1;
-
-  gridCanvas.width = Math.round(width * dpr);
-  gridCanvas.height = Math.round(height * dpr);
-  gridCanvas.style.width = `${width}px`;
-  gridCanvas.style.height = `${height}px`;
-
-  const ctx = gridCanvas.getContext('2d');
-  const bounds = getIsoFootprintBounds(footprint.width, footprint.height);
-  const zoom = Math.min(
-    5,
-    (width - 96) / Math.max(1, bounds.maxX - bounds.minX),
-    (height - 96) / Math.max(1, bounds.maxY - bounds.minY),
-  );
-  const originX = width / 2 - ((bounds.minX + bounds.maxX) / 2) * zoom;
-  const originY = height / 2 - ((bounds.minY + bounds.maxY) / 2) * zoom;
-  const center = getDefinitionFootprintCenterOffset(footprint.width, footprint.height);
-  const anchorX = originX + center.x * zoom;
-  const anchorY = originY + center.y * zoom;
-
-  if (ctx) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    ctx.lineWidth = 1;
-
-    for (let tileY = 0; tileY < footprint.height; tileY += 1) {
-      for (let tileX = 0; tileX < footprint.width; tileX += 1) {
-        const points = getIsoDiamondPoints(tileX, tileY)
-          .map((point) => ({
-            x: originX + point.x * zoom,
-            y: originY + point.y * zoom,
-          }));
-
-        ctx.beginPath();
-        points.forEach((point, index) => {
-          if (index === 0) ctx.moveTo(point.x, point.y);
-          else ctx.lineTo(point.x, point.y);
-        });
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(66, 107, 52, 0.36)';
-        ctx.strokeStyle = 'rgba(215, 243, 255, 0.78)';
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-
-    ctx.beginPath();
-    ctx.arc(anchorX, anchorY, 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#facc15';
-    ctx.fill();
-  }
-
-  const scale = clamp(draft.scale, 0.05, 4);
-  const imageX = anchorX + draft.offsetX * zoom;
-  const imageY = anchorY + draft.offsetY * zoom;
-  const imageWidth = image.width * scale * zoom;
-  const imageHeight = image.height * scale * zoom;
-
-  fitImage.style.display = '';
-  fitImage.style.left = `${imageX - imageWidth / 2}px`;
-  fitImage.style.top = `${imageY - imageHeight / 2}px`;
-  fitImage.style.width = `${imageWidth}px`;
-  fitImage.style.height = `${imageHeight}px`;
-  fitImage.style.transform = 'none';
-
-  selection.style.display = '';
-  selection.style.left = `${imageX - imageWidth / 2}px`;
-  selection.style.top = `${imageY - imageHeight / 2}px`;
-  selection.style.width = `${imageWidth}px`;
-  selection.style.height = `${imageHeight}px`;
-
-  return { anchorX, anchorY, imageHeight, imageWidth, imageX, imageY, zoom };
-}
-
-function getDefinitionFootprintCenterOffset(footprintWidth: number, footprintHeight: number): { x: number; y: number } {
-  return {
-    x: ((footprintWidth - footprintHeight) * TILE_WIDTH) / 4,
-    y: ((footprintWidth + footprintHeight - 2) * TILE_HEIGHT) / 4,
-  };
-}
-
-function getIsoDiamondPoints(tileX: number, tileY: number): Array<{ x: number; y: number }> {
-  const centerX = ((tileX - tileY) * TILE_WIDTH) / 2;
-  const centerY = ((tileX + tileY) * TILE_HEIGHT) / 2;
-
-  return [
-    { x: centerX, y: centerY - TILE_HEIGHT / 2 },
-    { x: centerX + TILE_WIDTH / 2, y: centerY },
-    { x: centerX, y: centerY + TILE_HEIGHT / 2 },
-    { x: centerX - TILE_WIDTH / 2, y: centerY },
-  ];
-}
-
-function getIsoFootprintBounds(footprintWidth: number, footprintHeight: number): {
-  maxX: number;
-  maxY: number;
-  minX: number;
-  minY: number;
-} {
-  const points: Array<{ x: number; y: number }> = [];
-
-  for (let tileY = 0; tileY < footprintHeight; tileY += 1) {
-    for (let tileX = 0; tileX < footprintWidth; tileX += 1) {
-      points.push(...getIsoDiamondPoints(tileX, tileY));
-    }
-  }
-
-  return {
-    maxX: Math.max(...points.map((point) => point.x)),
-    maxY: Math.max(...points.map((point) => point.y)),
-    minX: Math.min(...points.map((point) => point.x)),
-    minY: Math.min(...points.map((point) => point.y)),
-  };
 }
 
 function copyTileRecordWindow<T>(
@@ -2645,231 +1776,4 @@ function isInsideRect(
   height: number,
 ): boolean {
   return tileX >= rectX && tileY >= rectY && tileX < rectX + width && tileY < rectY + height;
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-        return;
-      }
-
-      reject(new Error(`Could not read ${file.name}.`));
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-async function prepareDefinitionImageDataUrl(
-  dataUrl: string,
-  assetKind: 'object' | 'terrainTile',
-  cleanImage: boolean,
-): Promise<PreparedDefinitionImage> {
-  if (!cleanImage) {
-    const image = await loadImageFromDataUrl(dataUrl);
-    return {
-      dataUrl,
-      height: image.height,
-      width: image.width,
-    };
-  }
-
-  const canvas = await cleanImportedAssetImage(dataUrl, assetKind);
-
-  return {
-    dataUrl: canvas.toDataURL('image/png'),
-    height: canvas.height,
-    width: canvas.width,
-  };
-}
-
-async function cleanImportedAssetImage(
-  dataUrl: string,
-  assetKind: 'object' | 'terrainTile',
-): Promise<HTMLCanvasElement> {
-  const image = await loadImageFromDataUrl(dataUrl);
-  const canvas = document.createElement('canvas');
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    throw new Error('Could not create tile import canvas.');
-  }
-
-  ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(image, 0, 0);
-  removeEdgeBackgroundPixels(ctx, canvas.width, canvas.height, assetKind);
-  removeNearBlackPixels(ctx, canvas.width, canvas.height);
-  return cropTransparentBounds(ctx, canvas.width, canvas.height);
-}
-
-function removeEdgeBackgroundPixels(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  assetKind: 'object' | 'terrainTile',
-): void {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-  const background = sampleDominantCornerColor(data, width, height);
-
-  if (!background) {
-    return;
-  }
-
-  const tolerance = assetKind === 'object' ? 26 : 18;
-
-  for (let index = 0; index < data.length; index += 4) {
-    const alpha = data[index + 3] ?? 0;
-
-    if (alpha === 0) {
-      continue;
-    }
-
-    const red = data[index] ?? 0;
-    const green = data[index + 1] ?? 0;
-    const blue = data[index + 2] ?? 0;
-
-    if (colorDistance(red, green, blue, background.red, background.green, background.blue) <= tolerance) {
-      data[index + 3] = 0;
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function sampleDominantCornerColor(
-  data: Uint8ClampedArray,
-  width: number,
-  height: number,
-): { blue: number; green: number; red: number } | null {
-  const samples = [
-    getPixel(data, width, 0, 0),
-    getPixel(data, width, width - 1, 0),
-    getPixel(data, width, 0, height - 1),
-    getPixel(data, width, width - 1, height - 1),
-  ].filter((sample): sample is { blue: number; green: number; red: number } => sample !== null);
-
-  if (samples.length === 0) {
-    return null;
-  }
-
-  return samples
-    .map((sample) => ({
-      sample,
-      matches: samples.filter((candidate) =>
-        colorDistance(sample.red, sample.green, sample.blue, candidate.red, candidate.green, candidate.blue) <= 18,
-      ).length,
-    }))
-    .sort((a, b) => b.matches - a.matches)[0]?.sample ?? null;
-}
-
-function getPixel(
-  data: Uint8ClampedArray,
-  width: number,
-  x: number,
-  y: number,
-): { blue: number; green: number; red: number } | null {
-  const index = (y * width + x) * 4;
-  const alpha = data[index + 3] ?? 0;
-
-  if (alpha === 0) {
-    return null;
-  }
-
-  return {
-    red: data[index] ?? 0,
-    green: data[index + 1] ?? 0,
-    blue: data[index + 2] ?? 0,
-  };
-}
-
-function colorDistance(
-  redA: number,
-  greenA: number,
-  blueA: number,
-  redB: number,
-  greenB: number,
-  blueB: number,
-): number {
-  return Math.max(Math.abs(redA - redB), Math.abs(greenA - greenB), Math.abs(blueA - blueB));
-}
-
-function removeNearBlackPixels(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-
-  for (let index = 0; index < data.length; index += 4) {
-    const red = data[index] ?? 0;
-    const green = data[index + 1] ?? 0;
-    const blue = data[index + 2] ?? 0;
-
-    if (red <= 8 && green <= 8 && blue <= 8) {
-      data[index + 3] = 0;
-    }
-  }
-
-  ctx.putImageData(imageData, 0, 0);
-}
-
-function cropTransparentBounds(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-): HTMLCanvasElement {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const alpha = data[(y * width + x) * 4 + 3] ?? 0;
-
-      if (alpha <= 0) {
-        continue;
-      }
-
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x);
-      maxY = Math.max(maxY, y);
-    }
-  }
-
-  if (maxX < minX || maxY < minY) {
-    const empty = document.createElement('canvas');
-    empty.width = 1;
-    empty.height = 1;
-    return empty;
-  }
-
-  const cropped = document.createElement('canvas');
-  cropped.width = maxX - minX + 1;
-  cropped.height = maxY - minY + 1;
-  const croppedCtx = cropped.getContext('2d');
-
-  if (!croppedCtx) {
-    return cropped;
-  }
-
-  croppedCtx.imageSmoothingEnabled = false;
-  croppedCtx.putImageData(ctx.getImageData(minX, minY, cropped.width, cropped.height), 0, 0);
-  return cropped;
-}
-
-function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('Could not load dropped image.'));
-    image.src = dataUrl;
-  });
 }

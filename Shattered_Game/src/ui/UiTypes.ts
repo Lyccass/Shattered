@@ -1,5 +1,7 @@
 import type { ActionProgressSnapshot } from '../actions/ActionProgressTypes';
 import type { ActiveEffectSnapshot } from '../effects/EffectTypes';
+import type { EquipmentSnapshot } from '../equipment/EquipmentTypes';
+import { emptyEquipmentSnapshot } from '../equipment/EquipmentTypes';
 import type { ChoiceMenuStateSnapshot } from '../interactions/ChoiceMenuTypes';
 import type { ActiveInteraction, InteractionResult } from '../interactions/InteractionTypes';
 import type { PlacementPreviewState } from '../interactions/PlacementModeSystem';
@@ -21,6 +23,7 @@ export type UiStateSnapshot = {
   activeEffects: ActiveEffectSnapshot[];
   placementState: PlacementPreviewState | null;
   actionProgress: ActionProgressSnapshot | null;
+  equipment: EquipmentSnapshot;
 };
 
 // Use this instead of an inline object literal in GameScene/tests so that
@@ -38,6 +41,7 @@ export function emptyUiStateSnapshot(): UiStateSnapshot {
     activeEffects: [],
     placementState: null,
     actionProgress: null,
+    equipment: emptyEquipmentSnapshot(),
   };
 }
 

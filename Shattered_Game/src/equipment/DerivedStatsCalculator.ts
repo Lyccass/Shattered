@@ -1,0 +1,107 @@
+import type { EquippedSlots, PlayerDerivedStats } from './EquipmentTypes';
+import type { EquipmentRegistry } from './EquipmentRegistry';
+
+const BASE_MAX_HP = 10;
+const BASE_MAX_STAMINA = 100;
+const BASE_ATTACK = 1;
+const BASE_ACCURACY = 50;
+const BASE_ATTACK_SPEED_MS = 1000;
+const BASE_REACH_TILES = 0.6;
+const BASE_ATTACK_STAMINA_COST = 12;
+const BASE_MAX_CARRY_WEIGHT = 20;
+const BASE_STAGGER_THRESHOLD = 100;
+
+export type SkillLevels = {
+  melee: number;
+  defence: number;
+};
+
+export function computeDerivedStats(
+  slots: EquippedSlots,
+  registry: EquipmentRegistry,
+  skills: SkillLevels,
+): PlayerDerivedStats {
+  const meleeLevel = Math.max(0, Math.min(100, skills.melee));
+  const defenceLevel = Math.max(0, Math.min(100, skills.defence));
+
+  // Skill-driven base values
+  const maxHp = BASE_MAX_HP + Math.floor((defenceLevel / 100) * 90);
+  const maxCarryWeight = BASE_MAX_CARRY_WEIGHT + Math.floor(defenceLevel * 0.3);
+  const skillDodge = Math.floor(defenceLevel * 0.2);
+  const staggerThreshold = BASE_STAGGER_THRESHOLD + Math.floor(defenceLevel * 0.5);
+
+  // Weapon from main_hand slot
+  const mainHandId = slots.main_hand;
+  const mainHandDef = mainHandId ? registry.get(mainHandId) : undefined;
+  const weapon = mainHandDef?.weaponStats;
+
+  const attack = (weapon?.damage ?? BASE_ATTACK) + Math.floor(meleeLevel / 10);
+  const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(meleeLevel * 0.4));
+  const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
+  const reachTiles = weapon?.reachTiles ?? BASE_REACH_TILES;
+  const attackStaminaCost = weapon?.staminaCost ?? BASE_ATTACK_STAMINA_COST;
+
+  // Accumulate armour stats from all slots
+  let physicalDefence = 0;
+  let slashDefence = 0;
+  let pierceDefence = 0;
+  let crushDefence = 0;
+  let poisonResistance = 0;
+  let fireResistance = 0;
+  let coldResistance = 0;
+  let armorDodge = 0;
+  let poise = 0;
+  let carryWeight = weapon?.weight ?? 0;
+
+  const armorSlots = Object.entries(slots) as [string, string][];
+  for (const [, itemId] of armorSlots) {
+    const def = registry.get(itemId);
+    if (!def?.armorStats) continue;
+    const a = def.armorStats;
+    physicalDefence += a.physicalDefence;
+    slashDefence += a.typeDefence.slash;
+    pierceDefence += a.typeDefence.pierce;
+    crushDefence += a.typeDefence.crush;
+    poisonResistance += a.elementalResistance.poison;
+    fireResistance += a.elementalResistance.fire;
+    coldResistance += a.elementalResistance.cold;
+    armorDodge += a.dodgeBonus;
+    poise += a.poise;
+    carryWeight += a.weight;
+  }
+
+  const dodgeChance = skillDodge + armorDodge;
+
+  // Stamina regen penalty from carry weight
+  let staminaRegenMultiplier: number;
+  if (carryWeight <= maxCarryWeight) {
+    staminaRegenMultiplier = 1.0;
+  } else if (carryWeight >= 2 * maxCarryWeight) {
+    staminaRegenMultiplier = 0.0;
+  } else {
+    staminaRegenMultiplier = 1.0 - (carryWeight - maxCarryWeight) / maxCarryWeight;
+  }
+
+  return {
+    maxHp,
+    maxStamina: BASE_MAX_STAMINA,
+    attack,
+    accuracy,
+    attackSpeedMs,
+    reachTiles,
+    attackStaminaCost,
+    dodgeChance,
+    physicalDefence,
+    slashDefence,
+    pierceDefence,
+    crushDefence,
+    poisonResistance,
+    fireResistance,
+    coldResistance,
+    carryWeight: Math.round(carryWeight * 10) / 10,
+    maxCarryWeight,
+    staminaRegenMultiplier: Math.round(staminaRegenMultiplier * 100) / 100,
+    staggerThreshold,
+    poise,
+  };
+}

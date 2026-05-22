@@ -71,6 +71,7 @@ export class UIOverlayManager {
       state.reputation,
       state.activeTaskCount,
       state.skills,
+      state.equipment,
     );
 
     // Live-update the open skill detail popup

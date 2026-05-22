@@ -32,6 +32,7 @@ export class UiStateAggregator {
       activeEffects: this.playerSessionState.getActiveEffects(this.getNowMs()),
       placementState: this.placementModeSystem.getState(),
       actionProgress: this.actionProgressSystem.getSnapshot(),
+      equipment: this.playerSessionState.getEquipmentSnapshot(),
     };
   }
 }

@@ -208,6 +208,7 @@ export class GameInteractionController {
     }
 
     const isoTilemap = worldRuntimeCoordinator.getIsoTilemap();
+    if (!isoTilemap) return;
     const targetTile = isoTilemap.transform.worldToTile(worldX, worldY);
 
     if (!isoTilemap.isTileInBounds(targetTile.x, targetTile.y)) {

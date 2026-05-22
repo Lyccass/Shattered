@@ -85,7 +85,8 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator.setGroundItemCollector(
       (id) => this.groundItemSystem?.collectDrop(id) ?? null,
     );
-    this.initializeWorldRuntime(getPublishedEditorMapId() ?? 'test_home_island', 'default');
+    const initialMapId = getPublishedEditorMapId() ?? 'test_home_island';
+    this.initializeWorldRuntime(initialMapId, 'default');
     this.uiManager = new UiManager(this, {
       onCombatToggle:         () => this.toggleControlMode(),
       onSprintToggle:         () => this.tryToggleSprint(),
@@ -134,6 +135,9 @@ export class GameScene extends Phaser.Scene {
 
     this.groundItemSystem?.tick(this.time.now);
     this.refreshGroundItemTargets();
+    if (this.combatSandboxSystem && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
+      this.combatSandboxSystem.syncMaxHp(this.worldRuntimeCoordinator.getDerivedStats().maxHp);
+    }
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     this.interactionController?.resolvePendingPointerInteraction();
     uiResults.forEach((result) => this.handleGameplayResult(result, { allowAutosave: true }));
@@ -248,8 +252,8 @@ export class GameScene extends Phaser.Scene {
       onLoadSave: () => this.saveController?.loadSavedGame(this.getSaveControllerContext()),
       onClearSave: () => this.saveController?.clearSavedGame(this.getSaveControllerContext()),
       onDebugCycleZoom: () => this.cameraSystem?.cycleZoom(),
-      onDebugToggleGrid: () => this.worldRuntimeCoordinator?.getIsoTilemap().cycleGridMode(),
-      onDebugToggleChunk: () => this.worldRuntimeCoordinator?.getIsoTilemap().toggleChunkDebug(),
+      onDebugToggleGrid: () => this.worldRuntimeCoordinator?.getIsoTilemap()?.cycleGridMode(),
+      onDebugToggleChunk: () => this.worldRuntimeCoordinator?.getIsoTilemap()?.toggleChunkDebug(),
       onDebugToggleObjects: () => this.worldRuntimeCoordinator?.getObjectDebugRenderer()?.toggle(),
       onDebugLogPlacement: () =>
         this.worldRuntimeCoordinator?.getObjectPlacementSystem()?.debugLogPlacementInfo(),
@@ -261,28 +265,31 @@ export class GameScene extends Phaser.Scene {
     const loadSerial = this.mapLoadSerial + 1;
     this.mapLoadSerial = loadSerial;
 
-    if (!coordinator) {
-      return;
+    if (!coordinator) return;
+
+    try {
+      await coordinator.prepareMapAssets(mapId);
+
+      if (this.hasShutdown) return;
+      if (this.mapLoadSerial !== loadSerial) return;
+      if (this.worldRuntimeCoordinator !== coordinator) return;
+
+      const loadedMap = coordinator.loadMap(mapId, spawnId);
+      this.bindPlayerAndCamera(loadedMap);
+      this.bindRuntimeSupportSystems();
+      coordinator.updatePlayerRuntimeState();
+    } catch (error) {
+      console.error(`[GameScene] Failed to load map "${mapId}":`, error);
+      if (mapId !== 'test_home_island') {
+        await this.initializeWorldRuntime('test_home_island', 'default');
+      }
     }
-
-    await coordinator.prepareMapAssets(mapId);
-
-    if (this.hasShutdown || this.mapLoadSerial !== loadSerial || this.worldRuntimeCoordinator !== coordinator) {
-      return;
-    }
-
-    const loadedMap = coordinator.loadMap(mapId, spawnId);
-    this.bindPlayerAndCamera(loadedMap);
-    this.bindRuntimeSupportSystems();
-    coordinator.updatePlayerRuntimeState();
   }
 
   private bindPlayerAndCamera(loadedMap: LoadedMapRuntime): void {
     const spawnPoint = this.worldRuntimeCoordinator?.getCurrentSpawnWorldPoint();
 
-    if (!spawnPoint) {
-      return;
-    }
+    if (!spawnPoint) return;
 
     if (!this.player) {
       this.player = this.add.sprite(spawnPoint.x, spawnPoint.y, PLAYER_TEXTURE_KEY);
@@ -321,6 +328,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    if (!isoTilemap) return;
     const mapLoader = this.worldRuntimeCoordinator.getMapLoader();
     const mapTransitionSystem = this.worldRuntimeCoordinator.getMapTransitionSystem();
     const objectPlacementSystem = this.worldRuntimeCoordinator.getObjectPlacementSystem();
@@ -385,6 +393,7 @@ export class GameScene extends Phaser.Scene {
     if (drop.ok) {
       const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
       const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+      if (!isoTilemap) return;
       const tile = isoTilemap.transform.worldToTile(drop.worldX, drop.worldY);
       const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
       this.groundItemSystem.spawnDrop(mapId, itemId, 1, center.x, center.y, this.time.now, this.time.now + 60_000);
@@ -412,6 +421,7 @@ export class GameScene extends Phaser.Scene {
     // Capture death map and exact tile center BEFORE transitioning maps
     const deathMapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    if (!isoTilemap) return;
     const tile = isoTilemap.transform.worldToTile(worldX, worldY);
     const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
     const despawnAtMs = this.time.now + 900_000; // 15 minutes
@@ -432,14 +442,16 @@ export class GameScene extends Phaser.Scene {
     if (!lootTable || lootTable.length === 0) return;
     const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    if (!isoTilemap) return;
     const tile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
     const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
     this.groundItemSystem.spawnFromLootTable(mapId, lootTable, center.x, center.y, this.time.now);
   }
 
   private refreshGroundItemTargets(): void {
-    if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
+    if (!this.groundItemSystem || !this.worldRuntimeCoordinator?.hasActiveRuntime()) return;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    if (!isoTilemap) return;
     const targets = this.groundItemSystem.buildDynamicTargets(
       (wx, wy) => isoTilemap.transform.worldToTile(wx, wy),
     );

@@ -485,12 +485,24 @@ export class WorldRuntimeCoordinator {
     };
   }
 
+  hasActiveRuntime(): boolean {
+    return !!this.currentRuntime;
+  }
+
   getCurrentRuntime(): LoadedMapRuntime {
     if (!this.currentRuntime) {
       throw new Error('WorldRuntimeCoordinator: no map runtime is active');
     }
 
     return this.currentRuntime;
+  }
+
+  getDerivedStats() {
+    return this.playerSessionState.getDerivedStats();
+  }
+
+  getEquipmentSnapshot() {
+    return this.playerSessionState.getEquipmentSnapshot();
   }
 
   getCurrentMapId(): string {
@@ -664,7 +676,7 @@ export class WorldRuntimeCoordinator {
     return 'Menu closed.';
   }
 
-  getIsoTilemap() {
+  getIsoTilemap(): LoadedMapRuntime['isoTilemap'] {
     return this.getCurrentRuntime().isoTilemap;
   }
 

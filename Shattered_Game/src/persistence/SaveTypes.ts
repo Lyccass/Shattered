@@ -33,6 +33,7 @@ export type PlayerSaveState = {
   skillXp: Record<string, number>;
   journal: TaskJournalSaveState;
   activeEffects: ActiveEffectSaveState[];
+  equippedSlots?: Record<string, string>;
 };
 
 export type PersonalIslandPlacedObjectSaveState = {

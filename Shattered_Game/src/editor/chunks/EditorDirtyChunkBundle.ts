@@ -141,6 +141,9 @@ function createChunkMapSlice(
       tileX: object.tileX - startX,
       tileY: object.tileY - startY,
     }));
+  const chunkObjectDefinitionIds = new Set(chunkMap.objects.map((object) => object.definitionId));
+  chunkMap.customObjectDefinitions = map.customObjectDefinitions
+    .filter((definition) => chunkObjectDefinitionIds.has(definition.id));
   chunkMap.enemySpawns = map.enemySpawns
     .filter((spawn) => isInsideRect(spawn.tileX, spawn.tileY, startX, startY, width, height))
     .map((spawn) => ({
@@ -217,6 +220,8 @@ function applyChunk(
     terrainTiles,
     terrainWalkability,
     terrainElevation,
+    customObjectDefinitions: mergeById(map.customObjectDefinitions, chunkMap.customObjectDefinitions),
+    customTerrainBrushes: mergeById(map.customTerrainBrushes, chunkMap.customTerrainBrushes),
     objects: [
       ...map.objects.filter((object) =>
         !isInsideRect(object.tileX, object.tileY, startX, startY, chunkMap.width, chunkMap.height),
@@ -278,6 +283,20 @@ function getFirstPaint(map: EditorMapDefinition): EditorTerrainTilePaint {
     flipX: false,
     flipY: false,
   };
+}
+
+function mergeById<T extends { id: string }>(first: T[], second: T[]): T[] {
+  const merged = new Map<string, T>();
+
+  for (const item of first) {
+    merged.set(item.id, item);
+  }
+
+  for (const item of second) {
+    merged.set(item.id, item);
+  }
+
+  return Array.from(merged.values());
 }
 
 function isInsideRect(

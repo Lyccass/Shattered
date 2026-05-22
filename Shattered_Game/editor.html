@@ -1060,23 +1060,27 @@
 
       .ed-palette-tabs {
         display: flex;
-        gap: 4px;
+        gap: 3px;
         padding: 8px 10px 0;
         flex-shrink: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
       }
+      .ed-palette-tabs::-webkit-scrollbar { display: none; }
 
       .ed-pal-tab {
-        flex: 1;
+        flex-shrink: 0;
         background: var(--c-slot-bg);
         border: 1px solid var(--c-slot-border);
         color: var(--c-text-muted);
         font-family: var(--font);
         font-size: 11px;
-        padding: 4px 2px;
+        padding: 4px 6px;
         cursor: pointer;
         border-radius: 2px;
         text-transform: capitalize;
         transition: background 0.1s, color 0.1s, border-color 0.1s;
+        white-space: nowrap;
       }
 
       .ed-pal-tab:hover {
@@ -1093,7 +1097,8 @@
 
       .ed-palette-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, 52px);
+        grid-template-columns: repeat(auto-fill, 68px);
+        grid-auto-rows: 68px;
         gap: 4px;
         padding: 10px;
         overflow-y: auto;
@@ -1106,17 +1111,19 @@
       .ed-palette-grid::-webkit-scrollbar-thumb { background: #3a2209; border-radius: 2px; }
 
       .ed-pal-cell {
-        width: 52px;
-        height: 52px;
+        width: 68px;
+        height: 68px;
         background: var(--c-slot-bg);
         border: 1px solid var(--c-slot-border);
         border-radius: 2px;
         cursor: pointer;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         overflow: hidden;
-        padding: 4px;
+        padding: 5px 3px 4px;
+        gap: 2px;
         transition: background 0.1s, border-color 0.1s;
         position: relative;
       }
@@ -1133,8 +1140,9 @@
       }
 
       .ed-pal-img {
-        max-width: 100%;
-        max-height: 100%;
+        flex-shrink: 0;
+        max-width: 60px;
+        max-height: 46px;
         image-rendering: pixelated;
         object-fit: contain;
       }
@@ -1145,7 +1153,11 @@
       }
 
       .ed-pal-swatch {
+        flex-shrink: 0;
+        max-width: 60px;
+        max-height: 46px;
         image-rendering: pixelated;
+        object-fit: contain;
       }
 
       .ed-pal-obj-label {
@@ -1162,22 +1174,13 @@
         height: 12px;
       }
 
-      .ed-pal-cell:has(.ed-pal-obj-label) {
-        height: 68px;           /* fixed — no more variable heights */
-        flex-direction: column;
-        padding: 5px 3px 4px;
-        gap: 2px;
-        align-items: center;
-        justify-content: flex-start;
+      /* terrain cells without a label: center vertically */
+      .ed-pal-cell:not(:has(.ed-pal-obj-label)) {
+        justify-content: center;
       }
-
-      /* Constrain the image so it never pushes the cell taller than 68px */
-      .ed-pal-cell:has(.ed-pal-obj-label) .ed-pal-img,
-      .ed-pal-cell:has(.ed-pal-obj-label) .ed-pal-swatch {
-        flex-shrink: 0;
-        max-height: 42px;
-        max-width: 100%;
-        object-fit: contain;
+      .ed-pal-cell:not(:has(.ed-pal-obj-label)) .ed-pal-img,
+      .ed-pal-cell:not(:has(.ed-pal-obj-label)) .ed-pal-swatch {
+        max-height: 56px;
       }
     </style>
   </head>

@@ -1,3 +1,4 @@
+import type { EquipmentSnapshot } from '../../../equipment/EquipmentTypes';
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
@@ -215,11 +216,12 @@ export class TaskbarPanel {
     reputation: ReputationSnapshot,
     activeTaskCount: number,
     skills: SkillSnapshot[],
+    equipment: EquipmentSnapshot,
   ): void {
     this.inventoryContent.update(inventory, currency);
     this.skillsContent.update(skills);
     this.journalContent.update(journalEntries, reputation, activeTaskCount);
-    this.equipmentContent.update();
+    this.equipmentContent.update(equipment);
     this.mapContent.update();
     this.settingsContent.update();
   }

@@ -6,9 +6,9 @@ import {
 import type { TelegraphShape } from './TelegraphTypes';
 import type { PlayerFacingDirection } from '../player/PlayerFacing';
 
-export const PLAYER_LIGHT_ATTACK_LENGTH_WORLD = 76;
+export const PLAYER_LIGHT_ATTACK_LENGTH_WORLD = 28;
 export const PLAYER_LIGHT_ATTACK_WIDTH_WORLD = 10;
-export const PLAYER_LIGHT_ATTACK_START_OFFSET_WORLD = 22;
+export const PLAYER_LIGHT_ATTACK_START_OFFSET_WORLD = 10;
 const PLAYER_GUARD_HALF_ANGLE_RAD = (130 * Math.PI) / 180 / 2;
 
 export function facingDirectionToRotationRad(facing: PlayerFacingDirection): number {

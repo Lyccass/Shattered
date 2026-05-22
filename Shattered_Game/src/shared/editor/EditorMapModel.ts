@@ -402,9 +402,7 @@ export function loadPublishedEditorMapDefinition(): MapDefinition | null {
 
   const json = window.localStorage.getItem(EDITOR_GAME_MAP_STORAGE_KEY);
 
-  if (!json) {
-    return null;
-  }
+  if (!json) return null;
 
   try {
     return parseEditorMapJson(json);
