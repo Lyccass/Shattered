@@ -24,7 +24,7 @@ import {
 import { EnemyVisualController } from './EnemyVisualController';
 
 export class EnemySystem {
-  private static readonly DEATH_RESET_DELAY_MS = 1_800;
+  private static readonly DEATH_RESET_DELAY_MS = 60_000;
 
   private readonly enemyRegistry = new EnemyRegistry(ENEMY_DEFINITIONS);
   private readonly attackTileRenderer: EnemyAttackTileRenderer;

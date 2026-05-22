@@ -100,6 +100,21 @@ export class EditorTilePaletteController {
     this.highlightCell(definitionId);
   }
 
+  refresh(selectedBrush: EditorTerrainBrush, selectedObjectId: string): void {
+    if (!this.isOpen) {
+      return;
+    }
+
+    if (this.currentMode === 'terrain') {
+      this.buildTerrainTabs();
+      this.buildTerrainGrid(selectedBrush);
+      return;
+    }
+
+    this.buildObjectTabs();
+    this.buildObjectGrid(selectedObjectId);
+  }
+
   // ── Terrain ──────────────────────────────────────────────────────────────
 
   private buildTerrainTabs(): void {

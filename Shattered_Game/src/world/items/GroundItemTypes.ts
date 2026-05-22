@@ -1,5 +1,6 @@
 export type GroundItemDrop = {
   id: string;
+  mapId: string;
   itemId: string;
   count: number;
   worldX: number;

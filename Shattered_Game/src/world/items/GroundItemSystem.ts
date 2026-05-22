@@ -16,17 +16,30 @@ export class GroundItemSystem {
   private readonly visuals = new Map<string, DropVisuals>();
   private dirty = false;
   private cachedTargets: GroundItemInteractionTarget[] = [];
+  private activeMapId = '';
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  spawnDrop(itemId: string, count: number, worldX: number, worldY: number, nowMs: number, despawnAtMs: number): void {
+  setActiveMap(mapId: string): void {
+    if (this.activeMapId === mapId) return;
+    this.activeMapId = mapId;
+    this.dirty = true;
+    // Hide visuals for drops on other maps; show for the current map
+    for (const [id, drop] of this.drops) {
+      const vis = this.visuals.get(id);
+      if (vis) vis.container.setVisible(drop.mapId === mapId);
+    }
+  }
+
+  spawnDrop(mapId: string, itemId: string, count: number, worldX: number, worldY: number, nowMs: number, despawnAtMs: number): void {
     const id = `drop_${++dropCounter}`;
-    this.drops.set(id, { id, itemId, count, worldX, worldY, spawnedAtMs: nowMs, despawnAtMs });
-    this.createVisual(id, itemId, count, worldX, worldY);
+    this.drops.set(id, { id, mapId, itemId, count, worldX, worldY, spawnedAtMs: nowMs, despawnAtMs });
+    this.createVisual(id, itemId, count, worldX, worldY, mapId === this.activeMapId);
     this.dirty = true;
   }
 
   spawnFromLootTable(
+    mapId: string,
     lootTable: EnemyLootEntry[],
     worldX: number,
     worldY: number,
@@ -39,7 +52,7 @@ export class GroundItemSystem {
         entry.minCount +
         Math.floor(Math.random() * (entry.maxCount - entry.minCount + 1));
       if (count <= 0) continue;
-      this.spawnDrop(entry.itemId, count, worldX, worldY, nowMs, despawnAtMs);
+      this.spawnDrop(mapId, entry.itemId, count, worldX, worldY, nowMs, despawnAtMs);
     }
   }
 
@@ -52,7 +65,7 @@ export class GroundItemSystem {
     }
   }
 
-  /** Returns interaction targets for all current drops. Only rebuilds when drops have changed. */
+  /** Returns interaction targets for drops on the active map only. Rebuilds when drops change. */
   buildDynamicTargets(
     worldToTile: (wx: number, wy: number) => { x: number; y: number },
   ): GroundItemInteractionTarget[] {
@@ -60,6 +73,7 @@ export class GroundItemSystem {
     this.dirty = false;
     this.cachedTargets = [];
     for (const drop of this.drops.values()) {
+      if (drop.mapId !== this.activeMapId) continue;
       const tile = worldToTile(drop.worldX, drop.worldY);
       const meta = getInventoryItemMeta(drop.itemId);
       const countStr = drop.count > 1 ? ` ×${drop.count}` : '';
@@ -101,6 +115,7 @@ export class GroundItemSystem {
     count: number,
     worldX: number,
     worldY: number,
+    visible = true,
   ): void {
     const meta = getInventoryItemMeta(itemId);
     const depth = RENDER_DEPTHS.GRID + 5;
@@ -126,6 +141,7 @@ export class GroundItemSystem {
 
     const container = this.scene.add.container(worldX, worldY, [shadow, iconText, labelText]);
     container.setDepth(depth);
+    container.setVisible(visible);
 
     this.visuals.set(id, { container });
   }

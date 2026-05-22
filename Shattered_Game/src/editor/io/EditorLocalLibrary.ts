@@ -1,13 +1,22 @@
 import {
   createEditorMapFromMapDefinition,
   parseEditorMapJson,
+  parseEditorObjectDefinitions,
+  parseEditorTerrainBrushes,
   serializeEditorMap,
   type EditorMapDefinition,
+  type EditorTerrainTilePaint,
 } from '../../shared/editor/EditorMapModel';
+import type { ObjectDefinition } from '../../objects/ObjectTypes';
 import { applyDirtyChunkBundle, parseDirtyChunkBundleJson, type EditorDirtyChunkBundleV1 } from '../chunks/EditorDirtyChunkBundle';
 
 const MAP_LIBRARY_KEY = 'shattered.editor.map_library.v1';
 const CHUNK_LIBRARY_KEY = 'shattered.editor.chunk_library.v1';
+const WORKING_DRAFT_KEY = 'shattered.editor.working_draft.v1';
+const ASSET_LIBRARY_KEY = 'shattered.editor.asset_library.v1';
+const ASSET_LIBRARY_RECORD_ID = 'global';
+const PROJECT_LIBRARY_ENDPOINT = '/__shattered_editor_library';
+type ProjectLibraryCollection = 'assets' | 'chunks' | 'maps';
 
 export type SavedEditorMapRecord = {
   id: string;
@@ -31,23 +40,92 @@ export type SavedDirtyChunkBundleRecord = {
   worldId: string;
 };
 
+export type EditorAssetLibrary = {
+  objectDefinitions: ObjectDefinition[];
+  terrainBrushes: EditorTerrainTilePaint[];
+};
+
+type SavedEditorAssetLibraryRecord = EditorAssetLibrary & {
+  id: typeof ASSET_LIBRARY_RECORD_ID;
+  savedAt: string;
+};
+
 export function saveMapToLocalLibrary(map: EditorMapDefinition): SavedEditorMapRecord {
   const records = listSavedMaps();
-  const record: SavedEditorMapRecord = {
-    id: map.id,
-    displayName: map.displayName,
-    height: map.height,
-    json: serializeEditorMap(map),
-    previewDataUrl: createMapPreviewDataUrl(map),
-    savedAt: new Date().toISOString(),
-    width: map.width,
-  };
+  const record = createMapRecord(map);
   writeRecords(MAP_LIBRARY_KEY, upsertById(records, record));
+  void writeProjectRecord('maps', record);
+  return record;
+}
+
+export async function saveMapToProjectLibrary(map: EditorMapDefinition): Promise<SavedEditorMapRecord> {
+  const record = createMapRecord(map);
+  await writeProjectRecord('maps', record);
+  writeRecords(MAP_LIBRARY_KEY, upsertById(listSavedMaps(), record));
   return record;
 }
 
 export function listSavedMaps(): SavedEditorMapRecord[] {
   return readRecords<SavedEditorMapRecord>(MAP_LIBRARY_KEY);
+}
+
+export async function listSavedMapsFromProjectLibrary(): Promise<SavedEditorMapRecord[]> {
+  return syncProjectRecords('maps', MAP_LIBRARY_KEY);
+}
+
+export function saveEditorWorkingDraft(map: EditorMapDefinition): void {
+  writeJson(WORKING_DRAFT_KEY, serializeEditorMap(map));
+}
+
+export function loadEditorWorkingDraft(): EditorMapDefinition | null {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return null;
+  }
+
+  const json = window.localStorage.getItem(WORKING_DRAFT_KEY);
+
+  if (!json) {
+    return null;
+  }
+
+  try {
+    return createEditorMapFromMapDefinition(parseEditorMapJson(json));
+  } catch {
+    window.localStorage.removeItem(WORKING_DRAFT_KEY);
+    return null;
+  }
+}
+
+export function loadEditorAssetLibrary(): EditorAssetLibrary {
+  return parseEditorAssetLibraryRecord(readJson(ASSET_LIBRARY_KEY));
+}
+
+export function saveEditorAssetLibrary(library: EditorAssetLibrary): void {
+  const record = createAssetLibraryRecord(library);
+  writeJson(ASSET_LIBRARY_KEY, JSON.stringify(record));
+  void writeProjectRecord('assets', record);
+}
+
+export async function syncEditorAssetLibraryFromProject(): Promise<EditorAssetLibrary> {
+  try {
+    const response = await fetch(`${PROJECT_LIBRARY_ENDPOINT}/assets`);
+
+    if (!response.ok) {
+      throw new Error(`Project library returned ${response.status}.`);
+    }
+
+    const records = await response.json() as unknown[];
+    const projectRecord = records.find((record) =>
+      isRecord(record) && record.id === ASSET_LIBRARY_RECORD_ID,
+    );
+    const projectLibrary = parseEditorAssetLibraryRecord(projectRecord);
+    const localLibrary = loadEditorAssetLibrary();
+    const merged = mergeEditorAssetLibraries(localLibrary, projectLibrary);
+    saveEditorAssetLibrary(merged);
+    return merged;
+  } catch {
+    return loadEditorAssetLibrary();
+  }
 }
 
 export function loadSavedMap(recordId: string): EditorMapDefinition {
@@ -62,30 +140,34 @@ export function loadSavedMap(recordId: string): EditorMapDefinition {
 
 export function deleteSavedMap(recordId: string): void {
   writeRecords(MAP_LIBRARY_KEY, listSavedMaps().filter((record) => record.id !== recordId));
+  void deleteProjectRecord('maps', recordId);
 }
 
 export function saveDirtyChunkBundleToLocalLibrary(
   bundle: EditorDirtyChunkBundleV1,
 ): SavedDirtyChunkBundleRecord {
   const records = listSavedChunkBundles();
-  const id = `${bundle.sourceMapId}:${bundle.regionId}:${bundle.exportedAt}`;
-  const record: SavedDirtyChunkBundleRecord = {
-    id,
-    chunkCount: bundle.chunks.length,
-    chunkSize: bundle.chunkSize,
-    json: JSON.stringify(bundle, null, 2),
-    previewDataUrl: createChunkBundlePreviewDataUrl(bundle),
-    regionId: bundle.regionId,
-    savedAt: new Date().toISOString(),
-    sourceMapId: bundle.sourceMapId,
-    worldId: bundle.worldId,
-  };
+  const record = createChunkBundleRecord(bundle);
   writeRecords(CHUNK_LIBRARY_KEY, upsertById(records, record));
+  void writeProjectRecord('chunks', record);
+  return record;
+}
+
+export async function saveDirtyChunkBundleToProjectLibrary(
+  bundle: EditorDirtyChunkBundleV1,
+): Promise<SavedDirtyChunkBundleRecord> {
+  const record = createChunkBundleRecord(bundle);
+  await writeProjectRecord('chunks', record);
+  writeRecords(CHUNK_LIBRARY_KEY, upsertById(listSavedChunkBundles(), record));
   return record;
 }
 
 export function listSavedChunkBundles(): SavedDirtyChunkBundleRecord[] {
   return readRecords<SavedDirtyChunkBundleRecord>(CHUNK_LIBRARY_KEY);
+}
+
+export async function listSavedChunkBundlesFromProjectLibrary(): Promise<SavedDirtyChunkBundleRecord[]> {
+  return syncProjectRecords('chunks', CHUNK_LIBRARY_KEY);
 }
 
 export function loadSavedChunkBundle(recordId: string): EditorDirtyChunkBundleV1 {
@@ -100,6 +182,7 @@ export function loadSavedChunkBundle(recordId: string): EditorDirtyChunkBundleV1
 
 export function deleteSavedChunkBundle(recordId: string): void {
   writeRecords(CHUNK_LIBRARY_KEY, listSavedChunkBundles().filter((record) => record.id !== recordId));
+  void deleteProjectRecord('chunks', recordId);
 }
 
 export function applySavedChunkBundle(
@@ -139,6 +222,41 @@ function createMapPreviewDataUrl(map: EditorMapDefinition): string {
   }
 
   return canvas.toDataURL('image/png');
+}
+
+function createMapRecord(map: EditorMapDefinition): SavedEditorMapRecord {
+  return {
+    id: map.id,
+    displayName: map.displayName,
+    height: map.height,
+    json: serializeEditorMap(map),
+    previewDataUrl: createMapPreviewDataUrl(map),
+    savedAt: new Date().toISOString(),
+    width: map.width,
+  };
+}
+
+function createChunkBundleRecord(bundle: EditorDirtyChunkBundleV1): SavedDirtyChunkBundleRecord {
+  return {
+    id: `${bundle.sourceMapId}:${bundle.regionId}:${bundle.exportedAt}`,
+    chunkCount: bundle.chunks.length,
+    chunkSize: bundle.chunkSize,
+    json: JSON.stringify(bundle, null, 2),
+    previewDataUrl: createChunkBundlePreviewDataUrl(bundle),
+    regionId: bundle.regionId,
+    savedAt: new Date().toISOString(),
+    sourceMapId: bundle.sourceMapId,
+    worldId: bundle.worldId,
+  };
+}
+
+function createAssetLibraryRecord(library: EditorAssetLibrary): SavedEditorAssetLibraryRecord {
+  return {
+    id: ASSET_LIBRARY_RECORD_ID,
+    objectDefinitions: library.objectDefinitions,
+    savedAt: new Date().toISOString(),
+    terrainBrushes: library.terrainBrushes,
+  };
 }
 
 function createChunkBundlePreviewDataUrl(bundle: EditorDirtyChunkBundleV1): string {
@@ -216,21 +334,90 @@ function terrainColor(family: string): string {
 }
 
 function readRecords<T>(key: string): T[] {
+  const parsed = readJson(key);
+  return Array.isArray(parsed) ? parsed as T[] : [];
+}
+
+function readJson(key: string): unknown {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return [];
+    return null;
   }
 
   try {
     const raw = window.localStorage.getItem(key);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed as T[] : [];
+    return raw ? JSON.parse(raw) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
 function writeRecords<T>(key: string, records: T[]): void {
-  window.localStorage.setItem(key, JSON.stringify(records));
+  writeJson(key, JSON.stringify(records));
+}
+
+function writeJson(key: string, json: string): void {
+  try {
+    window.localStorage.setItem(key, json);
+  } catch (error) {
+    if (error instanceof DOMException && (
+      error.name === 'QuotaExceededError' ||
+      error.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+    )) {
+      throw new Error('Editor library storage is full. Delete some saved maps, chunk bundles, or imported assets to free space.');
+    }
+    throw error;
+  }
+}
+
+async function syncProjectRecords<T extends { id: string }>(
+  collection: ProjectLibraryCollection,
+  storageKey: string,
+): Promise<T[]> {
+  try {
+    const cachedRecords = readRecords<T>(storageKey);
+    const response = await fetch(`${PROJECT_LIBRARY_ENDPOINT}/${collection}`);
+
+    if (!response.ok) {
+      throw new Error(`Project library returned ${response.status}.`);
+    }
+
+    const projectRecords = await response.json() as T[];
+    const projectIds = new Set(projectRecords.map((record) => record.id));
+    const localOnlyRecords = cachedRecords.filter((record) => !projectIds.has(record.id));
+    const records = [...projectRecords, ...localOnlyRecords];
+    writeRecords(storageKey, records);
+
+    for (const record of localOnlyRecords) {
+      void writeProjectRecord(collection, record);
+    }
+
+    return records;
+  } catch {
+    return readRecords<T>(storageKey);
+  }
+}
+
+async function writeProjectRecord(collection: ProjectLibraryCollection, record: { id: string }): Promise<void> {
+  try {
+    await fetch(`${PROJECT_LIBRARY_ENDPOINT}/${collection}/${encodeURIComponent(record.id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
+  } catch {
+    // The production build and plain static hosts do not have the dev middleware.
+    // In that case localStorage remains the fallback cache.
+  }
+}
+
+async function deleteProjectRecord(collection: ProjectLibraryCollection, id: string): Promise<void> {
+  try {
+    await fetch(`${PROJECT_LIBRARY_ENDPOINT}/${collection}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  } catch {
+    // Local deletion already happened; project deletion is best-effort.
+  }
 }
 
 function upsertById<T extends { id: string }>(records: T[], record: T): T[] {
@@ -238,4 +425,43 @@ function upsertById<T extends { id: string }>(records: T[], record: T): T[] {
     record,
     ...records.filter((candidate) => candidate.id !== record.id),
   ];
+}
+
+function parseEditorAssetLibraryRecord(value: unknown): EditorAssetLibrary {
+  if (!isRecord(value)) {
+    return { objectDefinitions: [], terrainBrushes: [] };
+  }
+
+  return {
+    objectDefinitions: parseEditorObjectDefinitions(value.objectDefinitions),
+    terrainBrushes: parseEditorTerrainBrushes(value.terrainBrushes),
+  };
+}
+
+function mergeEditorAssetLibraries(
+  first: EditorAssetLibrary,
+  second: EditorAssetLibrary,
+): EditorAssetLibrary {
+  return {
+    objectDefinitions: mergeById(first.objectDefinitions, second.objectDefinitions),
+    terrainBrushes: mergeById(first.terrainBrushes, second.terrainBrushes),
+  };
+}
+
+function mergeById<T extends { id: string }>(first: T[], second: T[]): T[] {
+  const merged = new Map<string, T>();
+
+  for (const item of first) {
+    merged.set(item.id, item);
+  }
+
+  for (const item of second) {
+    merged.set(item.id, item);
+  }
+
+  return Array.from(merged.values());
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

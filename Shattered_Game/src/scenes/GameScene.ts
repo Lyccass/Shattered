@@ -52,6 +52,7 @@ export class GameScene extends Phaser.Scene {
   private controlMode: 'explore' | 'combat' = 'explore';
   private tileHighlight?: Phaser.GameObjects.Graphics;
   private hasShutdown = false;
+  private mapLoadSerial = 0;
 
   constructor() {
     super('GameScene');
@@ -77,6 +78,8 @@ export class GameScene extends Phaser.Scene {
       this.gameEventBus,
       this.telegraphSystem,
       (evt: EnemyKilledEvent) => this.handleEnemyKilled(evt),
+      (worldX, worldY) => this.handlePlayerDied(worldX, worldY),
+      (delta) => this.worldRuntimeCoordinator?.addCombatXp(delta) ?? [],
     );
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.worldRuntimeCoordinator.setGroundItemCollector(
@@ -253,15 +256,25 @@ export class GameScene extends Phaser.Scene {
     };
   }
 
-  private initializeWorldRuntime(mapId: string, spawnId: string): void {
-    if (!this.worldRuntimeCoordinator) {
+  private async initializeWorldRuntime(mapId: string, spawnId: string): Promise<void> {
+    const coordinator = this.worldRuntimeCoordinator;
+    const loadSerial = this.mapLoadSerial + 1;
+    this.mapLoadSerial = loadSerial;
+
+    if (!coordinator) {
       return;
     }
 
-    const loadedMap = this.worldRuntimeCoordinator.loadMap(mapId, spawnId);
+    await coordinator.prepareMapAssets(mapId);
+
+    if (this.hasShutdown || this.mapLoadSerial !== loadSerial || this.worldRuntimeCoordinator !== coordinator) {
+      return;
+    }
+
+    const loadedMap = coordinator.loadMap(mapId, spawnId);
     this.bindPlayerAndCamera(loadedMap);
     this.bindRuntimeSupportSystems();
-    this.worldRuntimeCoordinator.updatePlayerRuntimeState();
+    coordinator.updatePlayerRuntimeState();
   }
 
   private bindPlayerAndCamera(loadedMap: LoadedMapRuntime): void {
@@ -353,6 +366,8 @@ export class GameScene extends Phaser.Scene {
   private bindRuntimeSupportSystems(): void {
     this.bindDebugOverlayToRuntime();
     this.bindCombatSandboxToRuntime();
+    const mapId = this.worldRuntimeCoordinator?.getCurrentRuntime().definition.id ?? '';
+    this.groundItemSystem?.setActiveMap(mapId);
   }
 
   private tryUseItem(itemId: string): void {
@@ -368,10 +383,11 @@ export class GameScene extends Phaser.Scene {
     if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
     const drop = this.worldRuntimeCoordinator.dropItemFromInventory(itemId);
     if (drop.ok) {
+      const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
       const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
       const tile = isoTilemap.transform.worldToTile(drop.worldX, drop.worldY);
       const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
-      this.groundItemSystem.spawnDrop(itemId, 1, center.x, center.y, this.time.now, this.time.now + 60_000);
+      this.groundItemSystem.spawnDrop(mapId, itemId, 1, center.x, center.y, this.time.now, this.time.now + 60_000);
       this.uiManager?.showInfo('Dropped item.');
     }
   }
@@ -390,15 +406,35 @@ export class GameScene extends Phaser.Scene {
     this.uiManager?.handleResult(result);
   }
 
+  private handlePlayerDied(worldX: number, worldY: number): void {
+    if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
+
+    // Capture death map and exact tile center BEFORE transitioning maps
+    const deathMapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
+    const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    const tile = isoTilemap.transform.worldToTile(worldX, worldY);
+    const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
+    const despawnAtMs = this.time.now + 900_000; // 15 minutes
+
+    for (const { id, amount } of this.worldRuntimeCoordinator.drainAllInventoryItems()) {
+      this.groundItemSystem.spawnDrop(deathMapId, id, amount, center.x, center.y, this.time.now, despawnAtMs);
+    }
+
+    this.uiManager?.showInfo('You were downed. Your items were left behind.');
+    this.initializeWorldRuntime('test_home_island', 'default');
+    this.playerController?.resetCombatVisual();
+  }
+
   private handleEnemyKilled(evt: EnemyKilledEvent): void {
     if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
     const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === evt.enemyDefinitionId);
     const lootTable = enemyDef?.lootTable;
     if (!lootTable || lootTable.length === 0) return;
+    const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     const tile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
     const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
-    this.groundItemSystem.spawnFromLootTable(lootTable, center.x, center.y, this.time.now);
+    this.groundItemSystem.spawnFromLootTable(mapId, lootTable, center.x, center.y, this.time.now);
   }
 
   private refreshGroundItemTargets(): void {

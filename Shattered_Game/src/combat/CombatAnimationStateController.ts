@@ -37,6 +37,11 @@ export class CombatAnimationStateController {
     };
   }
 
+  reset(): void {
+    this.currentState = 'idle';
+    this.lockedUntilMs = null;
+  }
+
   private isLocked(nowMs: number): boolean {
     return this.lockedUntilMs !== null && this.lockedUntilMs > nowMs;
   }

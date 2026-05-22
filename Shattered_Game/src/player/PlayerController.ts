@@ -289,6 +289,10 @@ export class PlayerController {
     this.visuals.requestCombatState(state, nowMs, durationMs);
   }
 
+  resetCombatVisual(): void {
+    this.visuals.resetCombatState();
+  }
+
   getCombatVisualState(nowMs: number): CombatAnimationStateId {
     return this.visuals.getCombatState(nowMs);
   }

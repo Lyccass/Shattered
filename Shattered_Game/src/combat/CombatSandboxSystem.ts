@@ -17,6 +17,7 @@ import { resolveSpearTargetTileCenter } from './PlayerAttackTargeting';
 import { resolveTileDodgeMotion } from './PlayerDodgeTargeting';
 import { separatePlayerFromEnemyTile } from './PlayerEnemySeparation';
 import type { SfxEventId } from '../audio/SfxTypes';
+import type { LevelUpEvent, SkillXpDelta } from '../skills/SkillTypes';
 import type { UiHandledResult } from '../ui/UiTypes';
 import { COMBAT_SANDBOX_SPAWNS } from './CombatSandboxDefinitions';
 import type { CombatUiSnapshot } from './CombatUiTypes';
@@ -53,17 +54,23 @@ export class CombatSandboxSystem {
   private hitStopUntilMs = 0;
   private pendingScreenShake = false;
   private onEnemyKilled?: (event: EnemyKilledEvent) => void;
+  private onPlayerDied?: (worldX: number, worldY: number) => void;
+  private onCombatXp?: (delta: SkillXpDelta) => LevelUpEvent[];
 
   constructor(
     scene: Phaser.Scene,
     private readonly eventBus: GameEventBus,
     telegraphSystem: TelegraphSystem,
     onEnemyKilled?: (event: EnemyKilledEvent) => void,
+    onPlayerDied?: (worldX: number, worldY: number) => void,
+    onCombatXp?: (delta: SkillXpDelta) => LevelUpEvent[],
   ) {
     this.enemySystem = new EnemySystem(scene, telegraphSystem);
     this.debugHitboxRenderer = new CombatDebugHitboxRenderer(scene);
     this.playerAttackFeedbackRenderer = new PlayerAttackFeedbackRenderer(scene, telegraphSystem);
     this.onEnemyKilled = onEnemyKilled;
+    this.onPlayerDied = onPlayerDied;
+    this.onCombatXp = onCombatXp;
   }
 
   setMapContext(mapId: string, tilemap: IsoTilemap): void {
@@ -132,6 +139,8 @@ export class CombatSandboxSystem {
 
     if (this.playerCombatState.consumeRecoveredFromDowned()) {
       this.enemySystem.forceReset();
+      const feet = playerController.getFeetPoint();
+      this.onPlayerDied?.(feet.x, feet.y);
     }
 
     return results;
@@ -394,29 +403,41 @@ export class CombatSandboxSystem {
           }
           return;
 
-        case 'guard_broken':
+        case 'guard_broken': {
           playerController.requestCombatVisualState('hurt', nowMs, 360);
           this.emitSfx('guard_break');
+          const gbLevelUps = resolution.damageApplied > 0
+            ? this.onCombatXp?.({ defence: resolution.damageApplied })
+            : undefined;
           results.push({
             ok: false,
             message: resolution.wasDowned ? 'Guard broken. Downed.' : 'Guard broken!',
             toastKind: 'error',
+            xpDelta: resolution.damageApplied > 0 ? { defence: resolution.damageApplied } : undefined,
+            levelUps: gbLevelUps,
           });
           return;
+        }
 
         case 'hit':
-        default:
+        default: {
           playerController.requestCombatVisualState(
             resolution.wasDowned ? 'dead' : 'hurt',
             nowMs,
             resolution.wasDowned ? 900 : 260,
           );
           this.emitSfx('combat_hit');
+          const hitLevelUps = resolution.damageApplied > 0
+            ? this.onCombatXp?.({ defence: resolution.damageApplied })
+            : undefined;
           results.push({
             ok: false,
             message: resolution.wasDowned ? 'Downed.' : 'Hit!',
             toastKind: 'error',
+            xpDelta: resolution.damageApplied > 0 ? { defence: resolution.damageApplied } : undefined,
+            levelUps: hitLevelUps,
           });
+        }
           if (event.knockbackDirX !== undefined && event.knockbackDistanceWorld) {
             playerController.startDodgeMotion(
               { x: event.knockbackDirX, y: event.knockbackDirY ?? 0 },
@@ -486,10 +507,14 @@ export class CombatSandboxSystem {
       }
     }
 
+    const meleeDamage = CombatSandboxSystem.PLAYER_LIGHT_ATTACK_DAMAGE;
+    const meleeLevelUps = this.onCombatXp?.({ melee: meleeDamage });
     results.push({
       ok: true,
       message: outcome.killed ? 'Enemy down.' : 'You landed a hit.',
       toastKind: outcome.killed ? 'success' : 'info',
+      xpDelta: { melee: meleeDamage },
+      levelUps: meleeLevelUps,
     });
   }
 

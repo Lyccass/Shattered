@@ -53,6 +53,10 @@ export class PlayerVisualSystem {
     this.animationState.requestState(state, nowMs, durationMs);
   }
 
+  resetCombatState(): void {
+    this.animationState.reset();
+  }
+
   getCombatState(nowMs: number): CombatAnimationStateId {
     return this.animationState.getState(nowMs);
   }

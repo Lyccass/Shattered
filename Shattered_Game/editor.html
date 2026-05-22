@@ -24,20 +24,146 @@
         image-rendering: pixelated;
       }
 
-      /* ── Editor overlay ─────────────────────────────── */
+      /* ── Editor overlay — column layout ─────────── */
       #editor-overlay {
         position: absolute;
         top: 0; left: 0;
         width: 100%; height: 100%;
         pointer-events: none;
         display: flex;
+        flex-direction: column;
       }
 
-      /* ── Sidebar ────────────────────────────────────── */
+      /* ══════════════════════════════════════════════
+         MENU BAR
+         ══════════════════════════════════════════════ */
+      .ed-menubar {
+        pointer-events: all;
+        flex-shrink: 0;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        gap: 0;
+        background: rgba(8, 4, 1, 0.96);
+        border-bottom: 1px solid var(--c-secondary-dark);
+        padding: 0 8px;
+        font-family: var(--font);
+        user-select: none;
+        overflow: hidden;
+      }
+
+      .ed-menu-group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 0 4px;
+      }
+
+      .ed-menu-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #4a3618;
+        margin-right: 3px;
+        white-space: nowrap;
+      }
+
+      .ed-menu-sep {
+        width: 1px;
+        height: 18px;
+        background: var(--c-secondary-dark);
+        margin: 0 4px;
+        flex-shrink: 0;
+      }
+
+      .ed-menu-spacer {
+        flex: 1;
+      }
+
+      .ed-menu-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--c-text-muted);
+        font-family: var(--font);
+        font-size: 11px;
+        padding: 3px 7px;
+        cursor: pointer;
+        border-radius: 2px;
+        white-space: nowrap;
+        line-height: 1;
+        transition: background 0.1s, color 0.1s, border-color 0.1s;
+      }
+
+      .ed-menu-btn:hover {
+        background: var(--c-slot-hover);
+        color: var(--c-primary-dim);
+        border-color: var(--c-slot-border);
+      }
+
+      .ed-menu-btn:active {
+        background: rgba(97, 60, 24, 0.4);
+        color: var(--c-primary);
+      }
+
+      .ed-menu-btn--accent {
+        color: #86efac;
+        border-color: rgba(134, 239, 172, 0.25);
+      }
+
+      .ed-menu-btn--accent:hover {
+        background: rgba(134, 239, 172, 0.1);
+        color: #bbf7d0;
+        border-color: rgba(134, 239, 172, 0.5);
+      }
+
+      .ed-menu-name-input {
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 2px;
+        color: var(--c-primary-dim);
+        font-family: var(--font);
+        font-size: 11px;
+        padding: 3px 6px;
+        width: 160px;
+        outline: none;
+        transition: background 0.1s, border-color 0.1s;
+      }
+
+      .ed-menu-name-input:hover {
+        border-color: var(--c-slot-border);
+        background: var(--c-slot-hover);
+      }
+
+      .ed-menu-name-input:focus {
+        border-color: var(--c-panel-border);
+        background: rgba(16, 8, 2, 0.8);
+        color: var(--c-text);
+      }
+
+      .ed-menu-dirty {
+        font-size: 10px;
+        color: var(--c-text-muted);
+        white-space: nowrap;
+        padding: 0 4px;
+      }
+
+      .ed-menu-dirty.is-dirty { color: #f59e0b; }
+
+      /* ══════════════════════════════════════════════
+         WORKSPACE ROW  (sidebar + transparent canvas area)
+         ══════════════════════════════════════════════ */
+      .ed-workspace-row {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        pointer-events: none;
+      }
+
+      /* ── Sidebar ────────────────────────────────── */
       .ed-sidebar {
         pointer-events: all;
-        width: 210px;
-        min-width: 210px;
+        width: 260px;
+        min-width: 260px;
         height: 100%;
         background: rgba(12, 7, 2, 0.94);
         border-right: 1px solid var(--c-panel-border);
@@ -54,17 +180,49 @@
       .ed-sidebar::-webkit-scrollbar-track { background: transparent; }
       .ed-sidebar::-webkit-scrollbar-thumb { background: #3a2209; border-radius: 2px; }
 
-      /* ── Header ─────────────────────────────────────── */
+      /* ── Sidebar header ─────────────────────────── */
       .ed-header {
-        padding: 10px 12px 9px;
+        padding: 8px 12px;
         border-bottom: 1px solid var(--c-secondary-dark);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+      }
+
+      .ed-header-title {
         font-size: var(--fs-xs);
         color: var(--c-primary);
         letter-spacing: 0.1em;
         text-transform: uppercase;
       }
 
-      /* ── Section ─────────────────────────────────────── */
+      .ed-help-btn {
+        background: none;
+        border: 1px solid transparent;
+        border-radius: 2px;
+        color: var(--c-text-muted);
+        font-family: var(--font);
+        font-size: 11px;
+        padding: 2px 6px;
+        cursor: pointer;
+        line-height: 1;
+        transition: color 0.1s, border-color 0.1s, background 0.1s;
+      }
+
+      .ed-help-btn:hover {
+        color: var(--c-primary-dim);
+        border-color: var(--c-slot-border);
+        background: var(--c-slot-hover);
+      }
+
+      .ed-help-btn.is-active {
+        color: var(--c-primary);
+        border-color: var(--c-panel-border);
+        background: rgba(97, 60, 24, 0.35);
+      }
+
+      /* ── Section ─────────────────────────────────── */
       .ed-section {
         padding: 8px 12px;
         border-bottom: 1px solid var(--c-secondary-dark);
@@ -78,7 +236,7 @@
         margin-bottom: 6px;
       }
 
-      /* ── Key–value rows ──────────────────────────────── */
+      /* ── Key–value rows ──────────────────────────── */
       .ed-row {
         display: flex;
         justify-content: space-between;
@@ -105,7 +263,39 @@
 
       .ed-value.is-dirty { color: #f59e0b; }
 
-      /* ── Mode buttons ────────────────────────────────── */
+      /* ── Map name input (sidebar) ────────────────── */
+      .ed-map-name-input {
+        width: 100%;
+        box-sizing: border-box;
+        background: var(--c-slot-bg);
+        border: 1px solid var(--c-slot-border);
+        border-radius: 2px;
+        color: var(--c-text);
+        font-family: var(--font);
+        font-size: 12px;
+        padding: 5px 7px;
+        outline: none;
+        margin-bottom: 4px;
+      }
+
+      .ed-map-name-input:focus {
+        background: var(--c-slot-hover);
+        border-color: var(--c-panel-border);
+      }
+
+      /* ── Mode buttons ────────────────────────────── */
+      .ed-mode-subgroup {
+        margin-bottom: 4px;
+      }
+
+      .ed-mode-subgroup-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #4a3618;
+        margin-bottom: 3px;
+      }
+
       .ed-mode-row {
         display: flex;
         flex-wrap: wrap;
@@ -139,7 +329,13 @@
         color: var(--c-primary);
       }
 
-      /* ── Brush preview ───────────────────────────────── */
+      .ed-mode-data-sep {
+        height: 1px;
+        background: var(--c-secondary-dark);
+        margin: 6px 0;
+      }
+
+      /* ── Brush preview ───────────────────────────── */
       .ed-preview-row {
         display: flex;
         gap: 10px;
@@ -187,7 +383,7 @@
         white-space: nowrap;
       }
 
-      /* ── Brush size controls ─────────────────────────── */
+      /* ── Brush size controls ─────────────────────── */
       .ed-brush-size-row {
         display: flex;
         align-items: center;
@@ -238,7 +434,7 @@
 
       .ed-size-pip.is-active { background: var(--c-primary); }
 
-      /* ── Object preview colour swatch ────────────────── */
+      /* ── Object preview colour swatch ────────────── */
       .ed-color-swatch {
         width: 40px;
         height: 40px;
@@ -247,7 +443,7 @@
         border-radius: 2px;
       }
 
-      /* ── Browse button ───────────────────────────────── */
+      /* ── Inline action buttons ───────────────────── */
       .ed-browse-btn {
         width: 100%;
         margin-top: 6px;
@@ -270,6 +466,17 @@
         border-color: var(--c-panel-border);
       }
 
+      .ed-browse-btn--danger {
+        color: #f87171;
+        border-color: rgba(239, 68, 68, 0.25);
+      }
+
+      .ed-browse-btn--danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #fca5a5;
+        border-color: rgba(239, 68, 68, 0.55);
+      }
+
       .ed-action-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -281,65 +488,123 @@
         margin-top: 0;
       }
 
-      .ed-topbar {
+      /* ── Asset management subsection ────────────── */
+      .ed-asset-mgmt {
+        margin-top: 8px;
+        padding-top: 7px;
+        border-top: 1px solid var(--c-secondary-dark);
+      }
+
+      .ed-asset-mgmt-label {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #4a3618;
+        margin-bottom: 4px;
+      }
+
+      /* ── Status bar ──────────────────────────────── */
+      .ed-status {
+        padding: 7px 12px;
+        border-top: 1px solid var(--c-secondary-dark);
+        font-size: 11px;
+        color: var(--c-text-system);
+        min-height: 32px;
+        background: rgba(0, 20, 40, 0.3);
+        line-height: 1.35;
+        flex-shrink: 0;
+        margin-top: auto;
+      }
+
+      /* ═══════════════════════════════════════════════
+         HELP / SHORTCUTS PANEL  (floating, left edge)
+         ═══════════════════════════════════════════════ */
+      .ed-help-panel {
         position: absolute;
-        top: 10px;
-        right: 10px;
-        width: 360px;
+        top: 36px;           /* below menubar */
+        left: 260px;         /* right of sidebar */
+        width: 210px;
+        max-height: calc(100% - 44px);
+        overflow-y: auto;
+        background: rgba(8, 4, 1, 0.97);
+        border: 1px solid var(--c-panel-border);
+        border-left: none;
+        border-radius: 0 2px 2px 0;
+        z-index: 250;
         pointer-events: all;
-        background: rgba(12, 7, 2, 0.94);
+        padding: 10px 12px 14px;
+        font-family: var(--font);
+        color: var(--c-text);
+        display: none;
+        box-shadow: 4px 4px 18px rgba(0, 0, 0, 0.6);
+      }
+
+      .ed-help-panel.is-visible { display: block; }
+
+      .ed-help-panel::-webkit-scrollbar { width: 4px; }
+      .ed-help-panel::-webkit-scrollbar-track { background: transparent; }
+      .ed-help-panel::-webkit-scrollbar-thumb { background: #3a2209; border-radius: 2px; }
+
+      .ed-help-panel-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--c-primary);
+        margin-bottom: 8px;
+      }
+
+      /* ── Shortcuts ───────────────────────────────── */
+      .ed-shortcut-group {
+        margin-top: 8px;
+      }
+
+      .ed-shortcut-group-label {
+        font-size: 10px;
+        color: #4a3618;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+        margin-top: 2px;
+      }
+
+      .ed-shortcut-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+
+      .ed-key {
+        background: rgba(97, 60, 24, 0.35);
         border: 1px solid var(--c-panel-border);
         border-radius: 2px;
-        box-shadow: 0 10px 36px rgba(0, 0, 0, 0.45);
-        padding: 8px;
-        font-family: var(--font);
-        color: var(--c-text);
-      }
-
-      .ed-topbar-title {
+        padding: 1px 5px;
         font-size: 10px;
+        color: var(--c-primary-dim);
+        font-family: 'Courier New', monospace;
+        min-width: 32px;
+        text-align: center;
+        flex-shrink: 0;
+        line-height: 1.4;
+      }
+
+      .ed-key-desc {
         color: var(--c-text-muted);
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        margin-bottom: 6px;
+        font-size: 11px;
+        white-space: nowrap;
       }
 
-      .ed-map-name-input {
-        width: 100%;
-        box-sizing: border-box;
-        margin-bottom: 6px;
-        background: var(--c-slot-bg);
-        border: 1px solid var(--c-slot-border);
-        border-radius: 2px;
-        color: var(--c-text);
-        font-family: var(--font);
-        font-size: 12px;
-        padding: 6px 7px;
-        outline: none;
-      }
+      /* ══════════════════════════════════════════════
+         OVERLAYS — palette, library, dialogs
+         ══════════════════════════════════════════════ */
 
-      .ed-map-name-input:focus {
-        background: var(--c-slot-hover);
-        border-color: var(--c-panel-border);
-      }
-
-      .ed-topbar-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 5px;
-      }
-
-      .ed-topbar-grid .ed-browse-btn {
-        margin-top: 0;
-      }
-
-      /* ── Map/chunk library overlay ──────────────────── */
+      /* ── Map/chunk library overlay ──────────────── */
       .ed-library {
         position: absolute;
-        top: 76px;
+        top: 44px;
         right: 10px;
-        width: min(560px, calc(100vw - 240px));
-        max-height: calc(100vh - 96px);
+        width: min(560px, calc(100vw - 280px));
+        max-height: calc(100vh - 54px);
         background: rgba(10, 6, 2, 0.97);
         border: 1px solid var(--c-panel-border);
         border-radius: 2px;
@@ -465,13 +730,13 @@
         color: var(--c-primary);
       }
 
-      /* ── Definition authoring overlay ───────────────── */
+      /* ── Definition authoring dialog ────────────── */
       .ed-definition {
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        width: 340px;
+        width: 430px;
         background: rgba(10, 6, 2, 0.97);
         border: 1px solid var(--c-panel-border);
         border-radius: 2px;
@@ -511,27 +776,63 @@
 
       .ed-definition-body {
         display: grid;
-        grid-template-columns: 72px 1fr;
+        grid-template-columns: 156px 1fr;
         gap: 10px;
         padding: 12px;
       }
 
       .ed-definition-preview {
-        width: 64px;
-        height: 64px;
+        position: relative;
+        width: 156px;
+        height: 132px;
         background: var(--c-slot-bg);
         border: 1px solid var(--c-slot-border);
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        touch-action: none;
       }
 
-      .ed-definition-preview img,
-      .ed-definition-preview canvas {
-        max-width: 100%;
-        max-height: 100%;
-        image-rendering: pixelated;
+      .ed-definition-fit-grid {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .ed-definition-preview img {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        max-width: none;
+        max-height: none;
+        image-rendering: auto;
+        transform-origin: center center;
+        z-index: 2;
+        cursor: move;
+      }
+
+      .ed-definition-preview-color {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2;
+      }
+
+      .ed-definition-resize-handle {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border: 1px solid var(--c-primary);
+        background: #140a02;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.65);
+        z-index: 3;
+        cursor: nwse-resize;
+        display: none;
       }
 
       .ed-definition-fields {
@@ -572,6 +873,12 @@
         background: var(--c-slot-hover);
       }
 
+      .ed-definition-fit-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+      }
+
       .ed-definition-check {
         display: flex;
         align-items: center;
@@ -610,7 +917,105 @@
         border-color: var(--c-panel-border);
       }
 
-      /* ── Tile palette overlay ─────────────────────────── */
+      /* ── Fit editor panel ────────────────────────── */
+      .ed-fit-panel {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 720px;
+        max-width: calc(100vw - 48px);
+        background: rgba(10, 6, 2, 0.98);
+        border: 1px solid var(--c-panel-border);
+        border-radius: 2px;
+        display: none;
+        flex-direction: column;
+        z-index: 260;
+        pointer-events: all;
+        box-shadow: 0 16px 58px rgba(0, 0, 0, 0.82);
+        font-family: var(--font);
+        color: var(--c-text);
+        overflow: hidden;
+      }
+
+      .ed-fit-stage {
+        position: relative;
+        height: 430px;
+        margin: 12px;
+        background: #140a02;
+        border: 1px solid var(--c-slot-border);
+        overflow: hidden;
+        touch-action: none;
+      }
+
+      .ed-fit-stage canvas,
+      .ed-fit-stage img {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+      }
+
+      .ed-fit-stage canvas {
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .ed-fit-stage img {
+        max-width: none;
+        max-height: none;
+        image-rendering: auto;
+        transform-origin: center center;
+        cursor: move;
+        z-index: 2;
+      }
+
+      .ed-fit-selection {
+        position: absolute;
+        border: 1px solid var(--c-primary);
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.75);
+        display: none;
+        cursor: move;
+        pointer-events: all;
+        z-index: 3;
+      }
+
+      .ed-fit-handle {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        background: #140a02;
+        border: 1px solid var(--c-primary);
+        pointer-events: all;
+      }
+
+      .ed-fit-handle[data-corner="nw"] { left: -6px; top: -6px; cursor: nwse-resize; }
+      .ed-fit-handle[data-corner="ne"] { right: -6px; top: -6px; cursor: nesw-resize; }
+      .ed-fit-handle[data-corner="sw"] { left: -6px; bottom: -6px; cursor: nesw-resize; }
+      .ed-fit-handle[data-corner="se"] { right: -6px; bottom: -6px; cursor: nwse-resize; }
+
+      .ed-fit-controls {
+        display: grid;
+        grid-template-columns: auto 1fr 76px;
+        align-items: center;
+        gap: 8px;
+        padding: 0 12px 10px;
+      }
+
+      .ed-fit-controls label {
+        color: var(--c-text-muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .ed-fit-controls input[type="range"] {
+        width: 100%;
+        accent-color: var(--c-primary);
+      }
+
+      /* ── Tile palette overlay ─────────────────────── */
       .ed-palette {
         position: absolute;
         top: 50%;
@@ -752,73 +1157,27 @@
         overflow: hidden;
         text-overflow: ellipsis;
         width: 100%;
-        margin-top: 2px;
-        line-height: 1.2;
+        flex-shrink: 0;
+        line-height: 12px;
+        height: 12px;
       }
 
       .ed-pal-cell:has(.ed-pal-obj-label) {
-        height: auto;
-        min-height: 52px;
+        height: 68px;           /* fixed — no more variable heights */
         flex-direction: column;
-        padding: 6px 4px 4px;
-        gap: 0;
-      }
-
-      /* ── Status bar ──────────────────────────────────── */
-      .ed-status {
-        padding: 7px 12px;
-        border-bottom: 1px solid var(--c-secondary-dark);
-        font-size: 12px;
-        color: var(--c-text-system);
-        min-height: 34px;
-        background: rgba(0, 20, 40, 0.3);
-        line-height: 1.35;
-      }
-
-      /* ── Shortcuts ───────────────────────────────────── */
-      .ed-shortcuts {
-        flex: 1;
-        padding-bottom: 12px;
-      }
-
-      .ed-shortcut-group {
-        margin-top: 8px;
-      }
-
-      .ed-shortcut-row {
-        display: flex;
+        padding: 5px 3px 4px;
+        gap: 2px;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 4px;
+        justify-content: flex-start;
       }
 
-      .ed-key {
-        background: rgba(97, 60, 24, 0.35);
-        border: 1px solid var(--c-panel-border);
-        border-radius: 2px;
-        padding: 1px 5px;
-        font-size: 10px;
-        color: var(--c-primary-dim);
-        font-family: 'Courier New', monospace;
-        min-width: 32px;
-        text-align: center;
+      /* Constrain the image so it never pushes the cell taller than 68px */
+      .ed-pal-cell:has(.ed-pal-obj-label) .ed-pal-img,
+      .ed-pal-cell:has(.ed-pal-obj-label) .ed-pal-swatch {
         flex-shrink: 0;
-        line-height: 1.4;
-      }
-
-      .ed-key-desc {
-        color: var(--c-text-muted);
-        font-size: 11px;
-        white-space: nowrap;
-      }
-
-      .ed-shortcut-group-label {
-        font-size: 10px;
-        color: #4a3618;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin-bottom: 4px;
-        margin-top: 2px;
+        max-height: 42px;
+        max-width: 100%;
+        object-fit: contain;
       }
     </style>
   </head>
@@ -826,227 +1185,280 @@
     <div id="editor"></div>
 
     <div id="editor-overlay">
-      <div class="ed-sidebar">
 
-        <div class="ed-header">Map Editor</div>
+      <!-- ═══════════════════════════════════════════
+           MENU BAR
+           ═══════════════════════════════════════════ -->
+      <div class="ed-menubar">
 
-        <!-- Map info -->
-        <div class="ed-section">
-          <div class="ed-section-title">Map</div>
-          <div class="ed-row">
-            <span class="ed-label">Name</span>
-            <span class="ed-value" id="ed-map-name">–</span>
-          </div>
-          <div class="ed-row">
-            <span class="ed-label">Size</span>
-            <span class="ed-value" id="ed-map-size">–</span>
-          </div>
-          <div class="ed-row">
-            <span class="ed-label">Dirty</span>
-            <span class="ed-value" id="ed-dirty">clean</span>
-          </div>
+        <!-- Edit -->
+        <div class="ed-menu-group">
+          <button class="ed-menu-btn" id="ed-undo" title="Undo [Ctrl+Z]">↩ Undo</button>
+          <button class="ed-menu-btn" id="ed-redo" title="Redo [Ctrl+Y]">↪ Redo</button>
         </div>
 
-        <!-- Tool mode -->
-        <div class="ed-section">
-          <div class="ed-section-title">Mode</div>
-          <div class="ed-mode-row">
-            <button class="ed-mode-btn is-active" id="ed-mode-terrain">Terrain</button>
-            <button class="ed-mode-btn" id="ed-mode-object">Object</button>
-            <button class="ed-mode-btn" id="ed-mode-walkability">Walk</button>
-            <button class="ed-mode-btn" id="ed-mode-elevation">Height</button>
-          </div>
+        <div class="ed-menu-sep"></div>
+
+        <!-- Map file -->
+        <div class="ed-menu-group">
+          <span class="ed-menu-label">Map</span>
+          <button class="ed-menu-btn" id="ed-save-map" title="Save map to library [Ctrl+S]">Save</button>
+          <button class="ed-menu-btn" id="ed-open-map" title="Open map from library [L]">Open</button>
         </div>
 
-        <!-- Brush (terrain mode) -->
-        <div class="ed-section" id="ed-brush-section">
-          <div class="ed-section-title">Brush</div>
-          <div class="ed-preview-row">
-            <div class="ed-preview-wrap">
-              <img class="ed-preview-img" id="ed-preview-selected" alt="" />
-            </div>
-            <div class="ed-preview-info">
-              <div class="ed-preview-name" id="ed-brush-label">–</div>
-              <div class="ed-preview-meta" id="ed-brush-idx">–</div>
-              <div class="ed-preview-meta" id="ed-brush-flip">–</div>
-            </div>
-          </div>
-          <div class="ed-brush-size-row">
-            <span class="ed-label">Size</span>
-            <button class="ed-size-btn" id="ed-size-dec">−</button>
-            <div class="ed-size-pips">
-              <div class="ed-size-pip is-active" id="ed-pip-1"></div>
-              <div class="ed-size-pip" id="ed-pip-2"></div>
-              <div class="ed-size-pip" id="ed-pip-3"></div>
-              <div class="ed-size-pip" id="ed-pip-4"></div>
-            </div>
-            <button class="ed-size-btn" id="ed-size-inc">+</button>
-          </div>
-          <button class="ed-browse-btn" id="ed-palette-open">Browse Tiles  [P]</button>
-          <button class="ed-browse-btn" id="ed-create-custom-tile">Create Custom Tile</button>
-          <button class="ed-browse-btn" id="ed-delete-custom-tile">Delete Custom Tile</button>
+        <div class="ed-menu-sep"></div>
+
+        <!-- Chunks -->
+        <div class="ed-menu-group">
+          <span class="ed-menu-label">Chunks</span>
+          <button class="ed-menu-btn" id="ed-resize-map"   title="Extend / resize the map [R]">Extend</button>
+          <button class="ed-menu-btn" id="ed-export-dirty" title="Save changed chunks to project library [U]">Save Changed</button>
+          <button class="ed-menu-btn" id="ed-import-dirty" title="Apply a saved chunk bundle [J]">Apply Bundle</button>
+          <button class="ed-menu-btn" id="ed-load-window"  title="Load a chunk window from a saved map">Window</button>
         </div>
 
-        <!-- Object (object mode) -->
-        <div class="ed-section" id="ed-object-section" style="display:none">
-          <div class="ed-section-title">Object</div>
-          <div class="ed-preview-row">
-            <div class="ed-preview-wrap" id="ed-obj-preview-wrap">
-              <img class="ed-preview-img" id="ed-preview-object" alt="" style="display:none" />
-              <canvas class="ed-color-swatch" id="ed-obj-color-swatch" width="40" height="40" style="display:none"></canvas>
-            </div>
-            <div class="ed-preview-info">
-              <div class="ed-preview-name" id="ed-object-name">–</div>
-            </div>
-          </div>
-          <button class="ed-browse-btn" id="ed-obj-palette-open">Browse Objects  [P]</button>
-          <button class="ed-browse-btn" id="ed-create-custom-object">Create Custom Object</button>
-          <button class="ed-browse-btn" id="ed-delete-custom-object">Delete Custom Object</button>
+        <div class="ed-menu-sep"></div>
+
+        <!-- Test -->
+        <div class="ed-menu-group">
+          <button class="ed-menu-btn ed-menu-btn--accent" id="ed-test-game" title="Publish and test in game">▶ Test</button>
         </div>
 
-        <!-- Tile gameplay layers -->
-        <div class="ed-section" id="ed-tile-meta-section" style="display:none">
-          <div class="ed-section-title">Tile Data</div>
-          <div class="ed-row">
-            <span class="ed-label">Walk</span>
-            <span class="ed-value" id="ed-walkability-label">walkable</span>
-          </div>
-          <div class="ed-mode-row">
-            <button class="ed-mode-btn is-active" id="ed-walkable-on">Walkable</button>
-            <button class="ed-mode-btn" id="ed-walkable-off">Blocked</button>
-          </div>
-          <div class="ed-brush-size-row">
-            <span class="ed-label">Height</span>
-            <button class="ed-size-btn" id="ed-elevation-dec">−</button>
-            <span class="ed-value" id="ed-elevation-value">0</span>
-            <button class="ed-size-btn" id="ed-elevation-inc">+</button>
-          </div>
+        <div class="ed-menu-spacer"></div>
+
+        <!-- Map name -->
+        <div class="ed-menu-group">
+          <input class="ed-map-name-input ed-menu-name-input" id="ed-map-name-input" spellcheck="false" placeholder="Map name…" />
+          <span class="ed-menu-dirty" id="ed-menu-dirty"></span>
         </div>
 
-        <!-- Hover info -->
-        <div class="ed-section">
-          <div class="ed-section-title">Hover</div>
-          <div class="ed-row">
-            <span class="ed-label">Tile</span>
-            <span class="ed-value" id="ed-hover-tile">–</span>
+      </div><!-- /ed-menubar -->
+
+      <!-- ═══════════════════════════════════════════
+           WORKSPACE ROW
+           ═══════════════════════════════════════════ -->
+      <div class="ed-workspace-row">
+
+        <div class="ed-sidebar">
+
+          <div class="ed-header">
+            <span class="ed-header-title">Map Editor</span>
+            <button class="ed-help-btn" id="ed-help-toggle"
+              onclick="
+                const p = document.getElementById('ed-help-panel');
+                const b = document.getElementById('ed-help-toggle');
+                const open = p.classList.toggle('is-visible');
+                b.classList.toggle('is-active', open);
+              ">? Keys</button>
           </div>
-          <div class="ed-row">
-            <span class="ed-label">Terrain</span>
-            <span class="ed-value" id="ed-hover-terrain">–</span>
+
+          <!-- Map info -->
+          <div class="ed-section">
+            <div class="ed-section-title">Map</div>
+            <!-- ed-map-name kept hidden; input serves as the live editable title -->
+            <span id="ed-map-name" style="display:none"></span>
+            <div class="ed-row">
+              <span class="ed-label">Size</span>
+              <span class="ed-value" id="ed-map-size">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Dirty</span>
+              <span class="ed-value" id="ed-dirty">clean</span>
+            </div>
           </div>
-          <div class="ed-row">
-            <span class="ed-label">Art</span>
-            <span class="ed-value" id="ed-hover-art">–</span>
+
+          <!-- Tool mode -->
+          <div class="ed-section">
+            <div class="ed-section-title">Mode</div>
+
+            <div class="ed-mode-subgroup">
+              <div class="ed-mode-subgroup-label">Content</div>
+              <div class="ed-mode-row">
+                <button class="ed-mode-btn is-active" id="ed-mode-terrain">Terrain</button>
+                <button class="ed-mode-btn" id="ed-mode-object">Object</button>
+              </div>
+            </div>
+
+            <div class="ed-mode-data-sep"></div>
+
+            <div class="ed-mode-subgroup">
+              <div class="ed-mode-subgroup-label">Data Layer</div>
+              <div class="ed-mode-row">
+                <button class="ed-mode-btn" id="ed-mode-walkability">Walk</button>
+                <button class="ed-mode-btn" id="ed-mode-elevation">Height</button>
+              </div>
+            </div>
           </div>
-          <div class="ed-row">
-            <span class="ed-label">Walk</span>
-            <span class="ed-value" id="ed-hover-walkability">–</span>
+
+          <!-- Brush (terrain mode) -->
+          <div class="ed-section" id="ed-brush-section">
+            <div class="ed-section-title">Brush</div>
+            <div class="ed-preview-row">
+              <div class="ed-preview-wrap">
+                <img class="ed-preview-img" id="ed-preview-selected" alt="" />
+              </div>
+              <div class="ed-preview-info">
+                <div class="ed-preview-name" id="ed-brush-label">–</div>
+                <div class="ed-preview-meta" id="ed-brush-idx">–</div>
+                <div class="ed-preview-meta" id="ed-brush-flip">–</div>
+              </div>
+            </div>
+            <div class="ed-brush-size-row">
+              <span class="ed-label">Size</span>
+              <button class="ed-size-btn" id="ed-size-dec">−</button>
+              <div class="ed-size-pips">
+                <div class="ed-size-pip is-active" id="ed-pip-1"></div>
+                <div class="ed-size-pip" id="ed-pip-2"></div>
+                <div class="ed-size-pip" id="ed-pip-3"></div>
+                <div class="ed-size-pip" id="ed-pip-4"></div>
+              </div>
+              <button class="ed-size-btn" id="ed-size-inc">+</button>
+            </div>
+            <button class="ed-browse-btn" id="ed-palette-open">Browse Tiles  [P]</button>
+
+            <div class="ed-asset-mgmt">
+              <div class="ed-asset-mgmt-label">Custom Tiles</div>
+              <div class="ed-action-grid">
+                <button class="ed-browse-btn" id="ed-create-custom-tile">+ Create</button>
+                <button class="ed-browse-btn ed-browse-btn--danger" id="ed-delete-custom-tile">− Delete</button>
+              </div>
+            </div>
           </div>
-          <div class="ed-row">
-            <span class="ed-label">Height</span>
-            <span class="ed-value" id="ed-hover-elevation">–</span>
+
+          <!-- Object (object mode) -->
+          <div class="ed-section" id="ed-object-section" style="display:none">
+            <div class="ed-section-title">Object</div>
+            <div class="ed-preview-row">
+              <div class="ed-preview-wrap" id="ed-obj-preview-wrap">
+                <img class="ed-preview-img" id="ed-preview-object" alt="" style="display:none" />
+                <canvas class="ed-color-swatch" id="ed-obj-color-swatch" width="40" height="40" style="display:none"></canvas>
+              </div>
+              <div class="ed-preview-info">
+                <div class="ed-preview-name" id="ed-object-name">–</div>
+              </div>
+            </div>
+            <button class="ed-browse-btn" id="ed-obj-palette-open">Browse Objects  [P]</button>
+            <button class="ed-browse-btn ed-browse-btn--danger" id="ed-delete-all-instances">− Delete All Placed</button>
+
+            <div class="ed-asset-mgmt">
+              <div class="ed-asset-mgmt-label">Custom Objects</div>
+              <div class="ed-action-grid">
+                <button class="ed-browse-btn" id="ed-create-custom-object">+ Create</button>
+                <button class="ed-browse-btn ed-browse-btn--danger" id="ed-delete-custom-object">− Delete</button>
+              </div>
+            </div>
           </div>
-          <div class="ed-row">
-            <span class="ed-label">Object</span>
-            <span class="ed-value" id="ed-hover-object">–</span>
+
+          <!-- Tile data layer (walk / height mode) -->
+          <div class="ed-section" id="ed-tile-meta-section" style="display:none">
+            <div class="ed-section-title">Tile Data</div>
+            <div class="ed-row">
+              <span class="ed-label">Walk</span>
+              <span class="ed-value" id="ed-walkability-label">walkable</span>
+            </div>
+            <div class="ed-mode-row">
+              <button class="ed-mode-btn is-active" id="ed-walkable-on">Walkable</button>
+              <button class="ed-mode-btn" id="ed-walkable-off">Blocked</button>
+            </div>
+            <div class="ed-brush-size-row">
+              <span class="ed-label">Height</span>
+              <button class="ed-size-btn" id="ed-elevation-dec">−</button>
+              <span class="ed-value" id="ed-elevation-value">0</span>
+              <button class="ed-size-btn" id="ed-elevation-inc">+</button>
+            </div>
           </div>
-          <div class="ed-row">
-            <span class="ed-label">Chunk</span>
-            <span class="ed-value" id="ed-hover-chunk">–</span>
+
+          <!-- Hover info -->
+          <div class="ed-section">
+            <div class="ed-section-title">Hover</div>
+            <div class="ed-row">
+              <span class="ed-label">Tile</span>
+              <span class="ed-value" id="ed-hover-tile">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Terrain</span>
+              <span class="ed-value" id="ed-hover-terrain">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Art</span>
+              <span class="ed-value" id="ed-hover-art">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Walk</span>
+              <span class="ed-value" id="ed-hover-walkability">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Height</span>
+              <span class="ed-value" id="ed-hover-elevation">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Object</span>
+              <span class="ed-value" id="ed-hover-object">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Chunk</span>
+              <span class="ed-value" id="ed-hover-chunk">–</span>
+            </div>
           </div>
+
+          <!-- Status bar -->
+          <div class="ed-status" id="ed-status">Ready.</div>
+
+        </div><!-- /ed-sidebar -->
+
+      </div><!-- /ed-workspace-row -->
+
+
+      <!-- ═══════════════════════════════════════════
+           HELP / SHORTCUTS PANEL
+           ═══════════════════════════════════════════ -->
+      <div id="ed-help-panel" class="ed-help-panel">
+        <div class="ed-help-panel-title">Keyboard Shortcuts</div>
+
+        <div class="ed-shortcut-group">
+          <div class="ed-shortcut-group-label">Camera</div>
+          <div class="ed-shortcut-row"><span class="ed-key">WASD</span><span class="ed-key-desc">pan</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">scroll</span><span class="ed-key-desc">zoom</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">C</span><span class="ed-key-desc">center on map</span></div>
         </div>
 
-        <!-- Status -->
-        <div class="ed-status" id="ed-status">Ready.</div>
-
-        <!-- Shortcuts -->
-        <div class="ed-section ed-shortcuts">
-          <div class="ed-section-title">Shortcuts</div>
-
-          <div class="ed-shortcut-group">
-            <div class="ed-shortcut-group-label">Camera</div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">WASD</span>
-              <span class="ed-key-desc">pan</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">scroll</span>
-              <span class="ed-key-desc">zoom</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">C</span>
-              <span class="ed-key-desc">center on map</span>
-            </div>
-          </div>
-
-          <div class="ed-shortcut-group">
-            <div class="ed-shortcut-group-label">Terrain</div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">1–5</span>
-              <span class="ed-key-desc">family</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">Q / E</span>
-              <span class="ed-key-desc">cycle brush</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">F / V</span>
-              <span class="ed-key-desc">flip X / Y</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">{ / }</span>
-              <span class="ed-key-desc">brush size −/+</span>
-            </div>
-          </div>
-
-          <div class="ed-shortcut-group">
-            <div class="ed-shortcut-group-label">Objects</div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">Q / E</span>
-              <span class="ed-key-desc">cycle object</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">Del</span>
-              <span class="ed-key-desc">remove hovered</span>
-            </div>
-          </div>
-
-          <div class="ed-shortcut-group">
-            <div class="ed-shortcut-group-label">Map</div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">Ctrl+S</span>
-              <span class="ed-key-desc">save to library</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">L</span>
-              <span class="ed-key-desc">open library</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">R</span>
-              <span class="ed-key-desc">resize</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">X</span>
-              <span class="ed-key-desc">export (clipboard)</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">U</span>
-              <span class="ed-key-desc">save chunks</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">J</span>
-              <span class="ed-key-desc">load chunks</span>
-            </div>
-            <div class="ed-shortcut-row">
-              <span class="ed-key">N</span>
-              <span class="ed-key-desc">name chunk</span>
-            </div>
-          </div>
+        <div class="ed-shortcut-group">
+          <div class="ed-shortcut-group-label">Edit</div>
+          <div class="ed-shortcut-row"><span class="ed-key">Ctrl+Z</span><span class="ed-key-desc">undo</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">Ctrl+Y</span><span class="ed-key-desc">redo</span></div>
         </div>
 
+        <div class="ed-shortcut-group">
+          <div class="ed-shortcut-group-label">Terrain</div>
+          <div class="ed-shortcut-row"><span class="ed-key">1–5</span><span class="ed-key-desc">family</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">Q / E</span><span class="ed-key-desc">cycle brush</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">F / V</span><span class="ed-key-desc">flip X / Y</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">{ / }</span><span class="ed-key-desc">brush size −/+</span></div>
+        </div>
+
+        <div class="ed-shortcut-group">
+          <div class="ed-shortcut-group-label">Objects</div>
+          <div class="ed-shortcut-row"><span class="ed-key">Q / E</span><span class="ed-key-desc">cycle object</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">Del</span><span class="ed-key-desc">remove hovered</span></div>
+        </div>
+
+        <div class="ed-shortcut-group">
+          <div class="ed-shortcut-group-label">Map</div>
+          <div class="ed-shortcut-row"><span class="ed-key">Ctrl+S</span><span class="ed-key-desc">save to library</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">L</span><span class="ed-key-desc">open library</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">R</span><span class="ed-key-desc">resize</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">X</span><span class="ed-key-desc">export (clipboard)</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">U</span><span class="ed-key-desc">save chunks</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">J</span><span class="ed-key-desc">load chunks</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">N</span><span class="ed-key-desc">name chunk</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">P</span><span class="ed-key-desc">tile palette</span></div>
+        </div>
       </div>
 
-      <!-- Tile palette (toggled by P key or Browse button) -->
+
+      <!-- ═══════════════════════════════════════════
+           TILE PALETTE
+           ═══════════════════════════════════════════ -->
       <div id="ed-palette" class="ed-palette" style="display:none">
         <div class="ed-palette-header">
           <span id="ed-palette-title">Tile Palette</span>
@@ -1056,6 +1468,10 @@
         <div class="ed-palette-grid" id="ed-palette-grid"></div>
       </div>
 
+
+      <!-- ═══════════════════════════════════════════
+           MAP / CHUNK LIBRARY
+           ═══════════════════════════════════════════ -->
       <div id="ed-library" class="ed-library" style="display:none">
         <div class="ed-library-header">
           <span id="ed-library-title">Open Map</span>
@@ -1065,15 +1481,21 @@
         <div class="ed-library-grid" id="ed-library-grid"></div>
       </div>
 
+
+      <!-- ═══════════════════════════════════════════
+           CUSTOM ASSET DEFINITION DIALOG
+           ═══════════════════════════════════════════ -->
       <div id="ed-definition" class="ed-definition" style="display:none">
         <div class="ed-definition-header">
           <span id="ed-definition-title">Create Custom Tile</span>
           <button class="ed-definition-close" id="ed-definition-close">×</button>
         </div>
         <div class="ed-definition-body">
-          <div class="ed-definition-preview">
+          <div class="ed-definition-preview" id="ed-definition-preview">
+            <canvas class="ed-definition-fit-grid" id="ed-definition-fit-grid"></canvas>
             <img id="ed-definition-preview-img" alt="" />
-            <canvas id="ed-definition-preview-color" width="64" height="64"></canvas>
+            <canvas class="ed-definition-preview-color" id="ed-definition-preview-color" width="64" height="64"></canvas>
+            <div class="ed-definition-resize-handle" id="ed-definition-resize-handle"></div>
           </div>
           <div class="ed-definition-fields">
             <label class="ed-definition-field">
@@ -1091,13 +1513,30 @@
             <div class="ed-definition-field" id="ed-definition-footprint">
               <span class="ed-definition-label">Footprint</span>
               <div class="ed-mode-row">
-                <input class="ed-definition-input" id="ed-definition-footprint-width" type="number" min="1" max="8" />
-                <input class="ed-definition-input" id="ed-definition-footprint-height" type="number" min="1" max="8" />
+                <input class="ed-definition-input" id="ed-definition-footprint-width" type="number" min="1" max="16" />
+                <input class="ed-definition-input" id="ed-definition-footprint-height" type="number" min="1" max="16" />
               </div>
             </div>
             <label class="ed-definition-field">
               <span class="ed-definition-label">Image</span>
               <input class="ed-definition-input" id="ed-definition-file" type="file" accept="image/*" />
+            </label>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Image scale</span>
+              <input class="ed-definition-input" id="ed-definition-scale" type="number" min="0.05" max="4" step="0.05" value="1" />
+            </label>
+            <div class="ed-definition-field">
+              <span class="ed-definition-label">Image offset</span>
+              <div class="ed-definition-fit-row">
+                <input class="ed-definition-input" id="ed-definition-offset-x" type="number" step="1" value="0" />
+                <input class="ed-definition-input" id="ed-definition-offset-y" type="number" step="1" value="0" />
+                <button class="ed-definition-action" id="ed-definition-fit" type="button">Fit</button>
+              </div>
+            </div>
+            <button class="ed-definition-action" id="ed-definition-open-fit" type="button">Open Fit Editor</button>
+            <label class="ed-definition-check">
+              <input id="ed-definition-clean" type="checkbox" />
+              <span>Clean / crop image</span>
             </label>
             <label class="ed-definition-check">
               <input id="ed-definition-flag" type="checkbox" />
@@ -1111,6 +1550,40 @@
         </div>
       </div>
 
+
+      <!-- ═══════════════════════════════════════════
+           FIT EDITOR
+           ═══════════════════════════════════════════ -->
+      <div id="ed-fit-panel" class="ed-fit-panel" style="display:none">
+        <div class="ed-definition-header">
+          <span>Image Fit Editor</span>
+          <button class="ed-definition-close" id="ed-fit-close">×</button>
+        </div>
+        <div class="ed-fit-stage" id="ed-fit-stage">
+          <canvas id="ed-fit-grid"></canvas>
+          <img id="ed-fit-image" alt="" />
+          <div class="ed-fit-selection" id="ed-fit-selection">
+            <div class="ed-fit-handle" data-corner="nw"></div>
+            <div class="ed-fit-handle" data-corner="ne"></div>
+            <div class="ed-fit-handle" data-corner="sw"></div>
+            <div class="ed-fit-handle" data-corner="se"></div>
+          </div>
+        </div>
+        <div class="ed-fit-controls">
+          <label for="ed-fit-scale-range">Scale</label>
+          <input id="ed-fit-scale-range" type="range" min="0.05" max="4" step="0.01" value="1" />
+          <input class="ed-definition-input" id="ed-fit-scale-number" type="number" min="0.05" max="4" step="0.01" value="1" />
+        </div>
+        <div class="ed-definition-actions">
+          <button class="ed-definition-action" id="ed-fit-cancel">Cancel</button>
+          <button class="ed-definition-action" id="ed-fit-apply">Apply</button>
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════
+           CHUNK WINDOW DIALOG
+           ═══════════════════════════════════════════ -->
       <div id="ed-chunk-window" class="ed-definition" style="display:none">
         <div class="ed-definition-header">
           <span>Load Chunk Window</span>
@@ -1134,6 +1607,14 @@
               <span class="ed-definition-label">Surrounding chunks</span>
               <input class="ed-definition-input" id="ed-chunk-window-radius" type="number" min="0" value="0" />
             </label>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">World ID</span>
+              <input class="ed-definition-input" id="ed-chunk-window-world-id" type="text" value="the_wake" />
+            </label>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Region ID</span>
+              <input class="ed-definition-input" id="ed-chunk-window-region-id" type="text" value="editor_region" />
+            </label>
           </div>
         </div>
         <div class="ed-definition-actions">
@@ -1142,6 +1623,10 @@
         </div>
       </div>
 
+
+      <!-- ═══════════════════════════════════════════
+           RESIZE / EXTEND MAP DIALOG
+           ═══════════════════════════════════════════ -->
       <div id="ed-resize" class="ed-definition" style="display:none">
         <div class="ed-definition-header">
           <span>Resize / Extend Map</span>
@@ -1165,6 +1650,10 @@
         </div>
       </div>
 
+
+      <!-- ═══════════════════════════════════════════
+           CHUNK NAME DIALOG
+           ═══════════════════════════════════════════ -->
       <div id="ed-chunk-name-panel" class="ed-definition" style="display:none">
         <div class="ed-definition-header">
           <span id="ed-chunk-name-title">Name Chunk</span>
@@ -1182,22 +1671,7 @@
         </div>
       </div>
 
-      <div class="ed-topbar">
-        <div class="ed-topbar-title">Editor Library</div>
-        <input class="ed-map-name-input" id="ed-map-name-input" spellcheck="false" />
-        <div class="ed-topbar-grid">
-          <button class="ed-browse-btn" id="ed-save-map">Save Map</button>
-          <button class="ed-browse-btn" id="ed-open-map">Open Map</button>
-          <button class="ed-browse-btn" id="ed-load-window">Load Window</button>
-          <button class="ed-browse-btn" id="ed-test-game">Test Game</button>
-          <button class="ed-browse-btn" id="ed-export-dirty">Save Chunks</button>
-          <button class="ed-browse-btn" id="ed-import-dirty">Apply Chunks</button>
-          <button class="ed-browse-btn" id="ed-resize-map">Extend Map</button>
-          <button class="ed-browse-btn" id="ed-clear-game-map">Clear Test</button>
-        </div>
-      </div>
-
-    </div>
+    </div><!-- /editor-overlay -->
 
     <script type="module" src="/src/apps/editor/main.ts"></script>
   </body>

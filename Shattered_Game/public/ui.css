@@ -24,12 +24,16 @@
   --c-combat-inactive: #CECCA0;
 
   /* ── Surfaces ─────────────────────────────────────── */
-  --c-panel-bg:    rgba(12, 7, 2, 0.95);
+  --c-panel-bg:    rgba(6, 3, 1, 0.70);
   --c-panel-border:#613C18;
-  --c-slot-bg:     rgba(25, 14, 4, 0.90);
+  --c-slot-bg:     rgba(16, 8, 2, 0.65);
   --c-slot-border: #3a2209;
   --c-slot-hover:  rgba(255, 252, 195, 0.08);
-  --c-surface-alt: rgba(35, 20, 8, 0.85);
+  --c-surface-alt: rgba(28, 14, 4, 0.80);
+
+  /* ── Glass / Blur ─────────────────────────────────── */
+  --glass-blur:       14px;
+  --glass-blur-popup: 22px;
 
   /* ── Semantic Text ────────────────────────────────── */
   --c-text:        #FFFCC3;
@@ -121,6 +125,8 @@
   left: 60px;
   width: var(--enemy-w);
   background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 2px solid var(--c-secondary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow), inset 0 1px 0 rgba(255,252,195,0.06);
@@ -369,12 +375,56 @@
   width: var(--panel-w);
   height: var(--panel-h);
   background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-top: var(--border-panel);
   border-left: var(--border-panel);
   border-bottom: var(--border-panel);
   border-right: 1px solid var(--c-secondary-dark);
   overflow: hidden;   /* no scrollbars; content must fit */
   flex-shrink: 0;
+}
+
+/* Skills panel floats to top-left, detached from sidebar */
+.ui-panel-area--topleft {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  width: 310px;
+  height: auto;
+  max-height: 460px;
+  border: var(--border-panel);
+  border-radius: var(--radius-md);
+  overflow: visible;
+  box-shadow: var(--shadow);
+}
+
+.ui-panel-area--topleft .skills-tab {
+  height: auto;
+  max-height: 420px;
+  border-radius: var(--radius-md);
+}
+
+/* Larger, more prominent skill rows when in top-left view */
+.ui-panel-area--topleft .skill-row {
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+.ui-panel-area--topleft .skill-name {
+  font-size: var(--fs-md);
+}
+
+.ui-panel-area--topleft .skill-rank-stage {
+  font-size: var(--fs-xs);
+}
+
+.ui-panel-area--topleft .skill-bar-track {
+  height: 9px;
+}
+
+.ui-panel-area--topleft .skill-xp {
+  font-size: var(--fs-xs);
 }
 
 .panel-tab-content {
@@ -399,6 +449,8 @@
   width: var(--icon-col-w);
   height: var(--panel-h);
   background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: var(--border-panel);
   display: flex;
   flex-direction: column;
@@ -410,6 +462,15 @@
 
 /* Spacer pushes Settings to the bottom */
 .taskbar-spacer { flex: 1; }
+
+/* Visual divider between taskbar button groups */
+.taskbar-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--c-secondary), transparent);
+  margin: 3px 8px;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
 
 .taskbar-btn {
   width: 100%;
@@ -576,6 +637,8 @@
   z-index: 9999;
   min-width: 148px;
   background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur-popup));
+  -webkit-backdrop-filter: blur(var(--glass-blur-popup));
   border: var(--border-panel);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
@@ -984,7 +1047,9 @@
 
 .chat-log {
   height: var(--chat-h);
-  background: rgba(12, 7, 2, 0.90);
+  background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-top: var(--border-panel);
   border-left: var(--border-panel);
   border-right: var(--border-panel);
@@ -1013,6 +1078,8 @@
   display: flex;
   align-items: center;
   background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border: var(--border-panel);
   border-top: none;
   height: 28px;
@@ -1071,11 +1138,14 @@
   display: flex;
   flex-direction: column;
   background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur-popup));
+  -webkit-backdrop-filter: blur(var(--glass-blur-popup));
   border: 1px solid var(--c-panel-border);
+  border-radius: var(--radius-md);
   color: var(--c-text);
   font-family: var(--font);
   pointer-events: all;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 252, 195, 0.06);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 252, 195, 0.08);
 }
 
 .ui-popup-header {
@@ -1132,9 +1202,12 @@
    ═══════════════════════════════════════════════════════ */
 
 .ui-popup--skill {
-  width: 560px;
-  height: 460px;                     /* fixed — same size for every skill */
-  max-height: calc(100% - 64px);
+  top: 60px;
+  left: 30px;
+  transform: none;
+  width: 760px;
+  height: 640px;
+  max-height: calc(100% - 80px);
 }
 
 /* Body is a column flex container — skd fills it */

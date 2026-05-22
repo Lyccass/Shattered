@@ -302,23 +302,23 @@ export class TerrainChunkDrawSystem {
   private drawTextureFrame(
     chunk: MaterializedTerrainChunk,
     textureKey: string,
-    transform: { flipX: boolean; flipY: boolean; scale?: number },
+    transform: { flipX: boolean; flipY: boolean; offsetX?: number; offsetY?: number; scale?: number },
     frame: Phaser.Textures.Frame,
     drawX: number,
     drawY: number,
   ): void {
-    const { flipX, flipY, scale } = transform;
+    const { flipX, flipY, offsetX = 0, offsetY = 0, scale } = transform;
 
-    if (!flipX && !flipY && scale === undefined) {
+    if (!flipX && !flipY && scale === undefined && offsetX === 0 && offsetY === 0) {
       chunk.groundLayer.drawFrame(textureKey, undefined, drawX, drawY);
       return;
     }
 
     const stamp = this.getTileStamp(textureKey);
-    const stampX = drawX + frame.width / 2;
+    const stampX = drawX + frame.width / 2 + offsetX;
     const stampY = scale === undefined
-      ? drawY + frame.height / 2
-      : drawY + this.transform.tileHeight / 2;
+      ? drawY + frame.height / 2 + offsetY
+      : drawY + this.transform.tileHeight / 2 + offsetY;
 
     stamp.setTexture(textureKey);
     stamp.setPosition(stampX, stampY);

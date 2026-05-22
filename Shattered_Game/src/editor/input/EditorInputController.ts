@@ -7,8 +7,10 @@ type ZoomDirection = 'in' | 'out';
 type EditorInputHandlers = {
   applyPrimaryAction: (pointer: Phaser.Input.Pointer) => void;
   adjustBrushSize: (delta: number) => void;
+  beginStroke: () => void;
   centerCameraOnMap: () => void;
   cycleSelection: (offset: number) => void;
+  endStroke: () => void;
   exportMap: () => void;
   exportDirtyChunks: () => void;
   exportWorldChunk: () => void;
@@ -19,6 +21,7 @@ type EditorInputHandlers = {
   isPaletteOpen: () => boolean;
   isPointerPanning: () => boolean;
   openMapFromFile: () => void;
+  redo: () => void;
   redrawPointerState: () => void;
   removeHoveredObject: () => void;
   renameHoveredChunk: () => void;
@@ -30,6 +33,7 @@ type EditorInputHandlers = {
   startPointerPan: (pointer: Phaser.Input.Pointer) => void;
   stopPointerPan: () => void;
   togglePalette: () => void;
+  undo: () => void;
   updatePointerPan: (pointer: Phaser.Input.Pointer) => void;
   updateHoverFromPointer: (pointer: Phaser.Input.Pointer) => void;
   zoom: (direction: ZoomDirection) => void;
@@ -103,6 +107,7 @@ export class EditorInputController {
     }
 
     if (pointer.leftButtonDown()) {
+      this.handlers.beginStroke();
       this.handlers.applyPrimaryAction(pointer);
     }
   };
@@ -110,6 +115,7 @@ export class EditorInputController {
   private readonly onPointerUp = (): void => {
     this.handlers.stopPointerPan();
     this.handlers.resetTerrainStroke();
+    this.handlers.endStroke();
   };
 
   private readonly onWheel = (
@@ -122,6 +128,10 @@ export class EditorInputController {
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    if (isTypingTarget(event.target)) {
+      return;
+    }
+
     const brushFamily = BRUSH_KEYS[event.code];
 
     if (brushFamily && this.handlers.getToolMode() === 'terrain') {
@@ -147,6 +157,24 @@ export class EditorInputController {
     if (event.ctrlKey && event.code === 'KeyS') {
       event.preventDefault();
       this.handlers.saveMapToFile();
+      return;
+    }
+
+    if (event.ctrlKey && event.shiftKey && event.code === 'KeyZ') {
+      event.preventDefault();
+      this.handlers.redo();
+      return;
+    }
+
+    if (event.ctrlKey && event.code === 'KeyZ') {
+      event.preventDefault();
+      this.handlers.undo();
+      return;
+    }
+
+    if (event.ctrlKey && event.code === 'KeyY') {
+      event.preventDefault();
+      this.handlers.redo();
       return;
     }
 
@@ -234,4 +262,18 @@ export class EditorInputController {
       this.handlers.zoom('out');
     }
   };
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  return target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement;
 }

@@ -61,6 +61,8 @@ export type TerrainEdges = Record<IsoEdgeKey, TerrainEdgeTag>;
 export type TerrainTransform = {
   flipX: boolean;
   flipY: boolean;
+  offsetX?: number;
+  offsetY?: number;
   rotation: 0;
   scale?: number;
 };

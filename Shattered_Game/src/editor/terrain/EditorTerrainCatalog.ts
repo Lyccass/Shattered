@@ -9,6 +9,8 @@ export type EditorTerrainBrush = {
   family: TerrainFamily;
   textureKey: string;
   textureDataUrl?: string;
+  textureOffsetX?: number;
+  textureOffsetY?: number;
   textureScale?: number;
   source: 'base' | 'transition' | 'custom';
   walkable: boolean;

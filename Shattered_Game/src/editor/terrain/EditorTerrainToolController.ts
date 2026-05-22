@@ -50,6 +50,8 @@ export class EditorTerrainToolController {
         family: paint.family,
         textureKey: paint.textureKey,
         ...(paint.textureDataUrl !== undefined ? { textureDataUrl: paint.textureDataUrl } : {}),
+        ...(paint.textureOffsetX !== undefined ? { textureOffsetX: paint.textureOffsetX } : {}),
+        ...(paint.textureOffsetY !== undefined ? { textureOffsetY: paint.textureOffsetY } : {}),
         ...(paint.textureScale !== undefined ? { textureScale: paint.textureScale } : {}),
         source: 'custom',
         walkable: paint.walkable,
@@ -67,6 +69,8 @@ export class EditorTerrainToolController {
     textureDataUrl?: string,
     category?: string,
     textureScale?: number,
+    textureOffsetX?: number,
+    textureOffsetY?: number,
   ): EditorTerrainBrush {
     const brush: EditorTerrainBrush = {
       ...this.selectedBrush,
@@ -76,6 +80,8 @@ export class EditorTerrainToolController {
       source: 'custom',
       textureKey,
       ...(textureDataUrl !== undefined ? { textureDataUrl } : {}),
+      ...(textureOffsetX !== undefined ? { textureOffsetX } : {}),
+      ...(textureOffsetY !== undefined ? { textureOffsetY } : {}),
       ...(textureScale !== undefined ? { textureScale } : {}),
       walkable,
     };

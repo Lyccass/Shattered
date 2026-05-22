@@ -15,10 +15,20 @@ import { MapZoneIndex } from './MapZoneIndex';
 import type { MapDefinition, MapSpawnPoint, MapTransition } from './MapTypes';
 import type { LoadedMapRuntime } from './MapRuntime';
 
+type EmbeddedEditorTexture = {
+  dataUrl: string;
+  textureKey: string;
+};
+
 export class MapLoader {
   private currentRuntime?: LoadedMapRuntime;
 
   constructor(private readonly scene: Phaser.Scene) {}
+
+  async prepareMapAssets(mapId: string): Promise<void> {
+    const definition = getMapDefinition(mapId);
+    await this.prepareEmbeddedEditorTextures(definition);
+  }
 
   loadMap(mapId: string, spawnId = 'default'): LoadedMapRuntime {
     this.destroyCurrentRuntime();
@@ -176,23 +186,68 @@ export class MapLoader {
   }
 
   private registerEmbeddedEditorTextures(definition: MapDefinition): void {
-    const terrainPaints = [
-      ...Object.values(parseEditorTerrainTiles(definition.metadata?.editorTerrainTiles)),
-      ...parseEditorTerrainBrushes(definition.metadata?.editorTerrainBrushes),
-    ];
-
-    for (const paint of terrainPaints) {
-      if (paint.textureDataUrl && !this.scene.textures.exists(paint.textureKey)) {
-        this.scene.textures.addBase64(paint.textureKey, paint.textureDataUrl);
-      }
-    }
-
-    for (const objectDefinition of parseEditorObjectDefinitions(definition.metadata?.editorObjectDefinitions)) {
-      for (const part of objectDefinition.visual.parts) {
-        if (part.shape === 'sprite' && part.editorTextureDataUrl && !this.scene.textures.exists(part.textureKey)) {
-          this.scene.textures.addBase64(part.textureKey, part.editorTextureDataUrl);
-        }
+    for (const { dataUrl, textureKey } of collectEmbeddedEditorTextures(definition)) {
+      if (!this.scene.textures.exists(textureKey)) {
+        this.scene.textures.addBase64(textureKey, dataUrl);
       }
     }
   }
+
+  private async prepareEmbeddedEditorTextures(definition: MapDefinition): Promise<void> {
+    await Promise.all(
+      collectEmbeddedEditorTextures(definition)
+        .map(({ dataUrl, textureKey }) => this.prepareEmbeddedTexture(textureKey, dataUrl)),
+    );
+  }
+
+  private async prepareEmbeddedTexture(textureKey: string, dataUrl: string): Promise<void> {
+    if (this.scene.textures.exists(textureKey)) {
+      return;
+    }
+
+    const image = await loadHtmlImage(dataUrl);
+
+    if (!this.scene.textures.exists(textureKey)) {
+      this.scene.textures.addImage(textureKey, image);
+    }
+  }
+}
+
+function collectEmbeddedEditorTextures(definition: MapDefinition): EmbeddedEditorTexture[] {
+  const textures = new Map<string, EmbeddedEditorTexture>();
+  const addTexture = (textureKey: string, dataUrl: string | undefined): void => {
+    if (!dataUrl || textures.has(textureKey)) {
+      return;
+    }
+
+    textures.set(textureKey, { dataUrl, textureKey });
+  };
+
+  const terrainPaints = [
+    ...Object.values(parseEditorTerrainTiles(definition.metadata?.editorTerrainTiles)),
+    ...parseEditorTerrainBrushes(definition.metadata?.editorTerrainBrushes),
+  ];
+
+  for (const paint of terrainPaints) {
+    addTexture(paint.textureKey, paint.textureDataUrl);
+  }
+
+  for (const objectDefinition of parseEditorObjectDefinitions(definition.metadata?.editorObjectDefinitions)) {
+    for (const part of objectDefinition.visual.parts) {
+      if (part.shape === 'sprite') {
+        addTexture(part.textureKey, part.editorTextureDataUrl);
+      }
+    }
+  }
+
+  return Array.from(textures.values());
+}
+
+function loadHtmlImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not load embedded editor texture.'));
+    image.src = dataUrl;
+  });
 }

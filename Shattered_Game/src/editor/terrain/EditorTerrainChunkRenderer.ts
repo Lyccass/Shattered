@@ -147,7 +147,11 @@ export class EditorTerrainChunkRenderer {
     const textureScale = paint.textureScale;
 
     if (textureScale !== undefined) {
-      const image = this.scene.add.image(center.x, center.y, paint.textureKey);
+      const image = this.scene.add.image(
+        center.x + (paint.textureOffsetX ?? 0),
+        center.y + (paint.textureOffsetY ?? 0),
+        paint.textureKey,
+      );
       image.setOrigin(0.5, 0.5);
       image.setScale(textureScale);
       image.setFlip(paint.flipX, paint.flipY);
@@ -193,6 +197,8 @@ export function toPaint(brush: {
   family: TerrainFamily;
   textureKey: string;
   textureDataUrl?: string;
+  textureOffsetX?: number;
+  textureOffsetY?: number;
   textureScale?: number;
   walkable: boolean;
   flipX: boolean;
@@ -204,6 +210,8 @@ export function toPaint(brush: {
     family: brush.family,
     textureKey: brush.textureKey,
     ...(brush.textureDataUrl !== undefined ? { textureDataUrl: brush.textureDataUrl } : {}),
+    ...(brush.textureOffsetX !== undefined ? { textureOffsetX: brush.textureOffsetX } : {}),
+    ...(brush.textureOffsetY !== undefined ? { textureOffsetY: brush.textureOffsetY } : {}),
     ...(brush.textureScale !== undefined ? { textureScale: brush.textureScale } : {}),
     walkable: brush.walkable,
     flipX: brush.flipX,

@@ -13,6 +13,8 @@ type ExactTerrainPaint = {
   id: string;
   family: TerrainFamily;
   textureKey: string;
+  textureOffsetX?: number;
+  textureOffsetY?: number;
   textureScale?: number;
   flipX: boolean;
   flipY: boolean;
@@ -96,6 +98,8 @@ function createExactResolvedTerrainTile(paint: ExactTerrainPaint): ResolvedTerra
     baseTransform: {
       flipX: paint.flipX,
       flipY: paint.flipY,
+      ...(paint.textureOffsetX !== undefined ? { offsetX: paint.textureOffsetX } : {}),
+      ...(paint.textureOffsetY !== undefined ? { offsetY: paint.textureOffsetY } : {}),
       rotation: 0,
       ...(paint.textureScale !== undefined ? { scale: paint.textureScale } : {}),
     },

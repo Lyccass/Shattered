@@ -111,6 +111,10 @@ export class EditorViewportController {
       return;
     }
 
+    if (isTypingElement(document.activeElement)) {
+      return;
+    }
+
     const moveLeft = this.panKeys.a.isDown || this.panKeys.left.isDown;
     const moveRight = this.panKeys.d.isDown || this.panKeys.right.isDown;
     const moveUp = this.panKeys.w.isDown || this.panKeys.up.isDown;
@@ -128,4 +132,18 @@ export class EditorViewportController {
     camera.scrollX += (x / length) * distance;
     camera.scrollY += (y / length) * distance;
   }
+}
+
+function isTypingElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (element.isContentEditable) {
+    return true;
+  }
+
+  return element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement;
 }

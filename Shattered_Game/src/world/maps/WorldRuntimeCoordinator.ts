@@ -35,7 +35,7 @@ import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { PlayerItemKey } from '../../player/PlayerInventoryState';
-import type { SkillSnapshot } from '../../skills/SkillTypes';
+import type { LevelUpEvent, SkillSnapshot, SkillXpDelta } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
 import type { UiStateSnapshot } from '../../ui/UiTypes';
 import { UiStateAggregator } from '../../ui/UiStateAggregator';
@@ -245,6 +245,10 @@ export class WorldRuntimeCoordinator {
     }
 
     return runtime;
+  }
+
+  prepareMapAssets(mapId: string): Promise<void> {
+    return this.mapLoader.prepareMapAssets(mapId);
   }
 
   bindSceneSystems(bindings: WorldRuntimeBindings): void {
@@ -531,6 +535,17 @@ export class WorldRuntimeCoordinator {
 
   getPlayerSkillSnapshots(): SkillSnapshot[] {
     return this.playerSessionState.getSkillSnapshots();
+  }
+
+  addCombatXp(delta: SkillXpDelta): LevelUpEvent[] {
+    return this.playerSessionState.getSkillProgressionSystem().addXpDelta(delta);
+  }
+
+  drainAllInventoryItems(): Array<{ id: string; amount: number }> {
+    const inventory = this.playerSessionState.getInventoryState();
+    const items = inventory.listAllOccupied();
+    inventory.clearAll();
+    return items;
   }
 
   consumePendingUiResults(): InteractionResult[] {

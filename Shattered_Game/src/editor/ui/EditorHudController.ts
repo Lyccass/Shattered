@@ -41,6 +41,7 @@ type EditorHudCallbacks = {
   onClearGameMap: () => void;
   onCreateCustomObject: () => void;
   onCreateCustomTile: () => void;
+  onDeleteAllInstances: () => void;
   onDeleteCustomObject: () => void;
   onDeleteCustomTile: () => void;
   onExportDirtyChunks: () => void;
@@ -51,21 +52,24 @@ type EditorHudCallbacks = {
   onOpenChunkWindow: () => void;
   onOpenPalette: () => void;
   onOpenMap: () => void;
+  onRedo: () => void;
   onRenameMap: (displayName: string) => void;
   onSetWalkabilityBrush: (walkable: boolean) => void;
   onTestInGame: () => void;
   onSaveMap: () => void;
   onResizeMap: () => void;
+  onUndo: () => void;
 };
 
 const MAX_BRUSH_SIZE = 4;
 
 export class EditorHudController {
   private readonly els: {
-    mapName: HTMLElement;
+    mapName: HTMLElement | null;
     mapNameInput: HTMLInputElement;
     mapSize: HTMLElement;
     dirty: HTMLElement;
+    menuDirty: HTMLElement | null;
     modeTerrainBtn: HTMLButtonElement;
     modeObjectBtn: HTMLButtonElement;
     modeWalkabilityBtn: HTMLButtonElement;
@@ -104,10 +108,11 @@ export class EditorHudController {
     private readonly callbacks: EditorHudCallbacks,
   ) {
     this.els = {
-      mapName:        document.getElementById('ed-map-name')!,
+      mapName:        document.getElementById('ed-map-name'),
       mapNameInput:   document.getElementById('ed-map-name-input') as HTMLInputElement,
       mapSize:        document.getElementById('ed-map-size')!,
       dirty:          document.getElementById('ed-dirty')!,
+      menuDirty:      document.getElementById('ed-menu-dirty'),
       modeTerrainBtn: document.getElementById('ed-mode-terrain') as HTMLButtonElement,
       modeObjectBtn:  document.getElementById('ed-mode-object')  as HTMLButtonElement,
       modeWalkabilityBtn: document.getElementById('ed-mode-walkability') as HTMLButtonElement,
@@ -153,6 +158,8 @@ export class EditorHudController {
     this.els.elevationDec.addEventListener('click', () => this.callbacks.onAdjustElevation(-1));
     this.els.mapNameInput.addEventListener('change', () => this.callbacks.onRenameMap(this.els.mapNameInput.value));
     this.els.mapNameInput.addEventListener('blur', () => this.callbacks.onRenameMap(this.els.mapNameInput.value));
+    document.getElementById('ed-undo')?.addEventListener('click', () => this.callbacks.onUndo());
+    document.getElementById('ed-redo')?.addEventListener('click', () => this.callbacks.onRedo());
     document.getElementById('ed-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
     document.getElementById('ed-obj-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
     document.getElementById('ed-save-map')?.addEventListener('click', () => this.callbacks.onSaveMap());
@@ -168,6 +175,7 @@ export class EditorHudController {
     document.getElementById('ed-resize-map')?.addEventListener('click', () => this.callbacks.onResizeMap());
     document.getElementById('ed-create-custom-tile')?.addEventListener('click', () => this.callbacks.onCreateCustomTile());
     document.getElementById('ed-create-custom-object')?.addEventListener('click', () => this.callbacks.onCreateCustomObject());
+    document.getElementById('ed-delete-all-instances')?.addEventListener('click', () => this.callbacks.onDeleteAllInstances());
     document.getElementById('ed-delete-custom-tile')?.addEventListener('click', () => this.callbacks.onDeleteCustomTile());
     document.getElementById('ed-delete-custom-object')?.addEventListener('click', () => this.callbacks.onDeleteCustomObject());
   }
@@ -185,7 +193,7 @@ export class EditorHudController {
 
   update(state: EditorHudState): void {
     // Map info
-    this.els.mapName.textContent = state.map.displayName;
+    if (this.els.mapName) this.els.mapName.textContent = state.map.displayName;
     if (document.activeElement !== this.els.mapNameInput) {
       this.els.mapNameInput.value = state.map.displayName;
     }
@@ -193,6 +201,10 @@ export class EditorHudController {
     const dirtyText = formatDirtyChunks(state.dirtyChunks);
     this.els.dirty.textContent = dirtyText;
     this.els.dirty.classList.toggle('is-dirty', state.dirtyChunks.count > 0);
+    if (this.els.menuDirty) {
+      this.els.menuDirty.textContent = state.dirtyChunks.count > 0 ? `${state.dirtyChunks.count} dirty` : '';
+      this.els.menuDirty.classList.toggle('is-dirty', state.dirtyChunks.count > 0);
+    }
 
     // Tool mode
     const isTerrain = state.toolMode === 'terrain';

@@ -87,25 +87,26 @@ Current shortcuts:
 
 Visible sidebar actions:
 
-- `Create Custom Tile`: clone the selected tile or drop an image into the in-editor form, set its category, and set its walkability. Dropped tile images keep their source pixels and get a saved uniform display scale so they sit inside one isometric ground diamond without stretching.
+- `Create Custom Tile`: clone the selected tile or drop an image into the in-editor fitting form, set its category, image scale, image offset, and walkability. The import preview draws a real 64x32 isometric guide; dropped tile images preserve their source canvas by default and can be dragged/nudged into place. Optional cleanup/cropping can be enabled in the form.
 - `Delete Custom Tile`: remove the selected custom tile; painted instances are replaced with the default tile for that terrain family
-- `Create Custom Object`: clone the selected object or drop an image into the in-editor form, set its category, footprint size, and whether it blocks movement. Dropped object images are cleaned, cropped to visible pixels, centered on the footprint ground plane, and uniformly fitted to the chosen 1x1, 1x2, 2x2, or larger footprint without stretching.
+- `Create Custom Object`: clone the selected object or drop an image into the in-editor fitting form, set its category, footprint size up to 16x16 tiles, image scale/offset, and whether it blocks movement. Dropped object images preserve their source canvas by default and are centered on the footprint ground plane; optional cleanup/cropping can be enabled in the form.
 - `Delete Custom Object`: remove the selected custom object and its placed instances
 
 Top-right map/chunk actions:
 
-- `Save Map`: save the current map into the in-editor map library with a preview
-- `Open Map`: open the in-editor map library and load a saved map from preview cards
-- `Load Window`: load a selected chunk and configurable surrounding chunks from a saved map
-- `Test Game`: publish the current editor map and open the game with `?editorMap=1`
-- `Save Chunks`: save dirty chunks into the in-editor chunk library with a preview
-- `Apply Chunks`: open the saved chunk preview library and apply a bundle to the current map/window
+- `Save Map`: save the current map into the project map library with a preview
+- `Open Map`: open the project map library and load a saved map from preview cards
+- `Open Window`: load a selected chunk and configurable surrounding chunks from a saved map
 - `Extend Map`: resize/extend the current loaded map or chunk window in whole chunks
-- `Clear Test`: remove the published editor test map
+- `Save Changed Chunks`: save dirty chunks into the project chunk bundle library with a preview
+- `Apply Chunk Bundle`: open the saved chunk bundle preview library and apply a bundle to the current map/window
+- `Test Game`: publish the current editor map and open the game with `?editorMap=1`
 
-The normal save/load path is native to the editor UI. It uses local browser
-storage for the current workstation and shows visual previews instead of asking
-for OS file picker locations or pasted JSON blobs.
+The normal save/load path is native to the editor UI. During development the
+library is backed by project JSON files under `data/editor-library/maps` and
+`data/editor-library/chunks`, with browser storage used as a fast cache. The UI
+shows visual previews instead of asking for OS file picker locations or pasted
+JSON blobs.
 
 When a chunk window is loaded from a larger saved map, resize/extend operations
 are guarded against overwriting known chunks that were not loaded. Load a larger
@@ -175,8 +176,9 @@ cannot break the default game boot.
 
 The game supports custom definitions cloned from already-loaded textures and
 custom images embedded by the editor. Imported tile and object images keep
-their aspect ratio and source pixels; the editor stores the uniform display
-scale and ground-plane anchor data so the game renders the same result.
+their aspect ratio and source canvas by default; the editor stores the manual
+display scale, image offset, and ground-plane anchor data so the game renders
+the same result.
 
 ## Target Content Pipeline
 

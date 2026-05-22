@@ -15,6 +15,8 @@ export type EditorTerrainTilePaint = {
   family: TerrainFamily;
   textureKey: string;
   textureDataUrl?: string;
+  textureOffsetX?: number;
+  textureOffsetY?: number;
   textureScale?: number;
   walkable: boolean;
   flipX: boolean;
@@ -515,6 +517,12 @@ export function parseEditorTerrainTiles(value: unknown): Record<string, EditorTe
       family: paint.family as TerrainFamily,
       textureKey: paint.textureKey,
       ...(typeof paint.textureDataUrl === 'string' ? { textureDataUrl: paint.textureDataUrl } : {}),
+      ...(typeof paint.textureOffsetX === 'number' && Number.isFinite(paint.textureOffsetX)
+        ? { textureOffsetX: paint.textureOffsetX }
+        : {}),
+      ...(typeof paint.textureOffsetY === 'number' && Number.isFinite(paint.textureOffsetY)
+        ? { textureOffsetY: paint.textureOffsetY }
+        : {}),
       ...(typeof paint.textureScale === 'number' && Number.isFinite(paint.textureScale) && paint.textureScale > 0
         ? { textureScale: paint.textureScale }
         : {}),
@@ -553,6 +561,12 @@ export function parseEditorTerrainBrushes(value: unknown): EditorTerrainTilePain
       family: brush.family as TerrainFamily,
       textureKey: brush.textureKey,
       ...(typeof brush.textureDataUrl === 'string' ? { textureDataUrl: brush.textureDataUrl } : {}),
+      ...(typeof brush.textureOffsetX === 'number' && Number.isFinite(brush.textureOffsetX)
+        ? { textureOffsetX: brush.textureOffsetX }
+        : {}),
+      ...(typeof brush.textureOffsetY === 'number' && Number.isFinite(brush.textureOffsetY)
+        ? { textureOffsetY: brush.textureOffsetY }
+        : {}),
       ...(typeof brush.textureScale === 'number' && Number.isFinite(brush.textureScale) && brush.textureScale > 0
         ? { textureScale: brush.textureScale }
         : {}),

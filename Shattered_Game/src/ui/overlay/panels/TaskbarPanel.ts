@@ -58,7 +58,6 @@ export class TaskbarPanel {
     this.root = document.createElement('div');
     this.root.id = 'ui-sidebar';
 
-    // Panel content area (above taskbar)
     this.panelArea = document.createElement('div');
     this.panelArea.className = 'ui-panel-area ui-hidden';
 
@@ -78,13 +77,18 @@ export class TaskbarPanel {
     this.sprintBtn.addEventListener('click', () => { this.onSprintToggle(); });
     taskbar.appendChild(this.sprintBtn);
 
-    // Main tab buttons
+    // Divider: combat controls / panel tabs
+    taskbar.appendChild(this.createDivider());
+
+    // Main tab buttons — insert dividers to isolate the skills tab
     TABS_TOP.forEach(({ id, label, iconUrl }) => {
+      if (id === 'skills') taskbar.appendChild(this.createDivider());
       const btn = this.createIconBtn(label, iconUrl);
       btn.dataset.tab = id;
       btn.addEventListener('click', () => this.handleTabClick(id));
       this.tabButtons.set(id, btn);
       taskbar.appendChild(btn);
+      if (id === 'skills') taskbar.appendChild(this.createDivider());
     });
 
     // Spacer pushes Settings to the bottom
@@ -119,6 +123,12 @@ export class TaskbarPanel {
     this.settingsContent  = new SettingsTabContent();
   }
 
+  private createDivider(): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'taskbar-divider';
+    return el;
+  }
+
   private createIconBtn(label: string, iconUrl: string): HTMLElement {
     const btn = document.createElement('button');
     btn.className = 'taskbar-btn';
@@ -134,7 +144,6 @@ export class TaskbarPanel {
 
   private handleTabClick(tabId: TabId): void {
     if (this.activeTab === tabId) {
-      // Same tab: toggle off (close panel)
       this.activeTab = null;
       this.panelArea.classList.add('ui-hidden');
       this.panelArea.innerHTML = '';
@@ -142,7 +151,6 @@ export class TaskbarPanel {
       return;
     }
 
-    // Deactivate previous
     if (this.activeTab) {
       this.tabButtons.get(this.activeTab)?.classList.remove('is-active');
     }
@@ -150,7 +158,6 @@ export class TaskbarPanel {
     this.activeTab = tabId;
     this.tabButtons.get(tabId)?.classList.add('is-active');
 
-    // Swap content
     this.panelArea.innerHTML = '';
     this.panelArea.classList.remove('ui-hidden');
 

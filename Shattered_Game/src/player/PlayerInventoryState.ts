@@ -205,6 +205,25 @@ export class PlayerInventoryState {
     this.items[id] = (this.items[id] ?? 0) - amount;
     return true;
   }
+
+  listAllOccupied(): Array<{ id: string; amount: number }> {
+    const result: Array<{ id: string; amount: number }> = [];
+
+    for (const [id, amount] of Object.entries(this.resources)) {
+      if (amount > 0) result.push({ id, amount });
+    }
+
+    for (const [id, amount] of Object.entries(this.items)) {
+      if (amount > 0) result.push({ id, amount });
+    }
+
+    return result;
+  }
+
+  clearAll(): void {
+    for (const key of Object.keys(this.resources)) this.resources[key] = 0;
+    for (const key of Object.keys(this.items)) this.items[key] = 0;
+  }
 }
 
 function buildTypedSnapshot<K extends string>(
