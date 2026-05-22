@@ -5,6 +5,7 @@ const LOW_HP_THRESHOLD = 0.25;
 export class EnemyPanel {
   private readonly root: HTMLElement;
   private readonly nameEl: HTMLElement;
+  private readonly tierEl: HTMLElement;
   private readonly hpFill: HTMLElement;
   private readonly hpText: HTMLElement;
 
@@ -16,6 +17,7 @@ export class EnemyPanel {
     this.root.innerHTML = `
       <div class="enemy-name-row">
         <span class="enemy-name"></span>
+        <span class="enemy-tier"></span>
       </div>
       <div class="enemy-hp-wrap">
         <div class="enemy-hp-track">
@@ -26,6 +28,7 @@ export class EnemyPanel {
     `;
 
     this.nameEl = this.root.querySelector('.enemy-name')!;
+    this.tierEl = this.root.querySelector('.enemy-tier')!;
     this.hpFill = this.root.querySelector('.enemy-hp-fill')!;
     this.hpText = this.root.querySelector('.enemy-hp-text')!;
 
@@ -42,6 +45,7 @@ export class EnemyPanel {
 
     this.root.classList.remove('ui-hidden');
     this.nameEl.textContent = enemy.name;
+    this.tierEl.textContent = `Rank ${enemy.tier}`;
 
     const ratio = enemy.maxHealth > 0
       ? Math.max(0, Math.min(1, enemy.health / enemy.maxHealth))

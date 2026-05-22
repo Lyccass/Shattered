@@ -141,13 +141,24 @@
   background: linear-gradient(90deg, transparent, var(--c-secondary), transparent);
 }
 
-.enemy-name-row { padding: var(--sp-1) var(--sp-3); text-align: center; }
+.enemy-name-row {
+  padding: var(--sp-1) var(--sp-3);
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
 .enemy-name {
   font-size: var(--fs-lg);
   color: var(--c-primary);
   letter-spacing: 0.05em;
   text-shadow: 0 0 12px rgba(255,140,60,0.35);
-  display: block;
+}
+.enemy-tier {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  letter-spacing: 0.06em;
+  opacity: 0.75;
 }
 
 .enemy-hp-wrap { padding: 0 var(--sp-3) var(--sp-2); }

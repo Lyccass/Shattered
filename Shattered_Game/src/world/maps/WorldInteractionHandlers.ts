@@ -18,6 +18,8 @@ import type { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import type { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import type { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import type { PlayerSessionState } from '../../player/PlayerSessionState';
+import type { NpcRegistry } from '../../npcs/NpcRegistry';
+import type { NpcSystem } from '../../npcs/NpcSystem';
 import { getMapDisplayName } from './MapDefinitions';
 
 export class WorldInteractionHandlers {
@@ -29,6 +31,8 @@ export class WorldInteractionHandlers {
     private readonly contractBoardSystem: ContractBoardSystem,
     private readonly placedStructureSystem: PlacedStructureSystem,
     private readonly getPlacementSystem: () => ObjectPlacementSystem | undefined,
+    private readonly npcRegistry?: NpcRegistry,
+    private readonly getNpcSystem?: () => NpcSystem | null,
   ) {}
 
   build(): InteractionHandlers {
@@ -147,6 +151,21 @@ export class WorldInteractionHandlers {
   }
 
   private handleNpc(target: NpcInteractionTarget): InteractionResult {
+    const npcDefId = target.anchor.npcDefinitionId;
+    const nowMs = this.scene.time.now;
+
+    if (npcDefId && this.npcRegistry?.has(npcDefId)) {
+      const def = this.npcRegistry.get(npcDefId);
+      const dialogueLine = def.dialogue[0]?.text ?? target.anchor.text;
+      this.getNpcSystem?.()?.showBubble(target.definition.id, '...', nowMs);
+      return {
+        ok: true,
+        interactionType: 'npc',
+        targetId: target.definition.id,
+        message: dialogueLine,
+      };
+    }
+
     return {
       ok: true,
       interactionType: 'npc',

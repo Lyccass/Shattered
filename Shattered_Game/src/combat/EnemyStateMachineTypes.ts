@@ -41,6 +41,7 @@ export type EnemyUpdateContext = {
   getTileCenterWorld: (tileX: number, tileY: number) => { x: number; y: number };
   getTileDiamondPoints: (tileX: number, tileY: number) => Array<{ x: number; y: number }>;
   isTileWalkable: (tileX: number, tileY: number) => boolean;
+  playerEngagedWithEnemyId: string | null; // id of the enemy currently in combat with player; null if no combat
 };
 
 export type EnemyAdvanceResult<TState> = {

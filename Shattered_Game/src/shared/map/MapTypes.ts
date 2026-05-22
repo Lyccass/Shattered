@@ -64,6 +64,8 @@ export type MapNpcAnchor = BaseMapInteractionAnchor & {
   interactionType: 'npc';
   promptLabel?: string;
   text: string;
+  npcDefinitionId?: string;
+  patrolTiles?: Array<{ x: number; y: number }>;
 };
 
 export type MapWorkbenchAnchor = BaseMapInteractionAnchor & {

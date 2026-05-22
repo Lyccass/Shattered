@@ -61,6 +61,9 @@ import {
   WorldMapRuntimeConfigurator,
 } from './WorldMapRuntimeConfigurator';
 import { WorldInteractionTargetCoordinator } from './WorldInteractionTargetCoordinator';
+import { NpcRegistry } from '../../npcs/NpcRegistry';
+import { NpcSystem } from '../../npcs/NpcSystem';
+import { NpcVisualController } from '../../npcs/NpcVisualController';
 
 export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
@@ -98,6 +101,10 @@ export class WorldRuntimeCoordinator {
   private readonly mapRuntimeConfigurator: WorldMapRuntimeConfigurator;
   private readonly interactionTargetCoordinator: WorldInteractionTargetCoordinator;
 
+  private readonly npcRegistry = new NpcRegistry();
+  private npcSystem: NpcSystem | null = null;
+  private npcVisualController: NpcVisualController | null = null;
+
   private bindings?: WorldRuntimeBindings;
   private currentRuntime?: LoadedMapRuntime;
   private readonly pendingUiResults: InteractionResult[] = [];
@@ -128,6 +135,8 @@ export class WorldRuntimeCoordinator {
       this.contractBoardSystem,
       this.placedStructureSystem,
       () => this.objectManager.getPlacementSystem(),
+      this.npcRegistry,
+      () => this.npcSystem,
     );
     this.interactionSystem = new InteractionSystem({
       ...this.interactionHandlers.build(),
@@ -238,6 +247,28 @@ export class WorldRuntimeCoordinator {
     );
     this.currentRuntime = runtime;
 
+    this.npcSystem?.destroy();
+    this.npcVisualController?.destroy();
+    this.npcSystem = new NpcSystem();
+    this.npcVisualController = new NpcVisualController(this.scene);
+
+    const nowMs = this.scene.time.now;
+    const npcAnchors = runtime.interactionAnchors.filter((a) => a.interactionType === 'npc');
+    for (const anchor of npcAnchors) {
+      const npcAnchor = anchor as import('../../shared/map/MapTypes').MapNpcAnchor;
+      if (!npcAnchor.npcDefinitionId || !this.npcRegistry.has(npcAnchor.npcDefinitionId)) continue;
+      const def = this.npcRegistry.get(npcAnchor.npcDefinitionId);
+      this.npcSystem.spawn(
+        npcAnchor.id,
+        def,
+        npcAnchor.tileX,
+        npcAnchor.tileY,
+        npcAnchor.patrolTiles ?? [],
+        runtime.isoTilemap,
+        nowMs,
+      );
+    }
+
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
 
     if (this.bindings) {
@@ -281,6 +312,17 @@ export class WorldRuntimeCoordinator {
 
     if (resourceStateChanged || placedStateChanged) {
       this.rebuildInteractionTargets();
+    }
+
+    if (this.npcSystem && this.npcVisualController && this.currentRuntime) {
+      this.npcSystem.update(nowMs, deltaMs, this.currentRuntime.isoTilemap);
+      const displayNames = new Map(
+        this.npcSystem.getStates().map((s) => {
+          const def = this.npcSystem!.getDefinition(s.definitionId);
+          return [s.definitionId, def?.displayName ?? s.definitionId];
+        }),
+      );
+      this.npcVisualController.syncAll(this.npcSystem.getStates(), displayNames);
     }
 
     const feetTile = this.bindings.playerController.getFeetTile();
@@ -725,6 +767,10 @@ export class WorldRuntimeCoordinator {
     this.pendingUiResults.length = 0;
     this.placementModeSystem.destroy();
     this.mapRuntimeConfigurator.destroy();
+    this.npcSystem?.destroy();
+    this.npcVisualController?.destroy();
+    this.npcSystem = null;
+    this.npcVisualController = null;
     this.currentRuntime = undefined;
     this.bindings = undefined;
     this.worldSessionState.clearAll();

@@ -18,6 +18,8 @@ export function applyEnemyDamage(
   };
 
   if (nextState.health > 0) {
+    nextState.leashAnchorWorldX = state.worldX;
+    nextState.leashAnchorWorldY = state.worldY;
     return { state: nextState, hit: true, killed: false, currentHp: nextState.health };
   }
 
@@ -64,5 +66,12 @@ export function resetEnemyRuntimeState(
     phaseEndsAtMs: null,
     telegraphId: null,
     attackResolved: false,
+    reactiveAggro: false,
+    leashAnchorWorldX: state.originWorldX,
+    leashAnchorWorldY: state.originWorldY,
+    wanderTargetWorldX: null,
+    wanderTargetWorldY: null,
+    nextWanderMs: 0,
+    nextRegenMs: 0,
   };
 }

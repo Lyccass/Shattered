@@ -44,14 +44,20 @@ export type EnemyLootEntry = {
   chance: number; // 0–1
 };
 
+export type EnemyBehavior = 'aggressive' | 'passive';
+
 export type EnemyDefinition = {
   id: string;
   displayName: string;
+  tier: number; // 1–10 matching skill rank scale
   maxHealth: number;
   moveSpeed: number;
   collisionRadiusTiles: number;
   aggroRangeTiles: number;
   leashRangeTiles: number;
+  deAggroRangeTiles?: number; // max chase distance from player; defaults to 15 tiles
+  outOfCombatRegenIntervalMs?: number; // ms between +1 HP ticks when idle; defaults to 15000
+  behavior?: EnemyBehavior; // default 'aggressive' when omitted
   attacks: EnemyAttackDefinition[];
   lootTable?: EnemyLootEntry[];
 };
@@ -94,10 +100,18 @@ export type EnemyRuntimeState = {
   jumpOriginWorldY: number | null;
   jumpLandingWorldX: number | null;
   jumpLandingWorldY: number | null;
+  reactiveAggro: boolean; // passive enemies set this when hit; cleared on reset
+  leashAnchorWorldX: number; // updated on hit; leash check uses this instead of origin
+  leashAnchorWorldY: number;
+  wanderTargetWorldX: number | null;
+  wanderTargetWorldY: number | null;
+  nextWanderMs: number;
+  nextRegenMs: number;
 };
 
 export type EnemyUiSnapshot = {
   name: string;
+  tier: number;
   state: EnemyStateId;
   health: number;
   maxHealth: number;

@@ -40,7 +40,9 @@ export class CombatSandboxSystem {
   private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
 
   private readonly playerCombatState = new PlayerCombatState();
-  private readonly enemySystem: EnemySystem;
+  private readonly scene: Phaser.Scene;
+  private readonly telegraphSystem: TelegraphSystem;
+  private enemySystems: EnemySystem[] = [];
   private readonly debugHitboxRenderer: CombatDebugHitboxRenderer;
   private readonly playerAttackFeedbackRenderer: PlayerAttackFeedbackRenderer;
   private currentTilemap: IsoTilemap | null = null;
@@ -65,7 +67,8 @@ export class CombatSandboxSystem {
     onPlayerDied?: (worldX: number, worldY: number) => void,
     onCombatXp?: (delta: SkillXpDelta) => LevelUpEvent[],
   ) {
-    this.enemySystem = new EnemySystem(scene, telegraphSystem);
+    this.scene = scene;
+    this.telegraphSystem = telegraphSystem;
     this.debugHitboxRenderer = new CombatDebugHitboxRenderer(scene);
     this.playerAttackFeedbackRenderer = new PlayerAttackFeedbackRenderer(scene, telegraphSystem);
     this.onEnemyKilled = onEnemyKilled;
@@ -75,8 +78,19 @@ export class CombatSandboxSystem {
 
   setMapContext(mapId: string, tilemap: IsoTilemap): void {
     this.currentTilemap = tilemap;
-    const spawn = COMBAT_SANDBOX_SPAWNS.find((candidate) => candidate.mapId === mapId) ?? null;
-    this.enemySystem.setMapContext(mapId, tilemap, spawn);
+
+    for (const es of this.enemySystems) {
+      es.destroy();
+    }
+    this.enemySystems = [];
+
+    const spawns = COMBAT_SANDBOX_SPAWNS.filter((s) => s.mapId === mapId);
+    for (const spawn of spawns) {
+      const es = new EnemySystem(this.scene, this.telegraphSystem);
+      es.setMapContext(mapId, tilemap, spawn);
+      this.enemySystems.push(es);
+    }
+
     this.playerCombatState.leaveCombat();
     this.playerCombatState.setGuardHeld(false);
     this.lastPlayerAttackPhase = 'idle';
@@ -104,7 +118,7 @@ export class CombatSandboxSystem {
 
     const feetPoint = playerController.getFeetPoint();
     const playerOccupiedTiles = playerController.getFootprintTiles();
-    const combatActive = this.enemySystem.isCombatActive(feetPoint.x, feetPoint.y);
+    const combatActive = this.enemySystems.some((es) => es.isCombatActive(feetPoint.x, feetPoint.y));
 
     if (combatActive) {
       this.playerCombatState.enterCombat();
@@ -119,16 +133,23 @@ export class CombatSandboxSystem {
         : 1,
     );
 
-    const events = inHitStop
-      ? []
-      : this.enemySystem.update(
+    const engagedEnemyId = this.getEngagedEnemyId();
+
+    const events: EnemyUpdateEvent[] = [];
+    if (!inHitStop) {
+      for (const es of this.enemySystems) {
+        const esEvents = es.update(
           nowMs,
           deltaMs,
           feetPoint.x,
           feetPoint.y,
           this.playerCombatState.isInvulnerable(nowMs),
           playerOccupiedTiles,
+          engagedEnemyId,
         );
+        events.push(...esEvents);
+      }
+    }
     this.resolvePlayerEnemyOverlap(playerController);
     this.syncDebugHitboxes(nowMs, playerController);
 
@@ -138,7 +159,9 @@ export class CombatSandboxSystem {
     this.resolvePlayerLightAttackHit(nowMs, results);
 
     if (this.playerCombatState.consumeRecoveredFromDowned()) {
-      this.enemySystem.forceReset();
+      for (const es of this.enemySystems) {
+        es.forceReset();
+      }
       const feet = playerController.getFeetPoint();
       this.onPlayerDied?.(feet.x, feet.y);
     }
@@ -160,8 +183,8 @@ export class CombatSandboxSystem {
       return null;
     }
 
-    const enemyPosition = this.enemySystem.getWorldPosition();
     const playerFeet = playerController.getFeetPoint();
+    const enemyPosition = this.getClosestEnemyPosition(playerFeet.x, playerFeet.y);
     // Use raw mouse direction when available — gives smooth free-angle dodge toward pointer.
     // Fall back to 8-directional resolution from movement/facing when no pointer.
     const pointerDelta =
@@ -290,13 +313,22 @@ export class CombatSandboxSystem {
     }
 
     const playerSnapshot = this.playerCombatState.getSnapshot(nowMs);
+    let enemySnapshot = null;
+
+    if (playerSnapshot.combatModeActive) {
+      for (const es of this.enemySystems) {
+        const snap = es.getUiSnapshot();
+        if (snap && snap.state !== 'idle' && snap.state !== 'dead' && snap.state !== 'reset') {
+          enemySnapshot = snap;
+          break;
+        }
+      }
+    }
 
     return {
       active: playerSnapshot.combatModeActive,
       player: playerSnapshot,
-      enemy: playerSnapshot.combatModeActive
-        ? this.enemySystem.getUiSnapshot()
-        : null,
+      enemy: enemySnapshot,
     };
   }
 
@@ -315,7 +347,7 @@ export class CombatSandboxSystem {
   }
 
   canPlayerOccupy(feetWorldX: number, feetWorldY: number): boolean {
-    return !this.enemySystem.blocksFeetAt(feetWorldX, feetWorldY);
+    return !this.enemySystems.some((es) => es.blocksFeetAt(feetWorldX, feetWorldY));
   }
 
   preSyncAttackVisuals(nowMs: number, playerController: PlayerController): void {
@@ -334,7 +366,10 @@ export class CombatSandboxSystem {
   destroy(): void {
     this.playerAttackFeedbackRenderer.clear();
     this.debugHitboxRenderer.destroy();
-    this.enemySystem.destroy();
+    for (const es of this.enemySystems) {
+      es.destroy();
+    }
+    this.enemySystems = [];
   }
 
 
@@ -348,8 +383,8 @@ export class CombatSandboxSystem {
     events: EnemyUpdateEvent[],
     results: UiHandledResult[],
   ): void {
-    const enemyPosition = this.enemySystem.getWorldPosition();
     const playerFeet = playerController.getFeetPoint();
+    const enemyPosition = this.getClosestEnemyPosition(playerFeet.x, playerFeet.y);
     const canBlockFromFront = enemyPosition
       ? isAttackerInsideGuardFront(
           playerFeet.x,
@@ -485,13 +520,16 @@ export class CombatSandboxSystem {
       this.playerAttackTargetWorld.x,
       this.playerAttackTargetWorld.y,
     );
-    const enemyTiles = this.enemySystem.getOccupiedTiles();
 
-    if (!enemyTiles.some((et) => et.x === targetTile.x && et.y === targetTile.y)) {
+    const hitSystem = this.enemySystems.find((es) =>
+      es.getOccupiedTiles().some((et) => et.x === targetTile.x && et.y === targetTile.y),
+    );
+
+    if (!hitSystem) {
       return;
     }
 
-    const outcome = this.enemySystem.applyDamage(
+    const outcome = hitSystem.applyDamage(
       CombatSandboxSystem.PLAYER_LIGHT_ATTACK_DAMAGE,
       nowMs,
     );
@@ -508,8 +546,8 @@ export class CombatSandboxSystem {
     this.emitSfx(outcome.killed ? 'enemy_down' : 'player_attack');
 
     if (outcome.killed && this.onEnemyKilled) {
-      const pos = this.enemySystem.getWorldPosition();
-      const defId = this.enemySystem.getDefinitionId();
+      const pos = hitSystem.getWorldPosition();
+      const defId = hitSystem.getDefinitionId();
       if (pos && defId) {
         this.onEnemyKilled({ enemyDefinitionId: defId, worldX: pos.x, worldY: pos.y });
       }
@@ -586,23 +624,51 @@ export class CombatSandboxSystem {
       return;
     }
 
-    separatePlayerFromEnemyTile({
-      tilemap: this.currentTilemap,
-      playerController,
-      enemyTile: this.enemySystem.getOccupiedTile(),
-    });
+    for (const es of this.enemySystems) {
+      separatePlayerFromEnemyTile({
+        tilemap: this.currentTilemap,
+        playerController,
+        enemyTile: es.getOccupiedTile(),
+      });
+    }
   }
 
   private syncDebugHitboxes(nowMs: number, playerController: PlayerController): void {
     const snapshot = this.playerCombatState.getSnapshot(nowMs);
+    const allEnemyTiles = this.enemySystems.flatMap((es) => es.getOccupiedTiles());
     this.debugHitboxRenderer.render({
       tilemap: this.currentTilemap,
       playerTiles: playerController.getFootprintTiles(),
-      enemyTiles: this.enemySystem.getOccupiedTiles(),
+      enemyTiles: allEnemyTiles,
       dodgeDirection: playerController.getDodgeDirection(),
       dodgeTileCount: this.currentDodgeTileCount,
       playerAttackTargetWorld: this.playerAttackTargetWorld,
       playerAttackPhase: snapshot.lightAttackPhase,
     });
+  }
+
+  private getEngagedEnemyId(): string | null {
+    for (const es of this.enemySystems) {
+      if (es.isEngaged()) {
+        return es.getRuntimeId();
+      }
+    }
+    return null;
+  }
+
+  private getClosestEnemyPosition(fromX: number, fromY: number): { x: number; y: number } | null {
+    let closest: { x: number; y: number } | null = null;
+    let closestDist = Infinity;
+    for (const es of this.enemySystems) {
+      const pos = es.getWorldPosition();
+      if (pos) {
+        const d = Math.hypot(pos.x - fromX, pos.y - fromY);
+        if (d < closestDist) {
+          closestDist = d;
+          closest = pos;
+        }
+      }
+    }
+    return closest;
   }
 }

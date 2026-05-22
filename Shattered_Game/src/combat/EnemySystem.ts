@@ -65,6 +65,7 @@ export class EnemySystem {
     playerWorldY: number,
     playerInvulnerable: boolean,
     playerOccupiedTiles: Array<{ x: number; y: number }>,
+    playerEngagedWithEnemyId: string | null = null,
   ): EnemyUpdateEvent[] {
     if (!this.runtimeState || !this.definition || !this.tilemap) {
       return [];
@@ -94,10 +95,12 @@ export class EnemySystem {
       getTileCenterWorld: (tileX, tileY) => this.tilemap!.getTileCenterWorld(tileX, tileY),
       getTileDiamondPoints: (tileX, tileY) => this.tilemap!.transform.getTileDiamondPoints(tileX, tileY),
       isTileWalkable: (tileX, tileY) => this.tilemap!.isTileWalkable(tileX, tileY),
+      playerEngagedWithEnemyId,
     });
 
     const isActuallyMoving = Math.hypot(result.state.worldX - prevX, result.state.worldY - prevY) > 0.5;
     this.runtimeState = result.state;
+    this.tickEnemyRegen(nowMs);
     this.applyVisualState(result.state, nowMs, isActuallyMoving);
     this.applyTelegraphEvents(result.events, nowMs);
     return result.events;
@@ -119,6 +122,9 @@ export class EnemySystem {
 
     if (result.hit && !result.killed) {
       this.visualController.flashHit(nowMs);
+      if (this.definition.behavior === 'passive' && !this.runtimeState.reactiveAggro) {
+        this.runtimeState = { ...this.runtimeState, reactiveAggro: true };
+      }
     }
 
     if (!result.killed) {
@@ -136,6 +142,15 @@ export class EnemySystem {
     return this.runtimeState?.currentState === 'recovery';
   }
 
+  isEngaged(): boolean {
+    const s = this.runtimeState?.currentState;
+    return s !== undefined && s !== 'idle' && s !== 'dead' && s !== 'reset';
+  }
+
+  getRuntimeId(): string | null {
+    return this.runtimeState?.id ?? null;
+  }
+
   getWorldPosition(): { x: number; y: number } | null {
     if (!this.runtimeState) {
       return null;
@@ -149,9 +164,17 @@ export class EnemySystem {
       return false;
     }
 
-    const distance = Math.hypot(this.runtimeState.worldX - playerWorldX, this.runtimeState.worldY - playerWorldY);
-    return distance <= this.definition.aggroRangeTiles * (this.tilemap?.tileWidth ?? 32)
-      || this.runtimeState.currentState !== 'idle';
+    const state = this.runtimeState.currentState;
+    if (state === 'dead' || state === 'reset') {
+      return false;
+    }
+
+    if (state !== 'idle') {
+      return true;
+    }
+
+    const dist = Math.hypot(this.runtimeState.worldX - playerWorldX, this.runtimeState.worldY - playerWorldY);
+    return dist <= this.definition.aggroRangeTiles * (this.tilemap?.tileWidth ?? 32);
   }
 
   getDefinitionId(): string | null {
@@ -172,6 +195,7 @@ export class EnemySystem {
 
     return {
       name: definition.displayName,
+      tier: definition.tier,
       state: runtimeState.currentState,
       health: runtimeState.health,
       maxHealth: definition.maxHealth,
@@ -238,6 +262,22 @@ export class EnemySystem {
         this.attackTileRenderer.clear();
       }
     });
+  }
+
+  private tickEnemyRegen(nowMs: number): void {
+    if (!this.runtimeState || !this.definition) return;
+
+    const state = this.runtimeState.currentState;
+    if (state !== 'idle' && state !== 'reset') return;
+    if (this.runtimeState.health >= this.definition.maxHealth) return;
+    if (nowMs < this.runtimeState.nextRegenMs) return;
+
+    const regenAmount = Math.max(1, Math.floor(this.definition.maxHealth * 0.01));
+    this.runtimeState = {
+      ...this.runtimeState,
+      health: Math.min(this.definition.maxHealth, this.runtimeState.health + regenAmount),
+      nextRegenMs: nowMs + (this.definition.outOfCombatRegenIntervalMs ?? 15_000),
+    };
   }
 
   private clearRuntime(): void {

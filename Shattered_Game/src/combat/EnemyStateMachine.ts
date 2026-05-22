@@ -62,6 +62,13 @@ export function createEnemyRuntimeState(
     jumpOriginWorldY: null,
     jumpLandingWorldX: null,
     jumpLandingWorldY: null,
+    reactiveAggro: false,
+    leashAnchorWorldX: originWorldX,
+    leashAnchorWorldY: originWorldY,
+    wanderTargetWorldX: null,
+    wanderTargetWorldY: null,
+    nextWanderMs: 0,
+    nextRegenMs: 0,
   };
 }
 

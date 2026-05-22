@@ -144,7 +144,11 @@ export class EnemyVisualController {
       return;
     }
 
-    if (state.currentState === 'dead') {
+    if (
+      state.currentState === 'dead'
+      || state.currentState === 'idle'
+      || state.currentState === 'reset'
+    ) {
       this.healthBarGraphics.setVisible(false);
       return;
     }

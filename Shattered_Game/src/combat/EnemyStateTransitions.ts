@@ -28,18 +28,117 @@ type EnemyTransitionArgs = {
   events: EnemyUpdateEvent[];
 };
 
-export function handleEnemyIdle({ definition, state, context }: EnemyTransitionArgs): void {
-  const distanceToPlayer = distance(
-    state.worldX,
-    state.worldY,
-    context.playerWorldX,
-    context.playerWorldY,
-  );
-  const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth;
+const WANDER_SPEED_MULTIPLIER = 0.3;
+const WANDER_MIN_WAIT_MS = 3_000;
+const WANDER_MAX_WAIT_MS = 8_000;
+const WANDER_RADIUS_TILES = 3;
+const WANDER_ARRIVAL_THRESHOLD = 4;
 
-  if (distanceToPlayer <= aggroRangeWorld) {
-    state.currentState = 'aggro';
+export function handleEnemyIdle({ definition, state, context }: EnemyTransitionArgs): void {
+  const isPassive = definition.behavior === 'passive';
+
+  // 1v1 lock: if player is already engaged with a different enemy, stay idle (but still wander)
+  const lockedOut =
+    context.playerEngagedWithEnemyId !== null &&
+    context.playerEngagedWithEnemyId !== state.id;
+
+  if (!lockedOut) {
+    if (isPassive) {
+      if (state.reactiveAggro) {
+        state.wanderTargetWorldX = null;
+        state.wanderTargetWorldY = null;
+        state.currentState = 'aggro';
+        return;
+      }
+    } else {
+      const distanceToPlayer = distance(
+        state.worldX,
+        state.worldY,
+        context.playerWorldX,
+        context.playerWorldY,
+      );
+      const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth;
+
+      if (distanceToPlayer <= aggroRangeWorld) {
+        state.wanderTargetWorldX = null;
+        state.wanderTargetWorldY = null;
+        state.currentState = 'aggro';
+        return;
+      }
+    }
   }
+
+  updateIdleWander(definition, state, context);
+}
+
+function updateIdleWander(
+  definition: EnemyDefinition,
+  state: EnemyRuntimeState,
+  context: EnemyUpdateContext,
+): void {
+  if (state.wanderTargetWorldX !== null && state.wanderTargetWorldY !== null) {
+    const dist = distance(state.worldX, state.worldY, state.wanderTargetWorldX, state.wanderTargetWorldY);
+
+    if (dist <= WANDER_ARRIVAL_THRESHOLD) {
+      state.wanderTargetWorldX = null;
+      state.wanderTargetWorldY = null;
+      state.nextWanderMs =
+        context.nowMs + WANDER_MIN_WAIT_MS + Math.random() * (WANDER_MAX_WAIT_MS - WANDER_MIN_WAIT_MS);
+    } else {
+      moveToward(
+        state,
+        state.wanderTargetWorldX,
+        state.wanderTargetWorldY,
+        definition.moveSpeed * WANDER_SPEED_MULTIPLIER,
+        context.deltaMs,
+        0,
+        context,
+      );
+      state.facingRad = angleTo(
+        state.worldX,
+        state.worldY,
+        state.wanderTargetWorldX,
+        state.wanderTargetWorldY,
+      );
+    }
+    return;
+  }
+
+  if (context.nowMs < state.nextWanderMs) {
+    return;
+  }
+
+  const wanderTarget = pickWanderTarget(state, context);
+  if (wanderTarget) {
+    state.wanderTargetWorldX = wanderTarget.x;
+    state.wanderTargetWorldY = wanderTarget.y;
+  } else {
+    state.nextWanderMs = context.nowMs + WANDER_MIN_WAIT_MS;
+  }
+}
+
+function pickWanderTarget(
+  state: EnemyRuntimeState,
+  context: EnemyUpdateContext,
+): { x: number; y: number } | null {
+  const originTile = context.worldToTile(state.originWorldX, state.originWorldY);
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 1 + Math.random() * WANDER_RADIUS_TILES;
+    const tileX = Math.round(originTile.x + Math.cos(angle) * radius);
+    const tileY = Math.round(originTile.y + Math.sin(angle) * radius);
+
+    if (
+      tileX >= 0 && tileY >= 0
+      && tileX < context.mapWidth && tileY < context.mapHeight
+      && context.isTileWalkable(tileX, tileY)
+    ) {
+      return context.getTileCenterWorld(tileX, tileY);
+    }
+  }
+
+  return null;
 }
 
 export function handleEnemyAggro({
@@ -74,11 +173,11 @@ export function handleEnemyApproach({
     context.playerWorldX,
     context.playerWorldY,
   );
-  const distanceToOrigin = distance(
+  const distanceToLeashAnchor = distance(
     state.worldX,
     state.worldY,
-    state.originWorldX,
-    state.originWorldY,
+    state.leashAnchorWorldX,
+    state.leashAnchorWorldY,
   );
   const minimumBodySpacingWorld = computeEnemyBlockingRadius(
     definition.collisionRadiusTiles,
@@ -87,8 +186,15 @@ export function handleEnemyApproach({
   );
   const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth;
   const leashRangeWorld = definition.leashRangeTiles * context.tileWidth;
+  const deAggroRangeWorld = (definition.deAggroRangeTiles ?? 15) * context.tileWidth;
 
-  if (distanceToOrigin > leashRangeWorld && distanceToPlayer > aggroRangeWorld) {
+  if (distanceToPlayer > deAggroRangeWorld) {
+    clearAttackState(state);
+    state.currentState = 'reset';
+    return;
+  }
+
+  if (distanceToLeashAnchor > leashRangeWorld && distanceToPlayer > aggroRangeWorld) {
     clearAttackState(state);
     state.currentState = 'reset';
     return;
@@ -296,6 +402,12 @@ export function handleEnemyReset({ definition, state, context }: EnemyTransition
   if (distance(state.worldX, state.worldY, state.originWorldX, state.originWorldY) <= 2) {
     state.worldX = state.originWorldX;
     state.worldY = state.originWorldY;
+    state.reactiveAggro = false;
+    state.leashAnchorWorldX = state.originWorldX;
+    state.leashAnchorWorldY = state.originWorldY;
+    state.wanderTargetWorldX = null;
+    state.wanderTargetWorldY = null;
+    state.nextWanderMs = context.nowMs + 2_000;
     state.currentState = 'idle';
   }
 }

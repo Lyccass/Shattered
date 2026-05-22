@@ -83,6 +83,7 @@ export class PlayerCombatState {
   private lightAttack: ActiveLightAttackState | null = null;
   private recoveryOverrideMs: number | null = null;
   private pendingRecoveredFromDowned = false;
+  private nextHpRegenMs = 15_000;
 
   enterCombat(): void {
     this.combatModeActive = true;
@@ -97,6 +98,7 @@ export class PlayerCombatState {
     this.settleGuardBreak(nowMs);
     this.settleDownedRecovery(nowMs);
     this.advanceLightAttack(nowMs);
+    this.advanceHpRegen(nowMs);
 
     if (this.sprinting && isMoving && !this.isDodging(nowMs) && !this.isGuarding(nowMs) && !this.isAttacking()) {
       const drainRate = this.combatModeActive
@@ -402,6 +404,17 @@ export class PlayerCombatState {
       lightAttackPhase: this.lightAttack?.phase ?? 'idle',
       isDowned: this.isDowned(nowMs),
     };
+  }
+
+  private advanceHpRegen(nowMs: number): void {
+    if (this.currentHp >= this.maxHp || this.isDowned(nowMs)) {
+      return;
+    }
+
+    if (nowMs >= this.nextHpRegenMs) {
+      this.currentHp = Math.min(this.maxHp, this.currentHp + 1);
+      this.nextHpRegenMs = nowMs + 15_000;
+    }
   }
 
   private settleDodgeState(nowMs: number): void {

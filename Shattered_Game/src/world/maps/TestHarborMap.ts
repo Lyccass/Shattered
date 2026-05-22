@@ -143,6 +143,22 @@ export function createHarborMap(): MapDefinition {
       linkedObjectId: 'harbor_herb_node_01',
       resourceNodeType: 'herb_patch',
     },
+    {
+      id: 'harbor_trader_maren',
+      interactionType: 'npc',
+      tileX: 16,
+      tileY: 11,
+      interactionRangeTiles: 2,
+      text: 'Welcome. I deal in supplies and curiosities.',
+      promptLabel: 'Talk',
+      npcDefinitionId: 'trader_maren',
+      patrolTiles: [
+        { x: 16, y: 11 },
+        { x: 20, y: 11 },
+        { x: 20, y: 13 },
+        { x: 16, y: 13 },
+      ],
+    },
   ];
 
   return {
