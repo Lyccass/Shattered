@@ -66,6 +66,7 @@ export class EnemySystem {
     playerInvulnerable: boolean,
     playerOccupiedTiles: Array<{ x: number; y: number }>,
     playerEngagedWithEnemyId: string | null = null,
+    playerTier = 1,
   ): EnemyUpdateEvent[] {
     if (!this.runtimeState || !this.definition || !this.tilemap) {
       return [];
@@ -96,6 +97,7 @@ export class EnemySystem {
       getTileDiamondPoints: (tileX, tileY) => this.tilemap!.transform.getTileDiamondPoints(tileX, tileY),
       isTileWalkable: (tileX, tileY) => this.tilemap!.isTileWalkable(tileX, tileY),
       playerEngagedWithEnemyId,
+      playerTier,
     });
 
     const isActuallyMoving = Math.hypot(result.state.worldX - prevX, result.state.worldY - prevY) > 0.5;

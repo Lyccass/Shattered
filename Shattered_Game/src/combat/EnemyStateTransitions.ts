@@ -42,7 +42,10 @@ export function handleEnemyIdle({ definition, state, context }: EnemyTransitionA
     context.playerEngagedWithEnemyId !== null &&
     context.playerEngagedWithEnemyId !== state.id;
 
-  if (!lockedOut) {
+  // Tier gap: enemy is beneath the player's notice
+  const tooWeak = definition.tier <= context.playerTier - 2;
+
+  if (!lockedOut && !tooWeak) {
     if (isPassive) {
       if (state.reactiveAggro) {
         state.wanderTargetWorldX = null;

@@ -139,6 +139,11 @@ export class GameScene extends Phaser.Scene {
       const derived = this.worldRuntimeCoordinator.getDerivedStats();
       this.combatSandboxSystem.syncMaxHp(derived.maxHp);
       this.combatSandboxSystem.syncAttackReach(derived.reachTiles);
+      const skillSnapshots = this.worldRuntimeCoordinator.getPlayerSkillSnapshots();
+      const maxCombatRank = Math.max(1, ...skillSnapshots
+        .filter((s) => s.id === 'melee' || s.id === 'defence')
+        .map((s) => s.rank));
+      this.combatSandboxSystem.syncPlayerTier(maxCombatRank);
     }
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     this.interactionController?.resolvePendingPointerInteraction();

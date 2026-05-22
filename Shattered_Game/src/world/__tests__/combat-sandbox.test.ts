@@ -470,6 +470,7 @@ describe('EnemyStateMachine', () => {
         y: Math.round(playerWorldY / 16),
       }],
       playerEngagedWithEnemyId: null,
+      playerTier: 1,
       ...tileContext,
     };
   }

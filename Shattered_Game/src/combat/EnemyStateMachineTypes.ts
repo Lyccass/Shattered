@@ -42,6 +42,7 @@ export type EnemyUpdateContext = {
   getTileDiamondPoints: (tileX: number, tileY: number) => Array<{ x: number; y: number }>;
   isTileWalkable: (tileX: number, tileY: number) => boolean;
   playerEngagedWithEnemyId: string | null; // id of the enemy currently in combat with player; null if no combat
+  playerTier: number; // current player combat tier (1–10); enemies ≤ playerTier-2 will never aggro
 };
 
 export type EnemyAdvanceResult<TState> = {

@@ -52,6 +52,7 @@ export class CombatSandboxSystem {
   private static readonly HIT_STOP_MS = 70;
   private currentLightAttackReachTiles = 1;
 
+  private currentPlayerTier = 1;
   private currentDodgeTileCount = 2;
   private hitStopUntilMs = 0;
   private pendingScreenShake = false;
@@ -146,6 +147,7 @@ export class CombatSandboxSystem {
           this.playerCombatState.isInvulnerable(nowMs),
           playerOccupiedTiles,
           engagedEnemyId,
+          this.currentPlayerTier,
         );
         events.push(...esEvents);
       }
@@ -305,6 +307,10 @@ export class CombatSandboxSystem {
 
   syncAttackReach(tiles: number): void {
     this.currentLightAttackReachTiles = Math.max(0.5, tiles);
+  }
+
+  syncPlayerTier(tier: number): void {
+    this.currentPlayerTier = tier;
   }
 
   getUiSnapshot(nowMs: number): CombatUiSnapshot | null {
