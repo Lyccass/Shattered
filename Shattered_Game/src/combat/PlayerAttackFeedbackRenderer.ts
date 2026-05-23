@@ -7,6 +7,18 @@ import {
   LIGHT_ATTACK_WINDUP_MS,
 } from './PlayerCombatState';
 
+const FEEDBACK = {
+  windupReachStrokeAlpha:    0.15,
+  windupReachFillMultiplier: 0.06,
+  windupDotFillMultiplier:   0.38,
+  activeDotFillMultiplier:   0.60,
+  slashOuterAlpha:           0.95,
+  slashInnerAlpha:           0.85,
+  slashOuterRadius:          14,
+  slashInnerRadius:          8,
+  slashFadeDurationMs:       160,
+};
+
 const PLAYER_ATTACK_WINDUP_TELEGRAPH_ID = 'player_light_attack_windup';
 const PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID = 'player_light_attack_active';
 const PLAYER_ATTACK_SLASH_TELEGRAPH_ID = 'player_light_attack_slash';
@@ -49,8 +61,8 @@ export class PlayerAttackFeedbackRenderer {
       startedAtMs: nowMs,
       warningColor: 0x38bdf8,
       fadeOutMs: LIGHT_ATTACK_WINDUP_MS,
-      strokeAlpha: 0.15,
-      fillAlphaMultiplier: 0.06,
+      strokeAlpha: FEEDBACK.windupReachStrokeAlpha,
+      fillAlphaMultiplier: FEEDBACK.windupReachFillMultiplier,
     });
 
     this.telegraphSystem.showTelegraph({
@@ -63,7 +75,7 @@ export class PlayerAttackFeedbackRenderer {
       warningColor: 0xeab308,
       fadeOutMs: LIGHT_ATTACK_WINDUP_MS,
       strokeAlpha: 0.9,
-      fillAlphaMultiplier: 0.38,
+      fillAlphaMultiplier: FEEDBACK.windupDotFillMultiplier,
     });
   }
 
@@ -94,7 +106,7 @@ export class PlayerAttackFeedbackRenderer {
       warningColor: 0xfacc15,
       fadeOutMs: LIGHT_ATTACK_ACTIVE_MS,
       strokeAlpha: 0,
-      fillAlphaMultiplier: 0.60,
+      fillAlphaMultiplier: FEEDBACK.activeDotFillMultiplier,
     });
   }
 
@@ -105,15 +117,15 @@ export class PlayerAttackFeedbackRenderer {
 
     const g = this.scene.add.graphics();
     g.setDepth(9_400);
-    g.fillStyle(0xffffff, 0.95);
-    g.fillCircle(targetWorld.x, targetWorld.y, 14);
-    g.fillStyle(0xfde68a, 0.85);
-    g.fillCircle(targetWorld.x, targetWorld.y, 8);
+    g.fillStyle(0xffffff, FEEDBACK.slashOuterAlpha);
+    g.fillCircle(targetWorld.x, targetWorld.y, FEEDBACK.slashOuterRadius);
+    g.fillStyle(0xfde68a, FEEDBACK.slashInnerAlpha);
+    g.fillCircle(targetWorld.x, targetWorld.y, FEEDBACK.slashInnerRadius);
 
     this.scene.tweens.add({
       targets: g,
       alpha: 0,
-      duration: 160,
+      duration: FEEDBACK.slashFadeDurationMs,
       ease: 'Quad.easeOut',
       onComplete: () => g.destroy(),
     });

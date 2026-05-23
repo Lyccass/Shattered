@@ -1,4 +1,5 @@
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
+import { snapshotActiveEntries, snapshotGetCount } from '../../../player/PlayerInventoryState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import { getInventoryItemMeta } from '../../inventory/InventoryItemMeta';
 import { ItemContextMenu } from '../../inventory/ItemContextMenu';
@@ -12,24 +13,6 @@ export type InventoryCallbacks = {
   onItemCombine: (sourceId: string, targetId: string) => void;
 };
 
-function getAllActiveItems(snapshot: PlayerInventorySnapshot): Map<string, number> {
-  const result = new Map<string, number>();
-  const resources = snapshot.resources as Record<string, number>;
-  const items = snapshot.items as Record<string, number>;
-  for (const [id, count] of Object.entries(resources)) {
-    if (count > 0) result.set(id, count);
-  }
-  for (const [id, count] of Object.entries(items)) {
-    if (count > 0) result.set(id, count);
-  }
-  return result;
-}
-
-function getSlotCount(snapshot: PlayerInventorySnapshot, itemId: string): number {
-  const resources = snapshot.resources as Record<string, number>;
-  const items = snapshot.items as Record<string, number>;
-  return resources[itemId] ?? items[itemId] ?? 0;
-}
 
 export class InventoryTabContent {
   readonly el: HTMLElement;
@@ -119,7 +102,7 @@ export class InventoryTabContent {
   // ─── Slot order sync ──────────────────────────────────────────────────────
 
   private syncSlotOrder(snapshot: PlayerInventorySnapshot): void {
-    const active = getAllActiveItems(snapshot);
+    const active = snapshotActiveEntries(snapshot);
 
     // Remove stale entries
     for (let i = 0; i < this.slotOrder.length; i++) {
@@ -147,7 +130,7 @@ export class InventoryTabContent {
   private renderSlots(snapshot: PlayerInventorySnapshot): void {
     this.slotEls.forEach((el, i) => {
       const itemId = this.slotOrder[i] ?? '';
-      const count = itemId ? getSlotCount(snapshot, itemId) : 0;
+      const count = itemId ? snapshotGetCount(snapshot, itemId) : 0;
       const isSelected = this.selectedSlot === i;
 
       const iconEl  = el.querySelector<HTMLElement>('.inv-slot-icon')!;

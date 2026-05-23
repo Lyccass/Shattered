@@ -329,7 +329,7 @@ Two minor items (both already fixed as part of §1):
 ### P1 — Fix These First (affect correctness or will bite soon)
 
 1. ✅ **Inline style in EnemyPanel template** (§1) — done
-2. ✅ (partial) **DOM querySelector null assertions — game panels** (§5) — `requireElement` + `requireById` helpers in `src/ui/domUtils.ts`; applied to EnemyPanel (4), MinimapPanel (5), ChatPanel (1), InventoryTabContent (4). `EditorHudController` (20+) remains.
+2. ✅ **DOM querySelector null assertions** (§5) — `requireElement` + `requireById` helpers in `src/ui/domUtils.ts`; applied to EnemyPanel (4), MinimapPanel (5), ChatPanel (1), InventoryTabContent (4), EditorHudController (26).
 3. ✅ **InteractionTarget discriminant casts** (§4a) — added 8 type predicates to `InteractionTypes.ts`; converted all switch/if blocks in 5 files to use predicates; zero `as` casts remaining
 4. ✅ **`fitPanel.style.display` used as state** (§6, §11b) — added `fitPanelVisible` local boolean; `closeFitEditor`/`openFitEditor` maintain it; state check replaced with `!fitPanelVisible`
 
@@ -345,11 +345,11 @@ Two minor items (both already fixed as part of §1):
 
 ### P3 — Architecture / Long Game
 
-12. **Combat test suite** (§10) — start with EnemyStateMachine and PlayerCombatState; most logic-dense, zero-coverage files
+12. ✅ **Combat test suite** (§10) — added `src/combat/EnemyBehavior.test.ts` (10 tests); covers idle→aggro, passive/aggressive behavior, tier suppression, 1v1 lock, leash/reset, reactiveAggro clear
 13. **Split large files** (§8) — EditorScene first (1649 lines), then WorldRuntimeCoordinator; do when the next feature touches each
-14. **Inventory snapshot type fix** (§4b) — fix the type, remove the casts
+14. ✅ **Inventory snapshot type fix** (§4b) — added `snapshotActiveEntries` + `snapshotGetCount` to `PlayerInventoryState.ts`; removed all 4 casts from `InventoryTabContent.ts`
 15. **Tooltip positioning helper** (§2) — do when adding a second tooltip type
-16. **Attack feedback constants** (§7d–e) — do during next VFX pass
+16. ✅ **Attack feedback constants** (§7d–e) — extracted `FEEDBACK` constant block in `PlayerAttackFeedbackRenderer.ts`; added `POST_HIT_RECOVERY_MS` to `CombatSandboxSystem.ts`
 
 ---
 
@@ -359,7 +359,7 @@ Two minor items (both already fixed as part of §1):
 |----------|--------|--------|
 | P1 | ✅ complete | — |
 | P2 | ✅ complete | — |
-| P3 | 5 items | ~20 h |
+| P3 | 5 items (3 ✅) | ~20 h |
 | **Total** | **15** | **~34 h** |
 
 P1 + P2 is the cleanup sprint (~14 h). The editor HTML items (§11) are new and together account for most of P2 — they're all in one file and can be done in a single session.
@@ -372,7 +372,7 @@ P1 + P2 is the cleanup sprint (~14 h). The editor HTML items (§11) are new and 
 |---|------|---------------|
 | §1 | Inline `style=` in HTML templates | Removed `style="width:100%"` from `EnemyPanel` template; added `width: 100%` to `.enemy-hp-fill` in `ui.css`. Replaced `style="color:var(--c-primary)"` in `JournalTabContent` with `.journal-stat-highlight` class. |
 | §4a | InteractionTarget discriminant casts | Added 8 type predicates (`isMapTransitionTarget` … `isGroundItemTarget`) to `InteractionTypes.ts`. Replaced all `as` casts across 5 files. Zero `as`-casts on interaction targets remaining. |
-| §5 (partial) | DOM null assertions — game panels | Created `src/ui/domUtils.ts` with `requireElement` + `requireById` helpers. Applied to `EnemyPanel` (4), `MinimapPanel` (5), `ChatPanel` (1), `InventoryTabContent` coin block (4). `EditorHudController` (20+) still pending. |
+| §5 | DOM null assertions | Created `src/ui/domUtils.ts` with `requireElement` + `requireById` helpers. Applied to `EnemyPanel` (4), `MinimapPanel` (5), `ChatPanel` (1), `InventoryTabContent` coin block (4), `EditorHudController` (26 — all `getElementById!` and `as HTMLXxx` casts in the `els` initializer replaced; two legitimately-nullable fields kept as plain `getElementById`). |
 | §6 + §11b | `style.display` sprawl + inline HTML display attrs | Added `.editor-hidden { display: none !important; }` to `editor.css`. Updated CSS defaults for 5 selectors (`ed-library`, `ed-definition`, `ed-fit-panel`, `ed-definition-resize-handle`, `ed-fit-selection`). Removed 12 `style="display:none"` HTML attrs. Replaced all `style.display` calls in 6 TS files with `classList` toggles. Also resolved `fitPanelVisible` boolean (§6 partial from P1). |
 | §11a | Inline `<style>` block in `editor.html` | Extracted 1176 lines to `public/editor.css`; replaced with `<link>` tag. `editor.html` reduced from 1681 → 504 lines. |
 | §11c | Inline `grid-template-columns` overrides | Added `.ed-definition-body--full` to `editor.css`; replaced 3 inline style attrs. |
@@ -380,5 +380,8 @@ P1 + P2 is the cleanup sprint (~14 h). The editor HTML items (§11) are new and 
 | §9 | Dead code | Deleted `getSlotData()` + `SlotData` type from `InventoryTabContent.ts`; deleted `debugLogPlacementInfo()` from `ObjectPlacementSystem.ts`. |
 | §3 | `console.log` in production | Removed unconditional `console.log(json)` from `EditorMapIoController.writeExport`; clipboard-fallback path still logs. |
 | §7a–c | Magic numbers in EnemyVisualController | Extracted `ANIM`, `SHADOW`, `BAR` constant objects at file top. All raw floats replaced. |
+| §7d–e | Magic numbers in attack feedback + combat timing | Extracted `FEEDBACK` constant block in `PlayerAttackFeedbackRenderer.ts`; added `POST_HIT_RECOVERY_MS` static constant to `CombatSandboxSystem.ts`. |
+| §4b | Inventory snapshot casts | Added `snapshotActiveEntries()` + `snapshotGetCount()` to `PlayerInventoryState.ts`; `InventoryTabContent.ts` now imports and uses them — 4 `as Record<string, number>` casts removed. |
+| §10 | Combat test suite (first file) | Added `src/combat/EnemyBehavior.test.ts` (10 tests): idle→aggro for aggressive wolf, passive wolf stays idle without reactiveAggro, passive aggros with reactiveAggro, 1v1 lock, tier suppression (tier gap ≥2 suppresses, gap of 1 does not), leash-based reset (deAggro range and strayed-beyond-leash cases), reactiveAggro clears on reset. |
 | §12 | CSS sub-section headers in `ui.css` | Added `/* ── Subsection ── */` headers to enemy nameplate, skills tab, and chat sections. The two selector fixes (`.enemy-hp-fill` width, `.journal-stat-highlight`) were applied as part of §1. |
 

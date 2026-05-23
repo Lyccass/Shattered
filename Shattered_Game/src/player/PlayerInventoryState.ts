@@ -256,3 +256,20 @@ function sanitizeCount(value: number): number {
 
   return Math.max(0, Math.floor(value));
 }
+
+export function snapshotGetCount(snapshot: PlayerInventorySnapshot, id: string): number {
+  return (snapshot.resources as Record<string, number>)[id]
+    ?? (snapshot.items as Record<string, number>)[id]
+    ?? 0;
+}
+
+export function snapshotActiveEntries(snapshot: PlayerInventorySnapshot): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const [id, count] of Object.entries(snapshot.resources as Record<string, number>)) {
+    if (count > 0) result.set(id, count);
+  }
+  for (const [id, count] of Object.entries(snapshot.items as Record<string, number>)) {
+    if (count > 0) result.set(id, count);
+  }
+  return result;
+}

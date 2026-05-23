@@ -50,6 +50,7 @@ export class CombatSandboxSystem {
   private playerAttackTargetWorld: { x: number; y: number } | null = null;
   private playerAttackHitResolved = false;
   private static readonly HIT_STOP_MS = 70;
+  private static readonly POST_HIT_RECOVERY_MS = 320;
   private currentLightAttackReachTiles = 1;
 
   private currentPlayerTier = 1;
@@ -547,7 +548,7 @@ export class CombatSandboxSystem {
     this.playerAttackHitResolved = true;
     this.hitStopUntilMs = nowMs + CombatSandboxSystem.HIT_STOP_MS;
     this.pendingScreenShake = true;
-    this.playerCombatState.setNextRecoveryMs(320);
+    this.playerCombatState.setNextRecoveryMs(CombatSandboxSystem.POST_HIT_RECOVERY_MS);
     this.playerCombatState.refundLightAttackStamina();
     this.emitSfx(outcome.killed ? 'enemy_down' : 'player_attack');
 
