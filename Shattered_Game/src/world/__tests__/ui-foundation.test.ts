@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import '../../items/ItemDefinitions';
 import { ToastQueue } from '../../ui/ToastQueue';
 import {
   formatChoiceMenuText,
@@ -29,15 +30,22 @@ describe('UiFormatters', () => {
   it('formats the dedicated inventory panel with full pouch contents', () => {
     const text = formatInventoryPanelText(
       {
-        stacks: { wood: 3, stone: 2, herb: 1, firestarter_set: 1, wooden_marker: 0, camp_supplies: 0, warm_tea: 2 },
+        // wood/stone/herb are stackable materials; firestarter_set and warm_tea are non-stackable slots
+        stacks: { wood: 3, stone: 2, herb: 1, firestarter_set: 1, warm_tea: 2 },
       },
       { copper: 55, silver: 1, gold: 0, platinum: 0 },
     );
 
     expect(text).toContain('[Inventory]');
-    expect(text).toContain('- Wood: 3');
-    expect(text).toContain('- Firestarter Set: 1');
-    expect(text).toContain('- Warm Tea: 2');
+    // stackable materials show with ×count
+    expect(text).toContain('- Driftwood ×3');
+    expect(text).toContain('- Stone ×2');
+    expect(text).toContain('- Herb ×1');
+    // non-stackable: one line per slot
+    expect(text).toContain('- Firestarter Set');
+    expect(text).toContain('- Warm Tea');
+    // warm_tea count=2 → two separate slot lines
+    expect(text.split('- Warm Tea').length - 1).toBe(2);
     expect(text).toContain('- Copper: 55');
     expect(text).not.toContain('Harbor reputation');
   });

@@ -53,13 +53,15 @@ export class GameInteractionController {
     }
 
     const result = worldRuntimeCoordinator.triggerActiveInteraction();
+    // Always stamp the time — prevents a rapid second keydown (same frame, still
+    // mode='normal') from re-opening the choice menu before mode updates to 'menu'.
+    this.lastInteractionAt = now;
 
     if (!result) {
       return;
     }
 
     this.clearPendingPointerInteraction();
-    this.lastInteractionAt = now;
     this.deps.handleGameplayResult(result, { allowAutosave: true });
   }
 
@@ -77,12 +79,12 @@ export class GameInteractionController {
     }
 
     const result = worldRuntimeCoordinator.confirmPlacementMode();
+    this.lastInteractionAt = now;
 
     if (!result) {
       return;
     }
 
-    this.lastInteractionAt = now;
     this.deps.handleGameplayResult(result, { allowAutosave: false });
   }
 

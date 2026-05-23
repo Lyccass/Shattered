@@ -3,6 +3,8 @@ import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
 import type { ChoiceMenuStateSnapshot } from '../interactions/ChoiceMenuTypes';
 import type { ActiveInteraction } from '../interactions/InteractionTypes';
 import type { PlacementPreviewState } from '../interactions/PlacementModeSystem';
+import { getItem } from '../items/ItemRegistry';
+import type { ItemCategory } from '../items/ItemTypes';
 import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import type { PlayerInventorySnapshot } from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
@@ -72,30 +74,62 @@ export function formatHudPanelText(
   return lines.join('\n');
 }
 
+const CATEGORY_ORDER: ItemCategory[] = [
+  'equipment', 'material', 'consumable', 'tool', 'ammo', 'readable', 'misc',
+];
+
+const CATEGORY_LABELS: Record<ItemCategory, string> = {
+  equipment:  'Equipment',
+  material:   'Materials',
+  consumable: 'Consumables',
+  tool:       'Tools',
+  ammo:       'Ammo',
+  readable:   'Books',
+  misc:       'Misc',
+};
+
 export function formatInventoryPanelText(
   inventory: PlayerInventorySnapshot,
   currency: CurrencySnapshot,
 ): string {
-  const lines = [
-    '[Inventory]',
-    '',
-    'Resources',
-    `- Wood: ${inventory.stacks['wood'] ?? 0}`,
-    `- Stone: ${inventory.stacks['stone'] ?? 0}`,
-    `- Herb: ${inventory.stacks['herb'] ?? 0}`,
-    '',
-    'Items',
-    `- Firestarter Set: ${inventory.stacks['firestarter_set'] ?? 0}`,
-    `- Warm Tea: ${inventory.stacks['warm_tea'] ?? 0}`,
-    `- Wooden Marker: ${inventory.stacks['wooden_marker'] ?? 0}`,
-    `- Camp Supplies: ${inventory.stacks['camp_supplies'] ?? 0}`,
+  const lines = ['[Inventory]'];
+
+  // Group occupied items by category
+  const groups = new Map<ItemCategory, Array<{ name: string; count: number; stackable: boolean }>>();
+  for (const [id, count] of Object.entries(inventory.stacks)) {
+    if (count <= 0) continue;
+    const def = getItem(id);
+    const category = (def?.category ?? 'misc') as ItemCategory;
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category)!.push({ name: def?.name ?? id, count, stackable: def?.stackable ?? false });
+  }
+
+  let hasItems = false;
+  for (const cat of CATEGORY_ORDER) {
+    const entries = groups.get(cat);
+    if (!entries?.length) continue;
+    hasItems = true;
+    lines.push('', CATEGORY_LABELS[cat]);
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const { name, count, stackable } of entries) {
+      if (stackable) {
+        lines.push(`- ${name} ×${count}`);
+      } else {
+        for (let i = 0; i < count; i++) lines.push(`- ${name}`);
+      }
+    }
+  }
+
+  if (!hasItems) lines.push('', '(empty)');
+
+  lines.push(
     '',
     'Currency',
     `- Copper: ${currency.copper}`,
     `- Silver: ${currency.silver}`,
     `- Gold: ${currency.gold}`,
     `- Platinum: ${currency.platinum}`,
-  ];
+  );
 
   return lines.join('\n');
 }

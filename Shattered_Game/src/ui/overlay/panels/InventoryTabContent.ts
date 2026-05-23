@@ -1,6 +1,7 @@
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
 import { snapshotActiveEntries, snapshotGetCount } from '../../../player/PlayerInventoryState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
+import { getItem } from '../../../items/ItemRegistry';
 import { getInventoryItemMeta } from '../../inventory/InventoryItemMeta';
 import { ItemContextMenu } from '../../inventory/ItemContextMenu';
 import { UI_TOKENS } from '../UITokens';
@@ -104,23 +105,39 @@ export class InventoryTabContent {
   private syncSlotOrder(snapshot: PlayerInventorySnapshot): void {
     const active = snapshotActiveEntries(snapshot);
 
-    // Remove stale entries
-    for (let i = 0; i < this.slotOrder.length; i++) {
+    // For stackable items: 1 slot. For non-stackable items: 1 slot per unit.
+    const neededSlots = new Map<string, number>();
+    for (const [id, count] of active) {
+      const def = getItem(id);
+      neededSlots.set(id, (def?.stackable ?? false) ? 1 : count);
+    }
+
+    // Count current occupied slots per id
+    const currentSlots = new Map<string, number>();
+    for (const id of this.slotOrder) {
+      if (id) currentSlots.set(id, (currentSlots.get(id) ?? 0) + 1);
+    }
+
+    // Trim excess slots (iterate from end to preserve visual stability)
+    for (let i = this.slotOrder.length - 1; i >= 0; i--) {
       const id = this.slotOrder[i];
-      if (id && !active.has(id)) {
+      if (!id) continue;
+      const needed = neededSlots.get(id) ?? 0;
+      const current = currentSlots.get(id) ?? 0;
+      if (current > needed) {
         this.slotOrder[i] = '';
+        currentSlots.set(id, current - 1);
+        // If selection was pointing to a removed slot, clear it
+        if (this.selectedSlot === i) this.selectedSlot = null;
       }
     }
 
-    // Add new items to first empty slot
-    const placed = new Set(this.slotOrder.filter((id) => id !== ''));
-    for (const id of active.keys()) {
-      if (!placed.has(id)) {
+    // Fill in missing slots
+    for (const [id, needed] of neededSlots) {
+      const current = currentSlots.get(id) ?? 0;
+      for (let n = current; n < needed; n++) {
         const emptyIdx = this.slotOrder.indexOf('');
-        if (emptyIdx !== -1) {
-          this.slotOrder[emptyIdx] = id;
-          placed.add(id);
-        }
+        if (emptyIdx !== -1) this.slotOrder[emptyIdx] = id;
       }
     }
   }
@@ -130,20 +147,24 @@ export class InventoryTabContent {
   private renderSlots(snapshot: PlayerInventorySnapshot): void {
     this.slotEls.forEach((el, i) => {
       const itemId = this.slotOrder[i] ?? '';
-      const count = itemId ? snapshotGetCount(snapshot, itemId) : 0;
+      const totalCount = itemId ? snapshotGetCount(snapshot, itemId) : 0;
       const isSelected = this.selectedSlot === i;
 
       const iconEl  = el.querySelector<HTMLElement>('.inv-slot-icon')!;
       const countEl = el.querySelector<HTMLElement>('.inv-slot-count')!;
 
-      if (count > 0 && itemId) {
+      if (totalCount > 0 && itemId) {
         const meta = getInventoryItemMeta(itemId);
+        const def = getItem(itemId);
+        const stackable = def?.stackable ?? false;
+
         el.classList.add('has-item');
         el.classList.toggle('is-selected', isSelected);
         el.setAttribute('draggable', 'true');
-        iconEl.textContent  = meta.icon;
-        countEl.textContent = count > 1 ? String(count) : '';
-        el.title = meta.label + (count > 1 ? ` (${count})` : '');
+        iconEl.textContent = meta.icon;
+        // Only show count badge for stackable items
+        countEl.textContent = (stackable && totalCount > 1) ? String(totalCount) : '';
+        el.title = meta.label + (stackable && totalCount > 1 ? ` (${totalCount})` : '');
       } else {
         el.classList.remove('has-item', 'is-selected');
         el.setAttribute('draggable', 'false');
@@ -154,48 +175,48 @@ export class InventoryTabContent {
     });
   }
 
-  // ─── Left-click → context menu ───────────────────────────────────────────
+  // ─── Left-click: primary action ──────────────────────────────────────────
+  // • Another slot selected + different item → combine
+  // • Consumable / placeable → immediately use
+  // • Anything else → toggle selection (for combining)
 
   private handleLeftClick(e: MouseEvent, index: number): void {
+    e.stopPropagation();
+    this.contextMenu.hide();
+
     const itemId = this.slotOrder[index];
     if (!itemId) {
       this.clearSelection();
       return;
     }
 
-    // If another slot is already selected, clicking a different item triggers a combine attempt
+    // Combine: a different slot is already selected
     if (this.selectedSlot !== null && this.selectedSlot !== index) {
       const sourceId = this.slotOrder[this.selectedSlot];
-      if (sourceId) {
+      if (sourceId && sourceId !== itemId) {
         this.clearSelection();
         this.callbacks.onItemCombine(sourceId, itemId);
         return;
       }
+      // Same item type in a different slot — just reselect
+      this.clearSelection();
     }
 
-    e.stopPropagation();
     const meta = getInventoryItemMeta(itemId);
-    const opts = [];
 
     if (meta.useMode !== 'none') {
-      opts.push({ label: `Use ${meta.label}`, action: () => this.callbacks.onItemUse(itemId) });
-    } else {
-      // Non-useable items: "Use" selects for combining
-      const isSelected = this.selectedSlot === index;
-      opts.push({
-        label: isSelected ? `Deselect ${meta.label}` : `Use ${meta.label}`,
-        action: () => {
-          this.selectedSlot = isSelected ? null : index;
-        },
-      });
+      // Direct use for consumables / placeables
+      this.callbacks.onItemUse(itemId);
+      return;
     }
-    opts.push({ label: 'Inspect', action: () => this.callbacks.onItemInspect(itemId) });
-    opts.push({ label: 'Drop', action: () => this.callbacks.onItemDrop(itemId), danger: true });
 
-    this.contextMenu.show(e.clientX, e.clientY, opts);
+    // Toggle selection for non-useable items (materials, tools…)
+    const isSelected = this.selectedSlot === index;
+    this.selectedSlot = isSelected ? null : index;
+    this.slotEls[index]?.classList.toggle('is-selected', !isSelected);
   }
 
-  // ─── Right-click → quick use or select ───────────────────────────────────
+  // ─── Right-click: context menu ───────────────────────────────────────────
 
   private handleRightClick(e: MouseEvent, index: number): void {
     e.preventDefault();
@@ -203,15 +224,26 @@ export class InventoryTabContent {
     if (!itemId) return;
 
     const meta = getInventoryItemMeta(itemId);
+    const opts = [];
 
     if (meta.useMode !== 'none') {
-      this.clearSelection();
-      this.callbacks.onItemUse(itemId);
+      opts.push({ label: `Use ${meta.label}`, action: () => this.callbacks.onItemUse(itemId) });
     } else {
-      // Toggle selection for "use on"
-      this.selectedSlot = this.selectedSlot === index ? null : index;
-      this.slotEls[index]?.classList.toggle('is-selected', this.selectedSlot === index);
+      const isSelected = this.selectedSlot === index;
+      opts.push({
+        label: isSelected ? `Deselect ${meta.label}` : `Select ${meta.label}`,
+        action: () => {
+          const nowSelected = this.selectedSlot === index;
+          this.selectedSlot = nowSelected ? null : index;
+          this.slotEls[index]?.classList.toggle('is-selected', !nowSelected);
+          this.contextMenu.hide();
+        },
+      });
     }
+    opts.push({ label: 'Inspect', action: () => this.callbacks.onItemInspect(itemId) });
+    opts.push({ label: 'Drop', action: () => this.callbacks.onItemDrop(itemId), danger: true });
+
+    this.contextMenu.show(e.clientX, e.clientY, opts);
   }
 
   // ─── Drag & drop ─────────────────────────────────────────────────────────
@@ -258,7 +290,10 @@ export class InventoryTabContent {
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   private clearSelection(): void {
-    this.selectedSlot = null;
+    if (this.selectedSlot !== null) {
+      this.slotEls[this.selectedSlot]?.classList.remove('is-selected');
+      this.selectedSlot = null;
+    }
   }
 
 }
