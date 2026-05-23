@@ -59,11 +59,11 @@ export function formatHudPanelText(
 
   hints.push('[Shift Sprint]', '[Space Dodge]');
 
-  if (inventory.items.firestarter_set > 0) {
+  if ((inventory.stacks['firestarter_set'] ?? 0) > 0) {
     hints.push('[B Place]');
   }
 
-  if (inventory.items.warm_tea > 0) {
+  if ((inventory.stacks['warm_tea'] ?? 0) > 0) {
     hints.push('[T Drink]');
   }
 
@@ -80,15 +80,15 @@ export function formatInventoryPanelText(
     '[Inventory]',
     '',
     'Resources',
-    `- Wood: ${inventory.resources.wood}`,
-    `- Stone: ${inventory.resources.stone}`,
-    `- Herb: ${inventory.resources.herb}`,
+    `- Wood: ${inventory.stacks['wood'] ?? 0}`,
+    `- Stone: ${inventory.stacks['stone'] ?? 0}`,
+    `- Herb: ${inventory.stacks['herb'] ?? 0}`,
     '',
     'Items',
-    `- Firestarter Set: ${inventory.items.firestarter_set}`,
-    `- Warm Tea: ${inventory.items.warm_tea}`,
-    `- Wooden Marker: ${inventory.items.wooden_marker}`,
-    `- Camp Supplies: ${inventory.items.camp_supplies}`,
+    `- Firestarter Set: ${inventory.stacks['firestarter_set'] ?? 0}`,
+    `- Warm Tea: ${inventory.stacks['warm_tea'] ?? 0}`,
+    `- Wooden Marker: ${inventory.stacks['wooden_marker'] ?? 0}`,
+    `- Camp Supplies: ${inventory.stacks['camp_supplies'] ?? 0}`,
     '',
     'Currency',
     `- Copper: ${currency.copper}`,

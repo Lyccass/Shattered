@@ -1,11 +1,6 @@
 import type { SfxEventId } from '../audio/SfxTypes';
 import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import type { GridFootprint } from '../objects/ObjectTypes';
-import type {
-  PlayerInventoryDelta,
-  PlayerItemDelta,
-  PlayerItemKey,
-} from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
 import type { LevelUpEvent, SkillXpDelta } from '../skills/SkillTypes';
 import type { ToastKind } from '../ui/ToastTypes';
@@ -116,9 +111,9 @@ export type InteractionResult = {
     targetMapId: string;
     targetSpawnId: string;
   };
-  inventoryDelta?: PlayerInventoryDelta;
-  itemDelta?: PlayerItemDelta;
-  placementItemId?: PlayerItemKey;
+  inventoryDelta?: Record<string, number>;
+  itemDelta?: Record<string, number>;
+  placementItemId?: string;
   depleted?: boolean;
   createdObjectId?: string;
   currencyDelta?: Partial<CurrencySnapshot>;

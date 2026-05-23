@@ -55,23 +55,23 @@ export class InteractionPromptSystem {
     this.inventoryText.setText(
       (() => {
         const inventoryParts = [
-          `Wood ${inventory.resources.wood}`,
-          `Stone ${inventory.resources.stone}`,
-          `Herb ${inventory.resources.herb}`,
-          `Firestarter ${inventory.items.firestarter_set}`,
-          `Marker ${inventory.items.wooden_marker}`,
-          `Supplies ${inventory.items.camp_supplies}`,
-          `Tea ${inventory.items.warm_tea}`,
+          `Wood ${inventory.stacks['wood'] ?? 0}`,
+          `Stone ${inventory.stacks['stone'] ?? 0}`,
+          `Herb ${inventory.stacks['herb'] ?? 0}`,
+          `Firestarter ${inventory.stacks['firestarter_set'] ?? 0}`,
+          `Marker ${inventory.stacks['wooden_marker'] ?? 0}`,
+          `Supplies ${inventory.stacks['camp_supplies'] ?? 0}`,
+          `Tea ${inventory.stacks['warm_tea'] ?? 0}`,
         ];
         const hintParts: string[] = [];
 
         hintParts.push('[J: journal]');
 
-        if (!placementState?.active && inventory.items.firestarter_set > 0) {
+        if (!placementState?.active && (inventory.stacks['firestarter_set'] ?? 0) > 0) {
           hintParts.push('[B: place]');
         }
 
-        if (inventory.items.warm_tea > 0) {
+        if ((inventory.stacks['warm_tea'] ?? 0) > 0) {
           hintParts.push('[T: drink]');
         }
 

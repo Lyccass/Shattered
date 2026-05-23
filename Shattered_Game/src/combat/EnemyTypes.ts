@@ -37,11 +37,17 @@ export type EnemyAttackDefinition = {
   knockback?: { forceTiles: number };
 };
 
-export type EnemyLootEntry = {
+export type EnemyLootTableEntry = {
   itemId: string;
-  minCount: number;
-  maxCount: number;
-  chance: number; // 0–1
+  count?: number; // how many to give; default 1
+  weight: number; // relative probability weight within the table
+};
+
+// A loot table fires with 1/oneIn probability (oneIn:1 = always),
+// then picks exactly one entry by weighted random.
+export type EnemyLootTable = {
+  oneIn: number;
+  entries: EnemyLootTableEntry[];
 };
 
 export type EnemyBehavior = 'aggressive' | 'passive';
@@ -59,7 +65,7 @@ export type EnemyDefinition = {
   outOfCombatRegenIntervalMs?: number; // ms between +1 HP ticks when idle; defaults to 15000
   behavior?: EnemyBehavior; // default 'aggressive' when omitted
   attacks: EnemyAttackDefinition[];
-  lootTable?: EnemyLootEntry[];
+  lootTables?: EnemyLootTable[];
 };
 
 export type EnemySpawnDefinition = {

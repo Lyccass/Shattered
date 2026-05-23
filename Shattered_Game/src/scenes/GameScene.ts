@@ -19,7 +19,6 @@ import {
 } from '../player/PlayerAssets';
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
-import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { UiManager } from '../ui/UiManager';
 import { emptyUiStateSnapshot } from '../ui/UiTypes';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
@@ -389,7 +388,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const result = this.worldRuntimeCoordinator.useItem(itemId as PlayerItemKey);
+    const result = this.worldRuntimeCoordinator.useItem(itemId);
     this.handleGameplayResult(result, { allowAutosave: false });
   }
 
@@ -432,8 +431,8 @@ export class GameScene extends Phaser.Scene {
     const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
     const despawnAtMs = this.time.now + 900_000; // 15 minutes
 
-    for (const { id, amount } of this.worldRuntimeCoordinator.drainAllInventoryItems()) {
-      this.groundItemSystem.spawnDrop(deathMapId, id, amount, center.x, center.y, this.time.now, despawnAtMs);
+    for (const { id, count } of this.worldRuntimeCoordinator.drainAllInventoryItems()) {
+      this.groundItemSystem.spawnDrop(deathMapId, id, count, center.x, center.y, this.time.now, despawnAtMs);
     }
 
     this.uiManager?.showInfo('You were downed. Your items were left behind.');
@@ -444,14 +443,14 @@ export class GameScene extends Phaser.Scene {
   private handleEnemyKilled(evt: EnemyKilledEvent): void {
     if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
     const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === evt.enemyDefinitionId);
-    const lootTable = enemyDef?.lootTable;
-    if (!lootTable || lootTable.length === 0) return;
+    const lootTables = enemyDef?.lootTables;
+    if (!lootTables || lootTables.length === 0) return;
     const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
     const tile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
     const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
-    this.groundItemSystem.spawnFromLootTable(mapId, lootTable, center.x, center.y, this.time.now);
+    this.groundItemSystem.spawnFromLootTable(mapId, lootTables, center.x, center.y, this.time.now);
   }
 
   private refreshGroundItemTargets(): void {

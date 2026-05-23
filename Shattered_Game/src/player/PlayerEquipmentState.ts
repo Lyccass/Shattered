@@ -1,16 +1,16 @@
+import '../items/ItemDefinitions'; // ensure global registry is populated
 import { computeDerivedStats, type SkillLevels } from '../equipment/DerivedStatsCalculator';
-import { EQUIPMENT_DEFINITIONS } from '../equipment/EquipmentDefinitions';
 import { EquipmentRegistry } from '../equipment/EquipmentRegistry';
 import type {
-  EquipmentDefinition,
   EquipmentSlot,
   EquipmentSnapshot,
   EquippedSlotEntry,
   EquippedSlots,
   PlayerDerivedStats,
 } from '../equipment/EquipmentTypes';
+import type { ItemDefinition } from '../items/ItemTypes';
 
-export const EQUIPMENT_REGISTRY = new EquipmentRegistry(EQUIPMENT_DEFINITIONS);
+export const EQUIPMENT_REGISTRY = new EquipmentRegistry();
 
 export class PlayerEquipmentState {
   private readonly slots: EquippedSlots = {};
@@ -19,11 +19,7 @@ export class PlayerEquipmentState {
 
   equip(slot: EquipmentSlot, itemId: string): boolean {
     const def = this.registry.get(itemId);
-
-    if (!def || def.slot !== slot) {
-      return false;
-    }
-
+    if (!def || def.equipment?.slot !== slot) return false;
     this.slots[slot] = itemId;
     return true;
   }
@@ -32,7 +28,7 @@ export class PlayerEquipmentState {
     delete this.slots[slot];
   }
 
-  getEquipped(slot: EquipmentSlot): EquipmentDefinition | undefined {
+  getEquipped(slot: EquipmentSlot): ItemDefinition | undefined {
     const id = this.slots[slot];
     return id ? this.registry.get(id) : undefined;
   }
@@ -48,7 +44,7 @@ export class PlayerEquipmentState {
     for (const [slot, itemId] of Object.entries(this.slots) as [EquipmentSlot, string][]) {
       const def = this.registry.get(itemId);
       if (def) {
-        slotEntries[slot] = { itemId, displayName: def.displayName };
+        slotEntries[slot] = { itemId, displayName: def.name };
       }
     }
 

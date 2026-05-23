@@ -130,7 +130,7 @@ export class WorkbenchSystem {
 
     applyRecipeToInventory(recipe, inventory);
     playerSessionState.getSkillProgressionSystem().addXpDelta(recipe.xpRewards ?? {});
-    const craftedItemId = recipe.outputs.find((output) => output.kind === 'item')?.id;
+    const craftedItemId = recipe.outputs[0]?.id;
 
     return {
       ok: true,
@@ -138,8 +138,8 @@ export class WorkbenchSystem {
       interactionType: 'workbench',
       targetId: workbenchId,
       message: `You craft ${recipe.displayName}.`,
-      inventoryDelta: this.getInventoryDelta(recipe),
-      itemDelta: this.getItemDelta(recipe),
+      inventoryDelta: this.getInputDelta(recipe),
+      itemDelta: this.getOutputDelta(recipe),
       placementItemId: craftedItemId,
       xpDelta: recipe.xpRewards,
     };
@@ -177,30 +177,18 @@ export class WorkbenchSystem {
     return `Need ${this.getRequirementSummary(recipe)}.`;
   }
 
-  private getInventoryDelta(recipe: RecipeDefinition): Record<string, number> {
+  private getInputDelta(recipe: RecipeDefinition): Record<string, number> {
     return recipe.inputs.reduce<Record<string, number>>((delta, input) => {
-      if (input.kind === 'resource') {
-        delta[input.id] = -input.amount;
-      }
+      delta[input.id] = -(input.amount);
       return delta;
     }, {});
   }
 
-  private getItemDelta(recipe: RecipeDefinition): Record<string, number> {
-    const delta = recipe.inputs.reduce<Record<string, number>>((nextDelta, input) => {
-      if (input.kind === 'item') {
-        nextDelta[input.id] = (nextDelta[input.id] ?? 0) - input.amount;
-      }
-      return nextDelta;
+  private getOutputDelta(recipe: RecipeDefinition): Record<string, number> {
+    return recipe.outputs.reduce<Record<string, number>>((delta, output) => {
+      delta[output.id] = (delta[output.id] ?? 0) + output.amount;
+      return delta;
     }, {});
-
-    recipe.outputs.forEach((output) => {
-      if (output.kind === 'item') {
-        delta[output.id] = (delta[output.id] ?? 0) + output.amount;
-      }
-    });
-
-    return delta;
   }
 
   private getRequirementSummary(recipe: RecipeDefinition): string {

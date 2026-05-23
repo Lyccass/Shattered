@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { RENDER_DEPTHS } from '../../render/RenderLayers';
 import { getInventoryItemMeta } from '../../ui/inventory/InventoryItemMeta';
-import type { EnemyLootEntry } from '../../combat/EnemyTypes';
+import type { EnemyLootTable, EnemyLootTableEntry } from '../../combat/EnemyTypes';
 import type { GroundItemDrop } from './GroundItemTypes';
 import type { GroundItemInteractionTarget } from '../../interactions/InteractionTypes';
 
@@ -40,19 +40,18 @@ export class GroundItemSystem {
 
   spawnFromLootTable(
     mapId: string,
-    lootTable: EnemyLootEntry[],
+    lootTables: EnemyLootTable[],
     worldX: number,
     worldY: number,
     nowMs: number,
   ): void {
     const despawnAtMs = nowMs + 300_000;
-    for (const entry of lootTable) {
-      if (Math.random() > entry.chance) continue;
-      const count =
-        entry.minCount +
-        Math.floor(Math.random() * (entry.maxCount - entry.minCount + 1));
-      if (count <= 0) continue;
-      this.spawnDrop(mapId, entry.itemId, count, worldX, worldY, nowMs, despawnAtMs);
+    for (const table of lootTables) {
+      if (Math.random() >= 1 / table.oneIn) continue;
+      const entry = pickWeighted(table.entries);
+      if (!entry) continue;
+      const count = entry.count ?? 1;
+      if (count > 0) this.spawnDrop(mapId, entry.itemId, count, worldX, worldY, nowMs, despawnAtMs);
     }
   }
 
@@ -154,4 +153,15 @@ export class GroundItemSystem {
       this.visuals.delete(id);
     }
   }
+}
+
+function pickWeighted(entries: EnemyLootTableEntry[]): EnemyLootTableEntry | null {
+  if (entries.length === 0) return null;
+  const total = entries.reduce((sum, e) => sum + e.weight, 0);
+  let r = Math.random() * total;
+  for (const entry of entries) {
+    r -= entry.weight;
+    if (r <= 0) return entry;
+  }
+  return entries[entries.length - 1] ?? null;
 }

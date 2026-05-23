@@ -1,5 +1,5 @@
 import type { ConsumableEffectSystem } from '../effects/ConsumableEffectSystem';
-import type { PlayerItemKey, PlayerInventoryState } from '../player/PlayerInventoryState';
+import type { PlayerInventoryState } from '../player/PlayerInventoryState';
 import type { InteractionResult } from '../interactions/InteractionTypes';
 import { ItemRegistry } from './ItemRegistry';
 
@@ -10,32 +10,32 @@ export class ItemUseSystem {
   ) {}
 
   useItem(
-    itemId: PlayerItemKey,
+    itemId: string,
     inventory: PlayerInventoryState,
     nowMs: number,
   ): InteractionResult {
-    const itemDefinition = this.itemRegistry.get(itemId);
+    const def = this.itemRegistry.get(itemId);
 
-    if (itemDefinition.useMode !== 'consume') {
+    if (!def.consume) {
       return {
         ok: false,
         interactionType: 'item_use',
         targetId: itemId,
-        message: `${itemDefinition.displayName} cannot be used that way.`,
+        message: `${def.name} cannot be used that way.`,
       };
     }
 
-    if (!inventory.consumeItem(itemId, 1)) {
+    if (!inventory.consume(itemId, 1)) {
       return {
         ok: false,
         interactionType: 'item_use',
         targetId: itemId,
-        message: `You don't have any ${itemDefinition.displayName}.`,
+        message: `You don't have any ${def.name}.`,
       };
     }
 
-    if (itemDefinition.consumableEffectId) {
-      this.effectSystem.applyEffect(itemDefinition.consumableEffectId, nowMs);
+    if (def.consume.effectId) {
+      this.effectSystem.applyEffect(def.consume.effectId, nowMs);
     }
 
     return {
@@ -43,7 +43,7 @@ export class ItemUseSystem {
       sfxId: 'tea_consumed',
       interactionType: 'item_use',
       targetId: itemId,
-      message: itemDefinition.consumeMessage ?? `You use ${itemDefinition.displayName}.`,
+      message: def.consume.message ?? `You use ${def.name}.`,
       itemDelta: { [itemId]: -1 },
     };
   }

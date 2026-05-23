@@ -1,9 +1,4 @@
 import type { PlayerSessionState } from '../player/PlayerSessionState';
-import type {
-  PlayerItemDelta,
-  PlayerItemKey,
-  PlayerInventoryDelta,
-} from '../player/PlayerInventoryState';
 import type { ChoiceMenuOption } from '../interactions/ChoiceMenuTypes';
 import type { ChoiceMenuHandler } from '../interactions/ChoiceMenuCoordinator';
 import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
@@ -226,9 +221,9 @@ export class ContractBoardSystem {
     const inventory = playerSessionState.getInventoryState();
 
     const hasItems = Object.entries(contract.requiredItems ?? {}).every(
-      ([itemId, amount]) => inventory.hasItemAtLeast(itemId as PlayerItemKey, amount ?? 0),
+      ([itemId, amount]) => inventory.hasAtLeast(itemId, amount ?? 0),
     );
-    const hasResources = inventory.hasDelta(contract.requiredResources ?? {});
+    const hasResources = inventory.hasAll(contract.requiredResources ?? {});
 
     return hasItems && hasResources;
   }
@@ -241,18 +236,18 @@ export class ContractBoardSystem {
 
     Object.entries(contract.requiredItems ?? {}).forEach(([itemId, amount]) => {
       if ((amount ?? 0) > 0) {
-        inventory.consumeItem(itemId as PlayerItemKey, amount);
+        inventory.consume(itemId, amount);
       }
     });
 
-    inventory.consumeDelta(contract.requiredResources ?? {});
+    inventory.consumeAll(contract.requiredResources ?? {});
 
     if (contract.rewards.resourceDelta) {
-      inventory.addDelta(contract.rewards.resourceDelta);
+      inventory.addMany(contract.rewards.resourceDelta);
     }
 
     if (contract.rewards.itemDelta) {
-      inventory.addItemDelta(contract.rewards.itemDelta);
+      inventory.addMany(contract.rewards.itemDelta);
     }
 
     if (contract.rewards.copper) {
@@ -275,10 +270,10 @@ export class ContractBoardSystem {
       targetId: contract.id,
       message: this.getCompletionMessage(contract),
       inventoryDelta: contract.requiredResources
-        ? invertResourceDelta(contract.requiredResources)
+        ? invertDelta(contract.requiredResources)
         : undefined,
       itemDelta: contract.requiredItems
-        ? invertItemRequirements(contract.requiredItems)
+        ? invertDelta(contract.requiredItems)
         : undefined,
       currencyDelta: contract.rewards.copper ? { copper: contract.rewards.copper } : undefined,
       reputationDelta: contract.rewards.harborReputation
@@ -374,14 +369,8 @@ export class ContractBoardSystem {
   }
 }
 
-function invertResourceDelta(delta: PlayerInventoryDelta): PlayerInventoryDelta {
+function invertDelta(delta: Record<string, number>): Record<string, number> {
   return Object.fromEntries(
     Object.entries(delta).map(([key, value]) => [key, -(value ?? 0)]),
-  ) as PlayerInventoryDelta;
-}
-
-function invertItemRequirements(requirements: Partial<Record<PlayerItemKey, number>>): PlayerItemDelta {
-  return Object.fromEntries(
-    Object.entries(requirements).map(([key, value]) => [key, -(value ?? 0)]),
-  ) as PlayerItemDelta;
+  );
 }

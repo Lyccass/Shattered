@@ -16,9 +16,9 @@ describe('Persistence Prep v0', () => {
     const worldSessionState = new WorldSessionState();
 
     playerSessionState.getInventoryState().add('wood', 3);
-    playerSessionState.getInventoryState().addGenericResource('sea_salt', 7);
-    playerSessionState.getInventoryState().addItem('warm_tea', 2);
-    playerSessionState.getInventoryState().addGenericItem('prototype_token', 4);
+    playerSessionState.getInventoryState().add('sea_salt', 7);
+    playerSessionState.getInventoryState().add('warm_tea', 2);
+    playerSessionState.getInventoryState().add('prototype_token', 4);
     playerSessionState.getCurrencyState().addCopper(155);
     playerSessionState.getReputationState().addHarborReputation(6);
     playerSessionState.getSkillProgressionSystem().addXp('woodworking', 15);
@@ -36,8 +36,8 @@ describe('Persistence Prep v0', () => {
 
     expect(JSON.parse(JSON.stringify(save))).toEqual(save);
     expect(save.playerState.currentWorldId).toBe(DEFAULT_WORLD_ID);
-    expect(save.playerState.resources.wood).toBe(3);
-    expect(save.playerState.resources.sea_salt).toBe(7);
+    expect(save.playerState.items.wood).toBe(3);
+    expect(save.playerState.items.sea_salt).toBe(7);
     expect(save.playerState.items.warm_tea).toBe(2);
     expect(save.playerState.items.prototype_token).toBe(4);
     expect(save.playerState.currency.copper).toBe(55);
@@ -57,7 +57,7 @@ describe('Persistence Prep v0', () => {
 
     originalPlayer.getInventoryState().add('wood', 5);
     originalPlayer.getInventoryState().add('stone', 2);
-    originalPlayer.getInventoryState().addGenericItem('prototype_token', 3);
+    originalPlayer.getInventoryState().add('prototype_token', 3);
     originalPlayer.getCurrencyState().addCopper(10_255);
     originalPlayer.getReputationState().addHarborReputation(4);
     originalPlayer.getSkillProgressionSystem().addXp('woodworking', 20);
@@ -85,7 +85,7 @@ describe('Persistence Prep v0', () => {
     expect(restoreResult.ok).toBe(true);
     expect(restoredPlayer.getInventoryState().getCount('wood')).toBe(5);
     expect(restoredPlayer.getInventoryState().getCount('stone')).toBe(2);
-    expect(restoredPlayer.getInventoryState().getGenericCount('prototype_token')).toBe(3);
+    expect(restoredPlayer.getInventoryState().getCount('prototype_token')).toBe(3);
     expect(restoredPlayer.getCurrencySnapshot()).toEqual({
       copper: 55,
       silver: 2,

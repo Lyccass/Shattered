@@ -1,5 +1,4 @@
 import type { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
-import type { PlayerInventoryDelta } from '../player/PlayerInventoryState';
 import type { PlayerSessionState } from '../player/PlayerSessionState';
 import type { MapPlacedObject, MapResourceNodeAnchor } from '../world/maps/MapTypes';
 import { WorldSessionState } from '../world/session/WorldSessionState';
@@ -143,8 +142,8 @@ export class ResourceNodeSystem {
       }
     }
 
-    const inventoryDelta: PlayerInventoryDelta = { [def.inventoryKey]: 1 };
-    playerSessionState.getInventoryState().addDelta(inventoryDelta);
+    const inventoryDelta: Record<string, number> = { [def.inventoryKey]: 1 };
+    playerSessionState.getInventoryState().add(def.inventoryKey, 1);
     const xpDelta = { [def.skill]: def.xpReward };
     const levelUps = playerSessionState.getSkillProgressionSystem().addXpDelta(xpDelta);
     this.setRespawnAt(node.mapId, nodeId, nowMs + def.respawnMs);

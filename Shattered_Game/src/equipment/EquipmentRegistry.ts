@@ -1,21 +1,21 @@
-import type { EquipmentDefinition } from './EquipmentTypes';
+import { getItem, getAllItems } from '../items/ItemRegistry';
+import type { ItemDefinition } from '../items/ItemTypes';
+
+// Equipment items are any ItemDefinition that has an `.equipment` field.
+// The registry reads directly from the global ItemRegistry — no separate list needed.
 
 export class EquipmentRegistry {
-  private readonly map: Map<string, EquipmentDefinition>;
-
-  constructor(definitions: EquipmentDefinition[]) {
-    this.map = new Map(definitions.map((d) => [d.id, d]));
-  }
-
   has(id: string): boolean {
-    return this.map.has(id);
+    return !!getItem(id)?.equipment;
   }
 
-  get(id: string): EquipmentDefinition | undefined {
-    return this.map.get(id);
+  /** Returns the ItemDefinition only if the item is equippable; undefined otherwise. */
+  get(id: string): ItemDefinition | undefined {
+    const def = getItem(id);
+    return def?.equipment ? def : undefined;
   }
 
-  getAll(): EquipmentDefinition[] {
-    return Array.from(this.map.values());
+  getAll(): ItemDefinition[] {
+    return getAllItems().filter((d) => !!d.equipment);
   }
 }

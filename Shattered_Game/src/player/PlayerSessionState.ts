@@ -124,7 +124,7 @@ export class PlayerSessionState {
     playerTile: { tileX: number; tileY: number };
     nowMs: number;
   }): PlayerSaveState {
-    const inventorySnapshot = this.inventoryState.createSaveSnapshot();
+    const inventorySave = this.inventoryState.createSaveSnapshot();
 
     return {
       currentWorldId,
@@ -133,8 +133,8 @@ export class PlayerSessionState {
         tileX: Math.trunc(playerTile.tileX),
         tileY: Math.trunc(playerTile.tileY),
       },
-      resources: inventorySnapshot.resources,
-      items: inventorySnapshot.items,
+      resources: {},
+      items: inventorySave,
       currency: this.currencyState.createSaveSnapshot(),
       reputation: this.reputationState.createSaveSnapshot(),
       skillXp: this.skillProgressionSystem.createSaveSnapshot(),
@@ -146,8 +146,8 @@ export class PlayerSessionState {
 
   restoreSaveState(snapshot: PlayerSaveState, nowMs: number): void {
     this.inventoryState.restoreSaveSnapshot({
-      resources: snapshot.resources,
-      items: snapshot.items,
+      ...snapshot.resources,
+      ...snapshot.items,
     });
     this.currencyState.restoreSaveSnapshot(snapshot.currency);
     this.reputationState.restoreSaveSnapshot(snapshot.reputation);

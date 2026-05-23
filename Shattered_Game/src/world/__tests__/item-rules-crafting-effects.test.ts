@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ConsumableEffectSystem } from '../../effects/ConsumableEffectSystem';
 import { EffectRegistry } from '../../effects/EffectRegistry';
 import { EFFECT_DEFINITIONS } from '../../effects/EffectDefinitions';
-import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
+import '../../items/ItemDefinitions';
 import { evaluateItemPlacement } from '../../items/ItemPlacementRules';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import type { ItemDefinition } from '../../items/ItemTypes';
@@ -10,7 +10,7 @@ import { ItemUseSystem } from '../../items/ItemUseSystem';
 import { PlayerInventoryState } from '../../player/PlayerInventoryState';
 import type { MapZoneTag } from '../maps/MapTypes';
 
-const itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+const itemRegistry = new ItemRegistry();
 
 function createPlacementQuery(overrides: Partial<Parameters<typeof evaluateItemPlacement>[1]> = {}) {
   return {
@@ -32,12 +32,14 @@ function createPlacementQuery(overrides: Partial<Parameters<typeof evaluateItemP
 describe('evaluateItemPlacement', () => {
   const firestarter = itemRegistry.get('firestarter_set');
   const personalOnlyFurniture: ItemDefinition = {
-    id: 'firestarter_set',
-    displayName: 'Test Furniture',
-    description: 'A test-only permanent placement item.',
-    category: 'placeable',
+    id: 'personal_furniture_test',
+    name: 'Test Furniture',
+    examine: 'A test-only permanent placement item.',
+    icon: '🪑',
+    category: 'tool',
     stackable: true,
-    useMode: 'place',
+    weight: 0,
+    value: 0,
     placementObjectDefinitionId: 'placed_firestarter_set',
     placementRules: {
       allowedSpaceTypes: ['personal_island'],
@@ -89,7 +91,7 @@ describe('evaluateItemPlacement', () => {
 describe('ItemUseSystem', () => {
   it('consuming warm_tea applies the Warmth effect and consumes the item', () => {
     const inventory = new PlayerInventoryState();
-    inventory.addItem('warm_tea', 1);
+    inventory.add('warm_tea', 1);
     const effectSystem = new ConsumableEffectSystem(new EffectRegistry(EFFECT_DEFINITIONS));
     const system = new ItemUseSystem(itemRegistry, effectSystem);
 
@@ -97,7 +99,7 @@ describe('ItemUseSystem', () => {
 
     expect(result.ok).toBe(true);
     expect(result.message).toBe('You drink warm tea.');
-    expect(inventory.getItemCount('warm_tea')).toBe(0);
+    expect(inventory.getCount('warm_tea')).toBe(0);
     expect(effectSystem.getActiveEffects(0)).toEqual([
       { id: 'warm_tea_warmth', displayName: 'Warmth', remainingMs: 60_000 },
     ]);
@@ -105,7 +107,7 @@ describe('ItemUseSystem', () => {
 
   it('expires the Warmth effect after its duration', () => {
     const inventory = new PlayerInventoryState();
-    inventory.addItem('warm_tea', 1);
+    inventory.add('warm_tea', 1);
     const effectSystem = new ConsumableEffectSystem(new EffectRegistry(EFFECT_DEFINITIONS));
     const system = new ItemUseSystem(itemRegistry, effectSystem);
 

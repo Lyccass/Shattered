@@ -43,7 +43,7 @@ export function evaluateItemPlacement(
   itemDefinition: ItemDefinition,
   query: ItemPlacementQuery,
 ): ItemPlacementEvaluation {
-  if (itemDefinition.useMode !== 'place' || !itemDefinition.placementObjectDefinitionId) {
+  if (!itemDefinition.placementObjectDefinitionId) {
     return {
       ok: false,
       failure: {

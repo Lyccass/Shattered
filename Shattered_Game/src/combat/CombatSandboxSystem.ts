@@ -595,7 +595,18 @@ export class CombatSandboxSystem {
           maxTileReach: this.currentLightAttackReachTiles,
         });
         break;
-      case 'active':
+      case 'active': {
+        // Re-snap the target to the nearest enemy at active-phase entry.
+        // Only snaps if the enemy drifted within AIM_SNAP_RADIUS_TILES of the original aim —
+        // fixes accidental misses from enemy orbit without granting free auto-aim.
+        const feetPoint = playerController.getFeetPoint();
+        const snapped = this.findNearestEnemyWithinReach(
+          feetPoint.x, feetPoint.y,
+          this.playerAttackTargetWorld ?? undefined,
+        );
+        if (snapped) {
+          this.playerAttackTargetWorld = snapped;
+        }
         playerController.requestCombatVisualState(
           'attack_active',
           nowMs,
@@ -608,6 +619,7 @@ export class CombatSandboxSystem {
         });
         this.playerAttackFeedbackRenderer.drawSlashVfx(this.playerAttackTargetWorld);
         break;
+      }
       case 'recovery':
         playerController.requestCombatVisualState(
           'attack_recovery',
@@ -661,6 +673,34 @@ export class CombatSandboxSystem {
       }
     }
     return null;
+  }
+
+  // Snap radius: enemy must be within this many tiles of the original aim point.
+  // Prevents free auto-aim while still correcting for enemy drift during windup.
+  private static readonly AIM_SNAP_RADIUS_TILES = 2.5;
+
+  private findNearestEnemyWithinReach(
+    fromX: number,
+    fromY: number,
+    originalAim?: { x: number; y: number },
+  ): { x: number; y: number } | null {
+    if (!this.currentTilemap) return null;
+    const reachWorld = this.currentLightAttackReachTiles * this.currentTilemap.tileWidth;
+    const aimSnapRadius = CombatSandboxSystem.AIM_SNAP_RADIUS_TILES * this.currentTilemap.tileWidth;
+    let nearest: { x: number; y: number } | null = null;
+    let nearestDist = reachWorld + 1;
+    for (const es of this.enemySystems) {
+      const snap = es.getUiSnapshot();
+      if (!snap || snap.state === 'dead' || snap.state === 'idle' || snap.state === 'reset') continue;
+      const pos = es.getWorldPosition();
+      if (!pos) continue;
+      const distFromPlayer = Math.hypot(pos.x - fromX, pos.y - fromY);
+      if (distFromPlayer >= nearestDist) continue;
+      if (originalAim && Math.hypot(pos.x - originalAim.x, pos.y - originalAim.y) > aimSnapRadius) continue;
+      nearestDist = distFromPlayer;
+      nearest = pos;
+    }
+    return nearest;
   }
 
   private getClosestEnemyPosition(fromX: number, fromY: number): { x: number; y: number } | null {

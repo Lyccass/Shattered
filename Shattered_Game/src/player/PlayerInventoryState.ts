@@ -1,274 +1,105 @@
-// Typed aliases kept for compile-time safety with existing code.
-// New resources/items can be added via the generic API without
-// extending these unions — eventually these can become plain string.
-export type PlayerResourceKey = 'wood' | 'stone' | 'herb';
-export type PlayerItemKey =
-  | 'firestarter_set'
-  | 'wooden_marker'
-  | 'camp_supplies'
-  | 'warm_tea';
-
-export type PlayerInventoryCounts = Record<PlayerResourceKey, number>;
-export type PlayerItemCounts = Record<PlayerItemKey, number>;
-
-export type PlayerInventoryDelta = Partial<PlayerInventoryCounts>;
-export type PlayerItemDelta = Partial<PlayerItemCounts>;
+// Single flat stack store — all items keyed by string ID.
+// stackable: false items (most things) will each occupy their own inventory slot
+// once the slot-based inventory UI is implemented; the count store here backs the bank.
+// stackable: true items (ammo, runes) stack in the inventory too.
 
 export type PlayerInventorySnapshot = {
-  resources: PlayerInventoryCounts;
-  items: PlayerItemCounts;
+  stacks: Record<string, number>;
 };
 
-export type PlayerInventorySaveSnapshot = {
-  resources: Record<string, number>;
-  items: Record<string, number>;
-};
-
-// Known keys used to build typed snapshots. When a new resource or item
-// is added via the generic API, add it here too.
-const KNOWN_RESOURCE_KEYS: PlayerResourceKey[] = ['wood', 'stone', 'herb'];
-const KNOWN_ITEM_KEYS: PlayerItemKey[] = [
-  'firestarter_set',
-  'wooden_marker',
-  'camp_supplies',
-  'warm_tea',
-];
+export type PlayerInventorySaveSnapshot = Record<string, number>;
 
 export class PlayerInventoryState {
-  // Internal storage is a flat Record<string, number> so new items can be
-  // added via addGeneric/consumeGeneric without touching the union types.
-  private readonly resources: Record<string, number> = { wood: 0, stone: 0, herb: 0 };
-  private readonly items: Record<string, number> = {
-    firestarter_set: 0,
-    wooden_marker: 0,
-    camp_supplies: 0,
-    warm_tea: 0,
-  };
+  private readonly stacks: Record<string, number> = {};
 
-  // --- Typed resource helpers (existing API, unchanged) ---
+  // ─── Read ──────────────────────────────────────────────────────────────────
 
-  getCounts(): PlayerInventoryCounts {
-    return this.getResourceCounts();
+  getCount(id: string): number {
+    return this.stacks[id] ?? 0;
   }
 
-  getResourceCounts(): PlayerInventoryCounts {
-    return buildTypedSnapshot(this.resources, KNOWN_RESOURCE_KEYS) as PlayerInventoryCounts;
+  hasAtLeast(id: string, amount: number): boolean {
+    return (this.stacks[id] ?? 0) >= amount;
   }
 
-  getItemCounts(): PlayerItemCounts {
-    return buildTypedSnapshot(this.items, KNOWN_ITEM_KEYS) as PlayerItemCounts;
+  hasAll(requirements: Record<string, number>): boolean {
+    return Object.entries(requirements).every(([id, amount]) => this.hasAtLeast(id, amount));
   }
 
-  getSnapshot(): PlayerInventorySnapshot {
-    return {
-      resources: this.getResourceCounts(),
-      items: this.getItemCounts(),
-    };
+  listOccupied(): Array<{ id: string; count: number }> {
+    return Object.entries(this.stacks)
+      .filter(([, count]) => count > 0)
+      .map(([id, count]) => ({ id, count }));
   }
 
-  createSaveSnapshot(): PlayerInventorySaveSnapshot {
-    return {
-      resources: { ...this.resources },
-      items: { ...this.items },
-    };
+  // ─── Write ─────────────────────────────────────────────────────────────────
+
+  add(id: string, amount = 1): void {
+    if (amount <= 0) return;
+    this.stacks[id] = (this.stacks[id] ?? 0) + amount;
   }
 
-  restoreSaveSnapshot(snapshot: PlayerInventorySaveSnapshot): void {
-    resetStore(this.resources, KNOWN_RESOURCE_KEYS);
-    resetStore(this.items, KNOWN_ITEM_KEYS);
-
-    Object.entries(snapshot.resources).forEach(([id, amount]) => {
-      this.resources[id] = sanitizeCount(amount);
-    });
-
-    Object.entries(snapshot.items).forEach(([id, amount]) => {
-      this.items[id] = sanitizeCount(amount);
-    });
-  }
-
-  static emptySnapshot(): PlayerInventorySnapshot {
-    return {
-      resources: { wood: 0, stone: 0, herb: 0 },
-      items: { firestarter_set: 0, wooden_marker: 0, camp_supplies: 0, warm_tea: 0 },
-    };
-  }
-
-  getCount(resource: PlayerResourceKey): number {
-    return this.resources[resource] ?? 0;
-  }
-
-  getItemCount(itemId: PlayerItemKey): number {
-    return this.items[itemId] ?? 0;
-  }
-
-  add(resource: PlayerResourceKey, amount = 1): void {
-    this.resources[resource] = (this.resources[resource] ?? 0) + Math.max(0, amount);
-  }
-
-  addDelta(delta: PlayerInventoryDelta): void {
-    for (const [resource, amount] of Object.entries(delta)) {
-      if (amount && amount > 0) {
-        this.add(resource as PlayerResourceKey, amount);
-      }
+  addMany(items: Record<string, number>): void {
+    for (const [id, amount] of Object.entries(items)) {
+      this.add(id, amount);
     }
   }
 
-  hasAtLeast(resource: PlayerResourceKey, amount: number): boolean {
-    return (this.resources[resource] ?? 0) >= amount;
-  }
-
-  addItem(itemId: PlayerItemKey, amount = 1): void {
-    this.items[itemId] = (this.items[itemId] ?? 0) + Math.max(0, amount);
-  }
-
-  addItemDelta(delta: PlayerItemDelta): void {
-    for (const [itemId, amount] of Object.entries(delta)) {
-      if (amount && amount > 0) {
-        this.addItem(itemId as PlayerItemKey, amount);
-      }
-    }
-  }
-
-  hasItemAtLeast(itemId: PlayerItemKey, amount: number): boolean {
-    return (this.items[itemId] ?? 0) >= amount;
-  }
-
-  consumeItem(itemId: PlayerItemKey, amount = 1): boolean {
-    if (!this.hasItemAtLeast(itemId, amount)) {
-      return false;
-    }
-
-    this.items[itemId] = (this.items[itemId] ?? 0) - amount;
+  consume(id: string, amount = 1): boolean {
+    if (!this.hasAtLeast(id, amount)) return false;
+    this.stacks[id] = (this.stacks[id] ?? 0) - amount;
+    if (this.stacks[id] === 0) delete this.stacks[id];
     return true;
   }
 
-  hasDelta(delta: PlayerInventoryDelta): boolean {
-    for (const [resource, amount] of Object.entries(delta)) {
-      if ((amount ?? 0) > (this.resources[resource] ?? 0)) {
-        return false;
-      }
+  consumeAll(requirements: Record<string, number>): boolean {
+    if (!this.hasAll(requirements)) return false;
+    for (const [id, amount] of Object.entries(requirements)) {
+      this.consume(id, amount);
     }
-
     return true;
-  }
-
-  consumeDelta(delta: PlayerInventoryDelta): boolean {
-    if (!this.hasDelta(delta)) {
-      return false;
-    }
-
-    for (const [resource, amount] of Object.entries(delta)) {
-      if (amount && amount > 0) {
-        this.resources[resource] = (this.resources[resource] ?? 0) - amount;
-      }
-    }
-
-    return true;
-  }
-
-  // --- Generic API: safe for future items/resources not in the typed unions ---
-
-  getGenericCount(id: string): number {
-    return (this.resources[id] ?? 0) + (this.items[id] ?? 0);
-  }
-
-  addGenericResource(id: string, amount = 1): void {
-    this.resources[id] = (this.resources[id] ?? 0) + Math.max(0, amount);
-  }
-
-  addGenericItem(id: string, amount = 1): void {
-    this.items[id] = (this.items[id] ?? 0) + Math.max(0, amount);
-  }
-
-  hasGenericResourceAtLeast(id: string, amount: number): boolean {
-    return (this.resources[id] ?? 0) >= amount;
-  }
-
-  hasGenericItemAtLeast(id: string, amount: number): boolean {
-    return (this.items[id] ?? 0) >= amount;
-  }
-
-  consumeGenericResource(id: string, amount = 1): boolean {
-    if (!this.hasGenericResourceAtLeast(id, amount)) {
-      return false;
-    }
-
-    this.resources[id] = (this.resources[id] ?? 0) - amount;
-    return true;
-  }
-
-  consumeGenericItem(id: string, amount = 1): boolean {
-    if (!this.hasGenericItemAtLeast(id, amount)) {
-      return false;
-    }
-
-    this.items[id] = (this.items[id] ?? 0) - amount;
-    return true;
-  }
-
-  listAllOccupied(): Array<{ id: string; amount: number }> {
-    const result: Array<{ id: string; amount: number }> = [];
-
-    for (const [id, amount] of Object.entries(this.resources)) {
-      if (amount > 0) result.push({ id, amount });
-    }
-
-    for (const [id, amount] of Object.entries(this.items)) {
-      if (amount > 0) result.push({ id, amount });
-    }
-
-    return result;
   }
 
   clearAll(): void {
-    for (const key of Object.keys(this.resources)) this.resources[key] = 0;
-    for (const key of Object.keys(this.items)) this.items[key] = 0;
-  }
-}
-
-function buildTypedSnapshot<K extends string>(
-  source: Record<string, number>,
-  keys: K[],
-): Record<K, number> {
-  const result = {} as Record<K, number>;
-
-  for (const key of keys) {
-    result[key] = source[key] ?? 0;
+    for (const key of Object.keys(this.stacks)) delete this.stacks[key];
   }
 
-  return result;
-}
+  // ─── Snapshot ──────────────────────────────────────────────────────────────
 
-function resetStore(store: Record<string, number>, knownKeys: string[]): void {
-  Object.keys(store).forEach((key) => {
-    delete store[key];
-  });
+  getSnapshot(): PlayerInventorySnapshot {
+    return { stacks: { ...this.stacks } };
+  }
 
-  knownKeys.forEach((key) => {
-    store[key] = 0;
-  });
+  static emptySnapshot(): PlayerInventorySnapshot {
+    return { stacks: {} };
+  }
+
+  createSaveSnapshot(): PlayerInventorySaveSnapshot {
+    return { ...this.stacks };
+  }
+
+  restoreSaveSnapshot(saved: PlayerInventorySaveSnapshot): void {
+    for (const key of Object.keys(this.stacks)) delete this.stacks[key];
+    for (const [id, count] of Object.entries(saved)) {
+      this.stacks[id] = sanitizeCount(count);
+    }
+  }
 }
 
 function sanitizeCount(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-
+  if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.floor(value));
 }
 
+// ─── Snapshot utilities ────────────────────────────────────────────────────────
+
 export function snapshotGetCount(snapshot: PlayerInventorySnapshot, id: string): number {
-  return (snapshot.resources as Record<string, number>)[id]
-    ?? (snapshot.items as Record<string, number>)[id]
-    ?? 0;
+  return snapshot.stacks[id] ?? 0;
 }
 
 export function snapshotActiveEntries(snapshot: PlayerInventorySnapshot): Map<string, number> {
   const result = new Map<string, number>();
-  for (const [id, count] of Object.entries(snapshot.resources as Record<string, number>)) {
-    if (count > 0) result.set(id, count);
-  }
-  for (const [id, count] of Object.entries(snapshot.items as Record<string, number>)) {
+  for (const [id, count] of Object.entries(snapshot.stacks)) {
     if (count > 0) result.set(id, count);
   }
   return result;

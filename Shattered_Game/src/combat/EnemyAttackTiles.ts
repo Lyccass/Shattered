@@ -134,36 +134,11 @@ function tileMatchesAttackShape(
   tileX: number,
   tileY: number,
 ): boolean {
-  return getTileSamplePoints(tileX, tileY, context).some((point) =>
-    isPointInsideAttackAtPoint(
-      attack,
-      state,
-      context,
-      point.x,
-      point.y,
-    ));
-}
-
-function getTileSamplePoints(
-  tileX: number,
-  tileY: number,
-  context: EnemyUpdateContext,
-): Array<{ x: number; y: number }> {
+  // Center-only: a tile is in the attack zone iff its visual center falls inside
+  // the geometric shape. Any-corner sampling causes edge-bleed where adjacent
+  // tiles get pulled in when a single corner-tip clips the shape boundary.
   const center = context.getTileCenterWorld(tileX, tileY);
-  const corners = context.getTileDiamondPoints(tileX, tileY);
-  const edgeMidpoints = corners.map((corner, index) => {
-    const next = corners[(index + 1) % corners.length];
-    return {
-      x: (corner.x + next.x) / 2,
-      y: (corner.y + next.y) / 2,
-    };
-  });
-
-  return [
-    { x: center.x, y: center.y },
-    ...corners.map((point) => ({ x: point.x, y: point.y })),
-    ...edgeMidpoints,
-  ];
+  return isPointInsideAttackAtPoint(attack, state, context, center.x, center.y);
 }
 
 function isPointInsideAttackAtPoint(

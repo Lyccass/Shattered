@@ -44,7 +44,7 @@ describe('ContractBoardSystem', () => {
   it('consumes warm_tea and grants copper when the contract completes', () => {
     const system = createSystem();
     const playerSessionState = new PlayerSessionState();
-    playerSessionState.getInventoryState().addItem('warm_tea', 1);
+    playerSessionState.getInventoryState().add('warm_tea', 1);
 
     const accepted = system.useBoard('harbor_contract_board_01', playerSessionState);
     const result = system.useBoard('harbor_contract_board_01', playerSessionState);
@@ -53,7 +53,7 @@ describe('ContractBoardSystem', () => {
     expect(accepted.message).toContain('Accepted');
     expect(result.ok).toBe(true);
     expect(result.message).toContain('Warmth for the Dockhands');
-    expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(0);
+    expect(playerSessionState.getInventoryState().getCount('warm_tea')).toBe(0);
     expect(playerSessionState.getCurrencySnapshot().copper).toBe(55);
     expect(playerSessionState.getReputationSnapshot().harborReputation).toBe(1);
   });
@@ -61,7 +61,7 @@ describe('ContractBoardSystem', () => {
   it('repeatable contracts can be completed more than once', () => {
     const system = createSystem();
     const playerSessionState = new PlayerSessionState();
-    playerSessionState.getInventoryState().addItem('warm_tea', 2);
+    playerSessionState.getInventoryState().add('warm_tea', 2);
 
     const firstAccept = system.useBoard('harbor_contract_board_01', playerSessionState);
     const firstComplete = system.useBoard('harbor_contract_board_01', playerSessionState);
@@ -72,7 +72,7 @@ describe('ContractBoardSystem', () => {
     expect(firstComplete.ok).toBe(true);
     expect(secondAccept.ok).toBe(true);
     expect(secondComplete.ok).toBe(true);
-    expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(0);
+    expect(playerSessionState.getInventoryState().getCount('warm_tea')).toBe(0);
     expect(playerSessionState.getCurrencyState().getTotalCopperValue()).toBe(110);
     expect(playerSessionState.getCurrencySnapshot()).toEqual({
       copper: 10,
@@ -100,7 +100,7 @@ describe('ContractBoardSystem', () => {
     };
     const system = createSystem([nonRepeatableContract]);
     const playerSessionState = new PlayerSessionState();
-    playerSessionState.getInventoryState().addItem('firestarter_set', 2);
+    playerSessionState.getInventoryState().add('firestarter_set', 2);
 
     const firstAccept = system.useBoard('harbor_contract_board_01', playerSessionState);
     const first = system.useBoard('harbor_contract_board_01', playerSessionState);
@@ -110,7 +110,7 @@ describe('ContractBoardSystem', () => {
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(false);
     expect(second.message).toContain('No contracts are available');
-    expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(1);
+    expect(playerSessionState.getInventoryState().getCount('firestarter_set')).toBe(1);
     expect(playerSessionState.getCurrencySnapshot().copper).toBe(3);
   });
 
@@ -134,7 +134,7 @@ describe('ContractBoardSystem', () => {
 
     expect(system.getAvailableContracts('harbor_contract_board_01', playerSessionState)).toHaveLength(1);
 
-    playerSessionState.getInventoryState().addItem('firestarter_set', 1);
+    playerSessionState.getInventoryState().add('firestarter_set', 1);
     system.useBoard('harbor_contract_board_01', playerSessionState);
     system.useBoard('harbor_contract_board_01', playerSessionState);
 

@@ -7,8 +7,8 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     displayName: 'Firestarter Set',
     stationType: 'workbench',
     description: 'Tie together a small dry bundle that can be placed and lit later.',
-    inputs: [{ kind: 'resource', id: 'wood', amount: 1 }],
-    outputs: [{ kind: 'item', id: 'firestarter_set', amount: 1 }],
+    inputs: [{ id: 'wood', amount: 1 }],
+    outputs: [{ id: 'firestarter_set', amount: 1 }],
     xpRewards: { woodworking: 40 },
   },
   {
@@ -16,8 +16,8 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     displayName: 'Wooden Marker',
     stationType: 'workbench',
     description: 'A simple trail marker cut from spare wood.',
-    inputs: [{ kind: 'resource', id: 'wood', amount: 2 }],
-    outputs: [{ kind: 'item', id: 'wooden_marker', amount: 1 }],
+    inputs: [{ id: 'wood', amount: 2 }],
+    outputs: [{ id: 'wooden_marker', amount: 1 }],
     xpRewards: { woodworking: 50 },
   },
   {
@@ -26,10 +26,10 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     stationType: 'workbench',
     description: 'Bundle wood and stone into a compact field kit.',
     inputs: [
-      { kind: 'resource', id: 'wood', amount: 1 },
-      { kind: 'resource', id: 'stone', amount: 1 },
+      { id: 'wood',  amount: 1 },
+      { id: 'stone', amount: 1 },
     ],
-    outputs: [{ kind: 'item', id: 'camp_supplies', amount: 1 }],
+    outputs: [{ id: 'camp_supplies', amount: 1 }],
     xpRewards: { woodworking: 60 },
     levelRequirements: { woodworking: 3 },
   },
@@ -41,22 +41,22 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     stationType: 'campfire',
     requiredActiveObjectType: 'campfire',
     description: 'Steep gathered herbs over the fire for a warming drink.',
-    inputs: [{ kind: 'resource', id: 'herb', amount: 1 }],
-    outputs: [{ kind: 'item', id: 'warm_tea', amount: 1 }],
+    inputs: [{ id: 'herb', amount: 1 }],
+    outputs: [{ id: 'warm_tea', amount: 1 }],
     xpRewards: { alchemy: 30 },
   },
 
-  // ─── By hand (OSRS-style item combining) ─────────────────────────────────
+  // ─── By hand ──────────────────────────────────────────────────────────────
   {
     id: 'hand_firestarter_set',
     displayName: 'Firestarter Set',
     stationType: 'hand',
     description: 'Strike stone against dry wood to make a firestarter.',
     inputs: [
-      { kind: 'resource', id: 'wood',  amount: 1 },
-      { kind: 'resource', id: 'stone', amount: 1 },
+      { id: 'wood',  amount: 1 },
+      { id: 'stone', amount: 1 },
     ],
-    outputs: [{ kind: 'item', id: 'firestarter_set', amount: 1 }],
+    outputs: [{ id: 'firestarter_set', amount: 1 }],
     xpRewards: { woodworking: 35 },
   },
   {
@@ -64,8 +64,8 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     displayName: 'Herbal Pouch',
     stationType: 'hand',
     description: 'Bundle herbs together for a crude remedy.',
-    inputs: [{ kind: 'resource', id: 'herb', amount: 2 }],
-    outputs: [{ kind: 'item', id: 'warm_tea', amount: 1 }],
+    inputs: [{ id: 'herb', amount: 2 }],
+    outputs: [{ id: 'warm_tea', amount: 1 }],
     xpRewards: { alchemy: 25 },
   },
 ];

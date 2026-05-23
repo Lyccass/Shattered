@@ -48,6 +48,7 @@ export class EnemyVisualController {
   private healthBarGraphics: Phaser.GameObjects.Graphics | null = null;
   private currentAnimationKey: string | null = null;
   private hitFlashUntilMs = 0;
+  private deathPosition: { x: number; y: number } | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {}
 
@@ -76,6 +77,15 @@ export class EnemyVisualController {
       return;
     }
 
+    // Freeze visual position at the frame of death so the corpse never drifts.
+    if (state.currentState === 'dead') {
+      this.deathPosition ??= { x: state.worldX, y: state.worldY };
+    } else {
+      this.deathPosition = null;
+    }
+    const renderX = this.deathPosition?.x ?? state.worldX;
+    const renderY = this.deathPosition?.y ?? state.worldY;
+
     const activeAttack = state.currentAttackId
       ? definition.attacks.find((attack) => attack.id === state.currentAttackId) ?? null
       : null;
@@ -101,15 +111,15 @@ export class EnemyVisualController {
       }
     }
 
-    this.shadow?.setPosition(state.worldX, state.worldY - 4);
+    this.shadow?.setPosition(renderX, renderY - 4);
     this.shadow?.setScale(Math.max(0.7, 1 - lift / 50), Math.max(0.6, 1 - lift / 58));
-    this.shadow?.setDepth(getDynamicDepth(state.worldY, 4));
+    this.shadow?.setDepth(getDynamicDepth(renderY, 4));
 
-    this.visual.setPosition(state.worldX, state.worldY - 8 - lift);
+    this.visual.setPosition(renderX, renderY - 8 - lift);
     this.visual.setScale(scaleX, scaleY);
     this.visual.setFlipX(Math.cos(state.facingRad) > 0);
     this.visual.clearTint();
-    this.visual.setDepth(getDynamicDepth(state.worldY, 8));
+    this.visual.setDepth(getDynamicDepth(renderY, 8));
 
     const animationKey = resolveEnemyAnimationKey(
       state.currentState,
@@ -152,7 +162,7 @@ export class EnemyVisualController {
       );
     }
 
-    this.updateHealthBar(state, definition, lift);
+    this.updateHealthBar(state, definition, lift, renderX, renderY);
   }
 
   destroy(): void {
@@ -163,12 +173,15 @@ export class EnemyVisualController {
     this.healthBarGraphics?.destroy();
     this.healthBarGraphics = null;
     this.currentAnimationKey = null;
+    this.deathPosition = null;
   }
 
   private updateHealthBar(
     state: EnemyRuntimeState,
     definition: EnemyDefinition,
     lift: number,
+    renderX: number,
+    renderY: number,
   ): void {
     if (!this.healthBarGraphics) {
       return;
@@ -187,8 +200,8 @@ export class EnemyVisualController {
     const pct = maxHp > 0 ? Math.max(0, state.health / maxHp) : 0;
     const barW = BAR.width;
     const barH = BAR.height;
-    const x = state.worldX - barW / 2;
-    const y = state.worldY - 8 - lift - BAR.offsetY;
+    const x = renderX - barW / 2;
+    const y = renderY - 8 - lift - BAR.offsetY;
 
     this.healthBarGraphics.clear();
     this.healthBarGraphics.fillStyle(0x7f1d1d, 0.92);
@@ -202,7 +215,7 @@ export class EnemyVisualController {
 
     this.healthBarGraphics.lineStyle(1, 0x000000, 0.55);
     this.healthBarGraphics.strokeRect(x, y, barW, barH);
-    this.healthBarGraphics.setDepth(getDynamicDepth(state.worldY, 16));
+    this.healthBarGraphics.setDepth(getDynamicDepth(renderY, 16));
     this.healthBarGraphics.setVisible(true);
   }
 }

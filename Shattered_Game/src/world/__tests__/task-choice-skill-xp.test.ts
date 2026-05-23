@@ -77,7 +77,7 @@ describe('WorkbenchSystem menus and XP', () => {
 
     expect(result.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getCount('wood')).toBe(0);
-    expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(1);
+    expect(playerSessionState.getInventoryState().getCount('firestarter_set')).toBe(1);
     expect(playerSessionState.getSkillProgressionSystem().getXp('woodworking')).toBe(40);
   });
 });
@@ -142,7 +142,7 @@ describe('Gathering and campfire XP', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(1);
+    expect(playerSessionState.getInventoryState().getCount('warm_tea')).toBe(1);
     expect(playerSessionState.getSkillProgressionSystem().getXp('alchemy')).toBe(30);
   });
 });
@@ -188,7 +188,7 @@ describe('Contract board tasks and trade XP', () => {
   it('completing the warm tea contract consumes warm_tea and grants rewards', () => {
     const system = new ContractBoardSystem(new ContractRegistry(CONTRACT_DEFINITIONS));
     const playerSessionState = new PlayerSessionState();
-    playerSessionState.getInventoryState().addItem('warm_tea', 1);
+    playerSessionState.getInventoryState().add('warm_tea', 1);
     system.setMapBoards('test_harbor', [boardAnchor]);
 
     const accepted = system.selectContract(
@@ -205,7 +205,7 @@ describe('Contract board tasks and trade XP', () => {
     expect(accepted.ok).toBe(true);
     expect(accepted.message).toContain('Accepted');
     expect(result.ok).toBe(true);
-    expect(playerSessionState.getInventoryState().getItemCount('warm_tea')).toBe(0);
+    expect(playerSessionState.getInventoryState().getCount('warm_tea')).toBe(0);
     expect(playerSessionState.getCurrencySnapshot().copper).toBe(55);
     expect(playerSessionState.getReputationSnapshot().harborReputation).toBe(1);
     expect(playerSessionState.getSkillProgressionSystem().getXp('trade')).toBe(10);
@@ -214,7 +214,7 @@ describe('Contract board tasks and trade XP', () => {
   it('completing the firestarter contract consumes firestarter_set and grants rewards', () => {
     const system = new ContractBoardSystem(new ContractRegistry(CONTRACT_DEFINITIONS));
     const playerSessionState = new PlayerSessionState();
-    playerSessionState.getInventoryState().addItem('firestarter_set', 1);
+    playerSessionState.getInventoryState().add('firestarter_set', 1);
     system.setMapBoards('test_harbor', [boardAnchor]);
 
     const accepted = system.selectContract(
@@ -231,7 +231,7 @@ describe('Contract board tasks and trade XP', () => {
     expect(accepted.ok).toBe(true);
     expect(accepted.message).toContain('Accepted');
     expect(result.ok).toBe(true);
-    expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(0);
+    expect(playerSessionState.getInventoryState().getCount('firestarter_set')).toBe(0);
     expect(playerSessionState.getCurrencySnapshot().copper).toBe(37);
     expect(playerSessionState.getSkillProgressionSystem().getXp('trade')).toBe(8);
   });

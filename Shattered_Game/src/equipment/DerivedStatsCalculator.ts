@@ -31,9 +31,8 @@ export function computeDerivedStats(
   const staggerThreshold = BASE_STAGGER_THRESHOLD + Math.floor(defenceLevel * 0.5);
 
   // Weapon from main_hand slot
-  const mainHandId = slots.main_hand;
-  const mainHandDef = mainHandId ? registry.get(mainHandId) : undefined;
-  const weapon = mainHandDef?.weaponStats;
+  const mainHandDef = slots.main_hand ? registry.get(slots.main_hand) : undefined;
+  const weapon = mainHandDef?.equipment?.weaponStats;
 
   const attack = (weapon?.damage ?? BASE_ATTACK) + Math.floor(meleeLevel / 10);
   const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(meleeLevel * 0.4));
@@ -53,21 +52,20 @@ export function computeDerivedStats(
   let poise = 0;
   let carryWeight = weapon?.weight ?? 0;
 
-  const armorSlots = Object.entries(slots) as [string, string][];
-  for (const [, itemId] of armorSlots) {
+  for (const itemId of Object.values(slots) as string[]) {
     const def = registry.get(itemId);
-    if (!def?.armorStats) continue;
-    const a = def.armorStats;
+    const a = def?.equipment?.armorStats;
+    if (!a) continue;
     physicalDefence += a.physicalDefence;
-    slashDefence += a.typeDefence.slash;
-    pierceDefence += a.typeDefence.pierce;
-    crushDefence += a.typeDefence.crush;
+    slashDefence    += a.typeDefence.slash;
+    pierceDefence   += a.typeDefence.pierce;
+    crushDefence    += a.typeDefence.crush;
     poisonResistance += a.elementalResistance.poison;
-    fireResistance += a.elementalResistance.fire;
-    coldResistance += a.elementalResistance.cold;
-    armorDodge += a.dodgeBonus;
-    poise += a.poise;
-    carryWeight += a.weight;
+    fireResistance  += a.elementalResistance.fire;
+    coldResistance  += a.elementalResistance.cold;
+    armorDodge      += a.dodgeBonus;
+    poise           += a.poise;
+    carryWeight     += a.weight;
   }
 
   const dodgeChance = skillDodge + armorDodge;

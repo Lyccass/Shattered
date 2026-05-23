@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RECIPE_DEFINITIONS } from '../../crafting/RecipeDefinitions';
 import { RecipeRegistry } from '../../crafting/RecipeRegistry';
-import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
+import '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
 import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem';
@@ -382,7 +382,7 @@ describe('WorkbenchSystem', () => {
 
     expect(result.ok).toBe(true);
     expect(playerSessionState.getInventoryState().getCount('wood')).toBe(0);
-    expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(1);
+    expect(playerSessionState.getInventoryState().getCount('firestarter_set')).toBe(1);
     expect(result.placementItemId).toBe('firestarter_set');
   });
 
@@ -406,18 +406,18 @@ describe('WorkbenchSystem', () => {
 
     expect(result.ok).toBe(false);
     expect(result.message).toContain('wood');
-    expect(playerSessionState.getInventoryState().getItemCount('firestarter_set')).toBe(0);
+    expect(playerSessionState.getInventoryState().getCount('firestarter_set')).toBe(0);
   });
 });
 
 describe('PlacedStructureSystem', () => {
-  const itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+  const itemRegistry = new ItemRegistry();
   const recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
 
   it('placement consumes one firestarter_set item', () => {
     const playerSessionState = new PlayerSessionState();
     const inventory = playerSessionState.getInventoryState();
-    inventory.addItem('firestarter_set', 1);
+    inventory.add('firestarter_set', 1);
 
     const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
@@ -442,7 +442,7 @@ describe('PlacedStructureSystem', () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(inventory.getItemCount('firestarter_set')).toBe(0);
+    expect(inventory.getCount('firestarter_set')).toBe(0);
     expect(system.getObjectsForCurrentMap()).toHaveLength(1);
     expect(system.getObjectsForCurrentMap()[0]?.kind).toBe('placed_firestarter_set');
   });
@@ -450,7 +450,7 @@ describe('PlacedStructureSystem', () => {
   it('invalid placement does not consume the item', () => {
     const playerSessionState = new PlayerSessionState();
     const inventory = playerSessionState.getInventoryState();
-    inventory.addItem('firestarter_set', 1);
+    inventory.add('firestarter_set', 1);
 
     const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
@@ -469,14 +469,14 @@ describe('PlacedStructureSystem', () => {
     );
 
     expect(result.ok).toBe(false);
-    expect(inventory.getItemCount('firestarter_set')).toBe(1);
+    expect(inventory.getCount('firestarter_set')).toBe(1);
     expect(system.getObjectsForCurrentMap()).toHaveLength(0);
   });
 
   it('placed firestarter transforms into campfire when stone is available', () => {
     const playerSessionState = new PlayerSessionState();
     const inventory = playerSessionState.getInventoryState();
-    inventory.addItem('firestarter_set', 1);
+    inventory.add('firestarter_set', 1);
     inventory.add('stone', 1);
 
     const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
@@ -525,7 +525,7 @@ describe('PlacedStructureSystem', () => {
   it('firestarter activation fails without stone', () => {
     const playerSessionState = new PlayerSessionState();
     const inventory = playerSessionState.getInventoryState();
-    inventory.addItem('firestarter_set', 1);
+    inventory.add('firestarter_set', 1);
 
     const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);
     const getInstance = vi.fn(() => undefined);
@@ -633,13 +633,13 @@ describe('PlacedStructureSystem', () => {
     expect(result.ok).toBe(true);
     expect(result.message).toBe('You brew warm tea.');
     expect(inventory.getCount('herb')).toBe(0);
-    expect(inventory.getItemCount('warm_tea')).toBe(1);
+    expect(inventory.getCount('warm_tea')).toBe(1);
   });
 
   it('campfire despawns after its timer even if it was already lit', () => {
     const playerSessionState = new PlayerSessionState();
     const inventory = playerSessionState.getInventoryState();
-    inventory.addItem('firestarter_set', 1);
+    inventory.add('firestarter_set', 1);
     inventory.add('stone', 1);
 
     const system = new PlacedStructureSystem(new WorldSessionState(), recipeRegistry);

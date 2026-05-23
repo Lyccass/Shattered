@@ -5,7 +5,6 @@ import {
   evaluateItemPlacement,
 } from '../items/ItemPlacementRules';
 import type { PlayerController } from '../player/PlayerController';
-import type { PlayerItemKey } from '../player/PlayerInventoryState';
 import { getFacingTileOffset } from '../player/PlayerFacingTiles';
 import { getDynamicDepth, RENDER_DEPTHS } from '../render/RenderLayers';
 import type { IsoTransform } from '../world/IsoTransform';
@@ -27,7 +26,7 @@ type ObjectPlacementSystemLike = {
 
 export type PlacementPreviewState = {
   active: boolean;
-  itemId: PlayerItemKey;
+  itemId: string;
   itemDisplayName: string;
   placementObjectDefinitionId: string;
   targetTileX: number;
@@ -85,11 +84,11 @@ export class PlacementModeSystem {
     this.clearPreview();
   }
 
-  startPlacement(itemId: PlayerItemKey): PlacementPreviewState | null {
+  startPlacement(itemId: string): PlacementPreviewState | null {
     const itemDefinition = this.itemRegistry.get(itemId);
     const placementObjectDefinitionId = itemDefinition.placementObjectDefinitionId;
 
-    if (!placementObjectDefinitionId || itemDefinition.useMode !== 'place') {
+    if (!placementObjectDefinitionId) {
       this.state = null;
       this.clearPreview();
       return null;
@@ -98,12 +97,12 @@ export class PlacementModeSystem {
     this.state = {
       active: true,
       itemId,
-      itemDisplayName: itemDefinition.displayName,
+      itemDisplayName: itemDefinition.name,
       placementObjectDefinitionId,
       targetTileX: 0,
       targetTileY: 0,
       valid: false,
-      promptText: `Place ${itemDefinition.displayName}`,
+      promptText: `Place ${itemDefinition.name}`,
     };
 
     return this.state;

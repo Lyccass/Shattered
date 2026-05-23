@@ -1,34 +1,15 @@
-import type {
-  PlayerItemKey,
-  PlayerResourceKey,
-} from '../player/PlayerInventoryState';
 import type { SkillId, SkillXpDelta } from '../skills/SkillTypes';
 
 export type CraftingStationType = 'workbench' | 'campfire' | 'hand';
 
-export type RecipeInput =
-  | {
-      kind: 'resource';
-      id: PlayerResourceKey;
-      amount: number;
-    }
-  | {
-      kind: 'item';
-      id: PlayerItemKey;
-      amount: number;
-    };
+// All items share a single ID space — no more resource/item kind split.
+export type RecipeIngredient = {
+  id: string;
+  amount: number;
+};
 
-export type RecipeOutput =
-  | {
-      kind: 'resource';
-      id: PlayerResourceKey;
-      amount: number;
-    }
-  | {
-      kind: 'item';
-      id: PlayerItemKey;
-      amount: number;
-    };
+export type RecipeInput  = RecipeIngredient;
+export type RecipeOutput = RecipeIngredient;
 
 export type RecipeDefinition = {
   id: string;
@@ -37,7 +18,6 @@ export type RecipeDefinition = {
   inputs: RecipeInput[];
   outputs: RecipeOutput[];
   xpRewards?: SkillXpDelta;
-  // Absolute skill levels (1–100) required to attempt this recipe.
   levelRequirements?: Partial<Record<SkillId, number>>;
   requiredActiveObjectType?: string;
   description: string;

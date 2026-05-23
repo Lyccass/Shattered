@@ -29,6 +29,7 @@ export type WeaponStats = {
   weight: number;
   durability: number;
   maxDurability: number;
+  specialAction?: string; // ID of the weapon's unique move; implemented per archetype
 };
 
 export type PhysicalTypeDefence = {

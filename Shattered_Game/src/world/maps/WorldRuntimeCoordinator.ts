@@ -13,7 +13,7 @@ import { ObjectDebugRenderer } from '../../objects/ObjectDebugRenderer';
 import { ObjectOcclusionSystem } from '../../objects/ObjectOcclusionSystem';
 import { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import { ObjectRegistry } from '../../objects/ObjectRegistry';
-import { ITEM_DEFINITIONS } from '../../items/ItemDefinitions';
+import '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
 import type { PlayerTileSaveState, SaveGameV1 } from '../../persistence/SaveTypes';
@@ -34,7 +34,6 @@ import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem'
 import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
-import type { PlayerItemKey } from '../../player/PlayerInventoryState';
 import type { LevelUpEvent, SkillSnapshot, SkillXpDelta } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
 import type { UiStateSnapshot } from '../../ui/UiTypes';
@@ -72,7 +71,7 @@ type InteractionTargetType = InteractionTarget['definition']['interactionType'];
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
   private readonly objectRegistry: ObjectRegistry;
-  private readonly itemRegistry = new ItemRegistry(ITEM_DEFINITIONS);
+  private readonly itemRegistry = new ItemRegistry();
   private readonly contractRegistry = new ContractRegistry(CONTRACT_DEFINITIONS);
   private readonly recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
   private readonly worldSessionState = new WorldSessionState();
@@ -378,10 +377,10 @@ export class WorldRuntimeCoordinator {
     return this.interactionTargetCoordinator.inspectTargetByRef(interactionType, targetId);
   }
 
-  useItem(itemId: PlayerItemKey): InteractionResult {
+  useItem(itemId: string): InteractionResult {
     const itemDefinition = this.itemRegistry.get(itemId);
 
-    if (itemDefinition.useMode === 'place') {
+    if (itemDefinition.placementObjectDefinitionId) {
       return this.placeItemInFacingDirection(itemId);
     }
 
@@ -395,24 +394,24 @@ export class WorldRuntimeCoordinator {
     return result;
   }
 
-  placeItemInFacingDirection(itemId: PlayerItemKey): InteractionResult {
+  placeItemInFacingDirection(itemId: string): InteractionResult {
     if (!this.bindings || !this.currentRuntime) {
       return { ok: false, interactionType: 'item_use', targetId: itemId, message: 'Placement unavailable.' };
     }
 
     const inventory = this.playerSessionState.getInventoryState();
-    if (!inventory.hasItemAtLeast(itemId, 1)) {
+    if (!inventory.hasAtLeast(itemId, 1)) {
       return {
         ok: false,
         interactionType: 'item_use',
         targetId: itemId,
-        message: `No ${this.itemRegistry.get(itemId).displayName} in inventory.`,
+        message: `No ${this.itemRegistry.get(itemId).name} in inventory.`,
       };
     }
 
     const placementState = this.placementModeSystem.startPlacement(itemId);
     if (!placementState) {
-      return { ok: false, interactionType: 'item_use', targetId: itemId, message: `${this.itemRegistry.get(itemId).displayName} cannot be placed.` };
+      return { ok: false, interactionType: 'item_use', targetId: itemId, message: `${this.itemRegistry.get(itemId).name} cannot be placed.` };
     }
 
     const preview = this.placementModeSystem.updatePreview(this.bindings.playerController);
@@ -422,7 +421,7 @@ export class WorldRuntimeCoordinator {
         ok: false,
         interactionType: 'item_use',
         targetId: itemId,
-        message: preview?.invalidReason ?? `Can't place ${this.itemRegistry.get(itemId).displayName} here.`,
+        message: preview?.invalidReason ?? `Can't place ${this.itemRegistry.get(itemId).name} here.`,
         toastKind: 'error',
       };
     }
@@ -432,13 +431,7 @@ export class WorldRuntimeCoordinator {
   }
 
   collectGroundItem(itemId: string, count: number): void {
-    const inventory = this.playerSessionState.getInventoryState();
-    const def = this.itemRegistry.find(itemId);
-    if (def?.category === 'resource') {
-      inventory.addGenericResource(itemId, count);
-    } else {
-      inventory.addGenericItem(itemId, count);
-    }
+    this.playerSessionState.getInventoryState().add(itemId, count);
   }
 
   setGroundItemCollector(fn: (id: string) => { itemId: string; count: number } | null): void {
@@ -456,7 +449,7 @@ export class WorldRuntimeCoordinator {
     }
     this.collectGroundItem(collected.itemId, collected.count);
     const meta = this.itemRegistry.find(collected.itemId);
-    const label = meta?.displayName ?? collected.itemId;
+    const label = meta?.name ?? collected.itemId;
     const countStr = collected.count > 1 ? `${collected.count}× ` : '';
     return {
       ok: true,
@@ -472,9 +465,7 @@ export class WorldRuntimeCoordinator {
     const playerController = this.bindings?.playerController;
     if (!playerController) return { ok: false, worldX: 0, worldY: 0 };
 
-    const consumed =
-      inventory.consumeGenericItem(itemId, 1) ||
-      inventory.consumeGenericResource(itemId, 1);
+    const consumed = inventory.consume(itemId, 1);
     if (!consumed) return { ok: false, worldX: 0, worldY: 0 };
 
     const feet = playerController.getFeetPoint();
@@ -483,7 +474,7 @@ export class WorldRuntimeCoordinator {
 
   getItemDisplayData(itemId: string): { displayName: string; description: string } | undefined {
     const def = this.itemRegistry.find(itemId);
-    return def ? { displayName: def.displayName, description: def.description } : undefined;
+    return def ? { displayName: def.name, description: def.examine } : undefined;
   }
 
   tryHandCraft(sourceId: string, targetId: string): InteractionResult {
@@ -595,9 +586,9 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getSkillProgressionSystem().addXpDelta(delta);
   }
 
-  drainAllInventoryItems(): Array<{ id: string; amount: number }> {
+  drainAllInventoryItems(): Array<{ id: string; count: number }> {
     const inventory = this.playerSessionState.getInventoryState();
-    const items = inventory.listAllOccupied();
+    const items = inventory.listOccupied();
     inventory.clearAll();
     return items;
   }
@@ -635,19 +626,19 @@ export class WorldRuntimeCoordinator {
     return this.currentRuntime?.isoTilemap.transform ?? null;
   }
 
-  startPlacementMode(itemId: PlayerItemKey = 'firestarter_set'): string {
+  startPlacementMode(itemId: string = 'firestarter_set'): string {
     if (!this.bindings || !this.currentRuntime) {
       return 'Placement is unavailable right now.';
     }
 
-    if (!this.playerSessionState.getInventoryState().hasItemAtLeast(itemId, 1)) {
-      return `You don't have a ${this.itemRegistry.get(itemId).displayName}.`;
+    if (!this.playerSessionState.getInventoryState().hasAtLeast(itemId, 1)) {
+      return `You don't have a ${this.itemRegistry.get(itemId).name}.`;
     }
 
     const placementState = this.placementModeSystem.startPlacement(itemId);
 
     if (!placementState) {
-      return `${this.itemRegistry.get(itemId).displayName} cannot be placed.`;
+      return `${this.itemRegistry.get(itemId).name} cannot be placed.`;
     }
 
     this.placementModeSystem.updatePreview(this.bindings.playerController);

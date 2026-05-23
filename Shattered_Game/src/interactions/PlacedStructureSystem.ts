@@ -2,7 +2,7 @@ import type { SfxEventId } from '../audio/SfxTypes';
 import { applyRecipeToInventory, canCraftRecipe } from '../crafting/RecipeInventory';
 import type { RecipeRegistry } from '../crafting/RecipeRegistry';
 import type { ItemRegistry } from '../items/ItemRegistry';
-import type { PlayerInventoryState, PlayerItemKey } from '../player/PlayerInventoryState';
+import type { PlayerInventoryState } from '../player/PlayerInventoryState';
 import type { PlayerSessionState } from '../player/PlayerSessionState';
 import type { ObjectInstance } from '../objects/ObjectTypes';
 import {
@@ -180,7 +180,7 @@ export class PlacedStructureSystem {
   }
 
   placeItem(
-    itemId: PlayerItemKey,
+    itemId: string,
     tileX: number,
     tileY: number,
     nowMs: number,
@@ -192,23 +192,23 @@ export class PlacedStructureSystem {
     const itemDefinition = itemRegistry.get(itemId);
     const placementObjectDefinitionId = itemDefinition.placementObjectDefinitionId;
 
-    if (!placementObjectDefinitionId || itemDefinition.useMode !== 'place') {
+    if (!placementObjectDefinitionId) {
       return {
         ok: false,
         sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: itemId,
-        message: `${itemDefinition.displayName} cannot be placed.`,
+        message: `${itemDefinition.name} cannot be placed.`,
       };
     }
 
-    if (!inventory.consumeItem(itemId, 1)) {
+    if (!inventory.consume(itemId, 1)) {
       return {
         ok: false,
         sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: itemId,
-        message: `You don't have a ${itemDefinition.displayName}.`,
+        message: `You don't have a ${itemDefinition.name}.`,
       };
     }
 
@@ -221,13 +221,13 @@ export class PlacedStructureSystem {
     );
 
     if (!placedInstance) {
-      inventory.addItem(itemId, 1);
+      inventory.add(itemId, 1);
       return {
         ok: false,
         sfxId: 'invalid_action',
         interactionType: 'placed_object',
         targetId: placedObjectId,
-        message: `Couldn't place ${itemDefinition.displayName} there.`,
+        message: `Couldn't place ${itemDefinition.name} there.`,
       };
     }
 
@@ -246,7 +246,7 @@ export class PlacedStructureSystem {
       sfxId: 'item_placed',
       interactionType: 'placed_object',
       targetId: placedObjectId,
-      message: `Placed ${itemDefinition.displayName}.`,
+      message: `Placed ${itemDefinition.name}.`,
       itemDelta: { [itemId]: -1 },
       createdObjectId: placedObjectId,
     };
@@ -320,7 +320,7 @@ export class PlacedStructureSystem {
       };
     }
 
-    inventory.consumeDelta({ stone: 1 });
+    inventory.consume('stone', 1);
     objectPlacementSystem.removeObject(placedObject.id);
 
     const campfireInstance = objectPlacementSystem.placeObject(

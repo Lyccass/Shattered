@@ -12,13 +12,7 @@ describe('UiFormatters', () => {
   it('formats HUD pouch data for player-facing resources and currency', () => {
     const text = formatHudPanelText(
       {
-        resources: { wood: 3, stone: 2, herb: 1 },
-        items: {
-          firestarter_set: 1,
-          wooden_marker: 0,
-          camp_supplies: 0,
-          warm_tea: 2,
-        },
+        stacks: { wood: 3, stone: 2, herb: 1, firestarter_set: 1, wooden_marker: 0, camp_supplies: 0, warm_tea: 2 },
       },
       [{ id: 'warm_tea_warmth', displayName: 'Warmth', remainingMs: 59_000 }],
     );
@@ -35,13 +29,7 @@ describe('UiFormatters', () => {
   it('formats the dedicated inventory panel with full pouch contents', () => {
     const text = formatInventoryPanelText(
       {
-        resources: { wood: 3, stone: 2, herb: 1 },
-        items: {
-          firestarter_set: 1,
-          wooden_marker: 0,
-          camp_supplies: 0,
-          warm_tea: 2,
-        },
+        stacks: { wood: 3, stone: 2, herb: 1, firestarter_set: 1, wooden_marker: 0, camp_supplies: 0, warm_tea: 2 },
       },
       { copper: 55, silver: 1, gold: 0, platinum: 0 },
     );
