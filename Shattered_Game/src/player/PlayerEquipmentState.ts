@@ -28,6 +28,10 @@ export class PlayerEquipmentState {
     delete this.slots[slot];
   }
 
+  getEquippedId(slot: EquipmentSlot): string | undefined {
+    return this.slots[slot];
+  }
+
   getEquipped(slot: EquipmentSlot): ItemDefinition | undefined {
     const id = this.slots[slot];
     return id ? this.registry.get(id) : undefined;

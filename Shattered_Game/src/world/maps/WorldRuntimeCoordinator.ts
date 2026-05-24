@@ -33,6 +33,7 @@ import {
 import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem';
 import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
+import type { EquipmentSlot } from '../../equipment/EquipmentTypes';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { LevelUpEvent, SkillSnapshot, SkillXpDelta } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
@@ -384,6 +385,20 @@ export class WorldRuntimeCoordinator {
       return this.placeItemInFacingDirection(itemId);
     }
 
+    if (itemDefinition.equipment) {
+      const slot = itemDefinition.equipment.slot;
+      const equipState = this.playerSessionState.getEquipmentState();
+      const previousId = equipState.getEquippedId(slot);
+      const equipped = equipState.equip(slot, itemId);
+      if (!equipped) {
+        return { ok: false, interactionType: 'item_use', targetId: itemId, message: `Cannot equip ${itemDefinition.name}.` };
+      }
+      const inv = this.playerSessionState.getInventoryState();
+      inv.consume(itemId, 1);
+      if (previousId) inv.add(previousId, 1);
+      return { ok: true, interactionType: 'item_use', targetId: itemId, message: `Equipped ${itemDefinition.name}.` };
+    }
+
     const result = this.itemUseSystem.useItem(
       itemId,
       this.playerSessionState.getInventoryState(),
@@ -392,6 +407,18 @@ export class WorldRuntimeCoordinator {
 
     this.actionBroker.emitResultSfx(result);
     return result;
+  }
+
+  unequipSlot(slot: EquipmentSlot): InteractionResult {
+    const equipState = this.playerSessionState.getEquipmentState();
+    const itemId = equipState.getEquippedId(slot);
+    if (!itemId) {
+      return { ok: false, interactionType: 'item_use', targetId: '', message: 'Nothing equipped there.' };
+    }
+    equipState.unequip(slot);
+    this.playerSessionState.getInventoryState().add(itemId, 1);
+    const name = this.itemRegistry.get(itemId)?.name ?? itemId;
+    return { ok: true, interactionType: 'item_use', targetId: itemId, message: `Unequipped ${name}.` };
   }
 
   placeItemInFacingDirection(itemId: string): InteractionResult {
@@ -432,6 +459,10 @@ export class WorldRuntimeCoordinator {
 
   collectGroundItem(itemId: string, count: number): void {
     this.playerSessionState.getInventoryState().add(itemId, count);
+  }
+
+  seedStartingInventory(items: Record<string, number>): void {
+    this.playerSessionState.getInventoryState().addMany(items);
   }
 
   setGroundItemCollector(fn: (id: string) => { itemId: string; count: number } | null): void {

@@ -8,7 +8,7 @@ export type InventoryItemMeta = {
   label: string;
   icon: string;
   description: string;
-  useMode: 'none' | 'place' | 'consume';
+  useMode: 'none' | 'place' | 'consume' | 'equip';
 };
 
 export function getInventoryItemMeta(itemId: string): InventoryItemMeta {
@@ -21,7 +21,9 @@ export function getInventoryItemMeta(itemId: string): InventoryItemMeta {
     ? 'consume'
     : def.placementObjectDefinitionId
       ? 'place'
-      : 'none';
+      : def.equipment
+        ? 'equip'
+        : 'none';
 
   return {
     label: def.name,

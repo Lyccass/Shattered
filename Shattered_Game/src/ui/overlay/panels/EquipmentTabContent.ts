@@ -25,7 +25,7 @@ export class EquipmentTabContent {
   private readonly contentArea: HTMLElement;
   private snapshot: EquipmentSnapshot = emptyEquipmentSnapshot();
 
-  constructor() {
+  constructor(private readonly onUnequip: (slot: string) => void = () => {}) {
     this.el = document.createElement('div');
     this.el.className = 'equipment-tab';
 
@@ -83,11 +83,19 @@ export class EquipmentTabContent {
       const slot = document.createElement('div');
       slot.className = 'equip-slot';
       slot.dataset.slot = key;
+
       if (entry) {
         slot.classList.add('equip-slot--filled');
-        slot.title = entry.displayName;
+        slot.title = `${entry.displayName} — right-click to unequip`;
+        slot.innerHTML = `<span class="equip-slot-label">${entry.displayName}</span>`;
+        slot.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          this.onUnequip(key);
+        });
+      } else {
+        slot.innerHTML = `<span class="equip-slot-label equip-slot-label--empty">${label}</span>`;
       }
-      slot.innerHTML = `<span class="equip-slot-label">${entry?.displayName ?? label}</span>`;
+
       layout.appendChild(slot);
     }
     return layout;

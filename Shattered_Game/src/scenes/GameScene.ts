@@ -32,6 +32,7 @@ import type { InteractionResult } from '../interactions/InteractionTypes';
 import { GroundItemSystem } from '../world/items/GroundItemSystem';
 import type { EnemyKilledEvent } from '../combat/CombatSandboxSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
+import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
@@ -93,6 +94,10 @@ export class GameScene extends Phaser.Scene {
       onInventoryItemDrop:    (itemId) => this.tryDropItem(itemId),
       onInventoryItemInspect: (itemId) => this.tryInspectItem(itemId),
       onInventoryItemCombine: (sourceId, targetId) => this.tryCombineItems(sourceId, targetId),
+      onEquipmentUnequip:     (slot) => {
+        const result = this.worldRuntimeCoordinator?.unequipSlot(slot as import('../equipment/EquipmentTypes').EquipmentSlot);
+        if (result) this.uiManager?.handleResult(result);
+      },
       onChoiceMenuSelect:     (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
       onChoiceMenuConfirm:    () => this.tryConfirmChoiceMenu(),
       onChoiceMenuCancel:     () => {
@@ -136,8 +141,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshGroundItemTargets();
     if (this.combatSandboxSystem && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
       const derived = this.worldRuntimeCoordinator.getDerivedStats();
-      this.combatSandboxSystem.syncMaxHp(derived.maxHp);
-      this.combatSandboxSystem.syncAttackReach(derived.reachTiles);
+      this.combatSandboxSystem.syncDerivedStats(derived);
       const skillSnapshots = this.worldRuntimeCoordinator.getPlayerSkillSnapshots();
       const maxCombatRank = Math.max(1, ...skillSnapshots
         .filter((s) => s.id === 'melee' || s.id === 'defence')
@@ -494,7 +498,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryAutoLoadSave(): void {
+    const hasSave = this.saveController?.hasSave() ?? false;
     this.saveController?.tryAutoLoadSave(this.getSaveControllerContext());
+    if (!hasSave) {
+      this.worldRuntimeCoordinator?.seedStartingInventory(STARTING_WEAPON_IDS);
+    }
   }
 
   private getSaveControllerContext() {

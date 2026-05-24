@@ -8,7 +8,7 @@ export const WOLF_PASSIVE: EnemyDefinition = {
   tier: 1,
   maxHealth: 5,
   behavior: 'passive',
-  moveSpeed: PLAYER_CONFIG.movementSpeed * 0.65,
+  moveSpeed: PLAYER_CONFIG.movementSpeed * 0.40,
   collisionRadiusTiles: 0.55,
   aggroRangeTiles: 0,
   leashRangeTiles: 10,

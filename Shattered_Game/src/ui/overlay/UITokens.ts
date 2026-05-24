@@ -66,6 +66,7 @@ export interface UIOverlayCallbacks {
   onInventoryItemDrop: (itemId: string) => void;
   onInventoryItemInspect: (itemId: string) => void;
   onInventoryItemCombine: (sourceId: string, targetId: string) => void;
+  onEquipmentUnequip: (slot: string) => void;
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;

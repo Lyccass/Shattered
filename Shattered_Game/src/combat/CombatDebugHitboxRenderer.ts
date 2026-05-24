@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { IsoTilemap } from '../world/IsoTilemap';
 import type { PlayerAttackPhase } from './PlayerCombatState';
+import type { AttackHitTiles } from './PlayerAttackTargeting';
 import { snapToIsometricGridDirection } from './CombatGridDirection';
 
 export class CombatDebugHitboxRenderer {
@@ -9,7 +10,6 @@ export class CombatDebugHitboxRenderer {
   constructor(scene: Phaser.Scene) {
     this.graphics = scene.add.graphics();
     this.graphics.setDepth(9_500);
-    this.graphics.setVisible(false);
   }
 
   render({
@@ -18,7 +18,7 @@ export class CombatDebugHitboxRenderer {
     enemyTiles,
     dodgeDirection,
     dodgeTileCount,
-    playerAttackTargetWorld,
+    playerAttackHitTiles,
     playerAttackPhase,
   }: {
     tilemap: IsoTilemap | null;
@@ -26,7 +26,7 @@ export class CombatDebugHitboxRenderer {
     enemyTiles: Array<{ x: number; y: number }>;
     dodgeDirection: Phaser.Math.Vector2 | null;
     dodgeTileCount: number;
-    playerAttackTargetWorld: { x: number; y: number } | null;
+    playerAttackHitTiles: AttackHitTiles | null;
     playerAttackPhase: PlayerAttackPhase;
   }): void {
     if (!tilemap) {
@@ -62,17 +62,18 @@ export class CombatDebugHitboxRenderer {
 
     if (
       (playerAttackPhase === 'windup' || playerAttackPhase === 'active')
-      && playerAttackTargetWorld
+      && playerAttackHitTiles
     ) {
-      const targetTile = tilemap.transform.worldToTile(
-        playerAttackTargetWorld.x,
-        playerAttackTargetWorld.y,
-      );
       const fillAlpha = playerAttackPhase === 'active' ? 0.52 : 0.22;
       const strokeAlpha = playerAttackPhase === 'active' ? 0.9 : 0.55;
-      const color = playerAttackPhase === 'active' ? 0xfacc15 : 0x38bdf8;
+      const color = playerAttackPhase === 'active' ? 0xfacc15 : 0xa5f3fc;
 
-      drawTileSet(this.graphics, tilemap, [targetTile], color, fillAlpha, strokeAlpha);
+      drawTileSet(this.graphics, tilemap, playerAttackHitTiles.primaryTiles, color, fillAlpha, strokeAlpha);
+
+      // Secondary tiles (dagger double-hit) in orange
+      if (playerAttackHitTiles.secondaryTiles && playerAttackHitTiles.secondaryTiles.length > 0) {
+        drawTileSet(this.graphics, tilemap, playerAttackHitTiles.secondaryTiles, 0xfb923c, fillAlpha * 0.7, strokeAlpha * 0.8);
+      }
     }
   }
 

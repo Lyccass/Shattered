@@ -1,4 +1,4 @@
-import type { EquippedSlots, PlayerDerivedStats } from './EquipmentTypes';
+import type { EquippedSlots, PlayerDerivedStats, WeaponArchetype } from './EquipmentTypes';
 import type { EquipmentRegistry } from './EquipmentRegistry';
 
 const BASE_MAX_HP = 10;
@@ -10,6 +10,19 @@ const BASE_REACH_TILES = 1.0;
 const BASE_ATTACK_STAMINA_COST = 12;
 const BASE_MAX_CARRY_WEIGHT = 20;
 const BASE_STAGGER_THRESHOLD = 100;
+
+const MIN_RECOVERY_MS  = 200;
+const DEFAULT_ARCHETYPE: WeaponArchetype = 'sword';
+
+function getArchetypeTimings(archetype: WeaponArchetype): { windupMs: number; activeMs: number } {
+  switch (archetype) {
+    case 'hammer': return { windupMs: 600, activeMs: 200 };
+    case 'sword':  return { windupMs: 400, activeMs: 200 };
+    case 'axe':    return { windupMs: 350, activeMs: 180 };
+    case 'spear':  return { windupMs: 150, activeMs: 200 };
+    case 'dagger': return { windupMs: 100, activeMs: 160 };
+  }
+}
 
 export type SkillLevels = {
   melee: number;
@@ -37,6 +50,9 @@ export function computeDerivedStats(
   const attack = (weapon?.damage ?? BASE_ATTACK) + Math.floor(meleeLevel / 10);
   const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(meleeLevel * 0.4));
   const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
+  const weaponArchetype: WeaponArchetype = weapon?.archetype ?? DEFAULT_ARCHETYPE;
+  const { windupMs: attackWindupMs, activeMs: attackActiveMs } = getArchetypeTimings(weaponArchetype);
+  const attackRecoveryMs = Math.max(MIN_RECOVERY_MS, attackSpeedMs - attackWindupMs - attackActiveMs);
   const reachTiles = weapon?.reachTiles ?? BASE_REACH_TILES;
   const attackStaminaCost = weapon?.staminaCost ?? BASE_ATTACK_STAMINA_COST;
 
@@ -86,6 +102,10 @@ export function computeDerivedStats(
     attack,
     accuracy,
     attackSpeedMs,
+    attackWindupMs,
+    attackActiveMs,
+    attackRecoveryMs,
+    weaponArchetype,
     reachTiles,
     attackStaminaCost,
     dodgeChance,

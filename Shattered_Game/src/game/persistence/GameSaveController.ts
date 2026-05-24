@@ -16,6 +16,10 @@ export class GameSaveController {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
+  hasSave(): boolean {
+    return this.localSaveService.hasSave();
+  }
+
   tryAutoLoadSave(context: GameSaveControllerContext): void {
     const loadResult = this.localSaveService.load();
 

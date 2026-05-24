@@ -226,7 +226,9 @@ export class InventoryTabContent {
     const meta = getInventoryItemMeta(itemId);
     const opts = [];
 
-    if (meta.useMode !== 'none') {
+    if (meta.useMode === 'equip') {
+      opts.push({ label: `Equip ${meta.label}`, action: () => this.callbacks.onItemUse(itemId) });
+    } else if (meta.useMode !== 'none') {
       opts.push({ label: `Use ${meta.label}`, action: () => this.callbacks.onItemUse(itemId) });
     } else {
       const isSelected = this.selectedSlot === index;

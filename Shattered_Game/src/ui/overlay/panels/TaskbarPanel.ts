@@ -54,6 +54,7 @@ export class TaskbarPanel {
     private readonly onInventoryItemDrop: (itemId: string) => void,
     private readonly onInventoryItemInspect: (itemId: string) => void,
     private readonly onInventoryItemCombine: (sourceId: string, targetId: string) => void,
+    private readonly onEquipmentUnequip: (slot: string) => void,
     private readonly onSkillOpen: (skill: SkillSnapshot) => void,
   ) {
     this.root = document.createElement('div');
@@ -117,7 +118,7 @@ export class TaskbarPanel {
       onItemInspect: this.onInventoryItemInspect,
       onItemCombine: this.onInventoryItemCombine,
     });
-    this.equipmentContent = new EquipmentTabContent();
+    this.equipmentContent = new EquipmentTabContent(this.onEquipmentUnequip);
     this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
     this.mapContent       = new MapTabContent();

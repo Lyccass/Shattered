@@ -19,7 +19,10 @@ export const ALL_EQUIPMENT_SLOTS: EquipmentSlot[] = [
 
 export type PhysicalDamageType = 'slash' | 'pierce' | 'crush';
 
+export type WeaponArchetype = 'sword' | 'axe' | 'hammer' | 'spear' | 'dagger';
+
 export type WeaponStats = {
+  archetype: WeaponArchetype;
   damage: number;
   damageType: PhysicalDamageType;
   attackSpeedMs: number;
@@ -78,6 +81,10 @@ export type PlayerDerivedStats = {
   attack: number;
   accuracy: number;
   attackSpeedMs: number;
+  attackWindupMs: number;
+  attackActiveMs: number;
+  attackRecoveryMs: number;
+  weaponArchetype: WeaponArchetype;
   reachTiles: number;
   attackStaminaCost: number;
   dodgeChance: number;
@@ -107,6 +114,10 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     attack: 1,
     accuracy: 50,
     attackSpeedMs: 1000,
+    attackWindupMs: 160,
+    attackActiveMs: 200,
+    attackRecoveryMs: 640,
+    weaponArchetype: 'sword',
     reachTiles: 1.0,
     attackStaminaCost: 12,
     dodgeChance: 0,

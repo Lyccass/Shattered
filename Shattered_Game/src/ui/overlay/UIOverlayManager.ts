@@ -38,6 +38,7 @@ export class UIOverlayManager {
       callbacks.onInventoryItemDrop,
       callbacks.onInventoryItemInspect,
       callbacks.onInventoryItemCombine,
+      callbacks.onEquipmentUnequip,
       (skill) => this.openSkillDetail(skill),
     );
     this.xpDropPanel     = new XpDropPanel(this.overlay);

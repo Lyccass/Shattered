@@ -82,8 +82,12 @@ export class PlayerCombatState {
   private staminaRegenStartsAtMs = 0;
   private lightAttack: ActiveLightAttackState | null = null;
   private recoveryOverrideMs: number | null = null;
+  private attackStaminaCost = LIGHT_ATTACK_COST;
+  private attackWindupMs = LIGHT_ATTACK_WINDUP_MS;
+  private attackActiveMs = LIGHT_ATTACK_ACTIVE_MS;
+  private attackRecoveryMs = LIGHT_ATTACK_RECOVERY_MS;
   private pendingRecoveredFromDowned = false;
-  private nextHpRegenMs = 15_000;
+  private nextHpRegenMs = 60_000;
 
   enterCombat(): void {
     this.combatModeActive = true;
@@ -247,19 +251,19 @@ export class PlayerCombatState {
       };
     }
 
-    if (this.stamina < LIGHT_ATTACK_COST) {
+    if (this.stamina < this.attackStaminaCost) {
       return {
         ok: false,
         reason: 'Too exhausted to attack.',
       };
     }
 
-    this.stamina -= LIGHT_ATTACK_COST;
+    this.stamina -= this.attackStaminaCost;
     this.staminaRegenStartsAtMs = nowMs + STAMINA_REGEN_DELAY_MS;
     this.lightAttack = {
       phase: 'windup',
       phaseStartedAtMs: nowMs,
-      phaseEndsAtMs: nowMs + LIGHT_ATTACK_WINDUP_MS,
+      phaseEndsAtMs: nowMs + this.attackWindupMs,
       pendingActiveResolve: false,
     };
     return { ok: true };
@@ -274,8 +278,15 @@ export class PlayerCombatState {
     this.currentHp = Math.max(1, Math.min(clampedMax, Math.round(ratio * clampedMax)));
   }
 
+  syncAttackConfig(staminaCost: number, recoveryMs: number, windupMs?: number, activeMs?: number): void {
+    this.attackStaminaCost = Math.max(1, staminaCost);
+    this.attackRecoveryMs = Math.max(200, recoveryMs);
+    if (windupMs !== undefined) this.attackWindupMs = Math.max(50, windupMs);
+    if (activeMs !== undefined) this.attackActiveMs = Math.max(80, activeMs);
+  }
+
   refundLightAttackStamina(): void {
-    this.stamina = Math.min(MAX_STAMINA, this.stamina + LIGHT_ATTACK_COST);
+    this.stamina = Math.min(MAX_STAMINA, this.stamina + this.attackStaminaCost);
   }
 
   setNextRecoveryMs(ms: number): void {
@@ -413,7 +424,7 @@ export class PlayerCombatState {
 
     if (nowMs >= this.nextHpRegenMs) {
       this.currentHp = Math.min(this.maxHp, this.currentHp + 1);
-      this.nextHpRegenMs = nowMs + 15_000;
+      this.nextHpRegenMs = nowMs + 60_000;
     }
   }
 
@@ -454,14 +465,14 @@ export class PlayerCombatState {
       this.lightAttack = {
         phase: 'active',
         phaseStartedAtMs: nowMs,
-        phaseEndsAtMs: nowMs + LIGHT_ATTACK_ACTIVE_MS,
+        phaseEndsAtMs: nowMs + this.attackActiveMs,
         pendingActiveResolve: true,
       };
       return;
     }
 
     if (this.lightAttack.phase === 'active') {
-      const recoveryMs = this.recoveryOverrideMs ?? LIGHT_ATTACK_RECOVERY_MS;
+      const recoveryMs = this.recoveryOverrideMs ?? this.attackRecoveryMs;
       this.recoveryOverrideMs = null;
       this.lightAttack = {
         phase: 'recovery',

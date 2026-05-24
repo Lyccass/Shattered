@@ -6,14 +6,12 @@ import {
 } from './CombatPlayerMath';
 import { CombatDebugHitboxRenderer } from './CombatDebugHitboxRenderer';
 import type { PlayerAttackPhase } from './PlayerCombatState';
-import {
-  DODGE_DURATION_MS,
-  LIGHT_ATTACK_WINDUP_MS,
-  LIGHT_ATTACK_ACTIVE_MS,
-  LIGHT_ATTACK_RECOVERY_MS,
-} from './PlayerCombatState';
+import { DODGE_DURATION_MS } from './PlayerCombatState';
 import { PlayerAttackFeedbackRenderer } from './PlayerAttackFeedbackRenderer';
-import { resolveSpearTargetTileCenter } from './PlayerAttackTargeting';
+import { HitsplatRenderer } from './HitsplatRenderer';
+import { resolveAttackTarget } from './PlayerAttackTargeting';
+import type { AttackHitTiles } from './PlayerAttackTargeting';
+import type { PlayerDerivedStats, WeaponArchetype } from '../equipment/EquipmentTypes';
 import { resolveTileDodgeMotion } from './PlayerDodgeTargeting';
 import { separatePlayerFromEnemyTile } from './PlayerEnemySeparation';
 import type { SfxEventId } from '../audio/SfxTypes';
@@ -37,7 +35,9 @@ export type EnemyKilledEvent = {
 
 export class CombatSandboxSystem {
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
-  private static readonly PLAYER_LIGHT_ATTACK_DAMAGE = 1;
+  private currentAttackDamage = 1;
+  private currentAttackRecoveryMs = 640;
+  private currentWeaponArchetype: WeaponArchetype = 'sword';
 
   private readonly playerCombatState = new PlayerCombatState();
   private readonly scene: Phaser.Scene;
@@ -45,13 +45,17 @@ export class CombatSandboxSystem {
   private enemySystems: EnemySystem[] = [];
   private readonly debugHitboxRenderer: CombatDebugHitboxRenderer;
   private readonly playerAttackFeedbackRenderer: PlayerAttackFeedbackRenderer;
+  private readonly hitsplatRenderer: HitsplatRenderer;
   private currentTilemap: IsoTilemap | null = null;
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
   private playerAttackTargetWorld: { x: number; y: number } | null = null;
+  private playerAttackHitTiles: AttackHitTiles | null = null;
   private playerAttackHitResolved = false;
   private static readonly HIT_STOP_MS = 70;
   private static readonly POST_HIT_RECOVERY_MS = 320;
   private currentLightAttackReachTiles = 1;
+  private currentWindupMs = 160;
+  private currentActiveMs = 200;
 
   private currentPlayerTier = 1;
   private currentDodgeTileCount = 2;
@@ -73,6 +77,7 @@ export class CombatSandboxSystem {
     this.telegraphSystem = telegraphSystem;
     this.debugHitboxRenderer = new CombatDebugHitboxRenderer(scene);
     this.playerAttackFeedbackRenderer = new PlayerAttackFeedbackRenderer(scene, telegraphSystem);
+    this.hitsplatRenderer = new HitsplatRenderer(scene);
     this.onEnemyKilled = onEnemyKilled;
     this.onPlayerDied = onPlayerDied;
     this.onCombatXp = onCombatXp;
@@ -98,6 +103,7 @@ export class CombatSandboxSystem {
     this.lastPlayerAttackPhase = 'idle';
 
     this.playerAttackTargetWorld = null;
+    this.playerAttackHitTiles = null;
     this.playerAttackHitResolved = false;
     this.playerAttackFeedbackRenderer.clear();
   }
@@ -239,6 +245,7 @@ export class CombatSandboxSystem {
     this.lastPlayerAttackPhase = 'idle';
 
     this.playerAttackTargetWorld = null;
+    this.playerAttackHitTiles = null;
     this.playerAttackHitResolved = false;
     this.playerAttackFeedbackRenderer.clear();
 
@@ -282,14 +289,17 @@ export class CombatSandboxSystem {
     }
 
     playerController.clearClickMoveTarget();
-    this.playerAttackTargetWorld = resolveSpearTargetTileCenter({
+    const attackResult = resolveAttackTarget({
       tilemap: this.currentTilemap,
       playerFeet,
+      aimRad: attackAimRad,
+      archetype: this.currentWeaponArchetype,
       targetWorldX,
       targetWorldY,
-      aimRad: attackAimRad,
-      maxTileReach: this.currentLightAttackReachTiles,
+      reachTiles: this.currentLightAttackReachTiles,
     });
+    this.playerAttackTargetWorld = attackResult.targetWorld;
+    this.playerAttackHitTiles = attackResult.hitTiles;
     this.playerAttackHitResolved = false;
     return null;
   }
@@ -302,12 +312,15 @@ export class CombatSandboxSystem {
     return this.playerCombatState.getSnapshot(nowMs).combatModeActive;
   }
 
-  syncMaxHp(maxHp: number): void {
-    this.playerCombatState.updateMaxHp(maxHp);
-  }
-
-  syncAttackReach(tiles: number): void {
-    this.currentLightAttackReachTiles = Math.max(0.5, tiles);
+  syncDerivedStats(derived: PlayerDerivedStats): void {
+    this.playerCombatState.updateMaxHp(derived.maxHp);
+    this.playerCombatState.syncAttackConfig(derived.attackStaminaCost, derived.attackRecoveryMs, derived.attackWindupMs, derived.attackActiveMs);
+    this.currentWindupMs = derived.attackWindupMs;
+    this.currentActiveMs = derived.attackActiveMs;
+    this.currentLightAttackReachTiles = Math.max(0.5, derived.reachTiles);
+    this.currentAttackDamage = Math.max(1, derived.attack);
+    this.currentAttackRecoveryMs = derived.attackRecoveryMs;
+    this.currentWeaponArchetype = derived.weaponArchetype;
   }
 
   syncPlayerTier(tier: number): void {
@@ -373,6 +386,7 @@ export class CombatSandboxSystem {
   destroy(): void {
     this.playerAttackFeedbackRenderer.clear();
     this.debugHitboxRenderer.destroy();
+    this.hitsplatRenderer.destroy();
     for (const es of this.enemySystems) {
       es.destroy();
     }
@@ -402,6 +416,8 @@ export class CombatSandboxSystem {
         )
       : false;
 
+    const attackerName = this.getEngagedEnemyName();
+
     events.forEach((event) => {
       if (event.kind !== 'attack_result') {
         return;
@@ -416,6 +432,7 @@ export class CombatSandboxSystem {
           ok: true,
           message: event.reason === 'invulnerable' ? 'Dodged.' : 'Missed.',
           toastKind: 'info',
+          combatLog: 'You dodge.',
         });
         return;
       }
@@ -433,6 +450,7 @@ export class CombatSandboxSystem {
             ok: true,
             message: 'Dodged.',
             toastKind: 'info',
+            combatLog: 'You dodge.',
           });
           return;
 
@@ -442,6 +460,7 @@ export class CombatSandboxSystem {
             ok: true,
             message: 'Blocked.',
             toastKind: 'info',
+            combatLog: `You block ${attackerName}'s attack.`,
           });
           // Roar pushes through the guard at reduced force
           if (event.knockbackDirX !== undefined && event.knockbackDistanceWorld) {
@@ -456,14 +475,14 @@ export class CombatSandboxSystem {
         case 'guard_broken': {
           playerController.requestCombatVisualState('hurt', nowMs, 360);
           this.emitSfx('guard_break');
-          const gbLevelUps = resolution.damageApplied > 0
-            ? this.onCombatXp?.({ defence: resolution.damageApplied })
-            : undefined;
+          const gbXp = resolution.damageApplied > 0 ? resolution.damageApplied * 4 : 0;
+          const gbLevelUps = gbXp > 0 ? this.onCombatXp?.({ defence: gbXp }) : undefined;
           results.push({
             ok: false,
             message: resolution.wasDowned ? 'Guard broken. Downed.' : 'Guard broken!',
             toastKind: 'error',
-            xpDelta: resolution.damageApplied > 0 ? { defence: resolution.damageApplied } : undefined,
+            combatLog: `${attackerName} breaks your guard${resolution.damageApplied > 0 ? ` for ${resolution.damageApplied}` : ''}.`,
+            xpDelta: gbXp > 0 ? { defence: gbXp } : undefined,
             levelUps: gbLevelUps,
           });
           return;
@@ -477,14 +496,17 @@ export class CombatSandboxSystem {
             resolution.wasDowned ? 900 : 260,
           );
           this.emitSfx('combat_hit');
-          const hitLevelUps = resolution.damageApplied > 0
-            ? this.onCombatXp?.({ defence: resolution.damageApplied })
-            : undefined;
+          const hitXp = resolution.damageApplied > 0 ? resolution.damageApplied * 4 : 0;
+          const hitLevelUps = hitXp > 0 ? this.onCombatXp?.({ defence: hitXp }) : undefined;
+          const hitLog = resolution.wasDowned
+            ? `${attackerName} hits you for ${resolution.damageApplied}. You are downed.`
+            : `${attackerName} hits you for ${resolution.damageApplied}.`;
           results.push({
             ok: false,
             message: resolution.wasDowned ? 'Downed.' : 'Hit!',
             toastKind: 'error',
-            xpDelta: resolution.damageApplied > 0 ? { defence: resolution.damageApplied } : undefined,
+            combatLog: hitLog,
+            xpDelta: hitXp > 0 ? { defence: hitXp } : undefined,
             levelUps: hitLevelUps,
           });
         }
@@ -519,30 +541,48 @@ export class CombatSandboxSystem {
       return;
     }
 
-    if (!this.playerAttackTargetWorld || !this.currentTilemap) {
+    if (!this.playerAttackHitTiles || !this.currentTilemap) {
       return;
     }
 
-    const targetTile = this.currentTilemap.transform.worldToTile(
-      this.playerAttackTargetWorld.x,
-      this.playerAttackTargetWorld.y,
-    );
+    const allHitTiles = this.playerAttackHitTiles.primaryTiles;
 
     const hitSystem = this.enemySystems.find((es) =>
-      es.getOccupiedTiles().some((et) => et.x === targetTile.x && et.y === targetTile.y),
+      es.getOccupiedTiles().some(
+        (et) => allHitTiles.some((ht) => ht.x === et.x && ht.y === et.y),
+      ),
     );
 
     if (!hitSystem) {
       return;
     }
 
-    const outcome = hitSystem.applyDamage(
-      CombatSandboxSystem.PLAYER_LIGHT_ATTACK_DAMAGE,
-      nowMs,
-    );
+    // OSRS-style roll: 0 to maxHit inclusive
+    const primaryDamage = Math.floor(Math.random() * (this.currentAttackDamage + 1));
+    const outcome = hitSystem.applyDamage(primaryDamage, nowMs);
 
     if (!outcome.hit) {
       return;
+    }
+
+    const enemyName = hitSystem.getUiSnapshot()?.name ?? 'Enemy';
+    const enemyPos = hitSystem.getWorldPosition();
+    if (enemyPos) {
+      this.hitsplatRenderer.show(enemyPos.x, enemyPos.y, primaryDamage);
+    }
+
+    // Dagger second hit: roll separately against secondary max hit
+    const secondaryMultiplier = this.playerAttackHitTiles.secondaryDamageMultiplier ?? 0;
+    let totalDamageDealt = primaryDamage;
+    let secondaryDamage: number | null = null;
+    if (secondaryMultiplier > 0 && !outcome.killed) {
+      const secondaryMaxHit = Math.floor(this.currentAttackDamage * secondaryMultiplier);
+      secondaryDamage = Math.floor(Math.random() * (secondaryMaxHit + 1));
+      hitSystem.applyDamage(secondaryDamage, nowMs);
+      if (enemyPos) {
+        this.hitsplatRenderer.show(enemyPos.x, enemyPos.y, secondaryDamage, 180);
+      }
+      totalDamageDealt += secondaryDamage;
     }
 
     this.playerAttackHitResolved = true;
@@ -560,13 +600,21 @@ export class CombatSandboxSystem {
       }
     }
 
-    const meleeDamage = CombatSandboxSystem.PLAYER_LIGHT_ATTACK_DAMAGE;
-    const meleeLevelUps = this.onCombatXp?.({ melee: meleeDamage });
+    const dmgParts = secondaryDamage !== null
+      ? `${primaryDamage}, ${secondaryDamage}`
+      : String(primaryDamage);
+    const combatLog = outcome.killed
+      ? `You kill ${enemyName} (${dmgParts} dmg).`
+      : `You hit ${enemyName} for ${dmgParts}.`;
+
+    const meleeXp = totalDamageDealt * 4;
+    const meleeLevelUps = this.onCombatXp?.({ melee: meleeXp });
     results.push({
       ok: true,
       message: outcome.killed ? 'Enemy down.' : 'You landed a hit.',
       toastKind: outcome.killed ? 'success' : 'info',
-      xpDelta: { melee: meleeDamage },
+      combatLog,
+      xpDelta: { melee: meleeXp },
       levelUps: meleeLevelUps,
     });
   }
@@ -585,7 +633,7 @@ export class CombatSandboxSystem {
         playerController.requestCombatVisualState(
           'attack_windup',
           nowMs,
-          LIGHT_ATTACK_WINDUP_MS,
+          this.currentWindupMs,
         );
         this.playerAttackFeedbackRenderer.showWindup({
           nowMs,
@@ -610,7 +658,7 @@ export class CombatSandboxSystem {
         playerController.requestCombatVisualState(
           'attack_active',
           nowMs,
-          LIGHT_ATTACK_ACTIVE_MS,
+          this.currentActiveMs,
         );
         this.playerAttackFeedbackRenderer.showActive({
           nowMs,
@@ -624,14 +672,15 @@ export class CombatSandboxSystem {
         playerController.requestCombatVisualState(
           'attack_recovery',
           nowMs,
-          LIGHT_ATTACK_RECOVERY_MS,
+          this.currentAttackRecoveryMs,
         );
         this.playerAttackHitResolved = false;
         this.playerAttackFeedbackRenderer.clear();
         break;
       default:
-    
+
         this.playerAttackTargetWorld = null;
+        this.playerAttackHitTiles = null;
         this.playerAttackHitResolved = false;
         this.playerAttackFeedbackRenderer.clear();
         break;
@@ -661,7 +710,7 @@ export class CombatSandboxSystem {
       enemyTiles: allEnemyTiles,
       dodgeDirection: playerController.getDodgeDirection(),
       dodgeTileCount: this.currentDodgeTileCount,
-      playerAttackTargetWorld: this.playerAttackTargetWorld,
+      playerAttackHitTiles: this.playerAttackHitTiles,
       playerAttackPhase: snapshot.lightAttackPhase,
     });
   }
@@ -701,6 +750,13 @@ export class CombatSandboxSystem {
       nearest = pos;
     }
     return nearest;
+  }
+
+  private getEngagedEnemyName(): string {
+    for (const es of this.enemySystems) {
+      if (es.isEngaged()) return es.getUiSnapshot()?.name ?? 'Enemy';
+    }
+    return 'Enemy';
   }
 
   private getClosestEnemyPosition(fromX: number, fromY: number): { x: number; y: number } | null {

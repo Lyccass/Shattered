@@ -15,6 +15,7 @@ export interface UiManagerCallbacks {
   onInventoryItemDrop: (itemId: string) => void;
   onInventoryItemInspect: (itemId: string) => void;
   onInventoryItemCombine: (sourceId: string, targetId: string) => void;
+  onEquipmentUnequip: (slot: string) => void;
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
@@ -44,6 +45,7 @@ export class UiManager {
       onInventoryItemDrop:     callbacks.onInventoryItemDrop,
       onInventoryItemInspect:  callbacks.onInventoryItemInspect,
       onInventoryItemCombine:  callbacks.onInventoryItemCombine,
+      onEquipmentUnequip:      callbacks.onEquipmentUnequip,
       onChoiceMenuSelect:      callbacks.onChoiceMenuSelect,
       onChoiceMenuConfirm:     callbacks.onChoiceMenuConfirm,
       onChoiceMenuCancel:      callbacks.onChoiceMenuCancel,
@@ -72,6 +74,11 @@ export class UiManager {
 
   handleResult(result: UiHandledResult | null): void {
     if (!result) return;
+
+    // Combat log line (damage dealt/received) → dedicated combat channel
+    if (result.combatLog) {
+      this.overlay.pushMessage(result.combatLog, 'combat');
+    }
 
     // Primary message → chat
     const channel = result.toastKind === 'reward'
