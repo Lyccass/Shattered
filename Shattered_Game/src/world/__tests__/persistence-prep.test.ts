@@ -185,16 +185,11 @@ describe('Persistence Prep v0', () => {
     expect(Object.keys(save.worldMapSnapshot.changedRegions)).toEqual(['test_harbor']);
     expect(Object.keys(save.worldMapSnapshot.changedRegions.test_harbor.changedChunks)).toEqual([
       '0,0',
-      '1,0',
     ]);
     expect(
       save.worldMapSnapshot.changedRegions.test_harbor.changedChunks['0,0'].depletedResources,
     ).toEqual({
       harbor_driftwood_gather_01: { respawnAt: 5_000 },
-    });
-    expect(
-      save.worldMapSnapshot.changedRegions.test_harbor.changedChunks['1,0'].depletedResources,
-    ).toEqual({
       harbor_stone_gather_01: { respawnAt: 8_000 },
     });
     expect(JSON.stringify(save.worldMapSnapshot)).not.toContain('temp_firestarter_01');

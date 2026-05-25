@@ -1,6 +1,69 @@
 {
   "id": "global",
-  "objectDefinitions": [],
-  "savedAt": "2026-05-22T15:18:58.891Z",
-  "terrainBrushes": []
+  "objectDefinitions": [
+    {
+      "id": "BARREL_1",
+      "displayName": "BArrel",
+      "category": "marker",
+      "collisionFootprint": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 1,
+          "y": 0
+        }
+      ],
+      "blocksMovement": true,
+      "visual": {
+        "parts": [
+          {
+            "shape": "sprite",
+            "textureKey": "editor_asset_barrel_1",
+            "editorTextureDataUrl": "/__shattered_editor_library/assets/images/ZWRpdG9yX2Fzc2V0X2JhcnJlbF8x.png",
+            "scale": 0.5,
+            "originX": 0.5,
+            "originY": 0.5,
+            "localOffsetX": 16,
+            "localOffsetY": -82
+          }
+        ]
+      },
+      "shadow": {
+        "enabled": false,
+        "localOffsetX": 0,
+        "localOffsetY": 0,
+        "width": 0,
+        "height": 0,
+        "alpha": 0
+      },
+      "depth": {
+        "anchorMode": "centroid",
+        "localOffsetX": 0,
+        "localOffsetY": 0,
+        "depthOffset": 0.1
+      },
+      "debug": {
+        "color": 15680580,
+        "label": "BArrel"
+      }
+    }
+  ],
+  "savedAt": "2026-05-25T14:57:39.673Z",
+  "terrainBrushes": [
+    {
+      "id": "custom_Stone_1",
+      "category": "Stone",
+      "family": "grass",
+      "textureKey": "editor_asset_custom_stone_1",
+      "textureDataUrl": "/__shattered_editor_library/assets/images/ZWRpdG9yX2Fzc2V0X2N1c3RvbV9zdG9uZV8x.png",
+      "textureOffsetX": 0,
+      "textureOffsetY": -47,
+      "textureScale": 0.26,
+      "walkable": true,
+      "flipX": false,
+      "flipY": false
+    }
+  ]
 }

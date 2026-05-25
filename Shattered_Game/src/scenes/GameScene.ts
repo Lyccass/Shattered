@@ -85,8 +85,13 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator.setGroundItemCollector(
       (id) => this.groundItemSystem?.collectDrop(id) ?? null,
     );
-    const initialMapId = getPublishedEditorMapId() ?? 'test_home_island';
-    this.initializeWorldRuntime(initialMapId, 'default');
+    const worldManifestUrl = getWorldManifestUrl();
+    if (worldManifestUrl) {
+      this.initializeWorldManifestRuntime(worldManifestUrl, 'default');
+    } else {
+      const initialMapId = getPublishedEditorMapId() ?? 'test_home_island';
+      this.initializeWorldRuntime(initialMapId, 'default');
+    }
     this.uiManager = new UiManager(this, {
       onCombatToggle:         () => this.toggleControlMode(),
       onSprintToggle:         () => this.tryToggleSprint(),
@@ -292,6 +297,29 @@ export class GameScene extends Phaser.Scene {
       if (mapId !== 'test_home_island') {
         await this.initializeWorldRuntime('test_home_island', 'default');
       }
+    }
+  }
+
+  private async initializeWorldManifestRuntime(manifestUrl: string, spawnId: string): Promise<void> {
+    const coordinator = this.worldRuntimeCoordinator;
+    const loadSerial = this.mapLoadSerial + 1;
+    this.mapLoadSerial = loadSerial;
+
+    if (!coordinator) return;
+
+    try {
+      const loadedMap = await coordinator.loadWorldManifest(manifestUrl, spawnId);
+
+      if (this.hasShutdown) return;
+      if (this.mapLoadSerial !== loadSerial) return;
+      if (this.worldRuntimeCoordinator !== coordinator) return;
+
+      this.bindPlayerAndCamera(loadedMap);
+      this.bindRuntimeSupportSystems();
+      coordinator.updatePlayerRuntimeState();
+    } catch (error) {
+      console.error(`[GameScene] Failed to load world manifest "${manifestUrl}":`, error);
+      await this.initializeWorldRuntime('test_home_island', 'default');
     }
   }
 
@@ -597,6 +625,14 @@ export class GameScene extends Phaser.Scene {
       this.controlMode === 'combat' ? 'Combat controls enabled.' : 'Explore controls enabled.',
     );
   }
+}
+
+function getWorldManifestUrl(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return new URLSearchParams(window.location.search).get('worldManifest');
 }
 
 function isDeferredInteractionAction(

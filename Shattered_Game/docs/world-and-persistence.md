@@ -154,6 +154,64 @@ Current direction:
 - `WorldChunkDefinition` describes static authored chunk data.
 - `WorldChunkRuntimeState` describes sparse runtime changes.
 
+## World Manifest Contract
+
+`WorldManifest` is the anchor for large seamless worlds. It describes the
+address space and authored chunk index without loading the full world into
+memory.
+
+Initial manifest shape:
+
+```json
+{
+  "version": 1,
+  "worldId": "the_wake",
+  "displayName": "The Wake",
+  "chunkSize": 32,
+  "bounds": {
+    "minChunkX": 0,
+    "minChunkY": 0,
+    "maxChunkX": 999,
+    "maxChunkY": 999
+  },
+  "defaultRegionId": "wildlands",
+  "regions": [
+    {
+      "id": "wildlands",
+      "displayName": "Wildlands",
+      "defaultTerrain": "grass",
+      "defaultWalkable": true
+    }
+  ],
+  "authoredChunks": [
+    {
+      "chunkX": 0,
+      "chunkY": 0,
+      "regionId": "wildlands",
+      "path": "data/worlds/the_wake/chunks/0_0.json"
+    }
+  ]
+}
+```
+
+Required rules:
+
+- The manifest owns world bounds, chunk size, regions, and authored chunk file
+  paths.
+- Missing chunk files are valid. Runtime fills them from the region's
+  `defaultTerrain` and `defaultWalkable` values.
+- Authored chunk files store only static authored detail for that coordinate.
+- Runtime state is stored separately as sparse chunk state and never mixed into
+  static authored chunk files.
+- Runtime streaming should be driven by player tile/chunk position, not camera
+  position. Camera view can influence render visibility, but player position is
+  the clean bridge to future server-side active chunk windows.
+
+For a `1000x1000` chunk world, the runtime must not create one million chunk
+configs. It should keep a small active chunk index keyed by `chunkX,chunkY` for
+the current player-centered stream window, plus a short-lived retain/prefetch
+buffer.
+
 Static chunks can include:
 
 - terrain

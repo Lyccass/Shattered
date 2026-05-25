@@ -3,12 +3,10 @@ import { OBJECT_TEXTURES } from './ObjectAssets';
 import { INTERACTION_OBJECT_DEFINITIONS } from './InteractionObjectDefinitions';
 import type { GridFootprint, ObjectDefinition, ShadowDefinition } from './ObjectTypes';
 
-const TW = PROTOTYPE_SCALE.tileWidth;
 const TH = PROTOTYPE_SCALE.tileHeight;
 
 // Standard footprints. Anchor (0,0) is the back-left tile.
 const FOOTPRINT_1x1: GridFootprint = [{ x: 0, y: 0 }];
-const FOOTPRINT_2x1_H: GridFootprint = [{ x: 0, y: 0 }, { x: 1, y: 0 }];
 const FOOTPRINT_2x2: GridFootprint = [
   { x: 0, y: 0 },
   { x: 1, y: 0 },
@@ -18,7 +16,6 @@ const FOOTPRINT_2x2: GridFootprint = [
 
 // World-pixel offset of the geometric centre of each footprint relative to the
 // anchor tile centre. Used to position visuals that should span multiple tiles.
-const CENTRE_2x1_H = { x: TW / 4, y: TH / 4 };   // (16, 8) with default scale
 const CENTRE_2x2   = { x: 0,      y: TH / 2 };   // (0, 16) with default scale
 
 // Tree PNGs include extra transparent/low-alpha pixels below the trunk. If we
@@ -27,10 +24,6 @@ const CENTRE_2x2   = { x: 0,      y: TH / 2 };   // (0, 16) with default scale
 // mark the actual trunk/ground contact point inside each source image.
 const TREE_01_BASE_ORIGIN = { x: 208 / 428, y: 523 / 589 };
 const TREE_02_BASE_ORIGIN = { x: 245 / 474, y: 496 / 545 };
-
-const noShadow = (): ShadowDefinition => ({
-  enabled: false, localOffsetX: 0, localOffsetY: 0, width: 0, height: 0, alpha: 0,
-});
 
 const shadow = (
   width: number,
@@ -47,68 +40,7 @@ const DEFAULT_DEPTH = {
   depthOffset: 0.1,
 } as const;
 
-// Test/foundation registry. Visuals are intentionally placeholder shapes —
-// final art will replace them, but the placement/collision contract stays the same.
 export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
-  // ---- Markers (debug shapes that exactly fill their footprint) ----
-  {
-    id: 'marker_1x1',
-    displayName: 'Marker 1×1',
-    category: 'marker',
-    collisionFootprint: FOOTPRINT_1x1,
-    blocksMovement: true,
-    visual: {
-      parts: [{
-        shape: 'ellipse',
-        width: 40, height: 20,
-        localOffsetX: 0, localOffsetY: -2,
-        color: 0xef4444, alpha: 0.9,
-        strokeColor: 0x7f1d1d, strokeWidth: 2, strokeAlpha: 1,
-      }],
-    },
-    shadow: noShadow(),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0xef4444, label: '1×1' },
-  },
-  {
-    id: 'marker_2x1',
-    displayName: 'Marker 2×1',
-    category: 'marker',
-    collisionFootprint: FOOTPRINT_2x1_H,
-    blocksMovement: true,
-    visual: {
-      parts: [{
-        shape: 'ellipse',
-        width: 72, height: 26,
-        localOffsetX: CENTRE_2x1_H.x, localOffsetY: CENTRE_2x1_H.y - 4,
-        color: 0xf97316, alpha: 0.9,
-        strokeColor: 0x9a3412, strokeWidth: 2, strokeAlpha: 1,
-      }],
-    },
-    shadow: noShadow(),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0xef4444, label: '2×1' },
-  },
-  {
-    id: 'marker_2x2',
-    displayName: 'Marker 2×2',
-    category: 'marker',
-    collisionFootprint: FOOTPRINT_2x2,
-    blocksMovement: true,
-    visual: {
-      parts: [{
-        shape: 'ellipse',
-        width: 84, height: 42,
-        localOffsetX: CENTRE_2x2.x, localOffsetY: CENTRE_2x2.y - 4,
-        color: 0xfacc15, alpha: 0.9,
-        strokeColor: 0x854d0e, strokeWidth: 2, strokeAlpha: 1,
-      }],
-    },
-    shadow: noShadow(),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0xef4444, label: '2×2' },
-  },
-
   // ---- Rocks ----
   {
     id: 'small_rock',
@@ -156,105 +88,6 @@ export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
     debug: { color: 0xef4444 },
   },
 
-  // ---- Barrel ----
-  {
-    id: 'barrel',
-    displayName: 'Barrel',
-    category: 'barrel',
-    collisionFootprint: FOOTPRINT_1x1,
-    blocksMovement: true,
-    visual: {
-      parts: [
-        { shape: 'rect',    width: 22, height: 30, localOffsetX: 0, localOffsetY: -13, color: 0x92400e, strokeColor: 0x451a03, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'rect',    width: 22, height: 3,  localOffsetX: 0, localOffsetY: -22, color: 0x451a03 },
-        { shape: 'rect',    width: 22, height: 3,  localOffsetX: 0, localOffsetY: -10, color: 0x451a03 },
-        { shape: 'ellipse', width: 22, height: 6,  localOffsetX: 0, localOffsetY: -27, color: 0xb45309 },
-      ],
-    },
-    shadow: shadow(22, 10, 0, 4),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0xef4444 },
-  },
-
-  // ---- Log (2×1 horizontal) ----
-  {
-    id: 'log',
-    displayName: 'Log',
-    category: 'log',
-    collisionFootprint: FOOTPRINT_2x1_H,
-    blocksMovement: true,
-    visual: {
-      parts: [
-        { shape: 'ellipse', width: 76, height: 22, localOffsetX: CENTRE_2x1_H.x, localOffsetY: CENTRE_2x1_H.y - 8, color: 0x92400e, strokeColor: 0x451a03, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 18, height: 20, localOffsetX: CENTRE_2x1_H.x - 30, localOffsetY: CENTRE_2x1_H.y - 8, color: 0xb45309, strokeColor: 0x451a03, strokeWidth: 1.5, strokeAlpha: 1 },
-        { shape: 'ellipse', width: 18, height: 20, localOffsetX: CENTRE_2x1_H.x + 30, localOffsetY: CENTRE_2x1_H.y - 8, color: 0xb45309, strokeColor: 0x451a03, strokeWidth: 1.5, strokeAlpha: 1 },
-      ],
-    },
-    shadow: shadow(70, 16, CENTRE_2x1_H.x, CENTRE_2x1_H.y + 4),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0xef4444 },
-  },
-
-  // ---- Fence segment (1×1) ----
-  {
-    id: 'fence_segment',
-    displayName: 'Fence Segment',
-    category: 'fence',
-    collisionFootprint: FOOTPRINT_1x1,
-    blocksMovement: true,
-    visual: {
-      parts: [
-        { shape: 'rect', width: 4,  height: 24, localOffsetX: -10, localOffsetY: -12, color: 0x57534e },
-        { shape: 'rect', width: 4,  height: 24, localOffsetX:  10, localOffsetY: -12, color: 0x57534e },
-        { shape: 'rect', width: 26, height: 3,  localOffsetX:   0, localOffsetY: -19, color: 0x44403c },
-        { shape: 'rect', width: 26, height: 3,  localOffsetX:   0, localOffsetY:  -7, color: 0x44403c },
-      ],
-    },
-    shadow: shadow(24, 6, 0, 2, 0.22),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0xef4444 },
-  },
-
-  // ---- Flower patch (non-blocking) ----
-  {
-    id: 'flower_patch',
-    displayName: 'Flower Patch',
-    category: 'flora',
-    collisionFootprint: FOOTPRINT_1x1,
-    blocksMovement: false,
-    visual: {
-      parts: [
-        { shape: 'ellipse', width: 8, height: 6, localOffsetX: -10, localOffsetY: -2, color: 0xfb7185 },
-        { shape: 'ellipse', width: 8, height: 6, localOffsetX:   8, localOffsetY: -4, color: 0xfde047 },
-        { shape: 'ellipse', width: 8, height: 6, localOffsetX:  -3, localOffsetY:  4, color: 0xf472b6 },
-        { shape: 'ellipse', width: 8, height: 6, localOffsetX:  12, localOffsetY:  5, color: 0xe879f9 },
-        { shape: 'ellipse', width: 6, height: 4, localOffsetX:   2, localOffsetY: -6, color: 0xa3e635 },
-      ],
-    },
-    shadow: noShadow(),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0x3b82f6 },
-  },
-
-  // ---- Passable ground detail ----
-  {
-    id: 'pebble_patch',
-    displayName: 'Pebbles',
-    category: 'pebble',
-    collisionFootprint: FOOTPRINT_1x1,
-    blocksMovement: false,
-    visual: {
-      parts: [
-        { shape: 'ellipse', width: 9, height: 5, localOffsetX: -12, localOffsetY: 0, color: 0x94a3b8, alpha: 0.75 },
-        { shape: 'ellipse', width: 6, height: 4, localOffsetX: -2,  localOffsetY: 5, color: 0x64748b, alpha: 0.7 },
-        { shape: 'ellipse', width: 7, height: 4, localOffsetX: 10,  localOffsetY: 1, color: 0xa8a29e, alpha: 0.72 },
-        { shape: 'ellipse', width: 4, height: 3, localOffsetX: 4,   localOffsetY: -5, color: 0x475569, alpha: 0.55 },
-      ],
-    },
-    shadow: noShadow(),
-    depth: DEFAULT_DEPTH,
-    debug: { color: 0x3b82f6, label: 'pebbles' },
-  },
   // ---- Tree (1×1 trunk, canopy extends visually beyond footprint) ----
   {
     id: 'tree_test',

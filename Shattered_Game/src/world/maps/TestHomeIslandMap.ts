@@ -34,10 +34,6 @@ export function createHomeIslandMap(): MapDefinition {
     { id: 'home_tree_04', definitionId: 'tree_test', tileX: 23, tileY: 23 },
     { id: 'home_rock_01', definitionId: 'small_rock', tileX: 12, tileY: 18 },
     { id: 'home_rock_02', definitionId: 'medium_rock', tileX: 19, tileY: 20 },
-    { id: 'home_barrel_01', definitionId: 'barrel', tileX: 18, tileY: 17 },
-    { id: 'home_log_01', definitionId: 'log', tileX: 27, tileY: 21 },
-    { id: 'home_pebbles_01', definitionId: 'pebble_patch', tileX: 14, tileY: 15 },
-    { id: 'home_flowers_01', definitionId: 'flower_patch', tileX: 17, tileY: 15 },
     { id: 'home_workbench_01', definitionId: 'workbench_basic', tileX: 14, tileY: 17 },
   ];
 

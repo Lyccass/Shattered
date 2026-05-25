@@ -8,8 +8,13 @@ import {
   parseEditorTerrainTiles,
   parseEditorTerrainWalkability,
 } from '../../shared/editor/EditorMapModel';
+import { createChunkKey } from '../../shared/world/ChunkKey';
+import { isTerrainFamily } from '../../shared/map/TerrainTypes';
 import { generateOrganicIsland } from '../IslandGenerator';
 import { IsoTilemap } from '../IsoTilemap';
+import { getChunkCoordForTile } from '../chunks/TerrainChunkMath';
+import { ActiveWorldChunkWindow } from '../streaming/ActiveWorldChunkWindow';
+import { loadWorldChunkProviderFromManifestUrl } from '../streaming/BrowserWorldChunkLoader';
 import { getMapDefinition } from './MapDefinitions';
 import { MapZoneIndex } from './MapZoneIndex';
 import type { MapDefinition, MapSpawnPoint, MapTransition } from './MapTypes';
@@ -110,6 +115,88 @@ export class MapLoader {
     };
 
     return this.currentRuntime;
+  }
+
+  async loadWorldManifest(manifestUrl: string, spawnId = 'default'): Promise<LoadedMapRuntime> {
+    this.destroyCurrentRuntime();
+
+    const provider = await loadWorldChunkProviderFromManifestUrl(manifestUrl);
+    const manifest = provider.getManifest();
+    const defaultRegion = manifest.regions.find((region) => region.id === manifest.defaultRegionId);
+
+    if (!defaultRegion || !isTerrainFamily(defaultRegion.defaultTerrain)) {
+      throw new Error(`MapLoader: world manifest "${manifest.worldId}" has no valid default terrain.`);
+    }
+
+    if (manifest.bounds.minChunkX !== 0 || manifest.bounds.minChunkY !== 0) {
+      throw new Error('MapLoader: streamed world manifests currently need 0,0 as their minimum chunk bound.');
+    }
+
+    const width = (manifest.bounds.maxChunkX - manifest.bounds.minChunkX + 1) * manifest.chunkSize;
+    const height = (manifest.bounds.maxChunkY - manifest.bounds.minChunkY + 1) * manifest.chunkSize;
+    const defaultSpawn = manifest.defaultSpawn;
+    const resolvedSpawnId: string = spawnId === 'default'
+      ? (defaultSpawn.spawnId ?? 'default')
+      : spawnId;
+    const spawnPoint: MapSpawnPoint = {
+      id: resolvedSpawnId,
+      tileX: defaultSpawn.chunk.chunkX * manifest.chunkSize + defaultSpawn.tileX,
+      tileY: defaultSpawn.chunk.chunkY * manifest.chunkSize + defaultSpawn.tileY,
+    };
+    const definition: MapDefinition = {
+      id: manifest.worldId,
+      displayName: manifest.displayName,
+      spaceType: 'open_world',
+      width,
+      height,
+      terrain: [],
+      spawnPoints: {
+        [resolvedSpawnId]: spawnPoint,
+      },
+      objects: [],
+      transitions: [],
+      interactionAnchors: [],
+      zones: [],
+      metadata: {
+        streamedWorld: true,
+        worldManifestUrl: manifestUrl,
+      },
+    };
+    const isoTilemap = new IsoTilemap(this.scene, {
+      width,
+      height,
+      defaultTerrain: defaultRegion.defaultTerrain,
+    });
+    const activeWindow = new ActiveWorldChunkWindow(provider, {
+      loadRadius: PROTOTYPE_SCALE.terrainChunkVisibleRadius,
+      retainRadius: PROTOTYPE_SCALE.terrainChunkRetainRadius,
+    });
+    const initialChunks = await activeWindow.loadAroundTile(spawnPoint.tileX, spawnPoint.tileY);
+    isoTilemap.applyWorldChunks(initialChunks);
+    const worldBounds = isoTilemap.render();
+    const spawnCenter = getChunkCoordForTile(spawnPoint.tileX, spawnPoint.tileY, manifest.chunkSize);
+
+    const runtime: LoadedMapRuntime = {
+      definition,
+      isoTilemap,
+      worldBounds,
+      activeSpawnId: resolvedSpawnId,
+      transitions: [],
+      zones: [],
+      zoneIndex: new MapZoneIndex([]),
+      interactionAnchors: [],
+      streamedWorld: {
+        provider,
+        activeWindow,
+        lastCenterChunkKey: createChunkKey(spawnCenter),
+        loadingCenterChunkKey: null,
+        materializedChunkKeys: new Set(),
+        materializedObjectIdsByChunk: new Map(),
+      },
+    };
+    this.currentRuntime = runtime;
+
+    return runtime;
   }
 
   destroyCurrentRuntime(): void {

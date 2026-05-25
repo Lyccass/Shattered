@@ -26,15 +26,9 @@ export function createHarborMap(): MapDefinition {
   ]);
 
   const objects: MapPlacedObject[] = [
-    { id: 'harbor_barrel_01', definitionId: 'barrel', tileX: 14, tileY: 14 },
-    { id: 'harbor_barrel_02', definitionId: 'barrel', tileX: 15, tileY: 14 },
-    { id: 'harbor_fence_01', definitionId: 'fence_segment', tileX: 12, tileY: 12 },
-    { id: 'harbor_fence_02', definitionId: 'fence_segment', tileX: 13, tileY: 12 },
-    { id: 'harbor_log_01', definitionId: 'log', tileX: 11, tileY: 19 },
     { id: 'harbor_rock_01', definitionId: 'small_rock', tileX: 24, tileY: 14 },
     { id: 'harbor_tree_01', definitionId: 'tree_test', tileX: 27, tileY: 17 },
     { id: 'harbor_tree_02', definitionId: 'tree_dark', tileX: 8, tileY: 18 },
-    { id: 'harbor_flowers_01', definitionId: 'flower_patch', tileX: 26, tileY: 16 },
     { id: 'harbor_notice_board_01', definitionId: 'notice_board', tileX: 18, tileY: 14 },
     { id: 'harbor_driftwood_node_01', definitionId: 'driftwood_node', tileX: 10, tileY: 15 },
     { id: 'harbor_stone_node_01', definitionId: 'stone_pile_node', tileX: 23, tileY: 13 },

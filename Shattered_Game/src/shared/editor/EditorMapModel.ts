@@ -1,4 +1,4 @@
-import type { MapDefinition, MapPlacedObject } from '../map/MapTypes';
+import type { MapDefinition, MapPlacedObject, MapZone, MapZoneTag } from '../map/MapTypes';
 import type { TerrainFamily } from '../map/TerrainTypes';
 import type { ObjectDefinition } from '../../objects/ObjectTypes';
 import { assertValidMapShape } from '../map/MapValidation';
@@ -8,6 +8,18 @@ import {
   type MapToChunkOptions,
 } from '../world/ChunkAdapters';
 import type { WorldChunkDefinition } from '../world/ChunkTypes';
+
+export type EditorWorldZoneTag = Extract<MapZoneTag, 'town' | 'wilds' | 'elite' | 'dungeon' | 'locked'>;
+
+export const EDITOR_WORLD_ZONE_TAGS: EditorWorldZoneTag[] = ['town', 'wilds', 'elite', 'dungeon', 'locked'];
+
+export const EDITOR_ZONE_COLORS: Record<EditorWorldZoneTag, number> = {
+  town:    0x22c55e,
+  wilds:   0xef4444,
+  elite:   0xa855f7,
+  dungeon: 0x64748b,
+  locked:  0xf59e0b,
+};
 
 export type EditorTerrainTilePaint = {
   id: string;
@@ -46,6 +58,8 @@ export type EditorMapDefinition = {
   terrainTiles: Record<string, EditorTerrainTilePaint>;
   terrainWalkability: Record<string, boolean>;
   terrainElevation: Record<string, number>;
+  /** maps "tileX,tileY" → zone tag; tiles without an entry have no zone */
+  terrainZones: Record<string, EditorWorldZoneTag>;
   customTerrainBrushes: EditorTerrainTilePaint[];
   customObjectDefinitions: ObjectDefinition[];
   objects: EditorPlacedObject[];
@@ -54,7 +68,14 @@ export type EditorMapDefinition = {
   chunkNames?: Record<string, string>;
 };
 
+export type EditorMapExportOptions = {
+  includeEditorAssetData?: boolean;
+  includeEditorAssetDefinitions?: boolean;
+};
+
 export const EDITOR_GAME_MAP_STORAGE_KEY = 'shattered.editor.published_map.v1';
+const EDITOR_PROJECT_LIBRARY_ENDPOINT = '/__shattered_editor_library';
+const EDITOR_PROJECT_PUBLISHED_MAP_ID = 'editor_test_map';
 
 export function createEditorMap(
   width: number,
@@ -75,6 +96,7 @@ export function createEditorMap(
     terrainTiles: {},
     terrainWalkability: {},
     terrainElevation: {},
+    terrainZones: {},
     customTerrainBrushes: [],
     customObjectDefinitions: [],
     objects: [],
@@ -89,8 +111,8 @@ export function createEditorMap(
 }
 
 export function createSampleEditorMap(defaultPaint?: EditorTerrainTilePaint): EditorMapDefinition {
-  // 32×32 = 2×2 full chunks of size 16
-  return createEditorMap(32, 32, 'grass', 'editor_test_map', 'Editor Test Map', defaultPaint);
+  // 64×64 = 2×2 full chunks of size 32
+  return createEditorMap(64, 64, 'grass', 'editor_test_map', 'Editor Test Map', defaultPaint);
 }
 
 export function paintTerrainTile(
@@ -160,6 +182,37 @@ export function paintTerrainElevation(
 
   map.terrainElevation[tileKey(tileX, tileY)] = normalizeElevation(elevation);
   return true;
+}
+
+export function paintTerrainZone(
+  map: EditorMapDefinition,
+  tileX: number,
+  tileY: number,
+  tag: EditorWorldZoneTag | null,
+): boolean {
+  if (!isTileInEditorMapBounds(map, tileX, tileY)) {
+    return false;
+  }
+
+  const key = tileKey(tileX, tileY);
+  if (tag === null) {
+    delete map.terrainZones[key];
+  } else {
+    map.terrainZones[key] = tag;
+  }
+  return true;
+}
+
+export function getEditorTerrainZoneAt(
+  map: EditorMapDefinition,
+  tileX: number,
+  tileY: number,
+): EditorWorldZoneTag | null {
+  if (!isTileInEditorMapBounds(map, tileX, tileY)) {
+    return null;
+  }
+
+  return map.terrainZones[tileKey(tileX, tileY)] ?? null;
 }
 
 export function getEditorTerrainAt(
@@ -260,6 +313,7 @@ export function resizeEditorMap(
   );
   const terrainWalkability = filterTileRecordByBounds(map.terrainWalkability, width, height);
   const terrainElevation = filterTileRecordByBounds(map.terrainElevation, width, height);
+  const terrainZones = filterTileRecordByBounds(map.terrainZones, width, height);
 
   const resized: EditorMapDefinition = {
     ...map,
@@ -271,6 +325,7 @@ export function resizeEditorMap(
     terrainTiles,
     terrainWalkability,
     terrainElevation,
+    terrainZones,
     objects: map.objects.filter((object) => isTileInsideBounds(object.tileX, object.tileY, width, height)),
     enemySpawns: map.enemySpawns.filter((spawn) => isTileInsideBounds(spawn.tileX, spawn.tileY, width, height)),
   };
@@ -296,7 +351,14 @@ export function resizeEditorMap(
   return resized;
 }
 
-export function exportEditorMapToMapDefinition(map: EditorMapDefinition): MapDefinition {
+export function exportEditorMapToMapDefinition(
+  map: EditorMapDefinition,
+  options: EditorMapExportOptions = {},
+): MapDefinition {
+  const includeEditorAssetData = options.includeEditorAssetData ?? true;
+  const includeEditorAssetDefinitions = options.includeEditorAssetDefinitions ?? true;
+  const editorTerrainTiles = serializeTerrainTilePaintRecord(map.terrainTiles, includeEditorAssetData);
+  const editorAssetReferences = createEditorAssetReferences(map);
   const mapDefinition: MapDefinition = {
     id: map.id,
     displayName: map.displayName,
@@ -313,22 +375,23 @@ export function exportEditorMapToMapDefinition(map: EditorMapDefinition): MapDef
     },
     objects: map.objects.map(toMapPlacedObject),
     transitions: [],
-    zones: [],
+    zones: exportZoneTilesToRects(map.terrainZones, map.width, map.height),
     interactionAnchors: [],
     metadata: {
       source: 'map_editor_v0',
-      editorTerrainTiles: map.terrainTiles,
+      editorTerrainTiles,
+      ...(editorAssetReferences ? { editorAssetReferences } : {}),
       ...(Object.keys(map.terrainWalkability).length > 0
         ? { editorTerrainWalkability: map.terrainWalkability }
         : {}),
       ...(Object.keys(map.terrainElevation).length > 0
         ? { editorTerrainElevation: map.terrainElevation }
         : {}),
-      ...(map.customTerrainBrushes.length > 0
-        ? { editorTerrainBrushes: map.customTerrainBrushes }
+      ...(includeEditorAssetDefinitions && map.customTerrainBrushes.length > 0
+        ? { editorTerrainBrushes: map.customTerrainBrushes.map((brush) => serializeTerrainPaint(brush, includeEditorAssetData)) }
         : {}),
-      ...(map.customObjectDefinitions.length > 0
-        ? { editorObjectDefinitions: map.customObjectDefinitions }
+      ...(includeEditorAssetDefinitions && map.customObjectDefinitions.length > 0
+        ? { editorObjectDefinitions: serializeObjectDefinitions(map.customObjectDefinitions, includeEditorAssetData) }
         : {}),
       ...(map.enemySpawns.length > 0 ? { editorEnemySpawns: map.enemySpawns } : {}),
       ...(map.chunkNames && Object.keys(map.chunkNames).length > 0 ? { editorChunkNames: map.chunkNames } : {}),
@@ -341,9 +404,9 @@ export function exportEditorMapToMapDefinition(map: EditorMapDefinition): MapDef
 
 export function exportEditorMapToWorldChunkDefinition(
   map: EditorMapDefinition,
-  options: MapToChunkOptions,
+  options: MapToChunkOptions & EditorMapExportOptions,
 ): WorldChunkDefinition {
-  return mapDefinitionToSingleWorldChunk(exportEditorMapToMapDefinition(map), options);
+  return mapDefinitionToSingleWorldChunk(exportEditorMapToMapDefinition(map, options), options);
 }
 
 export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapDefinition {
@@ -358,6 +421,7 @@ export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapD
     terrainTiles: parseEditorTerrainTiles(map.metadata?.editorTerrainTiles),
     terrainWalkability: parseEditorTerrainWalkability(map.metadata?.editorTerrainWalkability),
     terrainElevation: parseEditorTerrainElevation(map.metadata?.editorTerrainElevation),
+    terrainZones: importZoneRectsToTiles(map.zones ?? []),
     customTerrainBrushes: parseEditorTerrainBrushes(map.metadata?.editorTerrainBrushes),
     customObjectDefinitions: parseEditorObjectDefinitions(map.metadata?.editorObjectDefinitions),
     chunkNames: parseEditorChunkNames(map.metadata?.editorChunkNames),
@@ -379,15 +443,58 @@ export function serializeEditorMap(map: EditorMapDefinition): string {
   return JSON.stringify(exportEditorMapToMapDefinition(map), null, 2);
 }
 
-export function publishEditorMapForGame(map: EditorMapDefinition): void {
+export function serializeEditorMapForProjectLibrary(map: EditorMapDefinition): string {
+  return JSON.stringify(
+    exportEditorMapToMapDefinition(map, {
+      includeEditorAssetData: false,
+      includeEditorAssetDefinitions: false,
+    }),
+    null,
+    2,
+  );
+}
+
+export async function publishEditorMapForGame(map: EditorMapDefinition): Promise<void> {
+  const mapDefinition = exportEditorMapToMapDefinition(map);
+
+  if (typeof fetch !== 'undefined') {
+    const response = await fetch(
+      `${EDITOR_PROJECT_LIBRARY_ENDPOINT}/published/${EDITOR_PROJECT_PUBLISHED_MAP_ID}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mapDefinition),
+      },
+    );
+
+    if (response.ok) {
+      clearPublishedEditorMapFromLocalStorage();
+      return;
+    }
+  }
+
+  publishEditorMapToLocalStorage(map);
+}
+
+export function clearPublishedEditorMapForGame(): void {
+  clearPublishedEditorMapFromLocalStorage();
+
+  if (typeof fetch !== 'undefined') {
+    void fetch(`${EDITOR_PROJECT_LIBRARY_ENDPOINT}/published/${EDITOR_PROJECT_PUBLISHED_MAP_ID}`, {
+      method: 'DELETE',
+    });
+  }
+}
+
+function publishEditorMapToLocalStorage(map: EditorMapDefinition): void {
   if (typeof window === 'undefined' || !window.localStorage) {
-    throw new Error('Editor map publishing requires browser localStorage.');
+    throw new Error('Editor map publishing requires the Vite editor project library or browser localStorage.');
   }
 
   window.localStorage.setItem(EDITOR_GAME_MAP_STORAGE_KEY, serializeEditorMap(map));
 }
 
-export function clearPublishedEditorMapForGame(): void {
+function clearPublishedEditorMapFromLocalStorage(): void {
   if (typeof window === 'undefined' || !window.localStorage) {
     return;
   }
@@ -396,6 +503,12 @@ export function clearPublishedEditorMapForGame(): void {
 }
 
 export function loadPublishedEditorMapDefinition(): MapDefinition | null {
+  const projectMap = loadPublishedEditorMapDefinitionFromProjectLibrary();
+
+  if (projectMap) {
+    return projectMap;
+  }
+
   if (typeof window === 'undefined' || !window.localStorage) {
     return null;
   }
@@ -406,6 +519,26 @@ export function loadPublishedEditorMapDefinition(): MapDefinition | null {
 
   try {
     return parseEditorMapJson(json);
+  } catch {
+    return null;
+  }
+}
+
+function loadPublishedEditorMapDefinitionFromProjectLibrary(): MapDefinition | null {
+  if (typeof XMLHttpRequest === 'undefined') {
+    return null;
+  }
+
+  try {
+    const request = new XMLHttpRequest();
+    request.open('GET', `${EDITOR_PROJECT_LIBRARY_ENDPOINT}/published/${EDITOR_PROJECT_PUBLISHED_MAP_ID}`, false);
+    request.send();
+
+    if (request.status < 200 || request.status >= 300 || !request.responseText) {
+      return null;
+    }
+
+    return parseEditorMapJson(request.responseText);
   } catch {
     return null;
   }
@@ -422,6 +555,73 @@ export function parseEditorMapJson(json: string): MapDefinition {
   const parsed: unknown = JSON.parse(json);
   assertValidMapShape(parsed);
   return parsed;
+}
+
+function serializeTerrainTilePaintRecord(
+  paints: Record<string, EditorTerrainTilePaint>,
+  includeAssetData: boolean,
+): Record<string, EditorTerrainTilePaint> {
+  return Object.fromEntries(
+    Object.entries(paints).map(([key, paint]) => [key, serializeTerrainPaint(paint, includeAssetData)]),
+  );
+}
+
+function serializeTerrainPaint(
+  paint: EditorTerrainTilePaint,
+  includeAssetData: boolean,
+): EditorTerrainTilePaint {
+  const { textureDataUrl, ...paintWithoutAssetData } = paint;
+  return includeAssetData
+    ? { ...paintWithoutAssetData, ...(textureDataUrl !== undefined ? { textureDataUrl } : {}) }
+    : paintWithoutAssetData;
+}
+
+function serializeObjectDefinitions(
+  definitions: ObjectDefinition[],
+  includeAssetData: boolean,
+): ObjectDefinition[] {
+  if (includeAssetData) {
+    return definitions;
+  }
+
+  return definitions.map((definition) => ({
+    ...definition,
+    visual: {
+      ...definition.visual,
+      parts: definition.visual.parts.map((part) => {
+        if (part.shape !== 'sprite') {
+          return part;
+        }
+
+        const { editorTextureDataUrl, ...partWithoutAssetData } = part;
+        return partWithoutAssetData;
+      }),
+    },
+  }));
+}
+
+function createEditorAssetReferences(map: EditorMapDefinition): {
+  objectDefinitionIds?: string[];
+  terrainBrushIds?: string[];
+} | null {
+  const terrainBrushIds = uniqueSorted([
+    ...map.customTerrainBrushes.map((brush) => brush.id),
+    ...Object.values(map.terrainTiles).map((paint) => paint.id),
+  ]);
+  const objectDefinitionIds = uniqueSorted([
+    ...map.customObjectDefinitions.map((definition) => definition.id),
+    ...map.objects.map((object) => object.definitionId),
+  ]);
+  const references = {
+    ...(objectDefinitionIds.length > 0 ? { objectDefinitionIds } : {}),
+    ...(terrainBrushIds.length > 0 ? { terrainBrushIds } : {}),
+  };
+
+  return Object.keys(references).length > 0 ? references : null;
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((left, right) => left.localeCompare(right));
 }
 
 function fillTerrainTilePaint(map: EditorMapDefinition, paint: EditorTerrainTilePaint): void {
@@ -676,6 +876,80 @@ function parseEditorEnemySpawns(value: unknown): EditorEnemySpawn[] {
       tileY: spawn.tileY,
     }];
   });
+}
+
+function exportZoneTilesToRects(
+  terrainZones: Record<string, EditorWorldZoneTag>,
+  width: number,
+  height: number,
+): MapZone[] {
+  const zones: MapZone[] = [];
+  const visited = new Set<string>();
+  let idCounter = 0;
+
+  for (let tileY = 0; tileY < height; tileY++) {
+    for (let tileX = 0; tileX < width; tileX++) {
+      const key = tileKey(tileX, tileY);
+      if (visited.has(key)) continue;
+      const tag = terrainZones[key];
+      if (!tag) continue;
+
+      // Expand width in this row
+      let rectWidth = 1;
+      while (
+        tileX + rectWidth < width &&
+        terrainZones[tileKey(tileX + rectWidth, tileY)] === tag &&
+        !visited.has(tileKey(tileX + rectWidth, tileY))
+      ) {
+        rectWidth++;
+      }
+
+      // Expand height downward while all tiles in each row match
+      let rectHeight = 1;
+      expandDown: while (tileY + rectHeight < height) {
+        for (let dx = 0; dx < rectWidth; dx++) {
+          const nextKey = tileKey(tileX + dx, tileY + rectHeight);
+          if (visited.has(nextKey) || terrainZones[nextKey] !== tag) break expandDown;
+        }
+        rectHeight++;
+      }
+
+      for (let dy = 0; dy < rectHeight; dy++) {
+        for (let dx = 0; dx < rectWidth; dx++) {
+          visited.add(tileKey(tileX + dx, tileY + dy));
+        }
+      }
+
+      zones.push({
+        id: `zone_${idCounter++}`,
+        tileX,
+        tileY,
+        width: rectWidth,
+        height: rectHeight,
+        tags: [tag],
+      });
+    }
+  }
+
+  return zones;
+}
+
+function importZoneRectsToTiles(zones: MapZone[]): Record<string, EditorWorldZoneTag> {
+  const tiles: Record<string, EditorWorldZoneTag> = {};
+  const validTags = new Set<string>(EDITOR_WORLD_ZONE_TAGS);
+
+  for (const zone of zones) {
+    const tag = zone.tags.find((t) => validTags.has(t)) as EditorWorldZoneTag | undefined;
+    if (!tag) continue;
+
+    for (let dy = 0; dy < zone.height; dy++) {
+      for (let dx = 0; dx < zone.width; dx++) {
+        tiles[tileKey(zone.tileX + dx, zone.tileY + dy)] = tag;
+      }
+    }
+  }
+
+  return tiles;
 }
 
 function parseEditorChunkNames(value: unknown): Record<string, string> | undefined {

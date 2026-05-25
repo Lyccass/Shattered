@@ -110,6 +110,29 @@ describe('WorldGrid', () => {
       expect(grid.isTerrainBlocked(1, 0)).toBe(false);
       expect(grid.getTerrainBlockedTileCount()).toBe(1);
     });
+
+    it('can use sparse terrain storage for large streamed worlds', () => {
+      const grid = WorldGrid.createSparse(32_000, 32_000, 'grass');
+
+      expect(grid.getTile(20_000, 20_000)).toBe('grass');
+      expect(grid.getTerrainBlockedTileCount()).toBe(0);
+
+      grid.setTile(20_000, 20_000, 'water');
+
+      expect(grid.getTile(20_000, 20_000)).toBe('water');
+      expect(grid.isTerrainBlocked(20_000, 20_000)).toBe(true);
+      expect(grid.getTerrainBlockedTileCount()).toBe(1);
+    });
+
+    it('supports sparse walkability overrides', () => {
+      const grid = WorldGrid.createSparse(100, 100, 'water');
+
+      expect(grid.isTerrainBlocked(10, 10)).toBe(true);
+
+      grid.setTerrainWalkabilityOverride(10, 10, true);
+
+      expect(grid.isTerrainBlocked(10, 10)).toBe(false);
+    });
   });
 
   describe('getTile', () => {

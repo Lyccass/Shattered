@@ -80,11 +80,6 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_tree_00f', 'tree_01_2x', 50, 136],
     ['wild_rock_00', 'medium_rock', 44, 136],
     ['wild_rock_00b', 'small_rock', 41, 138],
-    ['wild_pebbles_00', 'pebble_patch', 39, 132],
-    ['wild_pebbles_00b', 'pebble_patch', 45, 132],
-    ['wild_flowers_00', 'flower_patch', 47, 136],
-    ['wild_flowers_00b', 'flower_patch', 39, 134],
-    ['wild_log_01', 'log', 42, 135],
     ['wild_driftwood_node_01', 'driftwood_node', 38, 135],
 
     // North-west approach
@@ -97,9 +92,6 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_tree_01g', 'tree_01_2x', 68, 72],
     ['wild_rock_01a', 'medium_rock', 56, 62],
     ['wild_rock_01b', 'small_rock', 64, 66],
-    ['wild_pebbles_01a', 'pebble_patch', 72, 60],
-    ['wild_flowers_01a', 'flower_patch', 58, 68],
-
     // Central wild interior
     ['wild_tree_02', 'tree_02_4x', 118, 52],
     ['wild_tree_03', 'tree_01_2x', 72, 104],
@@ -125,19 +117,6 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_rock_07', 'small_rock', 104, 94],
     ['wild_rock_08', 'medium_rock', 94, 104],
     ['wild_stone_node_01', 'stone_pile_node', 97, 91],
-    ['wild_barrel_01', 'barrel', 95, 88],
-    ['wild_barrel_02', 'barrel', 88, 96],
-    ['wild_log_02', 'log', 93, 100],
-    ['wild_pebbles_01', 'pebble_patch', 84, 98],
-    ['wild_pebbles_02', 'pebble_patch', 92, 84],
-    ['wild_pebbles_03', 'pebble_patch', 109, 96],
-    ['wild_pebbles_04', 'pebble_patch', 80, 102],
-    ['wild_pebbles_05', 'pebble_patch', 102, 102],
-    ['wild_flowers_01', 'flower_patch', 104, 96],
-    ['wild_flowers_02', 'flower_patch', 82, 92],
-    ['wild_flowers_03', 'flower_patch', 98, 102],
-    ['wild_flowers_04', 'flower_patch', 88, 84],
-    ['wild_flowers_05', 'flower_patch', 106, 102],
     ['wild_herb_node_01', 'herb_patch_node', 102, 106],
 
     // East woods
@@ -150,9 +129,6 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_tree_26', 'tree_02_2x', 124, 122],
     ['wild_rock_20', 'medium_rock', 120, 110],
     ['wild_rock_21', 'small_rock', 126, 120],
-    ['wild_pebbles_20', 'pebble_patch', 112, 118],
-    ['wild_flowers_20', 'flower_patch', 130, 114],
-
     // South-mid brush and stones
     ['wild_rock_02', 'medium_rock', 116, 140],
     ['wild_tree_30', 'tree_01_2x', 96, 128],
@@ -163,10 +139,6 @@ export function createWildIslandMap(): MapDefinition {
     ['wild_tree_35', 'tree_01_2x', 98, 148],
     ['wild_rock_30', 'small_rock', 100, 132],
     ['wild_rock_31', 'medium_rock', 108, 142],
-    ['wild_pebbles_30', 'pebble_patch', 92, 136],
-    ['wild_pebbles_31', 'pebble_patch', 112, 134],
-    ['wild_flowers_30', 'flower_patch', 96, 142],
-    ['wild_flowers_31', 'flower_patch', 104, 130],
   ];
 
   objectPlacements.forEach(([id, definitionId, tileX, tileY]) => {
@@ -277,5 +249,4 @@ export function createWildIslandMap(): MapDefinition {
     },
   };
 }
-
 

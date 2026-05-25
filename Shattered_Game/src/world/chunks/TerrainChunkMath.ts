@@ -119,6 +119,31 @@ export function createChunkConfigs(params: {
   return configs;
 }
 
+export function createChunkConfig(params: {
+  chunkX: number;
+  chunkY: number;
+  mapWidth: number;
+  mapHeight: number;
+  chunkSize: number;
+  bleedTiles: number;
+  transform: IsoTransform;
+}): TerrainChunkConfig {
+  const tileBounds = getChunkTileBounds(
+    params.chunkX,
+    params.chunkY,
+    params.chunkSize,
+    params.mapWidth,
+    params.mapHeight,
+    params.bleedTiles,
+  );
+
+  return {
+    ...tileBounds,
+    key: getChunkKey(params.chunkX, params.chunkY),
+    bounds: getChunkWorldBounds(params.transform, tileBounds),
+  };
+}
+
 export function getChunkWorldBounds(
   transform: IsoTransform,
   chunk: Pick<TerrainChunkConfig, 'drawStartX' | 'drawStartY' | 'drawEndX' | 'drawEndY'>,
@@ -174,12 +199,14 @@ export function getChunkRangeForWorldView(params: {
   const maxTileY = Math.min(params.mapHeight - 1, Math.ceil(Math.max(...gridCorners.map((point) => point.y)) + 1));
   const minCoord = getChunkCoordForTile(minTileX, minTileY, params.chunkSize);
   const maxCoord = getChunkCoordForTile(maxTileX, maxTileY, params.chunkSize);
+  const maxChunkX = Math.max(0, Math.ceil(params.mapWidth / params.chunkSize) - 1);
+  const maxChunkY = Math.max(0, Math.ceil(params.mapHeight / params.chunkSize) - 1);
 
   return {
     minChunkX: Math.max(0, minCoord.chunkX - params.radius),
-    maxChunkX: maxCoord.chunkX + params.radius,
+    maxChunkX: Math.min(maxChunkX, maxCoord.chunkX + params.radius),
     minChunkY: Math.max(0, minCoord.chunkY - params.radius),
-    maxChunkY: maxCoord.chunkY + params.radius,
+    maxChunkY: Math.min(maxChunkY, maxCoord.chunkY + params.radius),
   };
 }
 

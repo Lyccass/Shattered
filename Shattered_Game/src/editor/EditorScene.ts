@@ -4,11 +4,15 @@ import {
   createSampleEditorMap,
   getEditorTerrainElevationAt,
   getEditorTerrainAt,
+  getEditorTerrainZoneAt,
+  paintTerrainZone,
   type EditorMapDefinition,
+  type EditorWorldZoneTag,
   getEditorTerrainWalkabilityAt,
   paintTerrainElevation,
   paintTerrainWalkability,
   resizeEditorMap,
+  EDITOR_ZONE_COLORS,
 } from '../shared/editor/EditorMapModel';
 import {
   getTileDiamondPoints,
@@ -31,6 +35,7 @@ import { createDirtyChunkBundle } from './chunks/EditorDirtyChunkBundle';
 import { EditorMapIoController } from './io/EditorMapIoController';
 import {
   applySavedChunkBundle,
+  consumeEditorLibraryCacheMessage,
   deleteSavedChunkBundle,
   deleteSavedMap,
   loadEditorWorkingDraft,
@@ -109,6 +114,7 @@ export class EditorScene extends Phaser.Scene {
   private toolMode: EditorToolMode = 'terrain';
   private selectedWalkable = true;
   private selectedElevation = 0;
+  private selectedZoneTag: EditorWorldZoneTag | null = 'wilds';
   private loadedChunkWindow: LoadedChunkWindowContext | null = null;
 
   preload(): void {
@@ -150,6 +156,7 @@ export class EditorScene extends Phaser.Scene {
       onSaveMap: () => this.saveMapToLibrary(),
       onSetWalkabilityBrush: (walkable) => this.setWalkabilityBrush(walkable),
       onSetMode: (mode) => this.setToolMode(mode as EditorToolMode),
+      onSetZoneTag: (tag) => this.setZoneTag(tag),
       onTestInGame: () => this.testMapInGame(),
       onResizeMap: () => this.openResizePanel(),
       onUndo: () => this.applyUndo(),
@@ -187,6 +194,10 @@ export class EditorScene extends Phaser.Scene {
     document.getElementById('ed-chunk-name-cancel')?.addEventListener('click', () => this.hideChunkNamePanel());
     document.getElementById('ed-chunk-name-apply')?.addEventListener('click', () => this.applyChunkNameFromPanel());
     void draftRestorePromise.then((restored) => {
+      this.palette?.refresh(
+        this.terrainTool.getSelectedBrush(),
+        this.objectTool.getSelectedDefinition().id,
+      );
       this.redrawTerrain();
       this.redrawObjects();
       this.centerCameraOnMap();
@@ -262,6 +273,7 @@ export class EditorScene extends Phaser.Scene {
 
   private setToolMode(mode: EditorToolMode): void {
     this.toolMode = mode;
+    this.redrawOverlay();
     this.updateInfoText();
     this.setStatus(formatToolModeStatus(mode));
   }
@@ -558,6 +570,11 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
+    if (this.toolMode === 'zone') {
+      this.paintHoveredZone();
+      return;
+    }
+
     this.paintHoveredTile();
   }
 
@@ -607,6 +624,24 @@ export class EditorScene extends Phaser.Scene {
       .filter((tile) => paintTerrainElevation(this.map, tile.x, tile.y, this.selectedElevation));
 
     this.markPaintedTilesDirty(paintedTiles);
+  }
+
+  private paintHoveredZone(): void {
+    if (!this.hoverTile) {
+      return;
+    }
+
+    const footprint = this.terrainTool.getBrushFootprint(this.hoverTile.x, this.hoverTile.y);
+    const painted = footprint.filter(
+      (tile) => paintTerrainZone(this.map, tile.x, tile.y, this.selectedZoneTag),
+    );
+    this.markPaintedTilesDirty(painted);
+  }
+
+  private setZoneTag(tag: EditorWorldZoneTag | null): void {
+    this.selectedZoneTag = tag;
+    this.updateInfoText();
+    this.setStatus(tag ? `Painting zone: ${tag}.` : 'Zone erase mode.');
   }
 
   private markPaintedTilesDirty(tiles: Array<{ x: number; y: number }>): void {
@@ -714,7 +749,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private drawTileDataOverlay(graphics: Phaser.GameObjects.Graphics): void {
-    if (this.toolMode !== 'walkability' && this.toolMode !== 'elevation') {
+    if (this.toolMode !== 'walkability' && this.toolMode !== 'elevation' && this.toolMode !== 'zone') {
       return;
     }
 
@@ -727,6 +762,18 @@ export class EditorScene extends Phaser.Scene {
           const walkable = getEditorTerrainWalkabilityAt(this.map, tileX, tileY) ?? true;
           graphics.fillStyle(walkable ? 0x22c55e : 0xef4444, walkable ? 0.08 : 0.28);
           graphics.fillPoints(points, true);
+          continue;
+        }
+
+        if (this.toolMode === 'zone') {
+          const zone = getEditorTerrainZoneAt(this.map, tileX, tileY);
+          if (zone) {
+            const color = EDITOR_ZONE_COLORS[zone];
+            graphics.fillStyle(color, 0.30);
+            graphics.fillPoints(points, true);
+            graphics.lineStyle(1, color, 0.15);
+            graphics.strokePoints(points, true);
+          }
           continue;
         }
 
@@ -765,6 +812,7 @@ export class EditorScene extends Phaser.Scene {
     const hoverPaint = hover ? this.terrainRenderer?.getTilePaint(this.map, hover.x, hover.y) ?? null : null;
     const hoverWalkable = hover ? getEditorTerrainWalkabilityAt(this.map, hover.x, hover.y) : null;
     const hoverElevation = hover ? getEditorTerrainElevationAt(this.map, hover.x, hover.y) : null;
+    const hoverZone = hover ? getEditorTerrainZoneAt(this.map, hover.x, hover.y) : null;
     const hoverObject = hover ? this.objectRenderer?.getObjectAtTile(this.map, hover.x, hover.y) ?? null : null;
     const hoverChunk = hover ? this.getChunkInfo(hover.x, hover.y) : null;
     const selectedBrush = this.terrainTool.getSelectedBrush();
@@ -782,6 +830,7 @@ export class EditorScene extends Phaser.Scene {
         paint: hoverPaint,
         tile: hover,
         walkable: hoverWalkable,
+        zone: hoverZone,
       },
       dirtyChunks: this.dirtyChunks.getSummary(),
       map: this.map,
@@ -791,6 +840,7 @@ export class EditorScene extends Phaser.Scene {
       selectedBrushIndexLabel: this.terrainTool.getSelectedBrushIndexLabel(),
       selectedElevation: this.selectedElevation,
       selectedWalkable: this.selectedWalkable,
+      selectedZoneTag: this.selectedZoneTag,
       selectedObjectDisplayName: selectedObjectDefinition.displayName,
       toolMode: this.toolMode,
     });
@@ -899,7 +949,7 @@ export class EditorScene extends Phaser.Scene {
       const record = await saveDirtyChunkBundleToProjectLibrary(bundle);
       this.dirtyChunks.clear();
       this.updateInfoText();
-      this.setStatus(`Saved ${record.chunkCount} dirty chunk(s) to project chunk library.`);
+      this.setStatus(withCacheMessage(`Saved ${record.chunkCount} dirty chunk(s) to project chunk library.`));
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Dirty chunk save failed.');
     }
@@ -910,7 +960,7 @@ export class EditorScene extends Phaser.Scene {
       const record = await saveMapToProjectLibrary(this.getSerializableMap());
       this.dirtyChunks.clear();
       this.updateInfoText();
-      this.setStatus(`Saved ${record.displayName} to project map library.`);
+      this.setStatus(withCacheMessage(`Saved ${record.displayName} to project map library.`));
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Map save failed.');
     }
@@ -1159,6 +1209,7 @@ export class EditorScene extends Phaser.Scene {
     map.terrainTiles = copyTileRecordWindow(sourceMap.terrainTiles, startX, startY, width, height);
     map.terrainWalkability = copyTileRecordWindow(sourceMap.terrainWalkability, startX, startY, width, height);
     map.terrainElevation = copyTileRecordWindow(sourceMap.terrainElevation, startX, startY, width, height);
+    map.terrainZones = copyTileRecordWindow(sourceMap.terrainZones, startX, startY, width, height);
     map.customTerrainBrushes = [...sourceMap.customTerrainBrushes];
     map.customObjectDefinitions = [...sourceMap.customObjectDefinitions];
     map.chunkNames = copyChunkNamesWindow(sourceMap.chunkNames, startChunkX, startChunkY, endChunkX, endChunkY);
@@ -1241,9 +1292,9 @@ export class EditorScene extends Phaser.Scene {
     );
   }
 
-  private testMapInGame(): void {
+  private async testMapInGame(): Promise<void> {
     try {
-      this.mapIo.publishToGame(this.getSerializableMap());
+      await this.mapIo.publishToGame(this.getSerializableMap());
       window.open('/index.html?editorMap=1', '_blank', 'noopener,noreferrer');
       this.setStatus(`Testing ${this.map.displayName} in game.`);
     } catch (error) {
@@ -1495,6 +1546,8 @@ function formatToolModeStatus(mode: EditorToolMode): string {
       return 'Object mode.';
     case 'walkability':
       return 'Walkability paint mode.';
+    case 'zone':
+      return 'Zone paint mode. Left-click to paint, select tag in sidebar.';
     case 'terrain':
     default:
       return 'Terrain mode.';
@@ -1633,4 +1686,9 @@ function isInsideRect(
   height: number,
 ): boolean {
   return tileX >= rectX && tileY >= rectY && tileX < rectX + width && tileY < rectY + height;
+}
+
+function withCacheMessage(message: string): string {
+  const cacheMessage = consumeEditorLibraryCacheMessage();
+  return cacheMessage ? `${message} ${cacheMessage}` : message;
 }

@@ -32,8 +32,10 @@ export class EditorAssetLibraryController {
     };
 
     await this.registerAssetTextures(mapLibrary);
+    this.library = mergeEditorAssetLibraries(this.library, mapLibrary);
     this.terrainTool.addCustomPaints(map.customTerrainBrushes);
     this.objectTool.addCustomDefinitions(map.customObjectDefinitions);
+    this.save();
   }
 
   addTerrainPaint(paint: EditorTerrainTilePaint): void {
@@ -145,6 +147,13 @@ function mergeById<T extends { id: string }>(first: T[], second: T[]): T[] {
   }
 
   return Array.from(merged.values());
+}
+
+function mergeEditorAssetLibraries(first: EditorAssetLibrary, second: EditorAssetLibrary): EditorAssetLibrary {
+  return {
+    objectDefinitions: mergeById(first.objectDefinitions, second.objectDefinitions),
+    terrainBrushes: mergeById(first.terrainBrushes, second.terrainBrushes),
+  };
 }
 
 function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {

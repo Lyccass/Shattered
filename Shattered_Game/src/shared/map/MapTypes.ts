@@ -14,7 +14,11 @@ export type MapZoneTag =
   | 'town'
   | 'harbor'
   | 'transition'
-  | 'combat_sandbox';
+  | 'combat_sandbox'
+  | 'wilds'
+  | 'elite'
+  | 'dungeon'
+  | 'locked';
 
 export type MapSpaceType = 'personal_island' | 'open_world';
 

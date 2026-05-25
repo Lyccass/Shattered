@@ -1181,3 +1181,43 @@ canvas {
 .ed-pal-cell:not(:has(.ed-pal-obj-label)) .ed-pal-swatch {
   max-height: 56px;
 }
+
+/* ── Zone tag buttons ───────────────────────────── */
+.ed-zone-tag-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.ed-zone-tag-btn {
+  width: 100%;
+  background: var(--c-slot-bg);
+  border: 1px solid var(--c-slot-border);
+  border-left: 3px solid var(--zone-color, var(--c-slot-border));
+  color: var(--c-text-muted);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+  text-align: left;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ed-zone-tag-btn:hover {
+  background: var(--c-slot-hover);
+  color: var(--c-text-dim);
+}
+
+.ed-zone-tag-btn.is-active {
+  background: rgba(97, 60, 24, 0.35);
+  border-left-color: var(--zone-color, var(--c-primary));
+  color: var(--c-primary);
+}
+
+.ed-zone-tag-btn--erase {
+  --zone-color: #475569;
+  margin-top: 2px;
+}

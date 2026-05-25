@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
+import { createChunkKey } from '../../shared/world/ChunkKey';
 import { parseEditorObjectDefinitions } from '../../shared/editor/EditorMapModel';
 import type { ActionProgressSnapshot } from '../../actions/ActionProgressTypes';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
@@ -64,6 +65,8 @@ import { WorldInteractionTargetCoordinator } from './WorldInteractionTargetCoord
 import { NpcRegistry } from '../../npcs/NpcRegistry';
 import { NpcSystem } from '../../npcs/NpcSystem';
 import { NpcVisualController } from '../../npcs/NpcVisualController';
+import { getChunkCoordForTile } from '../chunks/TerrainChunkMath';
+import { materializeWorldChunkRuntimeLayers } from '../streaming/WorldChunkRuntimeLayers';
 
 export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
@@ -270,6 +273,31 @@ export class WorldRuntimeCoordinator {
     }
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
+    this.reconcileStreamedWorldRuntime(runtime);
+
+    if (this.bindings) {
+      this.rebindSceneSystems();
+    }
+
+    return runtime;
+  }
+
+  async loadWorldManifest(manifestUrl: string, spawnId: string): Promise<LoadedMapRuntime> {
+    // Destroy old per-map Phaser objects before replacing them.
+    this.mapRuntimeConfigurator.clearPreviousMapRuntime();
+
+    this.choiceMenuCoordinator.cancel();
+    this.actionProgressSystem.cancel();
+
+    const runtime = await this.mapLoader.loadWorldManifest(manifestUrl, spawnId);
+    this.currentRuntime = runtime;
+
+    this.npcSystem?.destroy();
+    this.npcVisualController?.destroy();
+    this.npcSystem = new NpcSystem();
+    this.npcVisualController = new NpcVisualController(this.scene);
+
+    this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -326,6 +354,7 @@ export class WorldRuntimeCoordinator {
     }
 
     const feetTile = this.bindings.playerController.getFeetTile();
+    void this.updateStreamedWorldWindow(feetTile.x, feetTile.y);
     this.updateActiveInteraction(feetTile.x, feetTile.y);
     this.placementModeSystem.updatePreview(this.bindings.playerController);
     this.updateActionProgress(deltaMs);
@@ -841,6 +870,117 @@ export class WorldRuntimeCoordinator {
 
   private rebuildInteractionTargets(): void {
     this.mapRuntimeConfigurator.rebuildInteractionTargets(this.currentRuntime);
+  }
+
+  private async updateStreamedWorldWindow(tileX: number, tileY: number): Promise<void> {
+    const runtime = this.currentRuntime;
+    const streaming = runtime?.streamedWorld;
+
+    if (!runtime || !streaming) {
+      return;
+    }
+
+    const manifest = streaming.provider.getManifest();
+    const centerChunk = getChunkCoordForTile(tileX, tileY, manifest.chunkSize);
+    const centerChunkKey = createChunkKey(centerChunk);
+
+    if (
+      streaming.lastCenterChunkKey === centerChunkKey ||
+      streaming.loadingCenterChunkKey !== null
+    ) {
+      return;
+    }
+
+    streaming.loadingCenterChunkKey = centerChunkKey;
+
+    try {
+      const loadedChunks = await streaming.activeWindow.loadAroundChunk(centerChunk);
+
+      if (this.currentRuntime !== runtime) {
+        return;
+      }
+
+      runtime.isoTilemap.applyWorldChunks(loadedChunks);
+      this.reconcileStreamedWorldRuntime(runtime);
+      streaming.lastCenterChunkKey = centerChunkKey;
+    } catch (error) {
+      console.error(`[WorldRuntimeCoordinator] Failed to stream chunks around ${centerChunkKey}:`, error);
+    } finally {
+      if (streaming.loadingCenterChunkKey === centerChunkKey) {
+        streaming.loadingCenterChunkKey = null;
+      }
+    }
+  }
+
+  private reconcileStreamedWorldRuntime(runtime: LoadedMapRuntime): void {
+    const streaming = runtime.streamedWorld;
+    const objectPlacementSystem = this.objectManager.getPlacementSystem();
+
+    if (!streaming || !objectPlacementSystem) {
+      return;
+    }
+
+    const activeChunks = streaming.activeWindow.getActiveChunks();
+    const activeChunkKeys = new Set(activeChunks.map((chunk) => createChunkKey(chunk)));
+
+    for (const chunkKey of Array.from(streaming.materializedChunkKeys)) {
+      if (activeChunkKeys.has(chunkKey)) {
+        continue;
+      }
+
+      for (const objectId of streaming.materializedObjectIdsByChunk.get(chunkKey) ?? []) {
+        objectPlacementSystem.removeObject(objectId);
+      }
+
+      streaming.materializedObjectIdsByChunk.delete(chunkKey);
+      streaming.materializedChunkKeys.delete(chunkKey);
+    }
+
+    const runtimeLayers = activeChunks.map(materializeWorldChunkRuntimeLayers);
+
+    for (const layers of runtimeLayers) {
+      if (streaming.materializedChunkKeys.has(layers.chunkKey)) {
+        continue;
+      }
+
+      const placedObjectIds: string[] = [];
+
+      for (const object of layers.objects) {
+        if (objectPlacementSystem.getInstance(object.id)) {
+          placedObjectIds.push(object.id);
+          continue;
+        }
+
+        try {
+          const placed = objectPlacementSystem.placeAuthoredObject(runtime.definition.id, object);
+          placedObjectIds.push(placed.id);
+        } catch (error) {
+          console.warn(
+            `[WorldRuntimeCoordinator] Skipped streamed object "${object.id}" in chunk ${layers.chunkKey}:`,
+            error,
+          );
+        }
+      }
+
+      streaming.materializedObjectIdsByChunk.set(layers.chunkKey, placedObjectIds);
+      streaming.materializedChunkKeys.add(layers.chunkKey);
+    }
+
+    runtime.definition.objects = runtimeLayers.flatMap((layers) => layers.objects);
+    runtime.interactionAnchors = runtimeLayers.flatMap((layers) => layers.resourceAnchors);
+    runtime.definition.interactionAnchors = runtime.interactionAnchors;
+    runtime.zones = runtimeLayers.flatMap((layers) => layers.zones);
+    runtime.definition.zones = runtime.zones;
+    runtime.zoneIndex.setZones(runtime.zones);
+
+    this.resourceNodeSystem.setMapNodes(
+      runtime.definition.id,
+      runtime.interactionAnchors.filter((anchor) => anchor.interactionType === 'resource_node'),
+      runtime.definition.objects,
+      this.scene.time.now,
+      objectPlacementSystem,
+    );
+    this.rebuildInteractionTargets();
   }
 
   private rebindSceneSystems(): void {

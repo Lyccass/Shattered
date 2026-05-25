@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import type {
   EditorMapDefinition,
   EditorTerrainTilePaint,
+  EditorWorldZoneTag,
 } from '../../shared/editor/EditorMapModel';
+import { EDITOR_WORLD_ZONE_TAGS } from '../../shared/editor/EditorMapModel';
 import type { TerrainFamily } from '../../shared/map/TerrainTypes';
 import type { EditorToolMode } from '../input/EditorInputController';
 import type { EditorTerrainBrush } from '../terrain/EditorTerrainCatalog';
@@ -14,6 +16,7 @@ type EditorHudHoverState = {
   paint: EditorTerrainTilePaint | null;
   walkable: boolean | null;
   elevation: number | null;
+  zone: EditorWorldZoneTag | null;
   tile: { x: number; y: number } | null;
   chunkX: number | null;
   chunkY: number | null;
@@ -31,12 +34,14 @@ export type EditorHudState = {
   selectedBrushIndexLabel: string;
   selectedElevation: number;
   selectedWalkable: boolean;
+  selectedZoneTag: EditorWorldZoneTag | null;
   selectedObjectDisplayName: string;
   toolMode: EditorToolMode;
 };
 
 type EditorHudCallbacks = {
   onSetMode: (mode: EditorToolMode) => void;
+  onSetZoneTag: (tag: EditorWorldZoneTag | null) => void;
   onAdjustBrushSize: (delta: number) => void;
   onAdjustElevation: (delta: number) => void;
   onClearGameMap: () => void;
@@ -75,9 +80,13 @@ export class EditorHudController {
     modeObjectBtn: HTMLButtonElement;
     modeWalkabilityBtn: HTMLButtonElement;
     modeElevationBtn: HTMLButtonElement;
+    modeZoneBtn: HTMLButtonElement;
     brushSection: HTMLElement;
     objectSection: HTMLElement;
     tileMetaSection: HTMLElement;
+    zoneSection: HTMLElement;
+    zoneTagLabel: HTMLElement;
+    zoneTagBtns: Record<string, HTMLButtonElement>;
     walkableOnBtn: HTMLButtonElement;
     walkableOffBtn: HTMLButtonElement;
     walkabilityLabel: HTMLElement;
@@ -99,6 +108,7 @@ export class EditorHudController {
     hoverArt: HTMLElement;
     hoverWalkability: HTMLElement;
     hoverElevation: HTMLElement;
+    hoverZone: HTMLElement;
     hoverObject: HTMLElement;
     hoverChunk: HTMLElement;
     status: HTMLElement;
@@ -118,9 +128,15 @@ export class EditorHudController {
       modeObjectBtn:  requireById<HTMLButtonElement>('ed-mode-object'),
       modeWalkabilityBtn: requireById<HTMLButtonElement>('ed-mode-walkability'),
       modeElevationBtn: requireById<HTMLButtonElement>('ed-mode-elevation'),
+      modeZoneBtn:    requireById<HTMLButtonElement>('ed-mode-zone'),
       brushSection:   requireById('ed-brush-section'),
       objectSection:  requireById('ed-object-section'),
       tileMetaSection: requireById('ed-tile-meta-section'),
+      zoneSection:    requireById('ed-zone-section'),
+      zoneTagLabel:   requireById('ed-zone-tag-label'),
+      zoneTagBtns:    Object.fromEntries(
+        EDITOR_WORLD_ZONE_TAGS.map((tag) => [tag, requireById<HTMLButtonElement>(`ed-zone-tag-${tag}`)]),
+      ),
       walkableOnBtn:  requireById<HTMLButtonElement>('ed-walkable-on'),
       walkableOffBtn: requireById<HTMLButtonElement>('ed-walkable-off'),
       walkabilityLabel: requireById('ed-walkability-label'),
@@ -142,6 +158,7 @@ export class EditorHudController {
       hoverArt:       requireById('ed-hover-art'),
       hoverWalkability: requireById('ed-hover-walkability'),
       hoverElevation: requireById('ed-hover-elevation'),
+      hoverZone:      requireById('ed-hover-zone'),
       hoverObject:    requireById('ed-hover-object'),
       hoverChunk:     requireById('ed-hover-chunk'),
       status:         requireById('ed-status'),
@@ -151,6 +168,12 @@ export class EditorHudController {
     this.els.modeObjectBtn.addEventListener('click',  () => this.callbacks.onSetMode('object'));
     this.els.modeWalkabilityBtn.addEventListener('click',  () => this.callbacks.onSetMode('walkability'));
     this.els.modeElevationBtn.addEventListener('click',  () => this.callbacks.onSetMode('elevation'));
+    this.els.modeZoneBtn.addEventListener('click', () => this.callbacks.onSetMode('zone'));
+
+    for (const tag of EDITOR_WORLD_ZONE_TAGS) {
+      this.els.zoneTagBtns[tag]?.addEventListener('click', () => this.callbacks.onSetZoneTag(tag));
+    }
+    requireById('ed-zone-tag-erase').addEventListener('click', () => this.callbacks.onSetZoneTag(null));
     this.els.sizeInc.addEventListener('click', () => this.callbacks.onAdjustBrushSize(1));
     this.els.sizeDec.addEventListener('click', () => this.callbacks.onAdjustBrushSize(-1));
     this.els.walkableOnBtn.addEventListener('click', () => this.callbacks.onSetWalkabilityBrush(true));
@@ -218,13 +241,24 @@ export class EditorHudController {
     const isObject = state.toolMode === 'object';
     const isWalkability = state.toolMode === 'walkability';
     const isElevation = state.toolMode === 'elevation';
+    const isZone = state.toolMode === 'zone';
     this.els.modeTerrainBtn.classList.toggle('is-active', isTerrain);
     this.els.modeObjectBtn.classList.toggle('is-active', isObject);
     this.els.modeWalkabilityBtn.classList.toggle('is-active', isWalkability);
     this.els.modeElevationBtn.classList.toggle('is-active', isElevation);
+    this.els.modeZoneBtn.classList.toggle('is-active', isZone);
     this.els.brushSection.classList.toggle('editor-hidden', !isTerrain);
     this.els.objectSection.classList.toggle('editor-hidden', !isObject);
     this.els.tileMetaSection.classList.toggle('editor-hidden', !(isWalkability || isElevation));
+    this.els.zoneSection.classList.toggle('editor-hidden', !isZone);
+
+    // Zone tag selector
+    const zoneLabel = state.selectedZoneTag ?? 'erase';
+    this.els.zoneTagLabel.textContent = zoneLabel;
+    for (const tag of EDITOR_WORLD_ZONE_TAGS) {
+      this.els.zoneTagBtns[tag]?.classList.toggle('is-active', state.selectedZoneTag === tag);
+    }
+    document.getElementById('ed-zone-tag-erase')?.classList.toggle('is-active', state.selectedZoneTag === null);
 
     // Brush (terrain mode)
     this.els.brushLabel.textContent = state.selectedBrush.label;
@@ -258,6 +292,7 @@ export class EditorHudController {
       ? '–'
       : state.hover.walkable ? 'walkable' : 'blocked';
     this.els.hoverElevation.textContent = state.hover.elevation === null ? '–' : String(state.hover.elevation);
+    this.els.hoverZone.textContent    = state.hover.zone ?? '–';
     this.els.hoverObject.textContent  = state.hover.objectDefinitionId ?? '–';
 
     if (state.hover.chunkX !== null && state.hover.chunkY !== null) {

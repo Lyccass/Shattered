@@ -23,6 +23,8 @@ export type EditorDirtyChunkBundleV1 = {
 export type DirtyChunkExportOptions = {
   chunkSize: number;
   exportedAt?: string;
+  includeEditorAssetData?: boolean;
+  includeEditorAssetDefinitions?: boolean;
   originChunkX?: number;
   originChunkY?: number;
   regionId: string;
@@ -44,6 +46,8 @@ export function createDirtyChunkBundle(
       regionId: options.regionId,
       terrainPalette: createTerrainPalette([...new Set(chunkMap.terrain.flat())]),
       worldId: options.worldId,
+      includeEditorAssetData: options.includeEditorAssetData,
+      includeEditorAssetDefinitions: options.includeEditorAssetDefinitions,
     }));
 
   return {
@@ -54,6 +58,28 @@ export function createDirtyChunkBundle(
     worldId: options.worldId,
     regionId: options.regionId,
     chunks,
+  };
+}
+
+export function createReferenceOnlyDirtyChunkBundle(
+  bundle: EditorDirtyChunkBundleV1,
+): EditorDirtyChunkBundleV1 {
+  validateDirtyChunkBundle(bundle);
+
+  return {
+    ...bundle,
+    chunks: bundle.chunks.map((chunk) => {
+      const map = createEditorMapFromWorldChunkDefinition(chunk);
+      return exportEditorMapToWorldChunkDefinition(map, {
+        chunkX: chunk.chunkX,
+        chunkY: chunk.chunkY,
+        includeEditorAssetData: false,
+        includeEditorAssetDefinitions: false,
+        regionId: chunk.regionId,
+        terrainPalette: chunk.terrainPalette,
+        worldId: chunk.worldId,
+      });
+    }),
   };
 }
 

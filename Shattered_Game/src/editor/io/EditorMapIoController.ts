@@ -23,8 +23,8 @@ export class EditorMapIoController {
     return this.writeExport(serializeEditorMap(map));
   }
 
-  publishToGame(map: EditorMapDefinition): void {
-    publishEditorMapForGame(map);
+  async publishToGame(map: EditorMapDefinition): Promise<void> {
+    await publishEditorMapForGame(map);
   }
 
   clearPublishedGameMap(): void {

@@ -10,6 +10,7 @@ import {
   paintTerrainTile,
   resizeEditorMap,
   serializeEditorMap,
+  serializeEditorMapForProjectLibrary,
   type EditorTerrainTilePaint,
 } from './EditorMapModel';
 import { validateMapShape } from '../map/MapValidation';
@@ -187,6 +188,27 @@ describe('EditorMapModel', () => {
         editorTerrainTiles: {},
       },
     });
+  });
+
+  it('serializes project-library maps as asset references without image payloads', () => {
+    const customTile: EditorTerrainTilePaint = {
+      ...FLIPPED_STONE_TILE,
+      textureDataUrl: 'data:image/png;base64,very-large-payload',
+    };
+    const map = createEditorMap(2, 2, 'grass');
+    map.customTerrainBrushes = [customTile];
+    paintTerrainTile(map, 1, 1, customTile);
+
+    const parsed = JSON.parse(serializeEditorMapForProjectLibrary(map)) as any;
+
+    expect(JSON.stringify(parsed)).not.toContain('very-large-payload');
+    expect(parsed.metadata.editorTerrainBrushes).toBeUndefined();
+    expect(parsed.metadata.editorTerrainTiles['1,1']).toMatchObject({
+      id: customTile.id,
+      textureKey: customTile.textureKey,
+    });
+    expect(parsed.metadata.editorTerrainTiles['1,1'].textureDataUrl).toBeUndefined();
+    expect(parsed.metadata.editorAssetReferences.terrainBrushIds).toContain(customTile.id);
   });
 
   it('validates exported maps', () => {

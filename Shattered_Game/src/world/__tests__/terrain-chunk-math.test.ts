@@ -3,34 +3,34 @@ import { describe, expect, it } from 'vitest';
 describe('TerrainChunkMath', () => {
   it('maps tile coordinates to chunk coordinates', async () => {
     const { getChunkCoordForTile } = await loadChunkMath();
-    expect(getChunkCoordForTile(0, 0, 16)).toEqual({ chunkX: 0, chunkY: 0 });
-    expect(getChunkCoordForTile(15, 15, 16)).toEqual({ chunkX: 0, chunkY: 0 });
-    expect(getChunkCoordForTile(16, 0, 16)).toEqual({ chunkX: 1, chunkY: 0 });
-    expect(getChunkCoordForTile(33, 40, 16)).toEqual({ chunkX: 2, chunkY: 2 });
+    expect(getChunkCoordForTile(0, 0, 32)).toEqual({ chunkX: 0, chunkY: 0 });
+    expect(getChunkCoordForTile(31, 31, 32)).toEqual({ chunkX: 0, chunkY: 0 });
+    expect(getChunkCoordForTile(32, 0, 32)).toEqual({ chunkX: 1, chunkY: 0 });
+    expect(getChunkCoordForTile(65, 66, 32)).toEqual({ chunkX: 2, chunkY: 2 });
   });
 
   it('builds chunk tile bounds with bleed clamped to the map', async () => {
     const { getChunkTileBounds } = await loadChunkMath();
-    expect(getChunkTileBounds(0, 0, 16, 40, 40, 1)).toMatchObject({
+    expect(getChunkTileBounds(0, 0, 32, 80, 80, 1)).toMatchObject({
       startX: 0,
       startY: 0,
-      endX: 16,
-      endY: 16,
+      endX: 32,
+      endY: 32,
       drawStartX: 0,
       drawStartY: 0,
-      drawEndX: 17,
-      drawEndY: 17,
+      drawEndX: 33,
+      drawEndY: 33,
     });
 
-    expect(getChunkTileBounds(2, 2, 16, 40, 40, 1)).toMatchObject({
-      startX: 32,
-      startY: 32,
-      endX: 40,
-      endY: 40,
-      drawStartX: 31,
-      drawStartY: 31,
-      drawEndX: 40,
-      drawEndY: 40,
+    expect(getChunkTileBounds(2, 2, 32, 80, 80, 1)).toMatchObject({
+      startX: 64,
+      startY: 64,
+      endX: 80,
+      endY: 80,
+      drawStartX: 63,
+      drawStartY: 63,
+      drawEndX: 80,
+      drawEndY: 80,
     });
   });
 
@@ -39,55 +39,56 @@ describe('TerrainChunkMath', () => {
     const transform = createTransformStub();
 
     const configs = createChunkConfigs({
-      mapWidth: 40,
-      mapHeight: 40,
-      chunkSize: 16,
+      mapWidth: 192,
+      mapHeight: 192,
+      chunkSize: 32,
       bleedTiles: 1,
       transform,
     });
 
-    expect(configs).toHaveLength(9);
+    expect(configs).toHaveLength(36);
     expect(configs[0].key).toBe('0,0');
-    expect(configs[8].key).toBe('2,2');
+    expect(configs[35].key).toBe('5,5');
   });
 
   it('returns grid-native footprint points for logical and bleed chunk bounds', async () => {
     const { getChunkFootprintPoints, getChunkTileBounds } = await loadChunkMath();
     const transform = createTransformStub();
-    const chunk = getChunkTileBounds(1, 1, 16, 64, 64, 1);
+    const chunk = getChunkTileBounds(1, 1, 32, 192, 192, 1);
 
     const logical = getChunkFootprintPoints(transform, chunk, false);
     const bleed = getChunkFootprintPoints(transform, chunk, true);
 
     expect(logical).toHaveLength(4);
     expect(bleed).toHaveLength(4);
-    expect(logical[0]).toEqual(transform.getTileTopWorld(16, 16));
-    expect(logical[2]).toEqual(transform.getTileTopWorld(32, 32));
-    expect(bleed[0]).toEqual(transform.getTileTopWorld(15, 15));
-    expect(bleed[2]).toEqual(transform.getTileTopWorld(33, 33));
+    expect(logical[0]).toEqual(transform.getTileTopWorld(32, 32));
+    expect(logical[2]).toEqual(transform.getTileTopWorld(64, 64));
+    expect(bleed[0]).toEqual(transform.getTileTopWorld(31, 31));
+    expect(bleed[2]).toEqual(transform.getTileTopWorld(65, 65));
   });
 
   it('builds visible chunk ranges from the world view', async () => {
     const { getChunkRangeForWorldView, isChunkCoordInRange } = await loadChunkMath();
     const transform = createTransformStub();
-    const center = transform.getTileCenterWorld(20, 20);
+    const center = transform.getTileCenterWorld(48, 48);
     const worldView = {
-      left: center.x - 160,
-      top: center.y - 96,
-      right: center.x + 160,
-      bottom: center.y + 96,
+      left: center.x - 16,
+      top: center.y - 16,
+      right: center.x + 16,
+      bottom: center.y + 16,
     } as any;
     const range = getChunkRangeForWorldView({
       worldView,
       transform,
-      chunkSize: 16,
+      chunkSize: 32,
       radius: 1,
-      mapWidth: 64,
-      mapHeight: 64,
+      mapWidth: 192,
+      mapHeight: 192,
     });
 
     expect(isChunkCoordInRange(1, 1, range)).toBe(true);
     expect(isChunkCoordInRange(0, 0, range)).toBe(true);
+    expect(isChunkCoordInRange(2, 2, range)).toBe(true);
     expect(isChunkCoordInRange(3, 3, range)).toBe(false);
   });
 });

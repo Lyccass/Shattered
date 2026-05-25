@@ -8,6 +8,8 @@ import {
   type TerrainChunkStats,
 } from './IsoTilemapChunkRenderer';
 import type { TileType } from './IsoTilemapTypes';
+import type { WorldChunkDefinition } from '../shared/world/ChunkTypes';
+import { decodeTerrainPaletteLayer } from '../shared/world/TerrainPalette';
 import type { ResolvedTerrainTile } from './terrain/TerrainTypes';
 import { TerrainResolutionCache } from './terrain/TerrainResolutionCache';
 import type { GridMode } from './IsoTilemapTypes';
@@ -19,6 +21,7 @@ type IsoTilemapConfig = {
   width?: number;
   height?: number;
   terrain?: TileType[][];
+  defaultTerrain?: TileType;
   terrainElevation?: Record<string, number>;
   terrainWalkability?: Record<string, boolean>;
   exactTerrainPaints?: Record<string, {
@@ -82,13 +85,33 @@ export class IsoTilemap {
       tileWidth: this.tileWidth,
       tileHeight: this.tileHeight,
     });
-    this.worldGrid = new WorldGrid(
-      this.width,
-      this.height,
-      terrain ?? generateOrganicIsland(this.width, this.height),
-      buildTerrainWalkabilityOverrides(config.terrainWalkability, config.exactTerrainPaints),
-      config.terrainElevation,
+    const terrainWalkability = buildTerrainWalkabilityOverrides(
+      config.terrainWalkability,
+      config.exactTerrainPaints,
     );
+    this.worldGrid = terrain
+      ? new WorldGrid(
+          this.width,
+          this.height,
+          terrain,
+          terrainWalkability,
+          config.terrainElevation,
+        )
+      : config.defaultTerrain
+        ? WorldGrid.createSparse(
+            this.width,
+            this.height,
+            config.defaultTerrain,
+            terrainWalkability,
+            config.terrainElevation,
+          )
+        : new WorldGrid(
+            this.width,
+            this.height,
+            generateOrganicIsland(this.width, this.height),
+            terrainWalkability,
+            config.terrainElevation,
+          );
     this.terrainResolutionCache = new TerrainResolutionCache(
       this.worldGrid,
       undefined,
@@ -178,6 +201,39 @@ export class IsoTilemap {
     return this.renderer?.getChunkStats() ?? null;
   }
 
+  applyWorldChunk(chunk: WorldChunkDefinition): void {
+    const terrain = chunk.terrain.encoding === 'palette'
+      ? decodeTerrainPaletteLayer(chunk.terrainPalette ?? {}, chunk.terrain.tiles)
+      : chunk.terrain.tiles;
+    const startTileX = chunk.chunkX * chunk.width;
+    const startTileY = chunk.chunkY * chunk.height;
+    const defaultWalkable = typeof chunk.metadata?.defaultWalkable === 'boolean'
+      ? chunk.metadata.defaultWalkable
+      : null;
+
+    for (let localY = 0; localY < chunk.height; localY += 1) {
+      for (let localX = 0; localX < chunk.width; localX += 1) {
+        const tileX = startTileX + localX;
+        const tileY = startTileY + localY;
+        this.worldGrid.setTile(tileX, tileY, terrain[localY][localX]);
+
+        if (
+          defaultWalkable !== null &&
+          defaultWalkable !== isTerrainFamilyWalkableByDefault(terrain[localY][localX])
+        ) {
+          this.worldGrid.setTerrainWalkabilityOverride(tileX, tileY, defaultWalkable);
+        }
+      }
+    }
+
+    this.invalidateTerrainResolutionRect(startTileX, startTileY, chunk.width, chunk.height);
+    this.renderer?.invalidateTileRect(startTileX, startTileY, chunk.width, chunk.height);
+  }
+
+  applyWorldChunks(chunks: WorldChunkDefinition[]): void {
+    chunks.forEach((chunk) => this.applyWorldChunk(chunk));
+  }
+
   toggleChunkDebug(): boolean {
     return this.renderer?.toggleChunkDebug() ?? false;
   }
@@ -237,6 +293,19 @@ export class IsoTilemap {
     this.renderer.render();
   }
 
+  private invalidateTerrainResolutionRect(tileX: number, tileY: number, width: number, height: number): void {
+    const startX = Math.max(0, tileX - 1);
+    const startY = Math.max(0, tileY - 1);
+    const endX = Math.min(this.width - 1, tileX + width);
+    const endY = Math.min(this.height - 1, tileY + height);
+
+    for (let y = startY; y <= endY; y += 1) {
+      for (let x = startX; x <= endX; x += 1) {
+        this.terrainResolutionCache.invalidateTile(x, y);
+      }
+    }
+  }
+
   private getWorldBounds(): Phaser.Geom.Rectangle {
     const points = [
       ...this.transform.getTileDiamondPoints(0, 0),
@@ -263,6 +332,10 @@ function buildTerrainWalkabilityOverrides(
       : {}),
     ...(terrainWalkability ?? {}),
   };
+}
+
+function isTerrainFamilyWalkableByDefault(tileType: TileType): boolean {
+  return tileType !== 'water';
 }
 
 function validateTerrainLayer(terrain: TileType[][]): void {

@@ -60,7 +60,7 @@ The editor currently supports:
 - dirty chunk bundle import/export
 - chunk naming overlay
 - save/open through browser file APIs when available
-- publishing the current editor map to the game through browser local storage
+- publishing the current editor map to the game through the project library
 - cloning the selected terrain tile into a custom tile with its own walkability
 - cloning the selected object into a custom object with its own movement blocking
 
@@ -167,8 +167,9 @@ Current fast iteration path:
 4. Paint/place those custom definitions normally.
 5. Press `Test` to publish the map and open the game in editor-map test mode.
 
-The published map is stored under the browser key
-`shattered.editor.published_map.v1`.
+During development the published map is stored in the project library under
+`data/editor-library/published`. Browser storage is only a fallback for hosts
+that do not have the Vite editor-library middleware.
 
 The game only uses the published editor map when opened with `?editorMap=1`.
 Normal game reloads use registered game maps, so a work-in-progress editor map

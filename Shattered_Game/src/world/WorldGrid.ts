@@ -7,9 +7,11 @@ export class WorldGrid {
   readonly width: number;
   readonly height: number;
 
-  private readonly tiles: TileType[][];
+  private readonly denseTiles?: TileType[][];
+  private readonly sparseTiles = new Map<string, TileType>();
   private readonly terrainWalkabilityOverrides: Record<string, boolean>;
   private readonly terrainElevation: Record<string, number>;
+  private readonly defaultTile: TileType;
   // Map<tileKey, Set<sourceId>> — tracks which object sources block each tile.
   private readonly objectBlocked = new Map<string, Set<string>>();
   private terrainBlockedCount: number;
@@ -20,25 +22,60 @@ export class WorldGrid {
     tiles: TileType[][],
     terrainWalkabilityOverrides: Record<string, boolean> = {},
     terrainElevation: Record<string, number> = {},
+    defaultTile: TileType = 'water',
   ) {
     this.width = width;
     this.height = height;
-    this.tiles = tiles.map((row) => [...row]);
+    this.denseTiles = tiles.length > 0 ? tiles.map((row) => [...row]) : undefined;
     this.terrainWalkabilityOverrides = { ...terrainWalkabilityOverrides };
     this.terrainElevation = { ...terrainElevation };
+    this.defaultTile = defaultTile;
     this.terrainBlockedCount = this.countTerrainBlocked();
+  }
+
+  static createSparse(
+    width: number,
+    height: number,
+    defaultTile: TileType,
+    terrainWalkabilityOverrides: Record<string, boolean> = {},
+    terrainElevation: Record<string, number> = {},
+  ): WorldGrid {
+    return new WorldGrid(width, height, [], terrainWalkabilityOverrides, terrainElevation, defaultTile);
   }
 
   getTile(tileX: number, tileY: number): TileType | null {
     if (!this.isTileInBounds(tileX, tileY)) return null;
-    return this.tiles[tileY][tileX];
+    return this.denseTiles?.[tileY]?.[tileX] ?? this.sparseTiles.get(tileKey(tileX, tileY)) ?? this.defaultTile;
   }
 
   setTile(tileX: number, tileY: number, tileType: TileType): void {
     if (!this.isTileInBounds(tileX, tileY)) return;
     const wasBlocked = this.isTerrainBlocked(tileX, tileY);
-    this.tiles[tileY][tileX] = tileType;
+    if (this.denseTiles) {
+      this.denseTiles[tileY][tileX] = tileType;
+    } else {
+      const key = tileKey(tileX, tileY);
+      if (tileType === this.defaultTile) {
+        this.sparseTiles.delete(key);
+      } else {
+        this.sparseTiles.set(key, tileType);
+      }
+    }
     const isNowBlocked = this.isTerrainTypeBlocked(tileX, tileY, tileType);
+    if (wasBlocked && !isNowBlocked) this.terrainBlockedCount -= 1;
+    else if (!wasBlocked && isNowBlocked) this.terrainBlockedCount += 1;
+  }
+
+  setTerrainWalkabilityOverride(tileX: number, tileY: number, walkable: boolean | null): void {
+    if (!this.isTileInBounds(tileX, tileY)) return;
+    const wasBlocked = this.isTerrainBlocked(tileX, tileY);
+    const key = tileKey(tileX, tileY);
+    if (walkable === null) {
+      delete this.terrainWalkabilityOverrides[key];
+    } else {
+      this.terrainWalkabilityOverrides[key] = walkable;
+    }
+    const isNowBlocked = this.isTerrainBlocked(tileX, tileY);
     if (wasBlocked && !isNowBlocked) this.terrainBlockedCount -= 1;
     else if (!wasBlocked && isNowBlocked) this.terrainBlockedCount += 1;
   }
@@ -56,7 +93,8 @@ export class WorldGrid {
 
   isTerrainBlocked(tileX: number, tileY: number): boolean {
     if (!this.isTileInBounds(tileX, tileY)) return true;
-    return this.isTerrainTypeBlocked(tileX, tileY, this.tiles[tileY][tileX]);
+    const tile = this.getTile(tileX, tileY);
+    return tile === null ? true : this.isTerrainTypeBlocked(tileX, tileY, tile);
   }
 
   // Unified walkability check: false if out-of-bounds, terrain-blocked, or object-blocked.
@@ -122,11 +160,25 @@ export class WorldGrid {
   }
 
   private countTerrainBlocked(): number {
-    return this.tiles.reduce(
-      (count, row, tileY) =>
-        count + row.filter((tileType, tileX) => this.isTerrainTypeBlocked(tileX, tileY, tileType)).length,
-      0,
-    );
+    if (this.denseTiles) {
+      return this.denseTiles.reduce(
+        (count, row, tileY) =>
+          count + row.filter((tileType, tileX) => this.isTerrainTypeBlocked(tileX, tileY, tileType)).length,
+        0,
+      );
+    }
+
+    let count = this.isTerrainTypeBlockedByFamily(this.defaultTile) ? this.width * this.height : 0;
+
+    for (const [key, tileType] of this.sparseTiles.entries()) {
+      const [tileX, tileY] = parseTileKey(key);
+      const defaultBlocked = this.isTerrainTypeBlocked(tileX, tileY, this.defaultTile);
+      const tileBlocked = this.isTerrainTypeBlocked(tileX, tileY, tileType);
+      if (defaultBlocked && !tileBlocked) count -= 1;
+      else if (!defaultBlocked && tileBlocked) count += 1;
+    }
+
+    return count;
   }
 
   private isTerrainTypeBlocked(tileX: number, tileY: number, tileType: TileType): boolean {
@@ -136,10 +188,19 @@ export class WorldGrid {
       return !override;
     }
 
+    return this.isTerrainTypeBlockedByFamily(tileType);
+  }
+
+  private isTerrainTypeBlockedByFamily(tileType: TileType): boolean {
     return tileType === 'water';
   }
 }
 
 function tileKey(tileX: number, tileY: number): string {
   return `${tileX},${tileY}`;
+}
+
+function parseTileKey(key: string): [number, number] {
+  const [tileX = '0', tileY = '0'] = key.split(',');
+  return [Number(tileX), Number(tileY)];
 }

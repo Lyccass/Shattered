@@ -8,7 +8,6 @@ type ObjectTestAreaConfig = {
   mapHeight: number;
   spawnX: number;
   spawnY: number;
-  detailCap?: number;
 };
 
 type PassConfig = {
@@ -32,8 +31,8 @@ export class ObjectTestArea {
   constructor(private readonly config: ObjectTestAreaConfig) {}
 
   build(): void {
-    const { placement, mapWidth, mapHeight, spawnX, spawnY, detailCap = 400 } = this.config;
-    for (const p of generateForest(mapWidth, mapHeight, spawnX, spawnY, detailCap)) {
+    const { placement, mapWidth, mapHeight, spawnX, spawnY } = this.config;
+    for (const p of generateForest(mapWidth, mapHeight, spawnX, spawnY)) {
       const instance = placement.placeObject(p.definitionId, p.tileX, p.tileY);
       if (!instance) continue;
       this.placedIds.push(instance.id);
@@ -92,7 +91,6 @@ function generateForest(
   mapHeight: number,
   spawnX: number,
   spawnY: number,
-  detailCap: number,
 ): Placement[] {
   const out: Placement[] = [];
 
@@ -133,13 +131,6 @@ function generateForest(
       const r = h(gx, gy, 40);
       return r < 0.40 ? 'small_rock' : r < 0.72 ? 'medium_rock' : 'large_rock';
     },
-  }, out, spawnDist);
-
-  // Pass E — Ground detail (non-blocking): pebbles and flowers, capped for density control
-  runPass({
-    step: 6, offsetX: 0, offsetY: 1, jitter: 1, chance: 0.70, clearance: 0, salt: 5, mapWidth, mapHeight,
-    limit: detailCap,
-    pick: (gx, gy) => h(gx, gy, 50) < 0.65 ? 'pebble_patch' : 'flower_patch',
   }, out, spawnDist);
 
   return out;

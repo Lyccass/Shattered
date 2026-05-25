@@ -11,13 +11,7 @@
 //   participates in collision.
 
 export type ObjectCategory =
-  | 'marker'
   | 'rock'
-  | 'barrel'
-  | 'log'
-  | 'fence'
-  | 'flora'
-  | 'pebble'
   | 'tree'
   | 'resource'
   | 'workbench'

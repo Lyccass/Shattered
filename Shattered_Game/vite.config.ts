@@ -5,6 +5,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { defineConfig, type Plugin } from 'vite';
 
 const EDITOR_LIBRARY_ROOT = path.resolve('data/editor-library');
+const EDITOR_LIBRARY_ASSET_IMAGE_ROOT = path.join(EDITOR_LIBRARY_ROOT, 'assets', 'images');
+const EDITOR_LIBRARY_ENDPOINT = '/__shattered_editor_library';
 
 export default defineConfig({
   plugins: [editorProjectLibraryPlugin()],
@@ -44,10 +46,21 @@ function editorProjectLibraryPlugin(): Plugin {
 
 async function handleEditorLibraryRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-  const [, collection, encodedId] = url.pathname.split('/');
+  const [collection, encodedId, ...restPath] = url.pathname.split('/').filter(Boolean);
 
-  if (collection !== 'maps' && collection !== 'chunks' && collection !== 'assets') {
+  if (
+    collection !== 'maps' &&
+    collection !== 'chunks' &&
+    collection !== 'assets' &&
+    collection !== 'drafts' &&
+    collection !== 'published'
+  ) {
     sendJson(res, 404, { error: 'Unknown editor library collection.' });
+    return;
+  }
+
+  if (collection === 'assets' && encodedId === 'images') {
+    await handleAssetImageRequest(restPath.join('/'), res);
     return;
   }
 
@@ -59,12 +72,24 @@ async function handleEditorLibraryRequest(req: IncomingMessage, res: ServerRespo
     return;
   }
 
+  if (req.method === 'GET' && encodedId) {
+    const id = decodeURIComponent(encodedId);
+    const record = JSON.parse(await readFile(path.join(dir, `${toFileKey(id)}.json`), 'utf8')) as unknown;
+    sendJson(res, 200, record);
+    return;
+  }
+
   if (req.method === 'PUT' && encodedId) {
     const id = decodeURIComponent(encodedId);
     const body = await readRequestJson(req);
+    const record = collection === 'assets'
+      ? await materializeAssetRecordImages(body)
+      : collection === 'published'
+        ? await materializePublishedMapImages(body)
+        : body;
     await mkdir(dir, { recursive: true });
-    await writeFile(path.join(dir, `${toFileKey(id)}.json`), JSON.stringify(body, null, 2), 'utf8');
-    sendJson(res, 200, body);
+    await writeFile(path.join(dir, `${toFileKey(id)}.json`), JSON.stringify(record, null, 2), 'utf8');
+    sendJson(res, 200, record);
     return;
   }
 
@@ -76,6 +101,170 @@ async function handleEditorLibraryRequest(req: IncomingMessage, res: ServerRespo
   }
 
   sendJson(res, 405, { error: 'Unsupported editor library method.' });
+}
+
+async function handleAssetImageRequest(fileName: string, res: ServerResponse): Promise<void> {
+  if (!fileName || fileName.includes('..') || fileName.includes('/')) {
+    sendJson(res, 404, { error: 'Unknown editor asset image.' });
+    return;
+  }
+
+  try {
+    const image = await readFile(path.join(EDITOR_LIBRARY_ASSET_IMAGE_ROOT, fileName));
+    res.statusCode = 200;
+    res.setHeader('Content-Type', getImageContentType(fileName));
+    res.end(image);
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      sendJson(res, 404, { error: 'Editor asset image not found.' });
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function materializeAssetRecordImages(value: unknown): Promise<unknown> {
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    ...(Array.isArray(value.terrainBrushes)
+      ? { terrainBrushes: await Promise.all(value.terrainBrushes.map(materializeTerrainBrushImage)) }
+      : {}),
+    ...(Array.isArray(value.objectDefinitions)
+      ? { objectDefinitions: await Promise.all(value.objectDefinitions.map(materializeObjectDefinitionImages)) }
+      : {}),
+  };
+}
+
+async function materializePublishedMapImages(value: unknown): Promise<unknown> {
+  if (!isRecord(value) || !isRecord(value.metadata)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    metadata: {
+      ...value.metadata,
+      ...(isRecord(value.metadata.editorTerrainTiles)
+        ? { editorTerrainTiles: await materializeTerrainTileRecordImages(value.metadata.editorTerrainTiles) }
+        : {}),
+      ...(Array.isArray(value.metadata.editorTerrainBrushes)
+        ? { editorTerrainBrushes: await Promise.all(value.metadata.editorTerrainBrushes.map(materializeTerrainBrushImage)) }
+        : {}),
+      ...(Array.isArray(value.metadata.editorObjectDefinitions)
+        ? { editorObjectDefinitions: await Promise.all(value.metadata.editorObjectDefinitions.map(materializeObjectDefinitionImages)) }
+        : {}),
+    },
+  };
+}
+
+async function materializeTerrainTileRecordImages(value: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const entries = await Promise.all(
+    Object.entries(value).map(async ([key, paint]) => [key, await materializeTerrainBrushImage(paint)] as const),
+  );
+  return Object.fromEntries(entries);
+}
+
+async function materializeTerrainBrushImage(value: unknown): Promise<unknown> {
+  if (!isRecord(value) || typeof value.textureDataUrl !== 'string' || typeof value.textureKey !== 'string') {
+    return value;
+  }
+
+  const imageUrl = await writeAssetImage(value.textureKey, value.textureDataUrl);
+  return imageUrl ? { ...value, textureDataUrl: imageUrl } : value;
+}
+
+async function materializeObjectDefinitionImages(value: unknown): Promise<unknown> {
+  if (!isRecord(value) || !isRecord(value.visual) || !Array.isArray(value.visual.parts)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    visual: {
+      ...value.visual,
+      parts: await Promise.all(value.visual.parts.map(materializeObjectVisualPartImage)),
+    },
+  };
+}
+
+async function materializeObjectVisualPartImage(value: unknown): Promise<unknown> {
+  if (
+    !isRecord(value) ||
+    value.shape !== 'sprite' ||
+    typeof value.editorTextureDataUrl !== 'string' ||
+    typeof value.textureKey !== 'string'
+  ) {
+    return value;
+  }
+
+  const imageUrl = await writeAssetImage(value.textureKey, value.editorTextureDataUrl);
+  return imageUrl ? { ...value, editorTextureDataUrl: imageUrl } : value;
+}
+
+async function writeAssetImage(textureKey: string, dataUrl: string): Promise<string | null> {
+  const parsed = parseImageDataUrl(dataUrl);
+
+  if (!parsed) {
+    return null;
+  }
+
+  const fileName = `${toFileKey(textureKey)}.${parsed.extension}`;
+  await mkdir(EDITOR_LIBRARY_ASSET_IMAGE_ROOT, { recursive: true });
+  await writeFile(path.join(EDITOR_LIBRARY_ASSET_IMAGE_ROOT, fileName), parsed.data);
+  return `${EDITOR_LIBRARY_ENDPOINT}/assets/images/${fileName}`;
+}
+
+function parseImageDataUrl(dataUrl: string): { data: Buffer; extension: string } | null {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    data: Buffer.from(match[2], 'base64'),
+    extension: imageExtensionForMime(match[1]),
+  };
+}
+
+function imageExtensionForMime(mime: string): string {
+  switch (mime) {
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/svg+xml':
+      return 'svg';
+    case 'image/webp':
+      return 'webp';
+    case 'image/gif':
+      return 'gif';
+    case 'image/png':
+    default:
+      return 'png';
+  }
+}
+
+function getImageContentType(fileName: string): string {
+  const extension = path.extname(fileName).toLowerCase();
+
+  switch (extension) {
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.webp':
+      return 'image/webp';
+    case '.gif':
+      return 'image/gif';
+    case '.png':
+    default:
+      return 'image/png';
+  }
 }
 
 async function readRecordsFromDisk(dir: string): Promise<unknown[]> {
@@ -108,6 +297,10 @@ function getSavedAt(value: unknown): string {
     typeof value.savedAt === 'string'
     ? value.savedAt
     : '';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function toFileKey(id: string): string {

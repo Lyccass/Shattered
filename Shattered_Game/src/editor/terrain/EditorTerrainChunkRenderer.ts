@@ -17,7 +17,7 @@ import {
   type EditorTerrainCatalog,
 } from './EditorTerrainCatalog';
 
-export const EDITOR_CHUNK_SIZE = 16;
+export const EDITOR_CHUNK_SIZE = 32;
 const TERRAIN_DEPTH = 0;
 
 type ChunkObject = Phaser.GameObjects.GameObject;

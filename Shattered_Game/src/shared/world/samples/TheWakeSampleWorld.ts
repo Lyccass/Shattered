@@ -2,10 +2,37 @@ import type { RegionManifest } from '../RegionManifestTypes';
 import type { WorldChunkDefinition } from '../ChunkTypes';
 import type { WorldManifest } from '../WorldManifestTypes';
 
+const SAMPLE_CHUNK_SIZE = 32;
+
 export const THE_WAKE_WORLD_MANIFEST: WorldManifest = {
+  version: 1,
   worldId: 'the_wake',
   displayName: 'The Wake',
+  chunkSize: SAMPLE_CHUNK_SIZE,
+  bounds: {
+    minChunkX: 0,
+    minChunkY: 0,
+    maxChunkX: 999,
+    maxChunkY: 999,
+  },
   defaultRegionId: 'harbor_coast',
+  regions: [
+    {
+      id: 'harbor_coast',
+      displayName: 'Harbor Coast',
+      defaultTerrain: 'grass',
+      defaultWalkable: true,
+      biomeTags: ['coast', 'harbor_edge'],
+    },
+  ],
+  authoredChunks: [
+    {
+      chunkX: 0,
+      chunkY: 0,
+      regionId: 'harbor_coast',
+      path: 'data/worlds/the_wake/chunks/0_0.json',
+    },
+  ],
   defaultSpawn: {
     regionId: 'harbor_coast',
     chunk: { chunkX: 0, chunkY: 0 },
@@ -13,7 +40,6 @@ export const THE_WAKE_WORLD_MANIFEST: WorldManifest = {
     tileY: 4,
     spawnId: 'harbor_coast_default',
   },
-  regionIds: ['harbor_coast'],
   terrainPaletteIds: ['wake_basic'],
   metadata: {
     authoringVersion: 'world_chunk_authoring_v0',
@@ -24,16 +50,15 @@ export const HARBOR_COAST_REGION_MANIFEST: RegionManifest = {
   worldId: 'the_wake',
   regionId: 'harbor_coast',
   displayName: 'Harbor Coast',
-  chunkSize: 8,
+  chunkSize: SAMPLE_CHUNK_SIZE,
   bounds: {
     minChunkX: 0,
     minChunkY: 0,
-    maxChunkX: 1,
-    maxChunkY: 1,
+    maxChunkX: 0,
+    maxChunkY: 0,
   },
   chunks: [
     { chunkX: 0, chunkY: 0 },
-    { chunkX: 0, chunkY: 1 },
   ],
   biomeTags: ['coast', 'harbor_edge'],
   defaultTerrainPaletteId: 'wake_basic',
@@ -53,8 +78,8 @@ export const HARBOR_COAST_CHUNK_0_0: WorldChunkDefinition = {
   regionId: 'harbor_coast',
   chunkX: 0,
   chunkY: 0,
-  width: 8,
-  height: 8,
+  width: SAMPLE_CHUNK_SIZE,
+  height: SAMPLE_CHUNK_SIZE,
   terrainPalette: {
     0: 'grass',
     1: 'sand',
@@ -63,16 +88,7 @@ export const HARBOR_COAST_CHUNK_0_0: WorldChunkDefinition = {
   },
   terrain: {
     encoding: 'palette',
-    tiles: [
-      [1, 1, 1, 0, 0, 0, 0, 0],
-      [1, 0, 0, 0, 0, 0, 3, 3],
-      [1, 0, 0, 0, 0, 0, 3, 3],
-      [2, 1, 0, 0, 0, 0, 0, 0],
-      [2, 1, 1, 0, 0, 0, 0, 0],
-      [2, 2, 1, 1, 0, 0, 0, 0],
-      [2, 2, 2, 1, 1, 0, 0, 0],
-      [2, 2, 2, 2, 1, 1, 0, 0],
-    ],
+    tiles: createSampleHarborTerrainTiles(),
   },
   objectLayer: {
     objects: [
@@ -135,3 +151,23 @@ export const HARBOR_COAST_CHUNK_0_0: WorldChunkDefinition = {
     authoredFor: 'world_chunk_authoring_v0',
   },
 };
+
+function createSampleHarborTerrainTiles(): number[][] {
+  return Array.from({ length: SAMPLE_CHUNK_SIZE }, (_, y) =>
+    Array.from({ length: SAMPLE_CHUNK_SIZE }, (_, x) => {
+      if (x >= 48 && y >= 8 && y <= 20) {
+        return 3;
+      }
+
+      if (y >= x + 28) {
+        return 2;
+      }
+
+      if (x <= 10 || y >= x + 22) {
+        return 1;
+      }
+
+      return 0;
+    }),
+  );
+}

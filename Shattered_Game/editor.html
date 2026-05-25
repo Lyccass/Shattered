@@ -106,6 +106,7 @@
               <div class="ed-mode-row">
                 <button class="ed-mode-btn" id="ed-mode-walkability">Walk</button>
                 <button class="ed-mode-btn" id="ed-mode-elevation">Height</button>
+                <button class="ed-mode-btn" id="ed-mode-zone">Zone</button>
               </div>
             </div>
           </div>
@@ -188,6 +189,23 @@
             </div>
           </div>
 
+          <!-- Zone (zone mode) -->
+          <div class="ed-section editor-hidden" id="ed-zone-section">
+            <div class="ed-section-title">Zone</div>
+            <div class="ed-row">
+              <span class="ed-label">Painting</span>
+              <span class="ed-value" id="ed-zone-tag-label">wilds</span>
+            </div>
+            <div class="ed-zone-tag-grid" id="ed-zone-tag-grid">
+              <button class="ed-zone-tag-btn" id="ed-zone-tag-town"    data-zone="town"    style="--zone-color:#22c55e">Town</button>
+              <button class="ed-zone-tag-btn" id="ed-zone-tag-wilds"   data-zone="wilds"   style="--zone-color:#ef4444">Wilds</button>
+              <button class="ed-zone-tag-btn" id="ed-zone-tag-elite"   data-zone="elite"   style="--zone-color:#a855f7">Elite</button>
+              <button class="ed-zone-tag-btn" id="ed-zone-tag-dungeon" data-zone="dungeon" style="--zone-color:#64748b">Dungeon</button>
+              <button class="ed-zone-tag-btn" id="ed-zone-tag-locked"  data-zone="locked"  style="--zone-color:#f59e0b">Locked</button>
+              <button class="ed-zone-tag-btn ed-zone-tag-btn--erase" id="ed-zone-tag-erase">Erase</button>
+            </div>
+          </div>
+
           <!-- Hover info -->
           <div class="ed-section">
             <div class="ed-section-title">Hover</div>
@@ -214,6 +232,10 @@
             <div class="ed-row">
               <span class="ed-label">Object</span>
               <span class="ed-value" id="ed-hover-object">–</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Zone</span>
+              <span class="ed-value" id="ed-hover-zone">–</span>
             </div>
             <div class="ed-row">
               <span class="ed-label">Chunk</span>

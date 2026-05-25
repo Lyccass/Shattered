@@ -1,7 +1,15 @@
 import type { MapZone, MapZoneTag } from './MapTypes';
 
 export class MapZoneIndex {
-  constructor(private readonly zones: readonly MapZone[]) {}
+  private zones: readonly MapZone[];
+
+  constructor(zones: readonly MapZone[]) {
+    this.zones = zones;
+  }
+
+  setZones(zones: readonly MapZone[]): void {
+    this.zones = zones;
+  }
 
   getTagsAtTile(tileX: number, tileY: number): MapZoneTag[] {
     const tags = new Set<MapZoneTag>();
