@@ -21,8 +21,16 @@ export type PhysicalDamageType = 'slash' | 'pierce' | 'crush';
 
 export type WeaponArchetype = 'sword' | 'axe' | 'hammer' | 'spear' | 'dagger';
 
+// Shape of the player's attack hitbox — owned by each weapon definition.
+// arc   = swinging weapon; creates a fan/cone in front of the player.
+// thrust = stabbing weapon; creates a forward rectangle.
+export type WeaponAttackShape =
+  | { kind: 'arc';    angleDeg: number; rangeTiles: number; minRangeTiles?: number }
+  | { kind: 'thrust'; lengthTiles: number; widthTiles: number; doubleHit?: true };
+
 export type WeaponStats = {
   archetype: WeaponArchetype;
+  attackShape: WeaponAttackShape;
   damage: number;
   damageType: PhysicalDamageType;
   attackSpeedMs: number;
@@ -85,6 +93,7 @@ export type PlayerDerivedStats = {
   attackActiveMs: number;
   attackRecoveryMs: number;
   weaponArchetype: WeaponArchetype;
+  attackShape: WeaponAttackShape;
   reachTiles: number;
   attackStaminaCost: number;
   dodgeChance: number;
@@ -118,6 +127,7 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     attackActiveMs: 200,
     attackRecoveryMs: 640,
     weaponArchetype: 'sword',
+    attackShape: { kind: 'arc', angleDeg: 180, rangeTiles: 1.5 },
     reachTiles: 1.0,
     attackStaminaCost: 12,
     dodgeChance: 0,

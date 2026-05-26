@@ -107,6 +107,18 @@ export class WorldGrid {
     return this.terrainElevation[tileKey(tileX, tileY)] ?? 0;
   }
 
+  setTerrainElevation(tileX: number, tileY: number, elevation: number | null): void {
+    if (!this.isTileInBounds(tileX, tileY)) return;
+    const key = tileKey(tileX, tileY);
+
+    if (elevation === null) {
+      delete this.terrainElevation[key];
+      return;
+    }
+
+    this.terrainElevation[key] = Math.max(0, Math.trunc(elevation));
+  }
+
   isStepWalkable(fromTileX: number, fromTileY: number, toTileX: number, toTileY: number, maxStepHeight = 1): boolean {
     if (!this.isTileWalkable(toTileX, toTileY)) return false;
 

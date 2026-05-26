@@ -105,4 +105,47 @@ describe('TerrainResolutionCache', () => {
     expect(resolveCalls).toBe(2);
     expect(cache.getCachedTileCount()).toBe(1);
   });
+
+  it('replaces exact terrain paints inside streamed chunk bounds', () => {
+    const worldGrid = new WorldGrid(
+      3,
+      1,
+      [['grass', 'grass', 'grass']],
+    );
+    const cache = new TerrainResolutionCache(worldGrid);
+
+    cache.replaceExactTerrainPaintsInRect(0, 0, 2, 1, {
+      '0,0': {
+        id: 'grassA07',
+        family: 'grass',
+        textureKey: 'terrain-grassA07',
+        flipX: false,
+        flipY: false,
+      },
+      '1,0': {
+        id: 'grassA16',
+        family: 'grass',
+        textureKey: 'terrain-grassA16',
+        flipX: true,
+        flipY: false,
+      },
+    });
+
+    expect(cache.resolveTile(0, 0)?.baseTileDefinition.spriteFrame).toBe('terrain-grassA07');
+    expect(cache.resolveTile(1, 0)?.baseTileDefinition.spriteFrame).toBe('terrain-grassA16');
+
+    cache.replaceExactTerrainPaintsInRect(1, 0, 2, 1, {
+      '2,0': {
+        id: 'grassA25',
+        family: 'grass',
+        textureKey: 'terrain-grassA25',
+        flipX: false,
+        flipY: true,
+      },
+    });
+
+    expect(cache.resolveTile(0, 0)?.baseTileDefinition.spriteFrame).toBe('terrain-grassA07');
+    expect(cache.resolveTile(1, 0)?.baseTileDefinition.spriteFrame).not.toBe('terrain-grassA16');
+    expect(cache.resolveTile(2, 0)?.baseTileDefinition.spriteFrame).toBe('terrain-grassA25');
+  });
 });

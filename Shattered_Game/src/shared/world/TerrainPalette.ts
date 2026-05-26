@@ -2,7 +2,22 @@ import { isTerrainFamily, type TerrainFamily } from '../map/TerrainTypes';
 
 export type TerrainTileId = number;
 
-export type TerrainPalette = Record<TerrainTileId, TerrainFamily>;
+export type ExactTerrainPaletteEntry = {
+  family: TerrainFamily;
+  tileId: string;
+  textureKey: string;
+  category?: string;
+  textureOffsetX?: number;
+  textureOffsetY?: number;
+  textureScale?: number;
+  walkable?: boolean;
+  flipX?: boolean;
+  flipY?: boolean;
+};
+
+export type TerrainPaletteEntry = TerrainFamily | ExactTerrainPaletteEntry;
+
+export type TerrainPalette = Record<TerrainTileId, TerrainPaletteEntry>;
 
 export function createTerrainPalette(
   families: readonly TerrainFamily[],
@@ -14,7 +29,8 @@ export function decodeTerrainPaletteTile(
   palette: TerrainPalette,
   tileId: TerrainTileId,
 ): TerrainFamily | null {
-  return palette[tileId] ?? null;
+  const entry = palette[tileId] ?? null;
+  return entry ? getTerrainPaletteEntryFamily(entry) : null;
 }
 
 export function decodeTerrainPaletteLayer(
@@ -39,7 +55,7 @@ export function encodeTerrainPaletteLayer(
   palette: TerrainPalette,
 ): TerrainTileId[][] {
   const familyToId = new Map<TerrainFamily, TerrainTileId>(
-    Object.entries(palette).map(([id, family]) => [family, Number(id)]),
+    Object.entries(palette).map(([id, entry]) => [getTerrainPaletteEntryFamily(entry), Number(id)]),
   );
 
   return terrain.map((row) =>
@@ -55,24 +71,59 @@ export function encodeTerrainPaletteLayer(
   );
 }
 
+export function getTerrainPaletteEntryFamily(entry: TerrainPaletteEntry): TerrainFamily {
+  return typeof entry === 'string' ? entry : entry.family;
+}
+
+export function getExactTerrainPaletteEntry(entry: TerrainPaletteEntry | undefined): ExactTerrainPaletteEntry | null {
+  return isExactTerrainPaletteEntry(entry) ? entry : null;
+}
+
 export function validateTerrainPalette(palette: unknown): string[] {
   if (!isRecord(palette)) {
     return ['Terrain palette must be an object.'];
   }
 
-  return Object.entries(palette).flatMap(([id, family]) => {
+  return Object.entries(palette).flatMap(([id, entry]) => {
     const errors: string[] = [];
 
     if (!Number.isInteger(Number(id))) {
       errors.push(`Terrain palette id "${id}" must be an integer.`);
     }
 
-    if (!isTerrainFamily(family)) {
-      errors.push(`Terrain palette id "${id}" uses invalid family "${String(family)}".`);
+    if (typeof entry === 'string') {
+      if (!isTerrainFamily(entry)) {
+        errors.push(`Terrain palette id "${id}" uses invalid family "${String(entry)}".`);
+      }
+      return errors;
+    }
+
+    if (!isExactTerrainPaletteEntry(entry)) {
+      errors.push(`Terrain palette id "${id}" must be a terrain family or exact terrain palette entry.`);
+      return errors;
     }
 
     return errors;
   });
+}
+
+function isExactTerrainPaletteEntry(value: unknown): value is ExactTerrainPaletteEntry {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isTerrainFamily(value.family) &&
+    typeof value.tileId === 'string' &&
+    typeof value.textureKey === 'string' &&
+    (value.category === undefined || typeof value.category === 'string') &&
+    (value.textureOffsetX === undefined || typeof value.textureOffsetX === 'number') &&
+    (value.textureOffsetY === undefined || typeof value.textureOffsetY === 'number') &&
+    (value.textureScale === undefined || typeof value.textureScale === 'number') &&
+    (value.walkable === undefined || typeof value.walkable === 'boolean') &&
+    (value.flipX === undefined || typeof value.flipX === 'boolean') &&
+    (value.flipY === undefined || typeof value.flipY === 'boolean')
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

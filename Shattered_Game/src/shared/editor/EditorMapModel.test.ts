@@ -148,11 +148,15 @@ describe('EditorMapModel', () => {
 
     expect(chunk.worldId).toBe('the_wake');
     expect(chunk.terrain.encoding).toBe('palette');
-    expect(chunk.metadata).toMatchObject({
-      editorTerrainTiles: {
-        '1,1': FLIPPED_STONE_TILE,
-      },
+    expect(Object.values(chunk.terrainPalette ?? {})).toContainEqual({
+      family: FLIPPED_STONE_TILE.family,
+      tileId: FLIPPED_STONE_TILE.id,
+      textureKey: FLIPPED_STONE_TILE.textureKey,
+      walkable: FLIPPED_STONE_TILE.walkable,
+      flipX: FLIPPED_STONE_TILE.flipX,
+      flipY: FLIPPED_STONE_TILE.flipY,
     });
+    expect(chunk.metadata?.editorTerrainTiles).toBeUndefined();
     expect(reimported.terrain).toEqual(map.terrain);
     expect(getEditorTerrainTilePaint(reimported, 1, 1)).toEqual(FLIPPED_STONE_TILE);
   });

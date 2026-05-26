@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 import {
-  createEditorMap,
   createSampleEditorMap,
   getEditorTerrainElevationAt,
   getEditorTerrainAt,
@@ -20,6 +19,7 @@ import {
   type IsoTransformConfig,
 } from '../shared/iso/IsoCoordinates';
 import type { TerrainFamily } from '../shared/map/TerrainTypes';
+import type { MapTransition, MapTransitionType } from '../shared/map/MapTypes';
 import { preloadTerrainAssets, createTerrainRenderTextures } from '../world/terrain/TerrainAssets';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import {
@@ -37,15 +37,18 @@ import {
   applySavedChunkBundle,
   consumeEditorLibraryCacheMessage,
   deleteSavedChunkBundle,
-  deleteSavedMap,
   loadEditorWorkingDraft,
   listSavedChunkBundlesFromProjectLibrary,
-  listSavedMapsFromProjectLibrary,
-  loadSavedMap,
   saveEditorWorkingDraft,
   saveDirtyChunkBundleToProjectLibrary,
-  saveMapToProjectLibrary,
 } from './io/EditorLocalLibrary';
+import {
+  createWorldManifestInProject,
+  listProjectWorlds,
+  loadEditorWorldChunkWindow,
+  loadWorldManifestFromProject,
+  saveWorldChunksToProject,
+} from './io/EditorWorldLibrary';
 import { EditorInputController, type EditorToolMode } from './input/EditorInputController';
 import { EditorViewportController } from './viewport/EditorViewportController';
 import { EditorChunkNameRenderer } from './chunks/EditorChunkNameRenderer';
@@ -55,6 +58,14 @@ import { EditorAssetLibraryController } from './assets/EditorAssetLibraryControl
 import { loadImageFromDataUrl } from './assets/EditorDefinitionImage';
 import { EditorDefinitionPanelController } from './ui/EditorDefinitionPanelController';
 import { EditorLibraryPanelController } from './ui/EditorLibraryPanelController';
+import {
+  createSaveConfidenceState,
+  type EditorSaveSnapshot,
+} from './workflow/EditorSaveConfidence';
+import {
+  resolveEditorWorldTestSpawn,
+  type EditorTestSpawnMode,
+} from './workflow/EditorWorldTestSpawn';
 
 const TILE_WIDTH = 64;
 const TILE_HEIGHT = 32;
@@ -75,6 +86,7 @@ type LoadedChunkWindowContext = {
   sourceDisplayName: string;
   sourceMapId: string;
   sourceRecordId: string;
+  sourceType: 'map' | 'world';
   worldId: string;
 };
 
@@ -92,7 +104,7 @@ export class EditorScene extends Phaser.Scene {
   private readonly libraryPanel = new EditorLibraryPanelController();
   private map: EditorMapDefinition = createSampleEditorMap(this.terrainTool.getSelectedPaint());
   private worldId = 'the_wake';
-  private regionId = 'editor_region';
+  private regionId = 'harbor_coast';
   private readonly transform: IsoTransformConfig = {
     originX: MAP_ORIGIN_X,
     originY: MAP_ORIGIN_Y,
@@ -116,6 +128,8 @@ export class EditorScene extends Phaser.Scene {
   private selectedElevation = 0;
   private selectedZoneTag: EditorWorldZoneTag | null = 'wilds';
   private loadedChunkWindow: LoadedChunkWindowContext | null = null;
+  private lastSaveSnapshot: EditorSaveSnapshot | null = null;
+  private testSpawnMode: EditorTestSpawnMode = 'hover';
 
   preload(): void {
     preloadTerrainAssets(this);
@@ -144,16 +158,15 @@ export class EditorScene extends Phaser.Scene {
       onDeleteCustomObject: () => this.deleteSelectedCustomObjectDefinition(),
       onDeleteCustomTile: () => this.deleteSelectedCustomTerrainBrush(),
       onExportDirtyChunks: () => this.saveDirtyChunksToLibrary(),
-      onExportMap: () => { void this.exportMap(); },
       onExportWorldChunk: () => { void this.exportWorldChunk(); },
       onImportDirtyChunks: () => this.openChunkLibrary(),
-      onImportMap: () => this.openMapLibrary(),
       onOpenChunkWindow: () => this.openChunkWindowPanel(),
+      onOpenConnections: () => this.openConnectionsPanel(),
       onOpenPalette: () => this.togglePalette(),
-      onOpenMap: () => this.openMapLibrary(),
+      onOpenWorldPanel: () => this.openWorldPanel(),
       onRedo: () => this.applyRedo(),
       onRenameMap: (displayName) => this.renameMap(displayName),
-      onSaveMap: () => this.saveMapToLibrary(),
+      onSetTestSpawnMode: (mode) => this.setTestSpawnMode(mode),
       onSetWalkabilityBrush: (walkable) => this.setWalkabilityBrush(walkable),
       onSetMode: (mode) => this.setToolMode(mode as EditorToolMode),
       onSetZoneTag: (tag) => this.setZoneTag(tag),
@@ -193,7 +206,21 @@ export class EditorScene extends Phaser.Scene {
     document.getElementById('ed-chunk-name-close')?.addEventListener('click', () => this.hideChunkNamePanel());
     document.getElementById('ed-chunk-name-cancel')?.addEventListener('click', () => this.hideChunkNamePanel());
     document.getElementById('ed-chunk-name-apply')?.addEventListener('click', () => this.applyChunkNameFromPanel());
-    void draftRestorePromise.then((restored) => {
+    document.getElementById('ed-world-panel-close')?.addEventListener('click', () => this.hideWorldPanel());
+    document.getElementById('ed-world-panel-cancel')?.addEventListener('click', () => this.hideWorldPanel());
+    document.getElementById('ed-world-panel-open-selected')?.addEventListener('click', () => this.openWorldFromPanel());
+    document.getElementById('ed-world-panel-create')?.addEventListener('click', () => { void this.createWorldFromPanel(); });
+    this.bindWorldCreateNameGenerator();
+    document.getElementById('ed-connection-close')?.addEventListener('click', () => this.hideConnectionsPanel());
+    document.getElementById('ed-connection-cancel')?.addEventListener('click', () => this.hideConnectionsPanel());
+    document.getElementById('ed-connection-use-hover')?.addEventListener('click', () => this.fillConnectionSourceFromHover());
+    document.getElementById('ed-connection-save')?.addEventListener('click', () => this.saveConnectionFromPanel());
+    document.getElementById('ed-connection-delete')?.addEventListener('click', () => this.deleteConnectionAtPanelSource());
+    void draftRestorePromise.then(async (restored) => {
+      if (!restored && await this.loadWorldChunkWindowFromProject('the_wake', 0, 0, 0)) {
+        return;
+      }
+
       this.palette?.refresh(
         this.terrainTool.getSelectedBrush(),
         this.objectTool.getSelectedDefinition().id,
@@ -235,22 +262,19 @@ export class EditorScene extends Phaser.Scene {
       cycleSelection: (offset) => this.cycleSelection(offset),
       endStroke: () => this.history.endStroke(),
       exportDirtyChunks: () => this.saveDirtyChunksToLibrary(),
-      exportMap: () => { void this.exportMap(); },
       exportWorldChunk: () => { void this.exportWorldChunk(); },
       flipSelectedBrush: (axis) => this.flipSelectedBrush(axis),
       getToolMode: () => this.toolMode,
       importDirtyChunks: () => this.openChunkLibrary(),
-      importMap: () => this.openMapLibrary(),
       isPaletteOpen: () => this.palette?.isVisible() ?? false,
       isPointerPanning: () => this.viewport?.isPanning() ?? false,
-      openMapFromFile: () => this.openMapLibrary(),
+      openChunkWindow: () => this.openChunkWindowPanel(),
       redo: () => this.applyRedo(),
       redrawPointerState: () => this.redrawPointerState(),
       removeHoveredObject: () => this.removeHoveredObject(),
       renameHoveredChunk: () => this.renameHoveredChunk(),
       resetTerrainStroke: () => this.terrainTool.resetStroke(),
       resizeMap: () => this.openResizePanel(),
-      saveMapToFile: () => this.saveMapToLibrary(),
       selectBrushForFamily: (family) => this.selectBrushForFamily(family),
       setToolMode: (mode) => this.setToolMode(mode),
       startPointerPan: (pointer) => this.viewport?.startPointerPan(pointer),
@@ -723,6 +747,7 @@ export class EditorScene extends Phaser.Scene {
     graphics.clear();
     graphics.setDepth(9_000);
     this.drawTileDataOverlay(graphics);
+    this.drawConnectionOverlay(graphics);
 
     if (!this.hoverTile || !this.isTileInBounds(this.hoverTile.x, this.hoverTile.y)) {
       return;
@@ -744,6 +769,18 @@ export class EditorScene extends Phaser.Scene {
       graphics.fillStyle(0xfacc15, isCenter ? 0.22 : 0.12);
       graphics.fillPoints(points, true);
       graphics.lineStyle(isCenter ? 2 : 1, 0xf8fafc, isCenter ? 0.95 : 0.45);
+      graphics.strokePoints(points, true);
+    }
+  }
+
+  private drawConnectionOverlay(graphics: Phaser.GameObjects.Graphics): void {
+    for (const transition of this.map.transitions) {
+      const points = getTileDiamondPoints(this.transform, transition.fromTile.tileX, transition.fromTile.tileY)
+        .map((point) => new Phaser.Geom.Point(point.x, point.y));
+
+      graphics.fillStyle(0x38bdf8, 0.18);
+      graphics.fillPoints(points, true);
+      graphics.lineStyle(2, 0x38bdf8, 0.82);
       graphics.strokePoints(points, true);
     }
   }
@@ -842,6 +879,9 @@ export class EditorScene extends Phaser.Scene {
       selectedWalkable: this.selectedWalkable,
       selectedZoneTag: this.selectedZoneTag,
       selectedObjectDisplayName: selectedObjectDefinition.displayName,
+      saveConfidence: createSaveConfidenceState(this.dirtyChunks.getDirtyChunks(), this.lastSaveSnapshot),
+      testSpawnLabel: this.getWorldTestSpawn().label,
+      testSpawnMode: this.testSpawnMode,
       toolMode: this.toolMode,
     });
   }
@@ -850,6 +890,14 @@ export class EditorScene extends Phaser.Scene {
     this.selectedWalkable = walkable;
     this.updateInfoText();
     this.setStatus(walkable ? 'Painting walkable tiles.' : 'Painting blocked tiles.');
+  }
+
+  private setTestSpawnMode(mode: EditorTestSpawnMode): void {
+    this.testSpawnMode = mode;
+    this.updateInfoText();
+    this.setStatus(mode === 'hover'
+      ? 'Test spawn follows the hovered tile.'
+      : 'Test spawn uses the loaded window center.');
   }
 
   private adjustElevation(delta: number): void {
@@ -874,17 +922,6 @@ export class EditorScene extends Phaser.Scene {
     this.updateInfoText();
     this.persistWorkingDraft();
     this.setStatus(`Map renamed to ${trimmed}.`);
-  }
-
-  private async exportMap(): Promise<void> {
-    const result = await this.mapIo.exportMap(this.getSerializableMap());
-    this.dirtyChunks.clear();
-    this.updateInfoText();
-    this.setStatus(
-      result === 'clipboard'
-        ? 'MapDefinition export copied to clipboard.'
-        : 'MapDefinition export printed to console.',
-    );
   }
 
   private async exportWorldChunk(): Promise<void> {
@@ -915,10 +952,51 @@ export class EditorScene extends Phaser.Scene {
     }
 
     this.map = draft;
-    this.loadedChunkWindow = null;
-    this.history.clear();
+      this.loadedChunkWindow = null;
+      this.lastSaveSnapshot = null;
+      this.history.clear();
     await this.applyMapCustomDefinitions();
+    await this.restoreLoadedWorldWindowContextFromDraft();
+    const restoredWindow = this.loadedChunkWindow as LoadedChunkWindowContext | null;
+    if (restoredWindow?.sourceType === 'world') {
+      this.dirtyChunks.markAllChunksDirty(this.map.width, this.map.height);
+    }
     return true;
+  }
+
+  private async restoreLoadedWorldWindowContextFromDraft(): Promise<void> {
+    const match = /^(.+)_window_(-?\d+)_(-?\d+)_(-?\d+)_(-?\d+)$/.exec(this.map.id);
+
+    if (!match) {
+      return;
+    }
+
+    const [, worldId, startChunkX, startChunkY, endChunkX, endChunkY] = match;
+
+    try {
+      const manifest = await loadWorldManifestFromProject(worldId);
+      const originChunkX = Number.parseInt(startChunkX, 10);
+      const originChunkY = Number.parseInt(startChunkY, 10);
+      const lastChunkX = Number.parseInt(endChunkX, 10);
+      const lastChunkY = Number.parseInt(endChunkY, 10);
+      this.worldId = manifest.worldId;
+      this.regionId = manifest.defaultRegionId;
+      this.loadedChunkWindow = {
+        chunkSize: manifest.chunkSize,
+        loadedChunks: createChunkKeySet(originChunkX, originChunkY, lastChunkX, lastChunkY),
+        occupiedChunks: new Set(manifest.authoredChunks.map((chunk) => `${chunk.chunkX},${chunk.chunkY}`)),
+        originChunkX,
+        originChunkY,
+        regionId: manifest.defaultRegionId,
+        sourceDisplayName: manifest.displayName,
+        sourceMapId: manifest.worldId,
+        sourceRecordId: `world:${manifest.worldId}`,
+        sourceType: 'world',
+        worldId: manifest.worldId,
+      };
+    } catch {
+      this.loadedChunkWindow = null;
+    }
   }
 
   private persistWorkingDraft(): void {
@@ -929,13 +1007,13 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  private async saveDirtyChunksToLibrary(): Promise<void> {
+  private async saveDirtyChunksToLibrary(): Promise<boolean> {
     try {
       const dirtyChunks = this.dirtyChunks.getDirtyChunks();
 
       if (dirtyChunks.length === 0) {
         this.setStatus('No dirty chunks to save.');
-        return;
+        return true;
       }
 
       const bundle = createDirtyChunkBundle(this.getSerializableMap(), dirtyChunks, {
@@ -946,34 +1024,43 @@ export class EditorScene extends Phaser.Scene {
         sourceMapId: this.loadedChunkWindow?.sourceMapId,
         worldId: this.loadedChunkWindow?.worldId ?? this.worldId,
       });
+
+      if (this.loadedChunkWindow?.sourceType === 'world') {
+        const result = await saveWorldChunksToProject(bundle);
+        if (result.verifiedChunkCount !== result.savedChunkCount) {
+          throw new Error(`Saved ${result.savedChunkCount} chunk(s), but only ${result.verifiedChunkCount} verified on disk.`);
+        }
+        this.loadedChunkWindow.occupiedChunks = new Set([
+          ...this.loadedChunkWindow.occupiedChunks,
+          ...bundle.chunks.map((chunk) => `${chunk.chunkX},${chunk.chunkY}`),
+        ]);
+        this.lastSaveSnapshot = {
+          savedAt: new Date(),
+          savedChunkCount: result.savedChunkCount,
+          target: 'project-world',
+          worldId: result.worldId,
+        };
+        this.dirtyChunks.clear();
+        this.updateInfoText();
+        this.setStatus(`Saved and verified ${result.savedChunkCount} chunk(s) to ${result.worldId}.`);
+        return true;
+      }
+
       const record = await saveDirtyChunkBundleToProjectLibrary(bundle);
+      this.lastSaveSnapshot = {
+        savedAt: new Date(),
+        savedChunkCount: record.chunkCount,
+        target: 'chunk-library',
+        worldId: bundle.worldId,
+      };
       this.dirtyChunks.clear();
       this.updateInfoText();
       this.setStatus(withCacheMessage(`Saved ${record.chunkCount} dirty chunk(s) to project chunk library.`));
+      return true;
     } catch (error) {
       this.setStatus(error instanceof Error ? error.message : 'Dirty chunk save failed.');
+      return false;
     }
-  }
-
-  private async saveMapToLibrary(): Promise<void> {
-    try {
-      const record = await saveMapToProjectLibrary(this.getSerializableMap());
-      this.dirtyChunks.clear();
-      this.updateInfoText();
-      this.setStatus(withCacheMessage(`Saved ${record.displayName} to project map library.`));
-    } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Map save failed.');
-    }
-  }
-
-  private async openMapLibrary(): Promise<void> {
-    this.libraryPanel.showMaps(await listSavedMapsFromProjectLibrary(), {
-      onDelete: (recordId) => {
-        deleteSavedMap(recordId);
-        void this.openMapLibrary();
-      },
-      onLoad: (recordId) => this.loadMapFromLibrary(recordId),
-    });
   }
 
   private async openChunkLibrary(): Promise<void> {
@@ -984,27 +1071,6 @@ export class EditorScene extends Phaser.Scene {
       },
       onLoad: (recordId) => this.loadChunksFromLibrary(recordId),
     });
-  }
-
-  private loadMapFromLibrary(recordId: string): void {
-    try {
-      this.map = loadSavedMap(recordId);
-      this.loadedChunkWindow = null;
-      this.history.clear();
-      this.dirtyChunks.clear();
-      this.persistWorkingDraft();
-      this.centerCameraOnMap();
-      void this.applyMapCustomDefinitions().then(() => {
-        this.redrawTerrain();
-        this.redrawObjects();
-        this.redrawOverlay();
-        this.updateInfoText();
-      });
-      this.libraryPanel.close();
-      this.setStatus('Map loaded from editor library.');
-    } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Map library load failed.');
-    }
   }
 
   private loadChunksFromLibrary(recordId: string): void {
@@ -1044,22 +1110,26 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
-    const maps = await listSavedMapsFromProjectLibrary();
-
-    if (maps.length === 0) {
-      this.setStatus('Save a map before loading chunk windows.');
-      return;
-    }
+    const worlds = await listProjectWorlds();
 
     select.innerHTML = '';
-
-    for (const map of maps) {
+    for (const world of worlds) {
       const option = document.createElement('option');
-      option.value = map.id;
-      option.textContent = `${map.displayName} (${map.width}x${map.height})`;
+      option.value = `world:${world.worldId}`;
+      option.textContent = `${world.displayName} (${world.authoredChunkCount} authored)`;
       select.appendChild(option);
     }
 
+    if (select.options.length === 0) {
+      const option = document.createElement('option');
+      option.value = 'world:the_wake';
+      option.textContent = 'The Wake world chunks';
+      select.appendChild(option);
+    }
+
+    select.value = this.loadedChunkWindow?.sourceType === 'world'
+      ? this.loadedChunkWindow.sourceRecordId
+      : `world:${this.worldId}`;
     chunkX.value = String(this.loadedChunkWindow?.originChunkX ?? 0);
     chunkY.value = String(this.loadedChunkWindow?.originChunkY ?? 0);
     radius.value = '0';
@@ -1091,32 +1161,315 @@ export class EditorScene extends Phaser.Scene {
       const radius = Math.max(0, parseIntegerInput(radiusInput.value, 0));
       this.worldId = worldIdInput?.value.trim() || this.worldId;
       this.regionId = regionIdInput?.value.trim() || this.regionId;
-      const sourceMap = loadSavedMap(recordId);
-      const { context, map } = this.createChunkWindowMap(sourceMap, recordId, centerChunkX, centerChunkY, radius);
 
-      this.map = map;
-      this.loadedChunkWindow = context;
+      const worldId = recordId.startsWith('world:') ? recordId.slice('world:'.length) : this.worldId;
+      void this.loadWorldChunkWindowFromProject(worldId || this.worldId, centerChunkX, centerChunkY, radius);
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Chunk window load failed.');
+    }
+  }
+
+  private async loadWorldChunkWindowFromProject(
+    worldId: string,
+    centerChunkX: number,
+    centerChunkY: number,
+    radius: number,
+  ): Promise<boolean> {
+    try {
+      const result = await loadEditorWorldChunkWindow({
+        centerChunkX,
+        centerChunkY,
+        fallbackPaint: this.terrainTool.getSelectedPaint(),
+        radius,
+        worldId,
+      });
+
+      if (result.manifest.chunkSize !== EDITOR_CHUNK_SIZE) {
+        throw new Error(
+          `World "${worldId}" uses chunk size ${result.manifest.chunkSize}, but the editor expects ${EDITOR_CHUNK_SIZE}.`,
+        );
+      }
+
+      this.map = result.map;
+      this.worldId = result.manifest.worldId;
+      this.regionId = result.regionId;
+      this.lastSaveSnapshot = null;
+      this.loadedChunkWindow = {
+        chunkSize: result.manifest.chunkSize,
+        loadedChunks: result.loadedChunkKeys,
+        occupiedChunks: result.authoredChunkKeys,
+        originChunkX: result.originChunkX,
+        originChunkY: result.originChunkY,
+        regionId: result.regionId,
+        sourceDisplayName: result.manifest.displayName,
+        sourceMapId: result.manifest.worldId,
+        sourceRecordId: `world:${result.manifest.worldId}`,
+        sourceType: 'world',
+        worldId: result.manifest.worldId,
+      };
+      this.history.clear();
       this.dirtyChunks.clear();
       this.hoverTile = null;
       this.persistWorkingDraft();
       this.centerCameraOnMap();
-      void this.applyMapCustomDefinitions().then(() => {
-        this.redrawTerrain();
-        this.redrawObjects();
-        this.redrawOverlay();
-        this.updateInfoText();
-      });
-      this.hideChunkWindowPanel();
-      const endChunkX = context.originChunkX + Math.ceil(map.width  / context.chunkSize) - 1;
-      const endChunkY = context.originChunkY + Math.ceil(map.height / context.chunkSize) - 1;
-      this.setStatus(
-        `Loaded "${context.sourceDisplayName}" — ` +
-        `chunks ${context.originChunkX},${context.originChunkY}–${endChunkX},${endChunkY} | ` +
-        `tiles 0,0–${map.width - 1},${map.height - 1}.`,
+      await this.applyMapCustomDefinitions();
+      this.palette?.refresh(
+        this.terrainTool.getSelectedBrush(),
+        this.objectTool.getSelectedDefinition().id,
       );
+      this.redrawTerrain();
+      this.redrawObjects();
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.hideChunkWindowPanel();
+      const endChunkX = result.originChunkX + Math.ceil(result.map.width / result.manifest.chunkSize) - 1;
+      const endChunkY = result.originChunkY + Math.ceil(result.map.height / result.manifest.chunkSize) - 1;
+      this.setStatus(
+        `Loaded ${result.manifest.displayName} chunks ` +
+        `${result.originChunkX},${result.originChunkY}-${endChunkX},${endChunkY}.`,
+      );
+      return true;
     } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Chunk window load failed.');
+      this.setStatus(error instanceof Error ? error.message : 'World chunk window load failed.');
+      return false;
     }
+  }
+
+  private async openWorldPanel(): Promise<void> {
+    const panel = document.getElementById('ed-world-panel');
+    const select = document.getElementById('ed-world-select') as HTMLSelectElement | null;
+    const centerX = document.getElementById('ed-world-open-chunk-x') as HTMLInputElement | null;
+    const centerY = document.getElementById('ed-world-open-chunk-y') as HTMLInputElement | null;
+    const radius = document.getElementById('ed-world-open-radius') as HTMLInputElement | null;
+
+    if (!panel || !select || !centerX || !centerY || !radius) {
+      return;
+    }
+
+    const worlds = await listProjectWorlds();
+    select.innerHTML = '';
+    for (const world of worlds) {
+      const option = document.createElement('option');
+      option.value = world.worldId;
+      option.textContent = `${world.displayName} (${world.worldId})`;
+      select.appendChild(option);
+    }
+
+    select.value = worlds.some((world) => world.worldId === this.worldId)
+      ? this.worldId
+      : worlds[0]?.worldId ?? 'the_wake';
+    centerX.value = String(this.loadedChunkWindow?.originChunkX ?? 0);
+    centerY.value = String(this.loadedChunkWindow?.originChunkY ?? 0);
+    radius.value = '0';
+    setInputValue('ed-world-create-name', 'New Dungeon');
+    this.updateGeneratedWorldCreateFields();
+    panel.classList.remove('editor-hidden');
+  }
+
+  private hideWorldPanel(): void {
+    document.getElementById('ed-world-panel')?.classList.add('editor-hidden');
+  }
+
+  private openWorldFromPanel(): void {
+    const select = document.getElementById('ed-world-select') as HTMLSelectElement | null;
+    const centerX = document.getElementById('ed-world-open-chunk-x') as HTMLInputElement | null;
+    const centerY = document.getElementById('ed-world-open-chunk-y') as HTMLInputElement | null;
+    const radius = document.getElementById('ed-world-open-radius') as HTMLInputElement | null;
+
+    if (!select || !centerX || !centerY || !radius) {
+      return;
+    }
+
+    void this.loadWorldChunkWindowFromProject(
+      select.value || this.worldId,
+      parseIntegerInput(centerX.value, 0),
+      parseIntegerInput(centerY.value, 0),
+      Math.max(0, parseIntegerInput(radius.value, 0)),
+    ).then((loaded) => {
+      if (loaded) this.hideWorldPanel();
+    });
+  }
+
+  private async createWorldFromPanel(): Promise<void> {
+    try {
+      this.updateGeneratedWorldCreateFields();
+      const displayName = getInputValue('ed-world-create-name', 'New Dungeon');
+      const worldId = slugifyMapId(displayName);
+      const regionId = createDefaultRegionId(worldId);
+      const regionName = createDefaultRegionName(displayName);
+      const defaultTerrain = getSelectValue('ed-world-create-terrain', 'grass') as TerrainFamily;
+      const widthChunks = Math.max(1, parseIntegerInput(getInputValue('ed-world-create-width', '1'), 1));
+      const heightChunks = Math.max(1, parseIntegerInput(getInputValue('ed-world-create-height', '1'), 1));
+      const spawnChunkX = parseIntegerInput(getInputValue('ed-world-create-spawn-chunk-x', '0'), 0);
+      const spawnChunkY = parseIntegerInput(getInputValue('ed-world-create-spawn-chunk-y', '0'), 0);
+      const spawnTileX = parseIntegerInput(getInputValue('ed-world-create-spawn-tile-x', '16'), 16);
+      const spawnTileY = parseIntegerInput(getInputValue('ed-world-create-spawn-tile-y', '16'), 16);
+
+      await createWorldManifestInProject({
+        bounds: {
+          minChunkX: 0,
+          minChunkY: 0,
+          maxChunkX: widthChunks - 1,
+          maxChunkY: heightChunks - 1,
+        },
+        chunkSize: EDITOR_CHUNK_SIZE,
+        defaultTerrain,
+        defaultWalkable: defaultTerrain !== 'water',
+        displayName,
+        regionId,
+        regionName,
+        spawnChunkX,
+        spawnChunkY,
+        spawnTileX,
+        spawnTileY,
+        worldId,
+      });
+      this.setStatus(`Created ${displayName}. Opening chunk ${spawnChunkX},${spawnChunkY}.`);
+      const loaded = await this.loadWorldChunkWindowFromProject(worldId, spawnChunkX, spawnChunkY, 0);
+      if (loaded) this.hideWorldPanel();
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'World creation failed.');
+    }
+  }
+
+  private bindWorldCreateNameGenerator(): void {
+    const displayNameInput = document.getElementById('ed-world-create-name') as HTMLInputElement | null;
+    displayNameInput?.addEventListener('input', () => this.updateGeneratedWorldCreateFields());
+  }
+
+  private updateGeneratedWorldCreateFields(): void {
+    const displayName = getInputValue('ed-world-create-name', 'New Dungeon');
+    const worldId = slugifyMapId(displayName);
+    setInputValue('ed-world-create-id', worldId);
+    setInputValue('ed-world-create-region-id', createDefaultRegionId(worldId));
+    setInputValue('ed-world-create-region-name', createDefaultRegionName(displayName));
+  }
+
+  private async openConnectionsPanel(): Promise<void> {
+    const panel = document.getElementById('ed-connection-panel');
+    const targetWorld = document.getElementById('ed-connection-target-world') as HTMLSelectElement | null;
+
+    if (!panel || !targetWorld) {
+      return;
+    }
+
+    const worlds = await listProjectWorlds();
+    targetWorld.innerHTML = '';
+    for (const world of worlds) {
+      const option = document.createElement('option');
+      option.value = world.worldId;
+      option.textContent = `${world.displayName} (${world.worldId})`;
+      targetWorld.appendChild(option);
+    }
+    targetWorld.value = this.worldId;
+    this.fillConnectionSourceFromHover();
+    panel.classList.remove('editor-hidden');
+  }
+
+  private hideConnectionsPanel(): void {
+    document.getElementById('ed-connection-panel')?.classList.add('editor-hidden');
+  }
+
+  private fillConnectionSourceFromHover(): void {
+    if (!this.hoverTile) {
+      this.setStatus('Hover the entrance tile, then use it as the connection source.');
+      return;
+    }
+
+    setInputValue('ed-connection-source-x', String(this.hoverTile.x));
+    setInputValue('ed-connection-source-y', String(this.hoverTile.y));
+    setInputValue('ed-connection-id', `${this.worldId}_${this.hoverTile.x}_${this.hoverTile.y}_connection`);
+  }
+
+  private saveConnectionFromPanel(): void {
+    try {
+      const sourceX = parseIntegerInput(getInputValue('ed-connection-source-x', '0'), 0);
+      const sourceY = parseIntegerInput(getInputValue('ed-connection-source-y', '0'), 0);
+
+      if (!this.isTileInBounds(sourceX, sourceY)) {
+        this.setStatus('Connection source tile is outside the loaded window.');
+        return;
+      }
+
+      const footprintWidth = Math.max(1, parseIntegerInput(getInputValue('ed-connection-width', '1'), 1));
+      const footprintHeight = Math.max(1, parseIntegerInput(getInputValue('ed-connection-height', '1'), 1));
+      const targetWorldId = getSelectValue('ed-connection-target-world', this.worldId);
+      const targetChunkX = parseIntegerInput(getInputValue('ed-connection-target-chunk-x', '0'), 0);
+      const targetChunkY = parseIntegerInput(getInputValue('ed-connection-target-chunk-y', '0'), 0);
+      const targetTileX = parseIntegerInput(getInputValue('ed-connection-target-tile-x', '0'), 0);
+      const targetTileY = parseIntegerInput(getInputValue('ed-connection-target-tile-y', '0'), 0);
+      const transitionId = slugifyMapId(getInputValue('ed-connection-id', `${this.worldId}_${sourceX}_${sourceY}_connection`));
+      const label = getInputValue('ed-connection-label', targetWorldId);
+      const transitionType = getSelectValue('ed-connection-type', 'door') as MapTransitionType;
+      const targetSpawnId = getInputValue(
+        'ed-connection-target-spawn',
+        `chunk_${targetChunkX}_${targetChunkY}_tile_${targetTileX}_${targetTileY}`,
+      );
+      const transition: MapTransition = {
+        id: transitionId,
+        fromTile: {
+          tileX: sourceX,
+          tileY: sourceY,
+        },
+        triggerFootprint: createRectFootprint(footprintWidth, footprintHeight),
+        visualAnchor: {
+          tileX: sourceX,
+          tileY: sourceY,
+          label,
+        },
+        targetMapId: targetWorldId,
+        targetSpawnId,
+        transitionType,
+        metadata: {
+          sourceWorldId: this.worldId,
+          targetWorldId,
+          targetChunkX,
+          targetChunkY,
+          targetTileX,
+          targetTileY,
+        },
+      };
+
+      this.history.snapshot(this.map);
+      this.map = {
+        ...this.map,
+        transitions: [
+          ...this.map.transitions.filter((candidate) => candidate.id !== transition.id),
+          transition,
+        ],
+      };
+      this.dirtyChunks.markTileDirty(sourceX, sourceY);
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.persistWorkingDraft();
+      this.setStatus(`Saved connection ${transition.id} -> ${targetWorldId} ${targetChunkX},${targetChunkY}:${targetTileX},${targetTileY}.`);
+    } catch (error) {
+      this.setStatus(error instanceof Error ? error.message : 'Connection save failed.');
+    }
+  }
+
+  private deleteConnectionAtPanelSource(): void {
+    const sourceX = parseIntegerInput(getInputValue('ed-connection-source-x', '0'), 0);
+    const sourceY = parseIntegerInput(getInputValue('ed-connection-source-y', '0'), 0);
+    const before = this.map.transitions.length;
+
+    this.history.snapshot(this.map);
+    this.map = {
+      ...this.map,
+      transitions: this.map.transitions.filter((transition) =>
+        transition.fromTile.tileX !== sourceX || transition.fromTile.tileY !== sourceY,
+      ),
+    };
+    const removed = before - this.map.transitions.length;
+
+    if (removed > 0) {
+      this.dirtyChunks.markTileDirty(sourceX, sourceY);
+      this.redrawOverlay();
+      this.updateInfoText();
+      this.persistWorkingDraft();
+    }
+
+    this.setStatus(removed > 0 ? `Removed ${removed} connection(s) at ${sourceX},${sourceY}.` : 'No connection at that source tile.');
   }
 
   private openResizePanel(): void {
@@ -1176,74 +1529,6 @@ export class EditorScene extends Phaser.Scene {
     }
   }
 
-  private createChunkWindowMap(
-    sourceMap: EditorMapDefinition,
-    sourceRecordId: string,
-    centerChunkX: number,
-    centerChunkY: number,
-    radius: number,
-  ): { context: LoadedChunkWindowContext; map: EditorMapDefinition } {
-    const maxChunkX = Math.max(0, Math.ceil(sourceMap.width / EDITOR_CHUNK_SIZE) - 1);
-    const maxChunkY = Math.max(0, Math.ceil(sourceMap.height / EDITOR_CHUNK_SIZE) - 1);
-    const startChunkX = clamp(centerChunkX - radius, 0, maxChunkX);
-    const startChunkY = clamp(centerChunkY - radius, 0, maxChunkY);
-    const endChunkX = clamp(centerChunkX + radius, 0, maxChunkX);
-    const endChunkY = clamp(centerChunkY + radius, 0, maxChunkY);
-    const startX = startChunkX * EDITOR_CHUNK_SIZE;
-    const startY = startChunkY * EDITOR_CHUNK_SIZE;
-    const width = Math.min(sourceMap.width - startX, (endChunkX - startChunkX + 1) * EDITOR_CHUNK_SIZE);
-    const height = Math.min(sourceMap.height - startY, (endChunkY - startChunkY + 1) * EDITOR_CHUNK_SIZE);
-    const fallbackPaint = Object.values(sourceMap.terrainTiles)[0] ?? this.terrainTool.getSelectedPaint();
-    const map = createEditorMap(
-      width,
-      height,
-      sourceMap.terrain[startY]?.[startX] ?? fallbackPaint.family,
-      `${sourceMap.id}_window_${startChunkX}_${startChunkY}_${endChunkX}_${endChunkY}`,
-      `${sourceMap.displayName} ${startChunkX},${startChunkY}-${endChunkX},${endChunkY}`,
-      fallbackPaint,
-    );
-
-    map.terrain = Array.from({ length: height }, (_, localY) =>
-      Array.from({ length: width }, (_, localX) => sourceMap.terrain[startY + localY][startX + localX]),
-    );
-    map.terrainTiles = copyTileRecordWindow(sourceMap.terrainTiles, startX, startY, width, height);
-    map.terrainWalkability = copyTileRecordWindow(sourceMap.terrainWalkability, startX, startY, width, height);
-    map.terrainElevation = copyTileRecordWindow(sourceMap.terrainElevation, startX, startY, width, height);
-    map.terrainZones = copyTileRecordWindow(sourceMap.terrainZones, startX, startY, width, height);
-    map.customTerrainBrushes = [...sourceMap.customTerrainBrushes];
-    map.customObjectDefinitions = [...sourceMap.customObjectDefinitions];
-    map.chunkNames = copyChunkNamesWindow(sourceMap.chunkNames, startChunkX, startChunkY, endChunkX, endChunkY);
-    map.objects = sourceMap.objects
-      .filter((object) => isInsideRect(object.tileX, object.tileY, startX, startY, width, height))
-      .map((object) => ({
-        ...object,
-        tileX: object.tileX - startX,
-        tileY: object.tileY - startY,
-      }));
-    map.enemySpawns = sourceMap.enemySpawns
-      .filter((spawn) => isInsideRect(spawn.tileX, spawn.tileY, startX, startY, width, height))
-      .map((spawn) => ({
-        ...spawn,
-        tileX: spawn.tileX - startX,
-        tileY: spawn.tileY - startY,
-      }));
-
-    const context: LoadedChunkWindowContext = {
-      chunkSize: EDITOR_CHUNK_SIZE,
-      loadedChunks: createChunkKeySet(startChunkX, startChunkY, endChunkX, endChunkY),
-      occupiedChunks: createChunkKeySet(0, 0, maxChunkX, maxChunkY),
-      originChunkX: startChunkX,
-      originChunkY: startChunkY,
-      regionId: this.regionId,
-      sourceDisplayName: sourceMap.displayName,
-      sourceMapId: sourceMap.id,
-      sourceRecordId,
-      worldId: this.worldId,
-    };
-
-    return { context, map };
-  }
-
   private getResizeGuardrailError(width: number, height: number): string | null {
     if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
       return 'Width and height must be positive chunk counts.';
@@ -1294,6 +1579,23 @@ export class EditorScene extends Phaser.Scene {
 
   private async testMapInGame(): Promise<void> {
     try {
+      if (this.loadedChunkWindow?.sourceType === 'world') {
+        const saved = await this.saveDirtyChunksToLibrary();
+        if (!saved) {
+          this.setStatus('Test blocked: save the current world chunks successfully first.');
+          return;
+        }
+        const testSpawn = this.getWorldTestSpawn();
+        const manifestUrl = `/data/worlds/${this.loadedChunkWindow.worldId}/world.manifest.json`;
+        const query = new URLSearchParams({
+          worldManifest: manifestUrl,
+          spawnId: testSpawn.spawnId,
+        });
+        window.open(`/index.html?${query.toString()}`, '_blank', 'noopener,noreferrer');
+        this.setStatus(`Testing ${this.loadedChunkWindow.sourceDisplayName} at ${testSpawn.label}.`);
+        return;
+      }
+
       await this.mapIo.publishToGame(this.getSerializableMap());
       window.open('/index.html?editorMap=1', '_blank', 'noopener,noreferrer');
       this.setStatus(`Testing ${this.map.displayName} in game.`);
@@ -1305,6 +1607,17 @@ export class EditorScene extends Phaser.Scene {
   private clearPublishedGameMap(): void {
     this.mapIo.clearPublishedGameMap();
     this.setStatus('Cleared the editor test map from game startup.');
+  }
+
+  private getWorldTestSpawn(): ReturnType<typeof resolveEditorWorldTestSpawn> {
+    return resolveEditorWorldTestSpawn(this.testSpawnMode, {
+      chunkSize: this.loadedChunkWindow?.chunkSize ?? EDITOR_CHUNK_SIZE,
+      hoverTile: this.hoverTile,
+      mapHeight: this.map.height,
+      mapWidth: this.map.width,
+      originChunkX: this.loadedChunkWindow?.originChunkX ?? 0,
+      originChunkY: this.loadedChunkWindow?.originChunkY ?? 0,
+    });
   }
 
   private async applyMapCustomDefinitions(): Promise<void> {
@@ -1564,14 +1877,54 @@ function slugifyMapId(displayName: string): string {
   return slug || 'editor_map';
 }
 
+function createDefaultRegionId(worldId: string): string {
+  return `${worldId}_region`;
+}
+
+function createDefaultRegionName(displayName: string): string {
+  return displayName.trim() || 'New Dungeon';
+}
+
 function parseIntegerInput(value: string, fallback: number): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
+}
+
 function parseTileKey(key: string): [number, number] {
   const [tileX, tileY] = key.split(',').map((part) => Number.parseInt(part, 10));
   return [Number.isFinite(tileX) ? tileX : -1, Number.isFinite(tileY) ? tileY : -1];
+}
+
+function getInputValue(id: string, fallback: string): string {
+  const input = document.getElementById(id) as HTMLInputElement | null;
+  const value = input?.value.trim();
+  return value || fallback;
+}
+
+function setInputValue(id: string, value: string): void {
+  const input = document.getElementById(id) as HTMLInputElement | null;
+  if (input) input.value = value;
+}
+
+function getSelectValue(id: string, fallback: string): string {
+  const select = document.getElementById(id) as HTMLSelectElement | null;
+  return select?.value || fallback;
+}
+
+function createRectFootprint(width: number, height: number): Array<{ x: number; y: number }> {
+  const footprint: Array<{ x: number; y: number }> = [];
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      footprint.push({ x, y });
+    }
+  }
+
+  return footprint;
 }
 
 function getFootprintWidth(footprint: ReadonlyArray<{ x: number; y: number }>): number {
@@ -1580,10 +1933,6 @@ function getFootprintWidth(footprint: ReadonlyArray<{ x: number; y: number }>): 
 
 function getFootprintHeight(footprint: ReadonlyArray<{ x: number; y: number }>): number {
   return Math.max(1, ...footprint.map((tile) => tile.y + 1));
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }
 
 function getTerrainTileFitScale(
@@ -1601,56 +1950,6 @@ function getTerrainTileFitScale(
 
   const scale = Math.min(TILE_WIDTH / textureWidth, TILE_HEIGHT / textureHeight);
   return Math.max(0.05, Math.min(1, scale));
-}
-
-function copyTileRecordWindow<T>(
-  source: Record<string, T>,
-  startX: number,
-  startY: number,
-  width: number,
-  height: number,
-): Record<string, T> {
-  const result: Record<string, T> = {};
-
-  for (let localY = 0; localY < height; localY += 1) {
-    for (let localX = 0; localX < width; localX += 1) {
-      const value = source[`${startX + localX},${startY + localY}`];
-
-      if (value !== undefined) {
-        result[`${localX},${localY}`] = (typeof value === 'object' && value !== null
-          ? { ...value }
-          : value) as T;
-      }
-    }
-  }
-
-  return result;
-}
-
-function copyChunkNamesWindow(
-  names: Record<string, string> | undefined,
-  startChunkX: number,
-  startChunkY: number,
-  endChunkX: number,
-  endChunkY: number,
-): Record<string, string> | undefined {
-  if (!names) {
-    return undefined;
-  }
-
-  const result: Record<string, string> = {};
-
-  for (let chunkY = startChunkY; chunkY <= endChunkY; chunkY += 1) {
-    for (let chunkX = startChunkX; chunkX <= endChunkX; chunkX += 1) {
-      const name = names[`${chunkX},${chunkY}`];
-
-      if (name) {
-        result[`${chunkX - startChunkX},${chunkY - startChunkY}`] = name;
-      }
-    }
-  }
-
-  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function createChunkKeySet(startChunkX: number, startChunkY: number, endChunkX: number, endChunkY: number): Set<string> {
@@ -1675,17 +1974,6 @@ function createLocalWindowChunkKeys(
   const endChunkX = originChunkX + Math.max(0, Math.ceil(width / chunkSize) - 1);
   const endChunkY = originChunkY + Math.max(0, Math.ceil(height / chunkSize) - 1);
   return createChunkKeySet(originChunkX, originChunkY, endChunkX, endChunkY);
-}
-
-function isInsideRect(
-  tileX: number,
-  tileY: number,
-  rectX: number,
-  rectY: number,
-  width: number,
-  height: number,
-): boolean {
-  return tileX >= rectX && tileY >= rectY && tileX < rectX + width && tileY < rectY + height;
 }
 
 function withCacheMessage(message: string): string {

@@ -298,6 +298,7 @@ export class WorldRuntimeCoordinator {
     this.npcVisualController = new NpcVisualController(this.scene);
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
+    this.reconcileStreamedWorldRuntime(runtime);
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -838,7 +839,10 @@ export class WorldRuntimeCoordinator {
     this.activeInteractionTiles = null;
 
     if (update.transitionRequest) {
-      this.loadMap(update.transitionRequest.targetMapId, update.transitionRequest.targetSpawnId);
+      void this.loadTransitionDestination(
+        update.transitionRequest.targetMapId,
+        update.transitionRequest.targetSpawnId,
+      );
     } else {
       this.rebuildInteractionTargets();
     }
@@ -900,7 +904,9 @@ export class WorldRuntimeCoordinator {
         return;
       }
 
-      runtime.isoTilemap.applyWorldChunks(loadedChunks);
+      runtime.isoTilemap.applyWorldChunks(loadedChunks, {
+        invalidateAdjacentRendererChunks: false,
+      });
       this.reconcileStreamedWorldRuntime(runtime);
       streaming.lastCenterChunkKey = centerChunkKey;
     } catch (error) {
@@ -969,6 +975,10 @@ export class WorldRuntimeCoordinator {
     runtime.definition.objects = runtimeLayers.flatMap((layers) => layers.objects);
     runtime.interactionAnchors = runtimeLayers.flatMap((layers) => layers.resourceAnchors);
     runtime.definition.interactionAnchors = runtime.interactionAnchors;
+    runtime.transitions = runtimeLayers.flatMap((layers) => layers.transitions);
+    runtime.definition.transitions = runtime.transitions;
+    this.mapTransitionSystem.setTransitions(runtime.transitions);
+    this.mapTransitionVisualSystem.setMapContext(runtime.isoTilemap.transform, runtime.transitions);
     runtime.zones = runtimeLayers.flatMap((layers) => layers.zones);
     runtime.definition.zones = runtime.zones;
     runtime.zoneIndex.setZones(runtime.zones);
@@ -981,6 +991,24 @@ export class WorldRuntimeCoordinator {
       objectPlacementSystem,
     );
     this.rebuildInteractionTargets();
+  }
+
+  private async loadTransitionDestination(targetMapId: string, targetSpawnId: string): Promise<void> {
+    const manifestUrl = `/data/worlds/${targetMapId}/world.manifest.json`;
+
+    try {
+      await this.loadWorldManifest(manifestUrl, targetSpawnId);
+    } catch (error) {
+      try {
+        this.loadMap(targetMapId, targetSpawnId);
+      } catch (fallbackError) {
+        console.error(
+          `[WorldRuntimeCoordinator] Failed to load transition target "${targetMapId}" via world manifest or registered map:`,
+          { error, fallbackError },
+        );
+        this.queueInfoResult(`Could not travel to ${targetMapId}.`);
+      }
+    }
   }
 
   private rebindSceneSystems(): void {

@@ -19,9 +19,9 @@ export type EnemyTelegraphShapeDefinition =
 export type EnemyAttackTelegraphDefinition =
   | { kind: 'circle'; radiusTiles: number }
   | { kind: 'ellipse'; radiusXTiles: number; radiusYTiles: number }
-  | { kind: 'cone'; rangeTiles: number; angleDeg: number }
-  | { kind: 'rectangle'; widthTiles: number; lengthTiles: number }
-  | { kind: 'line'; lengthTiles: number; widthTiles: number };
+  | { kind: 'cone'; rangeTiles: number; angleDeg: number; minRangeTiles?: number }
+  | { kind: 'rectangle'; widthTiles: number; lengthTiles: number; minOffsetTiles?: number }
+  | { kind: 'line'; lengthTiles: number; widthTiles: number; minOffsetTiles?: number };
 
 export type EnemyAttackDefinition = {
   id: string;

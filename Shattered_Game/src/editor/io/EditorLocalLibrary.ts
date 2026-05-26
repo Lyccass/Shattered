@@ -10,6 +10,7 @@ import {
   type EditorTerrainTilePaint,
 } from '../../shared/editor/EditorMapModel';
 import type { ObjectDefinition } from '../../objects/ObjectTypes';
+import { decodeTerrainPaletteLayer } from '../../shared/world/TerrainPalette';
 import {
   applyDirtyChunkBundle,
   createReferenceOnlyDirtyChunkBundle,
@@ -391,9 +392,7 @@ function createChunkBundlePreviewDataUrl(bundle: EditorDirtyChunkBundleV1): stri
     const column = index % columns;
     const row = Math.floor(index / columns);
     const terrain = chunk.terrain.encoding === 'palette'
-      ? chunk.terrain.tiles.map((terrainRow) =>
-        terrainRow.map((id) => chunk.terrainPalette?.[id] ?? 'grass'),
-      )
+      ? decodeTerrainPaletteLayer(chunk.terrainPalette ?? {}, chunk.terrain.tiles)
       : chunk.terrain.tiles;
     ctx.save();
     ctx.translate(column * cellWidth, row * cellHeight);

@@ -135,14 +135,23 @@ export class MapLoader {
     const width = (manifest.bounds.maxChunkX - manifest.bounds.minChunkX + 1) * manifest.chunkSize;
     const height = (manifest.bounds.maxChunkY - manifest.bounds.minChunkY + 1) * manifest.chunkSize;
     const defaultSpawn = manifest.defaultSpawn;
-    const resolvedSpawnId: string = spawnId === 'default'
-      ? (defaultSpawn.spawnId ?? 'default')
-      : spawnId;
-    const spawnPoint: MapSpawnPoint = {
-      id: resolvedSpawnId,
-      tileX: defaultSpawn.chunk.chunkX * manifest.chunkSize + defaultSpawn.tileX,
-      tileY: defaultSpawn.chunk.chunkY * manifest.chunkSize + defaultSpawn.tileY,
-    };
+    const transitionSpawn = parseWorldChunkTileSpawnId(spawnId);
+    const resolvedSpawnId: string = transitionSpawn
+      ? spawnId
+      : spawnId === 'default'
+        ? (defaultSpawn.spawnId ?? 'default')
+        : spawnId;
+    const spawnPoint: MapSpawnPoint = transitionSpawn
+      ? {
+        id: resolvedSpawnId,
+        tileX: transitionSpawn.chunkX * manifest.chunkSize + transitionSpawn.tileX,
+        tileY: transitionSpawn.chunkY * manifest.chunkSize + transitionSpawn.tileY,
+      }
+      : {
+        id: resolvedSpawnId,
+        tileX: defaultSpawn.chunk.chunkX * manifest.chunkSize + defaultSpawn.tileX,
+        tileY: defaultSpawn.chunk.chunkY * manifest.chunkSize + defaultSpawn.tileY,
+      };
     const definition: MapDefinition = {
       id: manifest.worldId,
       displayName: manifest.displayName,
@@ -298,6 +307,26 @@ export class MapLoader {
       this.scene.textures.addImage(textureKey, image);
     }
   }
+}
+
+function parseWorldChunkTileSpawnId(spawnId: string): {
+  chunkX: number;
+  chunkY: number;
+  tileX: number;
+  tileY: number;
+} | null {
+  const match = /^chunk_(-?\d+)_(-?\d+)_tile_(\d+)_(\d+)$/.exec(spawnId);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    chunkX: Number.parseInt(match[1], 10),
+    chunkY: Number.parseInt(match[2], 10),
+    tileX: Number.parseInt(match[3], 10),
+    tileY: Number.parseInt(match[4], 10),
+  };
 }
 
 function collectEmbeddedEditorTextures(definition: MapDefinition): EmbeddedEditorTexture[] {

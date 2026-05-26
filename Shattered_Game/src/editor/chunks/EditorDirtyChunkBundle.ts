@@ -139,6 +139,7 @@ function createChunkMapSlice(
   chunkMap.terrainTiles = {};
   chunkMap.terrainWalkability = {};
   chunkMap.terrainElevation = {};
+  chunkMap.terrainZones = {};
 
   for (let localY = 0; localY < height; localY += 1) {
     for (let localX = 0; localX < width; localX += 1) {
@@ -156,6 +157,10 @@ function createChunkMapSlice(
 
       if (map.terrainElevation[sourceKey] !== undefined) {
         chunkMap.terrainElevation[localKey] = map.terrainElevation[sourceKey];
+      }
+
+      if (map.terrainZones[sourceKey] !== undefined) {
+        chunkMap.terrainZones[localKey] = map.terrainZones[sourceKey];
       }
     }
   }
@@ -176,6 +181,22 @@ function createChunkMapSlice(
       ...spawn,
       tileX: spawn.tileX - startX,
       tileY: spawn.tileY - startY,
+    }));
+  chunkMap.transitions = map.transitions
+    .filter((transition) => isInsideRect(transition.fromTile.tileX, transition.fromTile.tileY, startX, startY, width, height))
+    .map((transition) => ({
+      ...transition,
+      fromTile: {
+        tileX: transition.fromTile.tileX - startX,
+        tileY: transition.fromTile.tileY - startY,
+      },
+      visualAnchor: transition.visualAnchor
+        ? {
+          ...transition.visualAnchor,
+          tileX: transition.visualAnchor.tileX - startX,
+          tileY: transition.visualAnchor.tileY - startY,
+        }
+        : undefined,
     }));
 
   return {
@@ -212,6 +233,7 @@ function applyChunk(
   const terrainTiles = { ...map.terrainTiles };
   const terrainWalkability = { ...map.terrainWalkability };
   const terrainElevation = { ...map.terrainElevation };
+  const terrainZones = { ...map.terrainZones };
 
   for (let localY = 0; localY < chunkMap.height; localY += 1) {
     for (let localX = 0; localX < chunkMap.width; localX += 1) {
@@ -237,6 +259,12 @@ function applyChunk(
       } else {
         delete terrainElevation[absoluteKey];
       }
+
+      if (chunkMap.terrainZones[localKey] !== undefined) {
+        terrainZones[absoluteKey] = chunkMap.terrainZones[localKey];
+      } else {
+        delete terrainZones[absoluteKey];
+      }
     }
   }
 
@@ -246,6 +274,7 @@ function applyChunk(
     terrainTiles,
     terrainWalkability,
     terrainElevation,
+    terrainZones,
     customObjectDefinitions: mergeById(map.customObjectDefinitions, chunkMap.customObjectDefinitions),
     customTerrainBrushes: mergeById(map.customTerrainBrushes, chunkMap.customTerrainBrushes),
     objects: [
@@ -266,6 +295,25 @@ function applyChunk(
         ...spawn,
         tileX: spawn.tileX + startX,
         tileY: spawn.tileY + startY,
+      })),
+    ],
+    transitions: [
+      ...map.transitions.filter((transition) =>
+        !isInsideRect(transition.fromTile.tileX, transition.fromTile.tileY, startX, startY, chunkMap.width, chunkMap.height),
+      ),
+      ...chunkMap.transitions.map((transition) => ({
+        ...transition,
+        fromTile: {
+          tileX: transition.fromTile.tileX + startX,
+          tileY: transition.fromTile.tileY + startY,
+        },
+        visualAnchor: transition.visualAnchor
+          ? {
+            ...transition.visualAnchor,
+            tileX: transition.visualAnchor.tileX + startX,
+            tileY: transition.visualAnchor.tileY + startY,
+          }
+          : undefined,
       })),
     ],
   };

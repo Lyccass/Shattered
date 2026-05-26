@@ -8,11 +8,16 @@ import type { ItemDefinition } from '../../ItemTypes';
 
 // IDs added to inventory when starting a fresh game (no save).
 export const STARTING_WEAPON_IDS: Record<string, number> = {
-  copper_sword:   1,
-  copper_dagger:  1,
-  copper_axe:     1,
-  copper_hammer:  1,
-  copper_spear:   1,
+  copper_sword:    1,
+  copper_dagger:   1,
+  copper_axe:      1,
+  copper_hammer:   1,
+  copper_spear:    1,
+  worn_shortsword: 1,
+  iron_shortsword: 1,
+  rusty_axe:       1,
+  stone_hammer:    1,
+  short_spear:     1,
 };
 
 export const WEAPON_ITEMS: ItemDefinition[] = [
@@ -31,6 +36,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'sword',
+        attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.5, minRangeTiles: 0.3 },
         damage: 2,
         damageType: 'slash',
         attackSpeedMs: 1600,
@@ -57,6 +63,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'dagger',
+        attackShape: { kind: 'thrust', lengthTiles: 1.2, widthTiles: 0.6, doubleHit: true },
         damage: 2,
         damageType: 'pierce',
         attackSpeedMs: 1400,
@@ -83,6 +90,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'axe',
+        attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.2, minRangeTiles: 0.5 },
         damage: 2,
         damageType: 'slash',
         attackSpeedMs: 1400,
@@ -109,6 +117,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'hammer',
+        attackShape: { kind: 'thrust', lengthTiles: 1.5, widthTiles: 2.0 },
         damage: 2,
         damageType: 'crush',
         attackSpeedMs: 2400,
@@ -135,6 +144,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'spear',
+        attackShape: { kind: 'thrust', lengthTiles: 2.5, widthTiles: 0.7 },
         damage: 2,
         damageType: 'pierce',
         attackSpeedMs: 1800,
@@ -164,6 +174,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'sword',
+        attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.3, minRangeTiles: 0.3 },
         damage: 2,
         damageType: 'slash',
         attackSpeedMs: 860,
@@ -190,6 +201,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 5,
       weaponStats: {
         archetype: 'sword',
+        attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.4, minRangeTiles: 0.3 },
         damage: 4,
         damageType: 'slash',
         attackSpeedMs: 860,
@@ -216,6 +228,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 3,
       weaponStats: {
         archetype: 'axe',
+        attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.1, minRangeTiles: 0.5 },
         damage: 3,
         damageType: 'slash',
         attackSpeedMs: 760,
@@ -242,6 +255,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'hammer',
+        attackShape: { kind: 'thrust', lengthTiles: 1.3, widthTiles: 2.0 },
         damage: 5,
         damageType: 'crush',
         attackSpeedMs: 1100,
@@ -268,6 +282,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 4,
       weaponStats: {
         archetype: 'spear',
+        attackShape: { kind: 'thrust', lengthTiles: 3.5, widthTiles: 0.7 },
         damage: 3,
         damageType: 'pierce',
         attackSpeedMs: 900,

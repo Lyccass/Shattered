@@ -9,9 +9,9 @@ import type { PlayerAttackPhase } from './PlayerCombatState';
 import { DODGE_DURATION_MS } from './PlayerCombatState';
 import { PlayerAttackFeedbackRenderer } from './PlayerAttackFeedbackRenderer';
 import { HitsplatRenderer } from './HitsplatRenderer';
-import { resolveAttackTarget } from './PlayerAttackTargeting';
-import type { AttackHitTiles } from './PlayerAttackTargeting';
-import type { PlayerDerivedStats, WeaponArchetype } from '../equipment/EquipmentTypes';
+import { resolveAttackTarget, playerAttackHitsEnemy } from './PlayerAttackTargeting';
+import type { PlayerAttackWorldShape } from './PlayerAttackTargeting';
+import type { PlayerDerivedStats, WeaponAttackShape } from '../equipment/EquipmentTypes';
 import { resolveTileDodgeMotion } from './PlayerDodgeTargeting';
 import { separatePlayerFromEnemyTile } from './PlayerEnemySeparation';
 import type { SfxEventId } from '../audio/SfxTypes';
@@ -37,7 +37,7 @@ export class CombatSandboxSystem {
   private static readonly SPRINT_SPEED_MULTIPLIER = 2;
   private currentAttackDamage = 1;
   private currentAttackRecoveryMs = 640;
-  private currentWeaponArchetype: WeaponArchetype = 'sword';
+  private currentAttackShape: WeaponAttackShape = { kind: 'arc', angleDeg: 180, rangeTiles: 1.5 };
 
   private readonly playerCombatState = new PlayerCombatState();
   private readonly scene: Phaser.Scene;
@@ -49,7 +49,7 @@ export class CombatSandboxSystem {
   private currentTilemap: IsoTilemap | null = null;
   private lastPlayerAttackPhase: PlayerAttackPhase = 'idle';
   private playerAttackTargetWorld: { x: number; y: number } | null = null;
-  private playerAttackHitTiles: AttackHitTiles | null = null;
+  private playerAttackShape: PlayerAttackWorldShape | null = null;
   private playerAttackHitResolved = false;
   private static readonly HIT_STOP_MS = 70;
   private static readonly POST_HIT_RECOVERY_MS = 320;
@@ -103,7 +103,7 @@ export class CombatSandboxSystem {
     this.lastPlayerAttackPhase = 'idle';
 
     this.playerAttackTargetWorld = null;
-    this.playerAttackHitTiles = null;
+    this.playerAttackShape = null;
     this.playerAttackHitResolved = false;
     this.playerAttackFeedbackRenderer.clear();
   }
@@ -245,7 +245,7 @@ export class CombatSandboxSystem {
     this.lastPlayerAttackPhase = 'idle';
 
     this.playerAttackTargetWorld = null;
-    this.playerAttackHitTiles = null;
+    this.playerAttackShape = null;
     this.playerAttackHitResolved = false;
     this.playerAttackFeedbackRenderer.clear();
 
@@ -293,13 +293,10 @@ export class CombatSandboxSystem {
       tilemap: this.currentTilemap,
       playerFeet,
       aimRad: attackAimRad,
-      archetype: this.currentWeaponArchetype,
-      targetWorldX,
-      targetWorldY,
-      reachTiles: this.currentLightAttackReachTiles,
+      attackShape: this.currentAttackShape,
     });
     this.playerAttackTargetWorld = attackResult.targetWorld;
-    this.playerAttackHitTiles = attackResult.hitTiles;
+    this.playerAttackShape = attackResult.shape;
     this.playerAttackHitResolved = false;
     return null;
   }
@@ -320,7 +317,7 @@ export class CombatSandboxSystem {
     this.currentLightAttackReachTiles = Math.max(0.5, derived.reachTiles);
     this.currentAttackDamage = Math.max(1, derived.attack);
     this.currentAttackRecoveryMs = derived.attackRecoveryMs;
-    this.currentWeaponArchetype = derived.weaponArchetype;
+    this.currentAttackShape = derived.attackShape;
   }
 
   syncPlayerTier(tier: number): void {
@@ -541,17 +538,17 @@ export class CombatSandboxSystem {
       return;
     }
 
-    if (!this.playerAttackHitTiles || !this.currentTilemap) {
+    if (!this.playerAttackShape || !this.currentTilemap) {
       return;
     }
 
-    const allHitTiles = this.playerAttackHitTiles.primaryTiles;
-
-    const hitSystem = this.enemySystems.find((es) =>
-      es.getOccupiedTiles().some(
-        (et) => allHitTiles.some((ht) => ht.x === et.x && ht.y === et.y),
-      ),
-    );
+    const tileWidth = this.currentTilemap.tileWidth;
+    const hitSystem = this.enemySystems.find((es) => {
+      const pos = es.getWorldPosition();
+      if (!pos) return false;
+      const radiusPx = es.getCollisionRadiusTiles() * tileWidth;
+      return playerAttackHitsEnemy(this.playerAttackShape!, pos.x, pos.y, radiusPx);
+    });
 
     if (!hitSystem) {
       return;
@@ -571,12 +568,12 @@ export class CombatSandboxSystem {
       this.hitsplatRenderer.show(enemyPos.x, enemyPos.y, primaryDamage);
     }
 
-    // Dagger second hit: roll separately against secondary max hit
-    const secondaryMultiplier = this.playerAttackHitTiles.secondaryDamageMultiplier ?? 0;
+    // Dagger double-hit: second roll at 50% max damage.
+    const isDagger = this.currentAttackShape.kind === 'thrust' && this.currentAttackShape.doubleHit === true;
     let totalDamageDealt = primaryDamage;
     let secondaryDamage: number | null = null;
-    if (secondaryMultiplier > 0 && !outcome.killed) {
-      const secondaryMaxHit = Math.floor(this.currentAttackDamage * secondaryMultiplier);
+    if (isDagger && !outcome.killed) {
+      const secondaryMaxHit = Math.floor(this.currentAttackDamage * 0.5);
       secondaryDamage = Math.floor(Math.random() * (secondaryMaxHit + 1));
       hitSystem.applyDamage(secondaryDamage, nowMs);
       if (enemyPos) {
@@ -680,7 +677,7 @@ export class CombatSandboxSystem {
       default:
 
         this.playerAttackTargetWorld = null;
-        this.playerAttackHitTiles = null;
+        this.playerAttackShape = null;
         this.playerAttackHitResolved = false;
         this.playerAttackFeedbackRenderer.clear();
         break;
@@ -710,7 +707,7 @@ export class CombatSandboxSystem {
       enemyTiles: allEnemyTiles,
       dodgeDirection: playerController.getDodgeDirection(),
       dodgeTileCount: this.currentDodgeTileCount,
-      playerAttackHitTiles: this.playerAttackHitTiles,
+      playerAttackShape: this.playerAttackShape,
       playerAttackPhase: snapshot.lightAttackPhase,
     });
   }

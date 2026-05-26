@@ -158,22 +158,33 @@ export function buildConeTelegraphPolygon(
   angleRad: number,
   rotationRad: number,
   steps = 8,
+  minRange = 0,
 ): TelegraphShape {
-  const points: Array<{ x: number; y: number }> = [{ x: 0, y: 0 }];
   const startAngle = rotationRad - angleRad / 2;
   const stepCount = Math.max(2, steps);
 
-  for (let index = 0; index <= stepCount; index += 1) {
-    const angle = startAngle + (angleRad * index) / stepCount;
-    points.push({
-      x: Math.cos(angle) * range,
-      y: Math.sin(angle) * range,
-    });
+  if (minRange <= 0) {
+    // Full wedge from origin.
+    const points: Array<{ x: number; y: number }> = [{ x: 0, y: 0 }];
+    for (let i = 0; i <= stepCount; i++) {
+      const a = startAngle + (angleRad * i) / stepCount;
+      points.push({ x: Math.cos(a) * range, y: Math.sin(a) * range });
+    }
+    return { kind: 'polygon', points };
+  }
+
+  // Donut sector: outer arc forward, inner arc reversed (all relative to enemy origin).
+  const outerPoints: Array<{ x: number; y: number }> = [];
+  const innerPoints: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i <= stepCount; i++) {
+    const a = startAngle + (angleRad * i) / stepCount;
+    outerPoints.push({ x: Math.cos(a) * range, y: Math.sin(a) * range });
+    innerPoints.push({ x: Math.cos(a) * minRange, y: Math.sin(a) * minRange });
   }
 
   return {
     kind: 'polygon',
-    points,
+    points: [...outerPoints, ...innerPoints.reverse()],
   };
 }
 

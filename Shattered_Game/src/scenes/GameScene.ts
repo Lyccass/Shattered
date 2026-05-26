@@ -85,11 +85,13 @@ export class GameScene extends Phaser.Scene {
     this.worldRuntimeCoordinator.setGroundItemCollector(
       (id) => this.groundItemSystem?.collectDrop(id) ?? null,
     );
-    const worldManifestUrl = getWorldManifestUrl();
+    const publishedEditorMapId = getPublishedEditorMapId();
+    const worldManifestUrl = getWorldManifestUrl()
+      ?? (publishedEditorMapId ? null : '/data/worlds/the_wake/world.manifest.json');
     if (worldManifestUrl) {
-      this.initializeWorldManifestRuntime(worldManifestUrl, 'default');
+      this.initializeWorldManifestRuntime(worldManifestUrl, getRequestedSpawnId());
     } else {
-      const initialMapId = getPublishedEditorMapId() ?? 'test_home_island';
+      const initialMapId = publishedEditorMapId ?? 'test_home_island';
       this.initializeWorldRuntime(initialMapId, 'default');
     }
     this.uiManager = new UiManager(this, {
@@ -319,7 +321,7 @@ export class GameScene extends Phaser.Scene {
       coordinator.updatePlayerRuntimeState();
     } catch (error) {
       console.error(`[GameScene] Failed to load world manifest "${manifestUrl}":`, error);
-      await this.initializeWorldRuntime('test_home_island', 'default');
+      this.uiManager?.showInfo(`Failed to load world manifest: ${manifestUrl}`);
     }
   }
 
@@ -633,6 +635,14 @@ function getWorldManifestUrl(): string | null {
   }
 
   return new URLSearchParams(window.location.search).get('worldManifest');
+}
+
+function getRequestedSpawnId(): string {
+  if (typeof window === 'undefined') {
+    return 'default';
+  }
+
+  return new URLSearchParams(window.location.search).get('spawnId') ?? 'default';
 }
 
 function isDeferredInteractionAction(

@@ -9,6 +9,12 @@ import type { TerrainFamily } from '../../shared/map/TerrainTypes';
 import type { EditorToolMode } from '../input/EditorInputController';
 import type { EditorTerrainBrush } from '../terrain/EditorTerrainCatalog';
 import { requireById } from '../../ui/domUtils';
+import {
+  formatSaveConfidence,
+  formatSaveTarget,
+  type EditorSaveConfidenceState,
+} from '../workflow/EditorSaveConfidence';
+import type { EditorTestSpawnMode } from '../workflow/EditorWorldTestSpawn';
 
 type EditorHudHoverState = {
   family: TerrainFamily | null;
@@ -36,11 +42,15 @@ export type EditorHudState = {
   selectedWalkable: boolean;
   selectedZoneTag: EditorWorldZoneTag | null;
   selectedObjectDisplayName: string;
+  saveConfidence: EditorSaveConfidenceState;
+  testSpawnMode: EditorTestSpawnMode;
+  testSpawnLabel: string;
   toolMode: EditorToolMode;
 };
 
 type EditorHudCallbacks = {
   onSetMode: (mode: EditorToolMode) => void;
+  onSetTestSpawnMode: (mode: EditorTestSpawnMode) => void;
   onSetZoneTag: (tag: EditorWorldZoneTag | null) => void;
   onAdjustBrushSize: (delta: number) => void;
   onAdjustElevation: (delta: number) => void;
@@ -51,18 +61,16 @@ type EditorHudCallbacks = {
   onDeleteCustomObject: () => void;
   onDeleteCustomTile: () => void;
   onExportDirtyChunks: () => void;
-  onExportMap: () => void;
   onExportWorldChunk: () => void;
   onImportDirtyChunks: () => void;
-  onImportMap: () => void;
   onOpenChunkWindow: () => void;
+  onOpenConnections: () => void;
   onOpenPalette: () => void;
-  onOpenMap: () => void;
+  onOpenWorldPanel: () => void;
   onRedo: () => void;
   onRenameMap: (displayName: string) => void;
   onSetWalkabilityBrush: (walkable: boolean) => void;
   onTestInGame: () => void;
-  onSaveMap: () => void;
   onResizeMap: () => void;
   onUndo: () => void;
 };
@@ -75,6 +83,11 @@ export class EditorHudController {
     mapNameInput: HTMLInputElement;
     mapSize: HTMLElement;
     dirty: HTMLElement;
+    saveState: HTMLElement;
+    saveTarget: HTMLElement;
+    testSpawnHoverBtn: HTMLButtonElement;
+    testSpawnCenterBtn: HTMLButtonElement;
+    testSpawnLabel: HTMLElement;
     menuDirty: HTMLElement | null;
     modeTerrainBtn: HTMLButtonElement;
     modeObjectBtn: HTMLButtonElement;
@@ -123,6 +136,11 @@ export class EditorHudController {
       mapNameInput:   requireById<HTMLInputElement>('ed-map-name-input'),
       mapSize:        requireById('ed-map-size'),
       dirty:          requireById('ed-dirty'),
+      saveState:      requireById('ed-save-state'),
+      saveTarget:     requireById('ed-save-target'),
+      testSpawnHoverBtn: requireById<HTMLButtonElement>('ed-test-spawn-hover'),
+      testSpawnCenterBtn: requireById<HTMLButtonElement>('ed-test-spawn-center'),
+      testSpawnLabel: requireById('ed-test-spawn-label'),
       menuDirty:      document.getElementById('ed-menu-dirty'),
       modeTerrainBtn: requireById<HTMLButtonElement>('ed-mode-terrain'),
       modeObjectBtn:  requireById<HTMLButtonElement>('ed-mode-object'),
@@ -180,21 +198,21 @@ export class EditorHudController {
     this.els.walkableOffBtn.addEventListener('click', () => this.callbacks.onSetWalkabilityBrush(false));
     this.els.elevationInc.addEventListener('click', () => this.callbacks.onAdjustElevation(1));
     this.els.elevationDec.addEventListener('click', () => this.callbacks.onAdjustElevation(-1));
+    this.els.testSpawnHoverBtn.addEventListener('click', () => this.callbacks.onSetTestSpawnMode('hover'));
+    this.els.testSpawnCenterBtn.addEventListener('click', () => this.callbacks.onSetTestSpawnMode('center'));
     this.els.mapNameInput.addEventListener('change', () => this.callbacks.onRenameMap(this.els.mapNameInput.value));
     this.els.mapNameInput.addEventListener('blur', () => this.callbacks.onRenameMap(this.els.mapNameInput.value));
     document.getElementById('ed-undo')?.addEventListener('click', () => this.callbacks.onUndo());
     document.getElementById('ed-redo')?.addEventListener('click', () => this.callbacks.onRedo());
     document.getElementById('ed-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
     document.getElementById('ed-obj-palette-open')?.addEventListener('click', () => this.callbacks.onOpenPalette());
-    document.getElementById('ed-save-map')?.addEventListener('click', () => this.callbacks.onSaveMap());
-    document.getElementById('ed-open-map')?.addEventListener('click', () => this.callbacks.onOpenMap());
     document.getElementById('ed-load-window')?.addEventListener('click', () => this.callbacks.onOpenChunkWindow());
+    document.getElementById('ed-world-panel-open')?.addEventListener('click', () => this.callbacks.onOpenWorldPanel());
+    document.getElementById('ed-connections-open')?.addEventListener('click', () => this.callbacks.onOpenConnections());
     document.getElementById('ed-test-game')?.addEventListener('click', () => this.callbacks.onTestInGame());
     document.getElementById('ed-clear-game-map')?.addEventListener('click', () => this.callbacks.onClearGameMap());
-    document.getElementById('ed-export-map')?.addEventListener('click', () => this.callbacks.onExportMap());
     document.getElementById('ed-export-chunk')?.addEventListener('click', () => this.callbacks.onExportWorldChunk());
     document.getElementById('ed-export-dirty')?.addEventListener('click', () => this.callbacks.onExportDirtyChunks());
-    document.getElementById('ed-import-map')?.addEventListener('click', () => this.callbacks.onImportMap());
     document.getElementById('ed-import-dirty')?.addEventListener('click', () => this.callbacks.onImportDirtyChunks());
     document.getElementById('ed-resize-map')?.addEventListener('click', () => this.callbacks.onResizeMap());
     document.getElementById('ed-create-custom-tile')?.addEventListener('click', () => this.callbacks.onCreateCustomTile());
@@ -231,6 +249,14 @@ export class EditorHudController {
     const dirtyText = formatDirtyChunks(state.dirtyChunks);
     this.els.dirty.textContent = dirtyText;
     this.els.dirty.classList.toggle('is-dirty', state.dirtyChunks.count > 0);
+    this.els.saveState.textContent = formatSaveConfidence(state.saveConfidence);
+    this.els.saveState.classList.toggle('is-dirty', state.saveConfidence.dirtyChunkCount > 0);
+    this.els.saveTarget.textContent = state.saveConfidence.lastSave
+      ? formatSaveTarget(state.saveConfidence.lastSave.target)
+      : 'project world';
+    this.els.testSpawnHoverBtn.classList.toggle('is-active', state.testSpawnMode === 'hover');
+    this.els.testSpawnCenterBtn.classList.toggle('is-active', state.testSpawnMode === 'center');
+    this.els.testSpawnLabel.textContent = state.testSpawnLabel;
     if (this.els.menuDirty) {
       this.els.menuDirty.textContent = state.dirtyChunks.count > 0 ? `${state.dirtyChunks.count} dirty` : '';
       this.els.menuDirty.classList.toggle('is-dirty', state.dirtyChunks.count > 0);

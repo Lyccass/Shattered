@@ -39,6 +39,10 @@ type BuildQueueResult = {
   processedTiles: number;
 };
 
+type InvalidateTileRectOptions = {
+  includeBleed?: boolean;
+};
+
 const GROUND_BUILD_BATCH_SIZE = 32;
 const GRID_BUILD_BATCH_SIZE = 24;
 
@@ -130,11 +134,24 @@ export class IsoTilemapChunkRenderer {
     return this.chunkDebugVisible;
   }
 
-  invalidateTileRect(tileX: number, tileY: number, width: number, height: number): void {
-    const minCoord = getChunkCoordForTile(Math.max(0, tileX - this.bleedTiles), Math.max(0, tileY - this.bleedTiles), this.chunkSize);
+  invalidateTileRect(
+    tileX: number,
+    tileY: number,
+    width: number,
+    height: number,
+    options: InvalidateTileRectOptions = {},
+  ): void {
+    const bleedTiles = options.includeBleed ?? true
+      ? this.bleedTiles
+      : 0;
+    const minCoord = getChunkCoordForTile(
+      Math.max(0, tileX - bleedTiles),
+      Math.max(0, tileY - bleedTiles),
+      this.chunkSize,
+    );
     const maxCoord = getChunkCoordForTile(
-      Math.min(this.config.worldGrid.width - 1, tileX + width - 1 + this.bleedTiles),
-      Math.min(this.config.worldGrid.height - 1, tileY + height - 1 + this.bleedTiles),
+      Math.min(this.config.worldGrid.width - 1, tileX + width - 1 + bleedTiles),
+      Math.min(this.config.worldGrid.height - 1, tileY + height - 1 + bleedTiles),
       this.chunkSize,
     );
 

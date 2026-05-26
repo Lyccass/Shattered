@@ -514,6 +514,9 @@ function buildAttackTelegraph(
 
     case 'cone': {
       const rangeWorld = tilesToWorldRange(attack.telegraph.rangeTiles, context.tileWidth, context.tileHeight);
+      const minRangeWorld = attack.telegraph.minRangeTiles
+        ? tilesToWorldRange(attack.telegraph.minRangeTiles, context.tileWidth, context.tileHeight)
+        : 0;
       const angleRad = degreesToRadians(attack.telegraph.angleDeg);
       const worldX = state.worldX;
       const worldY = state.worldY;
@@ -522,7 +525,7 @@ function buildAttackTelegraph(
         worldX,
         worldY,
         rotationRad,
-        shape: buildConeTelegraphPolygon(rangeWorld, angleRad, attackRotation),
+        shape: buildConeTelegraphPolygon(rangeWorld, angleRad, attackRotation, 8, minRangeWorld),
         tiles: buildAttackTargetTiles(
           attack,
           {
@@ -539,7 +542,10 @@ function buildAttackTelegraph(
     case 'rectangle': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
-      const centerOffset = lengthWorld / 2;
+      const minOffsetWorld = attack.telegraph.minOffsetTiles
+        ? tilesToWorldX(attack.telegraph.minOffsetTiles, context.tileWidth)
+        : 0;
+      const centerOffset = minOffsetWorld + lengthWorld / 2;
       const worldX = state.worldX + Math.cos(attackRotation) * centerOffset;
       const worldY = state.worldY + Math.sin(attackRotation) * centerOffset;
       const rotationRad = attackRotation;
@@ -569,7 +575,10 @@ function buildAttackTelegraph(
     case 'line': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const thickness = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
-      const centerOffset = lengthWorld / 2;
+      const minOffsetWorld = attack.telegraph.minOffsetTiles
+        ? tilesToWorldX(attack.telegraph.minOffsetTiles, context.tileWidth)
+        : 0;
+      const centerOffset = minOffsetWorld + lengthWorld / 2;
       const worldX = state.worldX + Math.cos(attackRotation) * centerOffset;
       const worldY = state.worldY + Math.sin(attackRotation) * centerOffset;
       const rotationRad = attackRotation;

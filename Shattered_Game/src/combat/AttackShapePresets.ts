@@ -11,11 +11,11 @@ import type { EnemyAttackTelegraphDefinition } from './EnemyTypes';
 //   SLASH_nT  — wide sweeping arc approximated as rectangle (length ≈ width)
 //   LINE_nT   — thin piercing beam
 
-// ── Cones — 120° total arc (60° each side from facing direction) ──────────────
-export const CONE_1T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 1, angleDeg: 120 };
-export const CONE_3T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 3, angleDeg: 120 };
-export const CONE_5T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 5, angleDeg: 120 };
-export const CONE_7T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 7, angleDeg: 120 };
+// ── Cones — 120° total arc, hollow (body/haft excluded via minRangeTiles) ─────
+export const CONE_1T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 1,   angleDeg: 120, minRangeTiles: 0.4 };
+export const CONE_3T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 3,   angleDeg: 120, minRangeTiles: 0.5 };
+export const CONE_5T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 5,   angleDeg: 120, minRangeTiles: 0.5 };
+export const CONE_7T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 7,   angleDeg: 120, minRangeTiles: 0.5 };
 
 // ── Jump circles — perfect circle landing zones ───────────────────────────────
 export const CIRCLE_SM: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 1.5 };
@@ -23,10 +23,10 @@ export const CIRCLE_MD: EnemyAttackTelegraphDefinition = { kind: 'circle', radiu
 export const CIRCLE_LG: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 2.5 };
 export const CIRCLE_XL: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 3.0 };
 
-// ── Stabs — narrow forward thrust ────────────────────────────────────────────
-export const STAB_1T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 1.5, widthTiles: 1.0 };
-export const STAB_2T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 2.0, widthTiles: 1.2 };
-export const STAB_3T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 3.0, widthTiles: 1.5 };
+// ── Stabs — narrow forward thrust, offset so the attacker body is excluded ───
+export const STAB_1T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 1.5, widthTiles: 1.0, minOffsetTiles: 0.3 };
+export const STAB_2T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 2.0, widthTiles: 1.2, minOffsetTiles: 0.4 };
+export const STAB_3T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 3.0, widthTiles: 1.5, minOffsetTiles: 0.5 };
 
 // ── Slashes — wide sweeping arc ───────────────────────────────────────────────
 export const SLASH_2T: EnemyAttackTelegraphDefinition = { kind: 'rectangle', lengthTiles: 2.0, widthTiles: 2.0 };

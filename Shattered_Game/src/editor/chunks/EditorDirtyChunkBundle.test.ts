@@ -50,9 +50,15 @@ describe('EditorDirtyChunkBundle', () => {
       width: 32,
       worldId: 'the_wake',
     });
-    expect(bundle.chunks[0].metadata?.editorTerrainTiles).toMatchObject({
-      '1,4': stonePaint,
+    expect(Object.values(bundle.chunks[0].terrainPalette ?? {})).toContainEqual({
+      family: stonePaint.family,
+      tileId: stonePaint.id,
+      textureKey: stonePaint.textureKey,
+      walkable: stonePaint.walkable,
+      flipX: stonePaint.flipX,
+      flipY: stonePaint.flipY,
     });
+    expect(bundle.chunks[0].metadata?.editorTerrainTiles).toBeUndefined();
   });
 
   it('imports chunk terrain and objects back into the matching map area', () => {
@@ -104,12 +110,15 @@ describe('EditorDirtyChunkBundle', () => {
 
     expect(serialized).not.toContain('huge-tile-payload');
     expect(referenceOnlyBundle.chunks[0].metadata?.editorTerrainBrushes).toBeUndefined();
-    expect(referenceOnlyBundle.chunks[0].metadata?.editorTerrainTiles).toMatchObject({
-      '1,4': {
-        id: customPaint.id,
-        textureKey: customPaint.textureKey,
-      },
+    expect(Object.values(referenceOnlyBundle.chunks[0].terrainPalette ?? {})).toContainEqual({
+      family: customPaint.family,
+      tileId: customPaint.id,
+      textureKey: customPaint.textureKey,
+      walkable: customPaint.walkable,
+      flipX: customPaint.flipX,
+      flipY: customPaint.flipY,
     });
+    expect(referenceOnlyBundle.chunks[0].metadata?.editorTerrainTiles).toBeUndefined();
   });
 
   it('rejects malformed dirty chunk bundle json safely', () => {

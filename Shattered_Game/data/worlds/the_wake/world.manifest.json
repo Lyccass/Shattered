@@ -16,7 +16,10 @@
       "displayName": "Harbor Coast",
       "defaultTerrain": "grass",
       "defaultWalkable": true,
-      "biomeTags": ["coast", "harbor_edge"]
+      "biomeTags": [
+        "coast",
+        "harbor_edge"
+      ]
     }
   ],
   "authoredChunks": [
@@ -25,6 +28,54 @@
       "chunkY": 0,
       "regionId": "harbor_coast",
       "path": "data/worlds/the_wake/chunks/0_0.json"
+    },
+    {
+      "chunkX": 1,
+      "chunkY": 0,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/1_0.json"
+    },
+    {
+      "chunkX": 2,
+      "chunkY": 0,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/2_0.json"
+    },
+    {
+      "chunkX": 0,
+      "chunkY": 1,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/0_1.json"
+    },
+    {
+      "chunkX": 1,
+      "chunkY": 1,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/1_1.json"
+    },
+    {
+      "chunkX": 2,
+      "chunkY": 1,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/2_1.json"
+    },
+    {
+      "chunkX": 0,
+      "chunkY": 2,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/0_2.json"
+    },
+    {
+      "chunkX": 1,
+      "chunkY": 2,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/1_2.json"
+    },
+    {
+      "chunkX": 2,
+      "chunkY": 2,
+      "regionId": "harbor_coast",
+      "path": "data/worlds/the_wake/chunks/2_2.json"
     }
   ],
   "defaultSpawn": {
@@ -37,7 +88,9 @@
     "tileY": 4,
     "spawnId": "harbor_coast_default"
   },
-  "terrainPaletteIds": ["wake_basic"],
+  "terrainPaletteIds": [
+    "wake_basic"
+  ],
   "metadata": {
     "authoringVersion": "world_manifest_v1"
   }

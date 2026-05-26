@@ -29,6 +29,27 @@ export class TerrainResolutionCache {
     private readonly exactTerrainPaints: Record<string, ExactTerrainPaint> = {},
   ) {}
 
+  replaceExactTerrainPaintsInRect(
+    tileX: number,
+    tileY: number,
+    width: number,
+    height: number,
+    paints: Record<string, ExactTerrainPaint>,
+  ): void {
+    for (let y = tileY; y < tileY + height; y += 1) {
+      for (let x = tileX; x < tileX + width; x += 1) {
+        const key = cacheKey(x, y);
+        delete this.exactTerrainPaints[key];
+        this.cache.delete(key);
+      }
+    }
+
+    for (const [key, paint] of Object.entries(paints)) {
+      this.exactTerrainPaints[key] = { ...paint };
+      this.cache.delete(key);
+    }
+  }
+
   resolveTile(tileX: number, tileY: number): ResolvedTerrainTile | null {
     const family = this.worldGrid.getTile(tileX, tileY);
 

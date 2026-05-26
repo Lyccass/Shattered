@@ -11,23 +11,20 @@ type EditorInputHandlers = {
   centerCameraOnMap: () => void;
   cycleSelection: (offset: number) => void;
   endStroke: () => void;
-  exportMap: () => void;
   exportDirtyChunks: () => void;
   exportWorldChunk: () => void;
   flipSelectedBrush: (axis: 'x' | 'y') => void;
   getToolMode: () => EditorToolMode;
-  importMap: () => void;
   importDirtyChunks: () => void;
   isPaletteOpen: () => boolean;
   isPointerPanning: () => boolean;
-  openMapFromFile: () => void;
+  openChunkWindow: () => void;
   redo: () => void;
   redrawPointerState: () => void;
   removeHoveredObject: () => void;
   renameHoveredChunk: () => void;
   resetTerrainStroke: () => void;
   resizeMap: () => void;
-  saveMapToFile: () => void;
   selectBrushForFamily: (family: TerrainFamily) => void;
   setToolMode: (mode: EditorToolMode) => void;
   startPointerPan: (pointer: Phaser.Input.Pointer) => void;
@@ -156,7 +153,7 @@ export class EditorInputController {
 
     if (event.ctrlKey && event.code === 'KeyS') {
       event.preventDefault();
-      this.handlers.saveMapToFile();
+      this.handlers.exportDirtyChunks();
       return;
     }
 
@@ -179,7 +176,7 @@ export class EditorInputController {
     }
 
     if (event.code === 'KeyL') {
-      this.handlers.openMapFromFile();
+      this.handlers.openChunkWindow();
       return;
     }
 
@@ -234,7 +231,7 @@ export class EditorInputController {
     }
 
     if (event.code === 'KeyI') {
-      this.handlers.importMap();
+      this.handlers.openChunkWindow();
       return;
     }
 

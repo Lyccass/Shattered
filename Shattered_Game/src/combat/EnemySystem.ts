@@ -183,6 +183,10 @@ export class EnemySystem {
     return this.definition?.id ?? null;
   }
 
+  getCollisionRadiusTiles(): number {
+    return this.definition?.collisionRadiusTiles ?? 0.5;
+  }
+
   getUiSnapshot(): EnemyUiSnapshot | null {
     if (!this.runtimeState || !this.definition) {
       return null;

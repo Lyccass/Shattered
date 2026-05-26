@@ -25,22 +25,14 @@
 
         <div class="ed-menu-sep"></div>
 
-        <!-- Map file -->
         <div class="ed-menu-group">
-          <span class="ed-menu-label">Map</span>
-          <button class="ed-menu-btn" id="ed-save-map" title="Save map to library [Ctrl+S]">Save</button>
-          <button class="ed-menu-btn" id="ed-open-map" title="Open map from library [L]">Open</button>
-        </div>
-
-        <div class="ed-menu-sep"></div>
-
-        <!-- Chunks -->
-        <div class="ed-menu-group">
-          <span class="ed-menu-label">Chunks</span>
+          <span class="ed-menu-label">World</span>
+          <button class="ed-menu-btn" id="ed-world-panel-open" title="Create/open worlds and dungeons">World / Dungeon</button>
+          <button class="ed-menu-btn" id="ed-load-window"  title="Open a world chunk window">Open World Window</button>
           <button class="ed-menu-btn" id="ed-resize-map"   title="Extend / resize the map [R]">Extend</button>
-          <button class="ed-menu-btn" id="ed-export-dirty" title="Save changed chunks to project library [U]">Save Changed</button>
+          <button class="ed-menu-btn" id="ed-export-dirty" title="Save changed chunks to world files [U]">Save World Chunks</button>
           <button class="ed-menu-btn" id="ed-import-dirty" title="Apply a saved chunk bundle [J]">Apply Bundle</button>
-          <button class="ed-menu-btn" id="ed-load-window"  title="Load a chunk window from a saved map">Window</button>
+          <button class="ed-menu-btn" id="ed-connections-open" title="Place doors and world connections">Connections</button>
         </div>
 
         <div class="ed-menu-sep"></div>
@@ -84,6 +76,25 @@
             <div class="ed-row">
               <span class="ed-label">Dirty</span>
               <span class="ed-value" id="ed-dirty">clean</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Save</span>
+              <span class="ed-value" id="ed-save-state">No saved changes this session</span>
+            </div>
+            <div class="ed-row">
+              <span class="ed-label">Target</span>
+              <span class="ed-value" id="ed-save-target">project world</span>
+            </div>
+            <div class="ed-mode-subgroup">
+              <div class="ed-mode-subgroup-label">Test Spawn</div>
+              <div class="ed-mode-row">
+                <button class="ed-mode-btn is-active" id="ed-test-spawn-hover">Hover</button>
+                <button class="ed-mode-btn" id="ed-test-spawn-center">Center</button>
+              </div>
+              <div class="ed-row">
+                <span class="ed-label">Tile</span>
+                <span class="ed-value" id="ed-test-spawn-label">–</span>
+              </div>
             </div>
           </div>
 
@@ -286,8 +297,7 @@
 
         <div class="ed-shortcut-group">
           <div class="ed-shortcut-group-label">Map</div>
-          <div class="ed-shortcut-row"><span class="ed-key">Ctrl+S</span><span class="ed-key-desc">save to library</span></div>
-          <div class="ed-shortcut-row"><span class="ed-key">L</span><span class="ed-key-desc">open library</span></div>
+          <div class="ed-shortcut-row"><span class="ed-key">Ctrl+S</span><span class="ed-key-desc">save world chunks</span></div>
           <div class="ed-shortcut-row"><span class="ed-key">R</span><span class="ed-key-desc">resize</span></div>
           <div class="ed-shortcut-row"><span class="ed-key">X</span><span class="ed-key-desc">export (clipboard)</span></div>
           <div class="ed-shortcut-row"><span class="ed-key">U</span><span class="ed-key-desc">save chunks</span></div>
@@ -428,13 +438,13 @@
            ═══════════════════════════════════════════ -->
       <div id="ed-chunk-window" class="ed-definition editor-hidden">
         <div class="ed-definition-header">
-          <span>Load Chunk Window</span>
+          <span>Open World Window</span>
           <button class="ed-definition-close" id="ed-chunk-window-close">×</button>
         </div>
         <div class="ed-definition-body ed-definition-body--full">
           <div class="ed-definition-fields">
             <label class="ed-definition-field">
-              <span class="ed-definition-label">Map</span>
+              <span class="ed-definition-label">World</span>
               <select class="ed-definition-input" id="ed-chunk-window-map"></select>
             </label>
             <label class="ed-definition-field">
@@ -461,7 +471,192 @@
         </div>
         <div class="ed-definition-actions">
           <button class="ed-definition-action" id="ed-chunk-window-cancel">Cancel</button>
-          <button class="ed-definition-action" id="ed-chunk-window-load">Load Window</button>
+          <button class="ed-definition-action" id="ed-chunk-window-load">Open Window</button>
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════
+           WORLD / DUNGEON DIALOG
+           ═══════════════════════════════════════════ -->
+      <div id="ed-world-panel" class="ed-definition editor-hidden">
+        <div class="ed-definition-header">
+          <span>World / Dungeon</span>
+          <button class="ed-definition-close" id="ed-world-panel-close">×</button>
+        </div>
+        <div class="ed-definition-body ed-definition-body--full">
+          <div class="ed-definition-fields">
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Open existing</span>
+              <select class="ed-definition-input" id="ed-world-select"></select>
+            </label>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Chunk X</span>
+                <input class="ed-definition-input" id="ed-world-open-chunk-x" type="number" value="0" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Chunk Y</span>
+                <input class="ed-definition-input" id="ed-world-open-chunk-y" type="number" value="0" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Radius</span>
+                <input class="ed-definition-input" id="ed-world-open-radius" type="number" min="0" value="0" />
+              </label>
+            </div>
+            <button class="ed-definition-action" id="ed-world-panel-open-selected" type="button">Open Selected Window</button>
+
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Display name</span>
+              <input class="ed-definition-input" id="ed-world-create-name" spellcheck="false" value="Crypt 01" />
+            </label>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Generated ID</span>
+              <input class="ed-definition-input" id="ed-world-create-id" spellcheck="false" value="crypt_01" readonly />
+            </label>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Width chunks</span>
+                <input class="ed-definition-input" id="ed-world-create-width" type="number" min="1" value="1" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Height chunks</span>
+                <input class="ed-definition-input" id="ed-world-create-height" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Region ID</span>
+                <input class="ed-definition-input" id="ed-world-create-region-id" spellcheck="false" value="crypt_01_region" readonly />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Region name</span>
+                <input class="ed-definition-input" id="ed-world-create-region-name" spellcheck="false" value="Crypt 01" readonly />
+              </label>
+            </div>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Default terrain</span>
+              <select class="ed-definition-input" id="ed-world-create-terrain">
+                <option value="grass">Grass</option>
+                <option value="dirt">Dirt</option>
+                <option value="stone">Stone</option>
+                <option value="water">Water</option>
+                <option value="sand">Sand</option>
+              </select>
+            </label>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Spawn chunk X</span>
+                <input class="ed-definition-input" id="ed-world-create-spawn-chunk-x" type="number" value="0" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Spawn chunk Y</span>
+                <input class="ed-definition-input" id="ed-world-create-spawn-chunk-y" type="number" value="0" />
+              </label>
+            </div>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Spawn tile X</span>
+                <input class="ed-definition-input" id="ed-world-create-spawn-tile-x" type="number" value="16" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Spawn tile Y</span>
+                <input class="ed-definition-input" id="ed-world-create-spawn-tile-y" type="number" value="16" />
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="ed-definition-actions">
+          <button class="ed-definition-action" id="ed-world-panel-cancel">Cancel</button>
+          <button class="ed-definition-action" id="ed-world-panel-create">Create + Open</button>
+        </div>
+      </div>
+
+
+      <!-- ═══════════════════════════════════════════
+           CONNECTIONS DIALOG
+           ═══════════════════════════════════════════ -->
+      <div id="ed-connection-panel" class="ed-definition editor-hidden">
+        <div class="ed-definition-header">
+          <span>Connections</span>
+          <button class="ed-definition-close" id="ed-connection-close">×</button>
+        </div>
+        <div class="ed-definition-body ed-definition-body--full">
+          <div class="ed-definition-fields">
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Connection ID</span>
+              <input class="ed-definition-input" id="ed-connection-id" spellcheck="false" />
+            </label>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Label</span>
+              <input class="ed-definition-input" id="ed-connection-label" spellcheck="false" value="Enter" />
+            </label>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Type</span>
+              <select class="ed-definition-input" id="ed-connection-type">
+                <option value="door">Door</option>
+                <option value="cave">Cave</option>
+                <option value="portal">Portal</option>
+                <option value="dock">Dock</option>
+                <option value="ferry">Ferry</option>
+                <option value="debug">Debug</option>
+              </select>
+            </label>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Source tile X</span>
+                <input class="ed-definition-input" id="ed-connection-source-x" type="number" value="0" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Source tile Y</span>
+                <input class="ed-definition-input" id="ed-connection-source-y" type="number" value="0" />
+              </label>
+              <button class="ed-definition-action" id="ed-connection-use-hover" type="button">Use Hover</button>
+            </div>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Width</span>
+                <input class="ed-definition-input" id="ed-connection-width" type="number" min="1" value="1" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Height</span>
+                <input class="ed-definition-input" id="ed-connection-height" type="number" min="1" value="1" />
+              </label>
+            </div>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Target world</span>
+              <select class="ed-definition-input" id="ed-connection-target-world"></select>
+            </label>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Target chunk X</span>
+                <input class="ed-definition-input" id="ed-connection-target-chunk-x" type="number" value="0" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Target chunk Y</span>
+                <input class="ed-definition-input" id="ed-connection-target-chunk-y" type="number" value="0" />
+              </label>
+            </div>
+            <div class="ed-definition-fit-row">
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Target tile X</span>
+                <input class="ed-definition-input" id="ed-connection-target-tile-x" type="number" value="16" />
+              </label>
+              <label class="ed-definition-field">
+                <span class="ed-definition-label">Target tile Y</span>
+                <input class="ed-definition-input" id="ed-connection-target-tile-y" type="number" value="16" />
+              </label>
+            </div>
+            <label class="ed-definition-field">
+              <span class="ed-definition-label">Target spawn ID</span>
+              <input class="ed-definition-input" id="ed-connection-target-spawn" spellcheck="false" />
+            </label>
+          </div>
+        </div>
+        <div class="ed-definition-actions">
+          <button class="ed-definition-action" id="ed-connection-cancel">Cancel</button>
+          <button class="ed-definition-action ed-browse-btn--danger" id="ed-connection-delete">Delete At Source</button>
+          <button class="ed-definition-action" id="ed-connection-save">Save Connection</button>
         </div>
       </div>
 

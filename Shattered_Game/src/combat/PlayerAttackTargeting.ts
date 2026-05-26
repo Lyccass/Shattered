@@ -1,227 +1,221 @@
-import type { WeaponArchetype } from '../equipment/EquipmentTypes';
+import type { WeaponAttackShape } from '../equipment/EquipmentTypes';
 import type { IsoTilemap } from '../world/IsoTilemap';
-import { snapToIsometricGridDirection } from './CombatGridDirection';
 
-export type TilePos = { x: number; y: number };
 export type WorldPoint = { x: number; y: number };
 
-export type AttackHitTiles = {
-  primaryTiles: TilePos[];
-  secondaryTiles?: TilePos[];
-  secondaryDamageMultiplier?: number;
-};
+// Resolved world-space hitbox for the player's current attack.
+// All distances are in world pixels; facingRad is a standard screen-space angle.
+export type PlayerAttackWorldShape =
+  | {
+      kind: 'cone';
+      originX: number;
+      originY: number;
+      facingRad: number;
+      rangePx: number;
+      halfAngleRad: number;
+      minRangePx: number;
+    }
+  | {
+      kind: 'rectangle';
+      centerX: number;
+      centerY: number;
+      facingRad: number;
+      lengthPx: number;
+      widthPx: number;
+    };
 
-type DirVecs = { fwd: TilePos; rht: TilePos };
-
-// Right-of-facing for each of the 8 iso grid tile directions.
-// "right" = 90° clockwise from fwd in screen space (Y-down).
-const FWD_RHT: Map<string, DirVecs> = new Map([
-  ['0,-1',   { fwd: { x:  0, y: -1 }, rht: { x:  1, y:  0 } }], // NE screen
-  ['1,0',    { fwd: { x:  1, y:  0 }, rht: { x:  0, y:  1 } }], // SE screen
-  ['0,1',    { fwd: { x:  0, y:  1 }, rht: { x: -1, y:  0 } }], // SW screen
-  ['-1,0',   { fwd: { x: -1, y:  0 }, rht: { x:  0, y: -1 } }], // NW screen
-  ['-1,-1',  { fwd: { x: -1, y: -1 }, rht: { x:  1, y: -1 } }], // N screen
-  ['1,-1',   { fwd: { x:  1, y: -1 }, rht: { x:  1, y:  1 } }], // E screen
-  ['1,1',    { fwd: { x:  1, y:  1 }, rht: { x: -1, y:  1 } }], // S screen
-  ['-1,1',   { fwd: { x: -1, y:  1 }, rht: { x: -1, y: -1 } }], // W screen
-]);
-
-// Diagonal screen directions decompose into two tile-axis components (a1 + a2 = diagonal).
-// N(-1,-1) = NW(-1,0) + NE(0,-1), etc.
-const DIAGONAL_AXES: Map<string, readonly [TilePos, TilePos]> = new Map([
-  ['-1,-1', [{ x: -1, y:  0 }, { x:  0, y: -1 }]],  // N = NW + NE
-  ['1,-1',  [{ x:  0, y: -1 }, { x:  1, y:  0 }]],  // E = NE + SE
-  ['1,1',   [{ x:  1, y:  0 }, { x:  0, y:  1 }]],  // S = SE + SW
-  ['-1,1',  [{ x:  0, y:  1 }, { x: -1, y:  0 }]],  // W = SW + NW
-]);
-
-function dirVecs(dgx: number, dgy: number): DirVecs {
-  return FWD_RHT.get(`${dgx},${dgy}`) ?? FWD_RHT.get('0,-1')!;
-}
-
-function local(origin: TilePos, fwd: TilePos, rht: TilePos, f: number, r: number): TilePos {
-  return {
-    x: origin.x + fwd.x * f + rht.x * r,
-    y: origin.y + fwd.y * f + rht.y * r,
-  };
-}
-
-function add(origin: TilePos, ...offsets: TilePos[]): TilePos {
-  let x = origin.x, y = origin.y;
-  for (const o of offsets) { x += o.x; y += o.y; }
-  return { x, y };
-}
-
-function scale(v: TilePos, s: number): TilePos {
-  return { x: v.x * s, y: v.y * s };
-}
-
-// Resolves the single tile the player is aiming at, clamped to maxReach.
-function resolveAimTile(
-  tilemap: IsoTilemap,
-  playerFeet: WorldPoint,
-  playerTile: TilePos,
-  targetWorldX: number | null,
-  targetWorldY: number | null,
-  aimRad: number,
-  maxReach: number,
-): TilePos {
-  let rawTile: TilePos;
-  if (targetWorldX !== null && targetWorldY !== null) {
-    rawTile = tilemap.transform.worldToTile(targetWorldX, targetWorldY);
-  } else {
-    const projX = playerFeet.x + Math.cos(aimRad) * tilemap.tileWidth * 2;
-    const projY = playerFeet.y + Math.sin(aimRad) * tilemap.tileWidth * 2;
-    rawTile = tilemap.transform.worldToTile(projX, projY);
-  }
-
-  let dx = rawTile.x - playerTile.x;
-  let dy = rawTile.y - playerTile.y;
-
-  if (Math.max(Math.abs(dx), Math.abs(dy)) === 0) {
-    const projX = playerFeet.x + Math.cos(aimRad) * tilemap.tileWidth;
-    const projY = playerFeet.y + Math.sin(aimRad) * tilemap.tileWidth;
-    const projected = tilemap.transform.worldToTile(projX, projY);
-    dx = projected.x - playerTile.x;
-    dy = projected.y - playerTile.y;
-  }
-
-  const chebyshev = Math.max(Math.abs(dx), Math.abs(dy));
-  if (chebyshev > maxReach) {
-    const s = maxReach / chebyshev;
-    dx = Math.round(dx * s);
-    dy = Math.round(dy * s);
-  }
-
-  return { x: playerTile.x + dx, y: playerTile.y + dy };
-}
-
-/**
- * Resolves the attack hit tiles for the current weapon archetype.
- *
- * All 8 iso directions are supported. Tile-axis directions (NE/SE/SW/NW screen)
- * use forward+right local coords. Diagonal directions (N/E/S/W screen) decompose
- * into two constituent tile-axis vectors for symmetric, correct patterns.
- *
- * Sword  — 7-tile arc. Cardinal: L grid. Diagonal: symmetric fan (a1, a2, diag, 2× each).
- * Axe    — 3-tile sweep. Cardinal: L(1,-1..1). Diagonal: a1, diag, a2.
- * Hammer — 2×2 block. Cardinal: L(1..2, 0..1). Diagonal: 2×2 via axes (a1+a2 etc).
- * Dagger — 1 tile aimed at reach 1, hits twice (50% second roll).
- * Spear  — 1 tile aimed, clamped to reachTiles.
- */
 export function resolveAttackTarget(params: {
   tilemap: IsoTilemap;
   playerFeet: WorldPoint;
   aimRad: number;
-  archetype: WeaponArchetype;
-  targetWorldX: number | null;
-  targetWorldY: number | null;
-  reachTiles: number;
-}): { targetWorld: WorldPoint; hitTiles: AttackHitTiles } {
-  const { tilemap, playerFeet, aimRad, archetype, targetWorldX, targetWorldY, reachTiles } = params;
+  attackShape: WeaponAttackShape;
+}): { targetWorld: WorldPoint; shape: PlayerAttackWorldShape } {
+  const { tilemap, playerFeet, aimRad, attackShape } = params;
+  const tw = tilemap.tileWidth;
+  const th = tilemap.tileHeight;
 
-  const P = tilemap.transform.worldToTile(playerFeet.x, playerFeet.y);
-  const [dgx, dgy] = snapToIsometricGridDirection(aimRad, tilemap.tileWidth, tilemap.tileHeight);
-  const key = `${dgx},${dgy}`;
-
-  const axes = DIAGONAL_AXES.get(key);
-  const isDiag = axes !== undefined;
-
-  const { fwd, rht } = dirVecs(dgx, dgy);
-  const L = (f: number, r: number) => local(P, fwd, rht, f, r);
-  const tc = (t: TilePos) => tilemap.getTileCenterWorld(t.x, t.y);
-
-  switch (archetype) {
-    case 'sword': {
-      let tiles: TilePos[];
-      let center: WorldPoint;
-
-      if (isDiag && axes) {
-        // 7-tile fan: player + mid pair (diag+a1, diag+a2) + far pair (2*a1, 2*a2) + center (diag, 2*diag).
-        // Using diag+a1 instead of bare a1 moves the flanking tiles forward so they're
-        // clearly in front of the player rather than barely to the side (y=-16 vs y=-48).
-        const [a1, a2] = axes;
-        const diag = { x: a1.x + a2.x, y: a1.y + a2.y };
-        tiles = [
-          P,
-          add(P, diag, a1), add(P, diag, a2),
-          add(P, scale(a1, 2)), add(P, scale(a2, 2)),
-          add(P, diag), add(P, scale(diag, 2)),
-        ];
-        center = tc(add(P, diag));
-      } else {
-        // Cardinal: 7-tile arc — left arm, centre line, right arm
-        tiles = [P, L(1,-1), L(2,-1), L(1,0), L(2,0), L(1,1), L(2,1)];
-        center = tc(L(1, 0));
-      }
-
-      return { targetWorld: center, hitTiles: { primaryTiles: tiles } };
-    }
-
-    case 'axe': {
-      // 3-tile sweep one tile in front: left, centre, right of facing.
-      let tiles: TilePos[];
-
-      if (isDiag && axes) {
-        const [a1, a2] = axes;
-        const diag = { x: a1.x + a2.x, y: a1.y + a2.y };
-        // a1 (NW), diagonal (N), a2 (NE) — symmetric arc
-        tiles = [add(P, a1), add(P, diag), add(P, a2)];
-      } else {
-        tiles = [L(1,-1), L(1,0), L(1,1)];
-      }
-
-      const axCenter = isDiag && axes
-        ? tc(add(P, { x: axes[0].x + axes[1].x, y: axes[0].y + axes[1].y }))
-        : tc(L(1, 0));
-
-      return { targetWorld: axCenter, hitTiles: { primaryTiles: tiles } };
-    }
-
-    case 'hammer': {
-      // 2×2 block directly in front.
-      // Cardinal: L(1..2, 0..1).
-      // Diagonal: natural tile-space 2×2 block — a1+a2, 2*a1+a2, a1+2*a2, 2*(a1+a2).
-      let tiles: TilePos[];
-
-      if (isDiag && axes) {
-        const [a1, a2] = axes;
-        const diag = { x: a1.x + a2.x, y: a1.y + a2.y };
-        tiles = [
-          add(P, diag),
-          add(P, scale(a1, 2), a2),
-          add(P, a1, scale(a2, 2)),
-          add(P, scale(diag, 2)),
-        ];
-      } else {
-        tiles = [L(1,0), L(2,0), L(1,1), L(2,1)];
-      }
-
-      const hmCenter = isDiag && axes
-        ? tc(add(P, { x: axes[0].x + axes[1].x, y: axes[0].y + axes[1].y }))
-        : tc(L(1, 0));
-
-      return { targetWorld: hmCenter, hitTiles: { primaryTiles: tiles } };
-    }
-
-    case 'dagger': {
-      // Single tile at reach 1; hits twice (second roll at 50%).
-      const aimTile = resolveAimTile(tilemap, playerFeet, P, targetWorldX, targetWorldY, aimRad, 1);
+  switch (attackShape.kind) {
+    case 'arc': {
+      const rangePx = tilesToWorldRange(attackShape.rangeTiles, tw, th);
+      const minRangePx = tilesToWorldRange(attackShape.minRangeTiles ?? 0, tw, th);
+      const halfAngleRad = (attackShape.angleDeg * Math.PI) / 360;
+      const midRangePx = minRangePx + (rangePx - minRangePx) * 0.6;
+      const targetWorld: WorldPoint = {
+        x: playerFeet.x + Math.cos(aimRad) * midRangePx,
+        y: playerFeet.y + Math.sin(aimRad) * midRangePx,
+      };
       return {
-        targetWorld: tc(aimTile),
-        hitTiles: {
-          primaryTiles: [aimTile],
-          secondaryTiles: [aimTile],
-          secondaryDamageMultiplier: 0.5,
+        targetWorld,
+        shape: {
+          kind: 'cone',
+          originX: playerFeet.x,
+          originY: playerFeet.y,
+          facingRad: aimRad,
+          rangePx,
+          halfAngleRad,
+          minRangePx,
         },
       };
     }
 
-    case 'spear':
-    default: {
-      // Single aimed tile, clamped to reachTiles.
-      const aimTile = resolveAimTile(tilemap, playerFeet, P, targetWorldX, targetWorldY, aimRad, reachTiles);
-      return { targetWorld: tc(aimTile), hitTiles: { primaryTiles: [aimTile] } };
+    case 'thrust': {
+      const lengthPx = attackShape.lengthTiles * tw;
+      const widthPx = attackShape.widthTiles * th;
+      const centerX = playerFeet.x + Math.cos(aimRad) * lengthPx * 0.5;
+      const centerY = playerFeet.y + Math.sin(aimRad) * lengthPx * 0.5;
+      const targetWorld: WorldPoint = {
+        x: playerFeet.x + Math.cos(aimRad) * lengthPx,
+        y: playerFeet.y + Math.sin(aimRad) * lengthPx,
+      };
+      return {
+        targetWorld,
+        shape: {
+          kind: 'rectangle',
+          centerX,
+          centerY,
+          facingRad: aimRad,
+          lengthPx,
+          widthPx,
+        },
+      };
     }
   }
+}
+
+// Returns true if the player's attack shape overlaps the enemy's circular hitbox.
+export function playerAttackHitsEnemy(
+  shape: PlayerAttackWorldShape,
+  enemyX: number,
+  enemyY: number,
+  enemyRadiusPx: number,
+): boolean {
+  switch (shape.kind) {
+    case 'cone':
+      return circleIntersectsCone(
+        enemyX, enemyY, enemyRadiusPx,
+        shape.originX, shape.originY, shape.facingRad,
+        shape.rangePx, shape.halfAngleRad, shape.minRangePx,
+      );
+    case 'rectangle':
+      return circleIntersectsRotatedRect(
+        enemyX, enemyY, enemyRadiusPx,
+        shape.centerX, shape.centerY, shape.lengthPx, shape.widthPx, shape.facingRad,
+      );
+  }
+}
+
+function tilesToWorldRange(rangeTiles: number, tileWidth: number, tileHeight: number): number {
+  return Math.sqrt((rangeTiles * tileWidth) ** 2 + (rangeTiles * tileHeight) ** 2) / Math.SQRT2;
+}
+
+function circleIntersectsCone(
+  circleX: number,
+  circleY: number,
+  circleRadius: number,
+  coneOriginX: number,
+  coneOriginY: number,
+  facingRad: number,
+  rangePx: number,
+  halfAngleRad: number,
+  minRangePx = 0,
+): boolean {
+  const dist = Math.hypot(circleX - coneOriginX, circleY - coneOriginY);
+
+  // Circle entirely inside the inner dead zone (haft / handle area) → no hit.
+  if (minRangePx > 0 && dist + circleRadius <= minRangePx) {
+    return false;
+  }
+
+  // Circle entirely beyond the outer arc → no hit.
+  if (dist - circleRadius > rangePx) {
+    return false;
+  }
+
+  // Check if the enemy center falls inside the angular sector (range expanded by radius
+  // to catch enemies whose edge clips the outer arc).
+  if (isInsideCone(circleX, circleY, coneOriginX, coneOriginY, facingRad, rangePx + circleRadius, halfAngleRad)) {
+    return true;
+  }
+
+  // Check if the enemy circle clips either lateral edge segment of the arc.
+  // For hollow arcs the segment runs from inner to outer radius; for full cones from origin.
+  const innerScale = minRangePx > 0 ? minRangePx : 0;
+  const edgeL = {
+    ax: coneOriginX + Math.cos(facingRad - halfAngleRad) * innerScale,
+    ay: coneOriginY + Math.sin(facingRad - halfAngleRad) * innerScale,
+    bx: coneOriginX + Math.cos(facingRad - halfAngleRad) * rangePx,
+    by: coneOriginY + Math.sin(facingRad - halfAngleRad) * rangePx,
+  };
+  const edgeR = {
+    ax: coneOriginX + Math.cos(facingRad + halfAngleRad) * innerScale,
+    ay: coneOriginY + Math.sin(facingRad + halfAngleRad) * innerScale,
+    bx: coneOriginX + Math.cos(facingRad + halfAngleRad) * rangePx,
+    by: coneOriginY + Math.sin(facingRad + halfAngleRad) * rangePx,
+  };
+  return (
+    distToSegment(circleX, circleY, edgeL.ax, edgeL.ay, edgeL.bx, edgeL.by) <= circleRadius ||
+    distToSegment(circleX, circleY, edgeR.ax, edgeR.ay, edgeR.bx, edgeR.by) <= circleRadius
+  );
+}
+
+function isInsideCone(
+  pointX: number,
+  pointY: number,
+  originX: number,
+  originY: number,
+  facingRad: number,
+  rangePx: number,
+  halfAngleRad: number,
+): boolean {
+  const dx = pointX - originX;
+  const dy = pointY - originY;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist > rangePx) {
+    return false;
+  }
+
+  const cos = Math.cos(-facingRad);
+  const sin = Math.sin(-facingRad);
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  return Math.abs(Math.atan2(localY, localX)) <= halfAngleRad;
+}
+
+function circleIntersectsRotatedRect(
+  circleX: number,
+  circleY: number,
+  circleRadius: number,
+  centerX: number,
+  centerY: number,
+  lengthPx: number,
+  widthPx: number,
+  rotationRad: number,
+): boolean {
+  const cos = Math.cos(-rotationRad);
+  const sin = Math.sin(-rotationRad);
+  const dx = circleX - centerX;
+  const dy = circleY - centerY;
+  const localX = dx * cos - dy * sin;
+  const localY = dx * sin + dy * cos;
+  const halfL = lengthPx / 2;
+  const halfW = widthPx / 2;
+  const clampedX = Math.max(-halfL, Math.min(halfL, localX));
+  const clampedY = Math.max(-halfW, Math.min(halfW, localY));
+  const nearX = localX - clampedX;
+  const nearY = localY - clampedY;
+  return nearX * nearX + nearY * nearY <= circleRadius * circleRadius;
+}
+
+function distToSegment(
+  px: number, py: number,
+  ax: number, ay: number,
+  bx: number, by: number,
+): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const len2 = abx * abx + aby * aby;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / len2));
+  return Math.hypot(px - (ax + t * abx), py - (ay + t * aby));
 }

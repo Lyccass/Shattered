@@ -1,4 +1,4 @@
-import type { MapDefinition, MapPlacedObject, MapZone, MapZoneTag } from '../map/MapTypes';
+import type { MapDefinition, MapPlacedObject, MapTransition, MapZone, MapZoneTag } from '../map/MapTypes';
 import type { TerrainFamily } from '../map/TerrainTypes';
 import type { ObjectDefinition } from '../../objects/ObjectTypes';
 import { assertValidMapShape } from '../map/MapValidation';
@@ -64,6 +64,7 @@ export type EditorMapDefinition = {
   customObjectDefinitions: ObjectDefinition[];
   objects: EditorPlacedObject[];
   enemySpawns: EditorEnemySpawn[];
+  transitions: MapTransition[];
   /** editor-only: maps "chunkX,chunkY" → human name for that chunk */
   chunkNames?: Record<string, string>;
 };
@@ -101,6 +102,7 @@ export function createEditorMap(
     customObjectDefinitions: [],
     objects: [],
     enemySpawns: [],
+    transitions: [],
   };
 
   if (defaultPaint) {
@@ -328,6 +330,9 @@ export function resizeEditorMap(
     terrainZones,
     objects: map.objects.filter((object) => isTileInsideBounds(object.tileX, object.tileY, width, height)),
     enemySpawns: map.enemySpawns.filter((spawn) => isTileInsideBounds(spawn.tileX, spawn.tileY, width, height)),
+    transitions: map.transitions.filter((transition) =>
+      isTileInsideBounds(transition.fromTile.tileX, transition.fromTile.tileY, width, height),
+    ),
   };
 
   for (let tileY = 0; tileY < height; tileY += 1) {
@@ -374,7 +379,7 @@ export function exportEditorMapToMapDefinition(
       },
     },
     objects: map.objects.map(toMapPlacedObject),
-    transitions: [],
+    transitions: map.transitions.map((transition) => ({ ...transition })),
     zones: exportZoneTilesToRects(map.terrainZones, map.width, map.height),
     interactionAnchors: [],
     metadata: {
@@ -432,6 +437,7 @@ export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapD
       tileY: object.tileY,
     })),
     enemySpawns: parseEditorEnemySpawns(map.metadata?.editorEnemySpawns),
+    transitions: map.transitions.map((transition) => ({ ...transition })),
   };
 }
 

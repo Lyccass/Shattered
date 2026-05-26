@@ -90,8 +90,11 @@ function getAttackTileBounds(
     case 'rectangle': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const minOffsetWorld = attack.telegraph.minOffsetTiles
+        ? tilesToWorldX(attack.telegraph.minOffsetTiles, context.tileWidth)
+        : 0;
       const rotationRad = state.attackRotationRad ?? state.facingRad;
-      const centerOffset = lengthWorld / 2;
+      const centerOffset = minOffsetWorld + lengthWorld / 2;
       const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
       const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
       const corners = getRotatedRectangleCorners(centerX, centerY, lengthWorld, widthWorld, rotationRad);
@@ -109,8 +112,11 @@ function getAttackTileBounds(
     case 'line': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const minOffsetWorld = attack.telegraph.minOffsetTiles
+        ? tilesToWorldX(attack.telegraph.minOffsetTiles, context.tileWidth)
+        : 0;
       const rotationRad = state.attackRotationRad ?? state.facingRad;
-      const centerOffset = lengthWorld / 2;
+      const centerOffset = minOffsetWorld + lengthWorld / 2;
       const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
       const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
       const corners = getRotatedRectangleCorners(centerX, centerY, lengthWorld, widthWorld, rotationRad);
@@ -166,7 +172,14 @@ function isPointInsideAttackAtPoint(
         tilesToWorldY(attack.telegraph.radiusYTiles, context.tileHeight),
       );
 
-    case 'cone':
+    case 'cone': {
+      const minRange = attack.telegraph.minRangeTiles
+        ? tilesToWorldRange(attack.telegraph.minRangeTiles, context.tileWidth, context.tileHeight)
+        : 0;
+      if (minRange > 0) {
+        const dist = Math.hypot(pointX - state.worldX, pointY - state.worldY);
+        if (dist < minRange) return false;
+      }
       return isPointInsideCone(
         pointX,
         pointY,
@@ -176,32 +189,29 @@ function isPointInsideAttackAtPoint(
         tilesToWorldRange(attack.telegraph.rangeTiles, context.tileWidth, context.tileHeight),
         degreesToRadians(attack.telegraph.angleDeg),
       );
+    }
 
     case 'rectangle': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
-      const centerOffset = lengthWorld / 2;
+      const minOffsetWorld = attack.telegraph.minOffsetTiles
+        ? tilesToWorldX(attack.telegraph.minOffsetTiles, context.tileWidth)
+        : 0;
       const rotationRad = state.attackRotationRad ?? state.facingRad;
-      const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
-      const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
-      return isPointInsideRotatedRectangle(
-        pointX,
-        pointY,
-        centerX,
-        centerY,
-        lengthWorld,
-        widthWorld,
-        rotationRad,
-      );
+      const centerX = state.worldX + Math.cos(rotationRad) * (minOffsetWorld + lengthWorld / 2);
+      const centerY = state.worldY + Math.sin(rotationRad) * (minOffsetWorld + lengthWorld / 2);
+      return isPointInsideRotatedRectangle(pointX, pointY, centerX, centerY, lengthWorld, widthWorld, rotationRad);
     }
 
     case 'line': {
       const lengthWorld = tilesToWorldX(attack.telegraph.lengthTiles, context.tileWidth);
       const widthWorld = tilesToWorldY(attack.telegraph.widthTiles, context.tileHeight);
+      const minOffsetWorld = attack.telegraph.minOffsetTiles
+        ? tilesToWorldX(attack.telegraph.minOffsetTiles, context.tileWidth)
+        : 0;
       const rotationRad = state.attackRotationRad ?? state.facingRad;
-      const centerOffset = lengthWorld / 2;
-      const centerX = state.worldX + Math.cos(rotationRad) * centerOffset;
-      const centerY = state.worldY + Math.sin(rotationRad) * centerOffset;
+      const centerX = state.worldX + Math.cos(rotationRad) * (minOffsetWorld + lengthWorld / 2);
+      const centerY = state.worldY + Math.sin(rotationRad) * (minOffsetWorld + lengthWorld / 2);
       return isPointInsideRotatedRectangle(pointX, pointY, centerX, centerY, lengthWorld, widthWorld, rotationRad);
     }
   }

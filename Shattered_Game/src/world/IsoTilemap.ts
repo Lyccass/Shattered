@@ -9,7 +9,12 @@ import {
 } from './IsoTilemapChunkRenderer';
 import type { TileType } from './IsoTilemapTypes';
 import type { WorldChunkDefinition } from '../shared/world/ChunkTypes';
-import { decodeTerrainPaletteLayer } from '../shared/world/TerrainPalette';
+import { decodeTerrainPaletteLayer, getExactTerrainPaletteEntry } from '../shared/world/TerrainPalette';
+import {
+  parseEditorTerrainElevation,
+  parseEditorTerrainTiles,
+  parseEditorTerrainWalkability,
+} from '../shared/editor/EditorMapModel';
 import type { ResolvedTerrainTile } from './terrain/TerrainTypes';
 import { TerrainResolutionCache } from './terrain/TerrainResolutionCache';
 import type { GridMode } from './IsoTilemapTypes';
@@ -40,6 +45,10 @@ type IsoTilemapConfig = {
 type WorldPoint = {
   x: number;
   y: number;
+};
+
+type ApplyWorldChunkOptions = {
+  invalidateAdjacentRendererChunks?: boolean;
 };
 
 // IsoTilemap is a coordinator/facade.
@@ -201,7 +210,7 @@ export class IsoTilemap {
     return this.renderer?.getChunkStats() ?? null;
   }
 
-  applyWorldChunk(chunk: WorldChunkDefinition): void {
+  applyWorldChunk(chunk: WorldChunkDefinition, options: ApplyWorldChunkOptions = {}): void {
     const terrain = chunk.terrain.encoding === 'palette'
       ? decodeTerrainPaletteLayer(chunk.terrainPalette ?? {}, chunk.terrain.tiles)
       : chunk.terrain.tiles;
@@ -210,28 +219,53 @@ export class IsoTilemap {
     const defaultWalkable = typeof chunk.metadata?.defaultWalkable === 'boolean'
       ? chunk.metadata.defaultWalkable
       : null;
+    const exactTerrainPaints = {
+      ...parseEditorTerrainTiles(chunk.metadata?.editorTerrainTiles),
+      ...decodeChunkExactTerrainPaints(chunk),
+    };
+    const terrainWalkability = parseEditorTerrainWalkability(chunk.metadata?.editorTerrainWalkability);
+    const terrainElevation = parseEditorTerrainElevation(chunk.metadata?.editorTerrainElevation);
+
+    this.terrainResolutionCache.replaceExactTerrainPaintsInRect(
+      startTileX,
+      startTileY,
+      chunk.width,
+      chunk.height,
+      toAbsoluteTerrainPaints(exactTerrainPaints, startTileX, startTileY, chunk.width, chunk.height),
+    );
 
     for (let localY = 0; localY < chunk.height; localY += 1) {
       for (let localX = 0; localX < chunk.width; localX += 1) {
         const tileX = startTileX + localX;
         const tileY = startTileY + localY;
-        this.worldGrid.setTile(tileX, tileY, terrain[localY][localX]);
+        const localKey = tileKey(localX, localY);
+        const terrainFamily = terrain[localY][localX];
+        const exactPaint = exactTerrainPaints[localKey];
+        const explicitWalkable = terrainWalkability[localKey];
+        const resolvedWalkable = explicitWalkable ?? exactPaint?.walkable ?? defaultWalkable;
 
-        if (
-          defaultWalkable !== null &&
-          defaultWalkable !== isTerrainFamilyWalkableByDefault(terrain[localY][localX])
-        ) {
-          this.worldGrid.setTerrainWalkabilityOverride(tileX, tileY, defaultWalkable);
-        }
+        this.worldGrid.setTile(tileX, tileY, terrainFamily);
+        this.worldGrid.setTerrainWalkabilityOverride(
+          tileX,
+          tileY,
+          resolvedWalkable !== null &&
+            resolvedWalkable !== undefined &&
+            resolvedWalkable !== isTerrainFamilyWalkableByDefault(terrainFamily)
+            ? resolvedWalkable
+            : null,
+        );
+        this.worldGrid.setTerrainElevation(tileX, tileY, terrainElevation[localKey] ?? null);
       }
     }
 
     this.invalidateTerrainResolutionRect(startTileX, startTileY, chunk.width, chunk.height);
-    this.renderer?.invalidateTileRect(startTileX, startTileY, chunk.width, chunk.height);
+    this.renderer?.invalidateTileRect(startTileX, startTileY, chunk.width, chunk.height, {
+      includeBleed: options.invalidateAdjacentRendererChunks ?? true,
+    });
   }
 
-  applyWorldChunks(chunks: WorldChunkDefinition[]): void {
-    chunks.forEach((chunk) => this.applyWorldChunk(chunk));
+  applyWorldChunks(chunks: WorldChunkDefinition[], options: ApplyWorldChunkOptions = {}): void {
+    chunks.forEach((chunk) => this.applyWorldChunk(chunk, options));
   }
 
   toggleChunkDebug(): boolean {
@@ -336,6 +370,70 @@ function buildTerrainWalkabilityOverrides(
 
 function isTerrainFamilyWalkableByDefault(tileType: TileType): boolean {
   return tileType !== 'water';
+}
+
+function toAbsoluteTerrainPaints(
+  localPaints: NonNullable<IsoTilemapConfig['exactTerrainPaints']>,
+  startTileX: number,
+  startTileY: number,
+  chunkWidth: number,
+  chunkHeight: number,
+): NonNullable<IsoTilemapConfig['exactTerrainPaints']> {
+  return Object.fromEntries(
+    Object.entries(localPaints).flatMap(([key, paint]) => {
+      const [localX, localY] = parseTileKey(key);
+
+      if (localX < 0 || localY < 0 || localX >= chunkWidth || localY >= chunkHeight) {
+        return [];
+      }
+
+      return [[tileKey(startTileX + localX, startTileY + localY), paint]];
+    }),
+  );
+}
+
+function decodeChunkExactTerrainPaints(
+  chunk: WorldChunkDefinition,
+): NonNullable<IsoTilemapConfig['exactTerrainPaints']> {
+  if (chunk.terrain.encoding !== 'palette') {
+    return {};
+  }
+
+  const exactTerrainPaints: NonNullable<IsoTilemapConfig['exactTerrainPaints']> = {};
+  const palette = chunk.terrainPalette ?? {};
+
+  chunk.terrain.tiles.forEach((row, tileY) => {
+    row.forEach((tileId, tileX) => {
+      const exactEntry = getExactTerrainPaletteEntry(palette[tileId]);
+
+      if (!exactEntry) {
+        return;
+      }
+
+      exactTerrainPaints[tileKey(tileX, tileY)] = {
+        id: exactEntry.tileId,
+        family: exactEntry.family,
+        textureKey: exactEntry.textureKey,
+        ...(exactEntry.textureOffsetX !== undefined ? { textureOffsetX: exactEntry.textureOffsetX } : {}),
+        ...(exactEntry.textureOffsetY !== undefined ? { textureOffsetY: exactEntry.textureOffsetY } : {}),
+        ...(exactEntry.textureScale !== undefined ? { textureScale: exactEntry.textureScale } : {}),
+        walkable: exactEntry.walkable ?? exactEntry.family !== 'water',
+        flipX: exactEntry.flipX === true,
+        flipY: exactEntry.flipY === true,
+      };
+    });
+  });
+
+  return exactTerrainPaints;
+}
+
+function tileKey(tileX: number, tileY: number): string {
+  return `${tileX},${tileY}`;
+}
+
+function parseTileKey(key: string): [number, number] {
+  const [tileX, tileY] = key.split(',').map((part) => Number.parseInt(part, 10));
+  return [Number.isFinite(tileX) ? tileX : -1, Number.isFinite(tileY) ? tileY : -1];
 }
 
 function validateTerrainLayer(terrain: TileType[][]): void {

@@ -3,6 +3,7 @@ import type { WorldChunkDefinition } from '../../shared/world/ChunkTypes';
 import type {
   MapPlacedObject,
   MapResourceNodeAnchor,
+  MapTransition,
   MapZone,
   MapZoneTag,
   ResourceNodeType,
@@ -12,6 +13,7 @@ export type WorldChunkRuntimeLayers = {
   chunkKey: ChunkKey;
   objects: MapPlacedObject[];
   resourceAnchors: MapResourceNodeAnchor[];
+  transitions: MapTransition[];
   zones: MapZone[];
 };
 
@@ -59,6 +61,25 @@ export function materializeWorldChunkRuntimeLayers(chunk: WorldChunkDefinition):
           tags: node.tags,
         },
       })),
+    transitions: (chunk.connectionLayer?.transitions ?? []).map((transition) => ({
+      ...transition,
+      id: createChunkScopedId(chunk, chunkKey, 'transition', transition.id),
+      fromTile: {
+        tileX: tileOrigin.x + transition.fromTile.tileX,
+        tileY: tileOrigin.y + transition.fromTile.tileY,
+      },
+      visualAnchor: transition.visualAnchor
+        ? {
+          ...transition.visualAnchor,
+          tileX: tileOrigin.x + transition.visualAnchor.tileX,
+          tileY: tileOrigin.y + transition.visualAnchor.tileY,
+        }
+        : undefined,
+      metadata: {
+        ...(transition.metadata ?? {}),
+        sourceChunkKey: chunkKey,
+      },
+    })),
     zones: chunk.zoneLayer.zones.map((zone) => ({
       id: createChunkScopedId(chunk, chunkKey, 'zone', zone.id),
       tileX: tileOrigin.x + zone.tileX,
@@ -80,7 +101,7 @@ function getChunkTileOrigin(chunk: WorldChunkDefinition): { x: number; y: number
 function createChunkScopedId(
   chunk: WorldChunkDefinition,
   chunkKey: ChunkKey,
-  kind: 'object' | 'resource' | 'zone',
+  kind: 'object' | 'resource' | 'transition' | 'zone',
   localId: string,
 ): string {
   return `${chunk.worldId}:${chunkKey}:${kind}:${localId}`;
