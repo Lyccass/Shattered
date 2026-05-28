@@ -6,6 +6,14 @@ import type { ActiveWorldChunkWindow } from '../streaming/ActiveWorldChunkWindow
 import { MapZoneIndex } from './MapZoneIndex';
 import type { MapDefinition, MapInteractionAnchor, MapTransition, MapZone } from './MapTypes';
 
+export type RuntimeEnemySpawn = {
+  id: string;
+  definitionId: string;
+  mapId: string;
+  tileX: number;
+  tileY: number;
+};
+
 export type StreamedWorldRuntime = {
   provider: WorldChunkProvider;
   activeWindow: ActiveWorldChunkWindow;
@@ -24,5 +32,6 @@ export type LoadedMapRuntime = {
   zones: MapZone[];
   zoneIndex: MapZoneIndex;
   interactionAnchors: MapInteractionAnchor[];
+  enemySpawns: RuntimeEnemySpawn[];
   streamedWorld?: StreamedWorldRuntime;
 };

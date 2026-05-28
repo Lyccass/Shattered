@@ -11,15 +11,12 @@ import {
   paintTerrainElevation,
   paintTerrainWalkability,
   resizeEditorMap,
-  EDITOR_ZONE_COLORS,
 } from '../shared/editor/EditorMapModel';
 import {
-  getTileDiamondPoints,
   worldToTile,
   type IsoTransformConfig,
 } from '../shared/iso/IsoCoordinates';
 import type { TerrainFamily } from '../shared/map/TerrainTypes';
-import type { MapTransition, MapTransitionType } from '../shared/map/MapTypes';
 import { preloadTerrainAssets, createTerrainRenderTextures } from '../world/terrain/TerrainAssets';
 import { preloadObjectAssets } from '../objects/ObjectAssets';
 import {
@@ -58,6 +55,11 @@ import { EditorAssetLibraryController } from './assets/EditorAssetLibraryControl
 import { loadImageFromDataUrl } from './assets/EditorDefinitionImage';
 import { EditorDefinitionPanelController } from './ui/EditorDefinitionPanelController';
 import { EditorLibraryPanelController } from './ui/EditorLibraryPanelController';
+import { EditorEncounterPanelController } from './ui/EditorEncounterPanelController';
+import { EditorConnectionPanelController } from './ui/EditorConnectionPanelController';
+import { EditorEncounterToolController } from './encounters/EditorEncounterToolController';
+import { EditorNpcToolController } from './npcs/EditorNpcToolController';
+import { drawEditorOverlay } from './overlays/EditorOverlayRenderer';
 import {
   createSaveConfidenceState,
   type EditorSaveSnapshot,
@@ -94,6 +96,24 @@ export class EditorScene extends Phaser.Scene {
   private readonly terrainTool = new EditorTerrainToolController();
   private readonly objectTool = new EditorObjectToolController();
   private readonly dirtyChunks = new EditorDirtyChunkTracker(EDITOR_CHUNK_SIZE);
+  private readonly encounterTool = new EditorEncounterToolController({
+    getHoverTile: () => this.hoverTile,
+    getMap: () => this.map,
+    markChunkDirty: (chunk) => this.dirtyChunks.markChunkDirty(chunk),
+    onChanged: () => this.commitEditorToolChange(),
+    setMap: (map) => { this.map = map; },
+    setStatus: (message) => this.setStatus(message),
+    snapshot: (map) => this.history.snapshot(map),
+  });
+  private readonly npcTool = new EditorNpcToolController({
+    getHoverTile: () => this.hoverTile,
+    getMap: () => this.map,
+    markTileDirty: (tileX, tileY) => this.dirtyChunks.markTileDirty(tileX, tileY),
+    onChanged: () => this.commitEditorToolChange(),
+    setMap: (map) => { this.map = map; },
+    setStatus: (message) => this.setStatus(message),
+    snapshot: (map) => this.history.snapshot(map),
+  });
   private readonly mapIo = new EditorMapIoController();
   private readonly history = new EditorHistoryStack();
   private readonly assetLibrary = new EditorAssetLibraryController(this, this.terrainTool, this.objectTool);
@@ -102,6 +122,17 @@ export class EditorScene extends Phaser.Scene {
     setStatus: (message) => this.setStatus(message),
   });
   private readonly libraryPanel = new EditorLibraryPanelController();
+  private readonly connectionPanel = new EditorConnectionPanelController({
+    getHoverTile: () => this.hoverTile,
+    getMap: () => this.map,
+    getWorldId: () => this.worldId,
+    isTileInBounds: (tileX, tileY) => this.isTileInBounds(tileX, tileY),
+    markTileDirty: (tileX, tileY) => this.dirtyChunks.markTileDirty(tileX, tileY),
+    onChanged: () => this.commitEditorToolChange(),
+    setMap: (map) => { this.map = map; },
+    setStatus: (message) => this.setStatus(message),
+    snapshot: (map) => this.history.snapshot(map),
+  });
   private map: EditorMapDefinition = createSampleEditorMap(this.terrainTool.getSelectedPaint());
   private worldId = 'the_wake';
   private regionId = 'harbor_coast';
@@ -116,6 +147,7 @@ export class EditorScene extends Phaser.Scene {
   private overlayGraphics?: Phaser.GameObjects.Graphics;
   private chunkOverlayGraphics?: Phaser.GameObjects.Graphics;
   private hud?: EditorHudController;
+  private encounterPanel?: EditorEncounterPanelController;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
   private terrainRenderer?: EditorTerrainChunkRenderer;
   private objectRenderer?: EditorObjectLayerRenderer;
@@ -161,7 +193,7 @@ export class EditorScene extends Phaser.Scene {
       onExportWorldChunk: () => { void this.exportWorldChunk(); },
       onImportDirtyChunks: () => this.openChunkLibrary(),
       onOpenChunkWindow: () => this.openChunkWindowPanel(),
-      onOpenConnections: () => this.openConnectionsPanel(),
+      onOpenConnections: () => { void this.connectionPanel.open(); },
       onOpenPalette: () => this.togglePalette(),
       onOpenWorldPanel: () => this.openWorldPanel(),
       onRedo: () => this.applyRedo(),
@@ -170,11 +202,28 @@ export class EditorScene extends Phaser.Scene {
       onSetWalkabilityBrush: (walkable) => this.setWalkabilityBrush(walkable),
       onSetMode: (mode) => this.setToolMode(mode as EditorToolMode),
       onSetZoneTag: (tag) => this.setZoneTag(tag),
+      onSetNpcDefinitionId: (id) => this.npcTool.setSelectedDefinitionId(id),
+      onPlaceNpcAtHover: () => this.npcTool.placeAtHover(),
+      onRemoveNpcAtHover: () => this.npcTool.removeAtHover(),
       onTestInGame: () => this.testMapInGame(),
       onResizeMap: () => this.openResizePanel(),
       onUndo: () => this.applyUndo(),
     });
     this.hud.create(this.terrainTool.getSelectedBrush());
+    this.encounterPanel = new EditorEncounterPanelController({
+      onAddManualSpawnAtHover: () => this.encounterTool.addManualSpawnAtHover(),
+      onAddRule: (rule) => this.encounterTool.addRule(rule),
+      onCreateAreaAtHover: () => this.encounterTool.createAreaAtHover(),
+      onDeleteArea: () => this.encounterTool.deleteSelectedArea(),
+      onDeleteManualSpawn: () => this.encounterTool.deleteSelectedManualSpawn(),
+      onDeleteRule: () => this.encounterTool.deleteSelectedRule(),
+      onMoveAreaToHover: () => this.encounterTool.moveSelectedAreaToHover(),
+      onSelectArea: (areaId) => this.encounterTool.selectArea(areaId),
+      onSelectManualSpawn: (spawnId) => this.encounterTool.selectManualSpawn(spawnId),
+      onSelectRule: (ruleId) => this.encounterTool.selectRule(ruleId),
+      onUpdateArea: (patch) => this.encounterTool.updateSelectedArea(patch),
+      onUpdateRule: (patch) => this.encounterTool.updateSelectedRule(patch),
+    });
     this.palette = new EditorTilePaletteController(
       this,
       this.terrainTool.getCatalog(),
@@ -211,11 +260,7 @@ export class EditorScene extends Phaser.Scene {
     document.getElementById('ed-world-panel-open-selected')?.addEventListener('click', () => this.openWorldFromPanel());
     document.getElementById('ed-world-panel-create')?.addEventListener('click', () => { void this.createWorldFromPanel(); });
     this.bindWorldCreateNameGenerator();
-    document.getElementById('ed-connection-close')?.addEventListener('click', () => this.hideConnectionsPanel());
-    document.getElementById('ed-connection-cancel')?.addEventListener('click', () => this.hideConnectionsPanel());
-    document.getElementById('ed-connection-use-hover')?.addEventListener('click', () => this.fillConnectionSourceFromHover());
-    document.getElementById('ed-connection-save')?.addEventListener('click', () => this.saveConnectionFromPanel());
-    document.getElementById('ed-connection-delete')?.addEventListener('click', () => this.deleteConnectionAtPanelSource());
+    this.connectionPanel.bindEvents();
     void draftRestorePromise.then(async (restored) => {
       if (!restored && await this.loadWorldChunkWindowFromProject('the_wake', 0, 0, 0)) {
         return;
@@ -257,10 +302,20 @@ export class EditorScene extends Phaser.Scene {
     const inputController = new EditorInputController(this, {
       applyPrimaryAction: (pointer) => this.applyHoveredPrimaryAction(pointer),
       adjustBrushSize: (delta) => this.adjustBrushSize(delta),
-      beginStroke: () => this.history.beginStroke(this.map),
+      beginStroke: () => {
+        if (this.toolMode === 'encounter') {
+          this.encounterTool.beginStroke();
+        }
+        this.history.beginStroke(this.map);
+      },
       centerCameraOnMap: () => this.centerCameraOnMap(),
       cycleSelection: (offset) => this.cycleSelection(offset),
-      endStroke: () => this.history.endStroke(),
+      endStroke: () => {
+        if (this.toolMode === 'encounter') {
+          this.encounterTool.endStroke();
+        }
+        this.history.endStroke();
+      },
       exportDirtyChunks: () => this.saveDirtyChunksToLibrary(),
       exportWorldChunk: () => { void this.exportWorldChunk(); },
       flipSelectedBrush: (axis) => this.flipSelectedBrush(axis),
@@ -599,6 +654,16 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
+    if (this.toolMode === 'encounter') {
+      this.redrawOverlay();
+      return;
+    }
+
+    if (this.toolMode === 'npc') {
+      this.npcTool.placeAtHover();
+      return;
+    }
+
     this.paintHoveredTile();
   }
 
@@ -668,6 +733,12 @@ export class EditorScene extends Phaser.Scene {
     this.setStatus(tag ? `Painting zone: ${tag}.` : 'Zone erase mode.');
   }
 
+  private commitEditorToolChange(): void {
+    this.redrawOverlay();
+    this.updateInfoText();
+    this.persistWorkingDraft();
+  }
+
   private markPaintedTilesDirty(tiles: Array<{ x: number; y: number }>): void {
     if (tiles.length === 0) {
       return;
@@ -697,6 +768,11 @@ export class EditorScene extends Phaser.Scene {
   }
 
   private removeHoveredObject(): void {
+    if (this.toolMode === 'npc') {
+      this.npcTool.removeAtHover();
+      return;
+    }
+
     if (!this.hoverTile) {
       return;
     }
@@ -744,86 +820,23 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
-    graphics.clear();
-    graphics.setDepth(9_000);
-    this.drawTileDataOverlay(graphics);
-    this.drawConnectionOverlay(graphics);
-
-    if (!this.hoverTile || !this.isTileInBounds(this.hoverTile.x, this.hoverTile.y)) {
-      return;
-    }
-
-    const footprint = this.toolMode === 'terrain'
+    const hoverFootprint = this.hoverTile && this.toolMode === 'terrain'
       ? this.terrainTool.getBrushFootprint(this.hoverTile.x, this.hoverTile.y)
-      : [this.hoverTile];
+      : this.hoverTile
+        ? [this.hoverTile]
+        : [];
 
-    for (const tile of footprint) {
-      if (!this.isTileInBounds(tile.x, tile.y)) {
-        continue;
-      }
-
-      const isCenter = tile.x === this.hoverTile.x && tile.y === this.hoverTile.y;
-      const points = getTileDiamondPoints(this.transform, tile.x, tile.y)
-        .map((point) => new Phaser.Geom.Point(point.x, point.y));
-
-      graphics.fillStyle(0xfacc15, isCenter ? 0.22 : 0.12);
-      graphics.fillPoints(points, true);
-      graphics.lineStyle(isCenter ? 2 : 1, 0xf8fafc, isCenter ? 0.95 : 0.45);
-      graphics.strokePoints(points, true);
-    }
-  }
-
-  private drawConnectionOverlay(graphics: Phaser.GameObjects.Graphics): void {
-    for (const transition of this.map.transitions) {
-      const points = getTileDiamondPoints(this.transform, transition.fromTile.tileX, transition.fromTile.tileY)
-        .map((point) => new Phaser.Geom.Point(point.x, point.y));
-
-      graphics.fillStyle(0x38bdf8, 0.18);
-      graphics.fillPoints(points, true);
-      graphics.lineStyle(2, 0x38bdf8, 0.82);
-      graphics.strokePoints(points, true);
-    }
-  }
-
-  private drawTileDataOverlay(graphics: Phaser.GameObjects.Graphics): void {
-    if (this.toolMode !== 'walkability' && this.toolMode !== 'elevation' && this.toolMode !== 'zone') {
-      return;
-    }
-
-    for (let tileY = 0; tileY < this.map.height; tileY += 1) {
-      for (let tileX = 0; tileX < this.map.width; tileX += 1) {
-        const points = getTileDiamondPoints(this.transform, tileX, tileY)
-          .map((point) => new Phaser.Geom.Point(point.x, point.y));
-
-        if (this.toolMode === 'walkability') {
-          const walkable = getEditorTerrainWalkabilityAt(this.map, tileX, tileY) ?? true;
-          graphics.fillStyle(walkable ? 0x22c55e : 0xef4444, walkable ? 0.08 : 0.28);
-          graphics.fillPoints(points, true);
-          continue;
-        }
-
-        if (this.toolMode === 'zone') {
-          const zone = getEditorTerrainZoneAt(this.map, tileX, tileY);
-          if (zone) {
-            const color = EDITOR_ZONE_COLORS[zone];
-            graphics.fillStyle(color, 0.30);
-            graphics.fillPoints(points, true);
-            graphics.lineStyle(1, color, 0.15);
-            graphics.strokePoints(points, true);
-          }
-          continue;
-        }
-
-        const elevation = getEditorTerrainElevationAt(this.map, tileX, tileY) ?? 0;
-
-        if (elevation <= 0) {
-          continue;
-        }
-
-        graphics.fillStyle(0x60a5fa, Math.min(0.42, 0.1 + elevation * 0.055));
-        graphics.fillPoints(points, true);
-      }
-    }
+    drawEditorOverlay({
+      dragStart: this.encounterTool.getDragStart(),
+      encounterSelection: this.encounterTool.getSelection(),
+      graphics,
+      hoverFootprint,
+      hoverTile: this.hoverTile,
+      isTileInBounds: (tileX, tileY) => this.isTileInBounds(tileX, tileY),
+      map: this.map,
+      toolMode: this.toolMode,
+      transform: this.transform,
+    });
   }
 
   private getTileFromPointer(pointer: Phaser.Input.Pointer): { x: number; y: number } | null {
@@ -842,6 +855,8 @@ export class EditorScene extends Phaser.Scene {
       return;
     }
 
+    this.encounterTool.normalizeSelection();
+    const encounterSelection = this.encounterTool.getSelection();
     const hover = this.hoverTile && this.isTileInBounds(this.hoverTile.x, this.hoverTile.y)
       ? this.hoverTile
       : null;
@@ -871,6 +886,9 @@ export class EditorScene extends Phaser.Scene {
       },
       dirtyChunks: this.dirtyChunks.getSummary(),
       map: this.map,
+      npcAnchorCount: this.map.npcAnchors.length,
+      npcDefinitions: this.npcTool.getDefinitionOptions(),
+      selectedNpcDefinitionId: this.npcTool.getSelectedDefinitionId(),
       objectPreviewColor: this.objectTool.getPreviewColor(),
       objectPreviewTextureKey: this.objectTool.getPreviewTextureKey(),
       selectedBrush,
@@ -879,10 +897,23 @@ export class EditorScene extends Phaser.Scene {
       selectedWalkable: this.selectedWalkable,
       selectedZoneTag: this.selectedZoneTag,
       selectedObjectDisplayName: selectedObjectDefinition.displayName,
-      saveConfidence: createSaveConfidenceState(this.dirtyChunks.getDirtyChunks(), this.lastSaveSnapshot),
+      saveConfidence: createSaveConfidenceState(
+        this.dirtyChunks.getDirtyChunks(),
+        this.lastSaveSnapshot,
+        this.loadedChunkWindow?.sourceType === 'world' ? 'project-world' : 'chunk-library',
+      ),
       testSpawnLabel: this.getWorldTestSpawn().label,
       testSpawnMode: this.testSpawnMode,
       toolMode: this.toolMode,
+    });
+
+    this.encounterPanel?.setVisible(this.toolMode === 'encounter');
+    this.encounterPanel?.update({
+      areas: this.map.encounterAreas,
+      hoverTile: hover,
+      selectedAreaId: encounterSelection.selectedAreaId,
+      selectedManualSpawnId: encounterSelection.selectedManualSpawnId,
+      selectedRuleId: encounterSelection.selectedRuleId,
     });
   }
 
@@ -1345,133 +1376,6 @@ export class EditorScene extends Phaser.Scene {
     setInputValue('ed-world-create-region-name', createDefaultRegionName(displayName));
   }
 
-  private async openConnectionsPanel(): Promise<void> {
-    const panel = document.getElementById('ed-connection-panel');
-    const targetWorld = document.getElementById('ed-connection-target-world') as HTMLSelectElement | null;
-
-    if (!panel || !targetWorld) {
-      return;
-    }
-
-    const worlds = await listProjectWorlds();
-    targetWorld.innerHTML = '';
-    for (const world of worlds) {
-      const option = document.createElement('option');
-      option.value = world.worldId;
-      option.textContent = `${world.displayName} (${world.worldId})`;
-      targetWorld.appendChild(option);
-    }
-    targetWorld.value = this.worldId;
-    this.fillConnectionSourceFromHover();
-    panel.classList.remove('editor-hidden');
-  }
-
-  private hideConnectionsPanel(): void {
-    document.getElementById('ed-connection-panel')?.classList.add('editor-hidden');
-  }
-
-  private fillConnectionSourceFromHover(): void {
-    if (!this.hoverTile) {
-      this.setStatus('Hover the entrance tile, then use it as the connection source.');
-      return;
-    }
-
-    setInputValue('ed-connection-source-x', String(this.hoverTile.x));
-    setInputValue('ed-connection-source-y', String(this.hoverTile.y));
-    setInputValue('ed-connection-id', `${this.worldId}_${this.hoverTile.x}_${this.hoverTile.y}_connection`);
-  }
-
-  private saveConnectionFromPanel(): void {
-    try {
-      const sourceX = parseIntegerInput(getInputValue('ed-connection-source-x', '0'), 0);
-      const sourceY = parseIntegerInput(getInputValue('ed-connection-source-y', '0'), 0);
-
-      if (!this.isTileInBounds(sourceX, sourceY)) {
-        this.setStatus('Connection source tile is outside the loaded window.');
-        return;
-      }
-
-      const footprintWidth = Math.max(1, parseIntegerInput(getInputValue('ed-connection-width', '1'), 1));
-      const footprintHeight = Math.max(1, parseIntegerInput(getInputValue('ed-connection-height', '1'), 1));
-      const targetWorldId = getSelectValue('ed-connection-target-world', this.worldId);
-      const targetChunkX = parseIntegerInput(getInputValue('ed-connection-target-chunk-x', '0'), 0);
-      const targetChunkY = parseIntegerInput(getInputValue('ed-connection-target-chunk-y', '0'), 0);
-      const targetTileX = parseIntegerInput(getInputValue('ed-connection-target-tile-x', '0'), 0);
-      const targetTileY = parseIntegerInput(getInputValue('ed-connection-target-tile-y', '0'), 0);
-      const transitionId = slugifyMapId(getInputValue('ed-connection-id', `${this.worldId}_${sourceX}_${sourceY}_connection`));
-      const label = getInputValue('ed-connection-label', targetWorldId);
-      const transitionType = getSelectValue('ed-connection-type', 'door') as MapTransitionType;
-      const targetSpawnId = getInputValue(
-        'ed-connection-target-spawn',
-        `chunk_${targetChunkX}_${targetChunkY}_tile_${targetTileX}_${targetTileY}`,
-      );
-      const transition: MapTransition = {
-        id: transitionId,
-        fromTile: {
-          tileX: sourceX,
-          tileY: sourceY,
-        },
-        triggerFootprint: createRectFootprint(footprintWidth, footprintHeight),
-        visualAnchor: {
-          tileX: sourceX,
-          tileY: sourceY,
-          label,
-        },
-        targetMapId: targetWorldId,
-        targetSpawnId,
-        transitionType,
-        metadata: {
-          sourceWorldId: this.worldId,
-          targetWorldId,
-          targetChunkX,
-          targetChunkY,
-          targetTileX,
-          targetTileY,
-        },
-      };
-
-      this.history.snapshot(this.map);
-      this.map = {
-        ...this.map,
-        transitions: [
-          ...this.map.transitions.filter((candidate) => candidate.id !== transition.id),
-          transition,
-        ],
-      };
-      this.dirtyChunks.markTileDirty(sourceX, sourceY);
-      this.redrawOverlay();
-      this.updateInfoText();
-      this.persistWorkingDraft();
-      this.setStatus(`Saved connection ${transition.id} -> ${targetWorldId} ${targetChunkX},${targetChunkY}:${targetTileX},${targetTileY}.`);
-    } catch (error) {
-      this.setStatus(error instanceof Error ? error.message : 'Connection save failed.');
-    }
-  }
-
-  private deleteConnectionAtPanelSource(): void {
-    const sourceX = parseIntegerInput(getInputValue('ed-connection-source-x', '0'), 0);
-    const sourceY = parseIntegerInput(getInputValue('ed-connection-source-y', '0'), 0);
-    const before = this.map.transitions.length;
-
-    this.history.snapshot(this.map);
-    this.map = {
-      ...this.map,
-      transitions: this.map.transitions.filter((transition) =>
-        transition.fromTile.tileX !== sourceX || transition.fromTile.tileY !== sourceY,
-      ),
-    };
-    const removed = before - this.map.transitions.length;
-
-    if (removed > 0) {
-      this.dirtyChunks.markTileDirty(sourceX, sourceY);
-      this.redrawOverlay();
-      this.updateInfoText();
-      this.persistWorkingDraft();
-    }
-
-    this.setStatus(removed > 0 ? `Removed ${removed} connection(s) at ${sourceX},${sourceY}.` : 'No connection at that source tile.');
-  }
-
   private openResizePanel(): void {
     const panel = document.getElementById('ed-resize');
     const widthInput = document.getElementById('ed-resize-width') as HTMLInputElement | null;
@@ -1861,6 +1765,8 @@ function formatToolModeStatus(mode: EditorToolMode): string {
       return 'Walkability paint mode.';
     case 'zone':
       return 'Zone paint mode. Left-click to paint, select tag in sidebar.';
+    case 'encounter':
+      return 'Encounter mode. Left-click an area to select it, then edit spawns in the sidebar.';
     case 'terrain':
     default:
       return 'Terrain mode.';
@@ -1890,10 +1796,6 @@ function parseIntegerInput(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function positiveModulo(value: number, divisor: number): number {
-  return ((value % divisor) + divisor) % divisor;
-}
-
 function parseTileKey(key: string): [number, number] {
   const [tileX, tileY] = key.split(',').map((part) => Number.parseInt(part, 10));
   return [Number.isFinite(tileX) ? tileX : -1, Number.isFinite(tileY) ? tileY : -1];
@@ -1913,18 +1815,6 @@ function setInputValue(id: string, value: string): void {
 function getSelectValue(id: string, fallback: string): string {
   const select = document.getElementById(id) as HTMLSelectElement | null;
   return select?.value || fallback;
-}
-
-function createRectFootprint(width: number, height: number): Array<{ x: number; y: number }> {
-  const footprint: Array<{ x: number; y: number }> = [];
-
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      footprint.push({ x, y });
-    }
-  }
-
-  return footprint;
 }
 
 function getFootprintWidth(footprint: ReadonlyArray<{ x: number; y: number }>): number {

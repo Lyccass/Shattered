@@ -10,6 +10,7 @@ export type EditorSaveSnapshot = {
 };
 
 export type EditorSaveConfidenceState = {
+  currentTarget: EditorSaveTarget;
   dirtyChunkCount: number;
   dirtyChunkKeys: string[];
   lastSave: EditorSaveSnapshot | null;
@@ -18,8 +19,10 @@ export type EditorSaveConfidenceState = {
 export function createSaveConfidenceState(
   dirtyChunks: ChunkCoordinate[],
   lastSave: EditorSaveSnapshot | null,
+  currentTarget: EditorSaveTarget,
 ): EditorSaveConfidenceState {
   return {
+    currentTarget,
     dirtyChunkCount: dirtyChunks.length,
     dirtyChunkKeys: dirtyChunks
       .map((chunk) => `${chunk.chunkX},${chunk.chunkY}`)

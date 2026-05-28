@@ -63,7 +63,7 @@ function idleAt(def: typeof wolfAggressive, id: string, worldX = 0, worldY = 0) 
 
 describe('idle → aggro transitions', () => {
   it('aggressive wolf aggros when player enters aggro range', () => {
-    // aggroRangeTiles=5, tileWidth=32 → aggroRange = 160 world units
+    // aggroRangeTiles=8, tileWidth=32 -> aggroRange = 256 world units
     const state  = idleAt(wolfAggressive, 'wa-01');
     const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 100, 0));
     expect(result.state.currentState).toBe('aggro');
@@ -71,7 +71,7 @@ describe('idle → aggro transitions', () => {
 
   it('aggressive wolf stays idle when player is beyond aggro range', () => {
     const state  = idleAt(wolfAggressive, 'wa-02');
-    const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 200, 0));
+    const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 300, 0));
     expect(result.state.currentState).toBe('idle');
   });
 
@@ -122,21 +122,21 @@ describe('tier suppression', () => {
 
 describe('leash and reset', () => {
   it('enemy in approach resets when player runs beyond deAggro range', () => {
-    // deAggroRangeTiles=15, tileWidth=32 → deAggroRange = 480 world units from enemy
-    // enemy at (0,0), player at (500,0) → distance 500 > 480 → reset
+    // deAggroRangeTiles=20, tileWidth=32 -> deAggroRange = 640 world units from enemy
+    // enemy at (0,0), player at (700,0) -> distance 700 > 640 -> reset
     const state = idleAt(wolfAggressive, 'leash-01');
     state.currentState = 'approach';
-    const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 500, 0));
+    const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 700, 0));
     expect(result.state.currentState).toBe('reset');
   });
 
   it('enemy in approach resets when it has strayed beyond leash range and player retreated', () => {
-    // leashRangeTiles=10, tileWidth=32 → leashRange = 320 world units from leashAnchor (0,0)
-    // aggroRange = 160; enemy at (350,0) → leashAnchorDist=350>320; player at (600,0) → distToPlayer=250>160
+    // leashRangeTiles=14, tileWidth=32 -> leashRange = 448 world units from leashAnchor (0,0)
+    // aggroRange = 256; enemy at (500,0) -> leashAnchorDist=500>448; player at (800,0) -> distToPlayer=300>256
     const state = idleAt(wolfAggressive, 'leash-02');
     state.currentState = 'approach';
-    state.worldX = 350;
-    const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 600, 0));
+    state.worldX = 500;
+    const result = advanceEnemyStateMachine(wolfAggressive, state, ctx(100, 800, 0));
     expect(result.state.currentState).toBe('reset');
   });
 

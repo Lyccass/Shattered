@@ -121,6 +121,8 @@ export type InteractionResult = {
   xpDelta?: SkillXpDelta;
   levelUps?: LevelUpEvent[];
   toastKind?: ToastKind;
+  /** If set, the game should open the shop popup for this shop ID. */
+  openShopId?: string;
 };
 
 export type InteractionHandlers = {

@@ -46,11 +46,17 @@ export type EditorHudState = {
   testSpawnMode: EditorTestSpawnMode;
   testSpawnLabel: string;
   toolMode: EditorToolMode;
+  npcDefinitions: Array<{ id: string; displayName: string }>;
+  selectedNpcDefinitionId: string;
+  npcAnchorCount: number;
 };
 
 type EditorHudCallbacks = {
   onSetMode: (mode: EditorToolMode) => void;
   onSetTestSpawnMode: (mode: EditorTestSpawnMode) => void;
+  onSetNpcDefinitionId: (id: string) => void;
+  onPlaceNpcAtHover: () => void;
+  onRemoveNpcAtHover: () => void;
   onSetZoneTag: (tag: EditorWorldZoneTag | null) => void;
   onAdjustBrushSize: (delta: number) => void;
   onAdjustElevation: (delta: number) => void;
@@ -94,10 +100,15 @@ export class EditorHudController {
     modeWalkabilityBtn: HTMLButtonElement;
     modeElevationBtn: HTMLButtonElement;
     modeZoneBtn: HTMLButtonElement;
+    modeEncounterBtn: HTMLButtonElement;
+    modeNpcBtn: HTMLButtonElement;
     brushSection: HTMLElement;
     objectSection: HTMLElement;
     tileMetaSection: HTMLElement;
     zoneSection: HTMLElement;
+    npcSection: HTMLElement;
+    npcDefinitionSelect: HTMLSelectElement;
+    npcCount: HTMLElement;
     zoneTagLabel: HTMLElement;
     zoneTagBtns: Record<string, HTMLButtonElement>;
     walkableOnBtn: HTMLButtonElement;
@@ -147,10 +158,15 @@ export class EditorHudController {
       modeWalkabilityBtn: requireById<HTMLButtonElement>('ed-mode-walkability'),
       modeElevationBtn: requireById<HTMLButtonElement>('ed-mode-elevation'),
       modeZoneBtn:    requireById<HTMLButtonElement>('ed-mode-zone'),
+      modeEncounterBtn: requireById<HTMLButtonElement>('ed-mode-encounter'),
+      modeNpcBtn:     requireById<HTMLButtonElement>('ed-mode-npc'),
       brushSection:   requireById('ed-brush-section'),
       objectSection:  requireById('ed-object-section'),
       tileMetaSection: requireById('ed-tile-meta-section'),
       zoneSection:    requireById('ed-zone-section'),
+      npcSection:     requireById('ed-npc-section'),
+      npcDefinitionSelect: requireById<HTMLSelectElement>('ed-npc-definition-select'),
+      npcCount:       requireById('ed-npc-count'),
       zoneTagLabel:   requireById('ed-zone-tag-label'),
       zoneTagBtns:    Object.fromEntries(
         EDITOR_WORLD_ZONE_TAGS.map((tag) => [tag, requireById<HTMLButtonElement>(`ed-zone-tag-${tag}`)]),
@@ -187,6 +203,13 @@ export class EditorHudController {
     this.els.modeWalkabilityBtn.addEventListener('click',  () => this.callbacks.onSetMode('walkability'));
     this.els.modeElevationBtn.addEventListener('click',  () => this.callbacks.onSetMode('elevation'));
     this.els.modeZoneBtn.addEventListener('click', () => this.callbacks.onSetMode('zone'));
+    this.els.modeEncounterBtn.addEventListener('click', () => this.callbacks.onSetMode('encounter'));
+    this.els.modeNpcBtn.addEventListener('click', () => this.callbacks.onSetMode('npc'));
+    this.els.npcDefinitionSelect.addEventListener('change', () =>
+      this.callbacks.onSetNpcDefinitionId(this.els.npcDefinitionSelect.value),
+    );
+    document.getElementById('ed-npc-place')?.addEventListener('click', () => this.callbacks.onPlaceNpcAtHover());
+    document.getElementById('ed-npc-remove')?.addEventListener('click', () => this.callbacks.onRemoveNpcAtHover());
 
     for (const tag of EDITOR_WORLD_ZONE_TAGS) {
       this.els.zoneTagBtns[tag]?.addEventListener('click', () => this.callbacks.onSetZoneTag(tag));
@@ -253,7 +276,7 @@ export class EditorHudController {
     this.els.saveState.classList.toggle('is-dirty', state.saveConfidence.dirtyChunkCount > 0);
     this.els.saveTarget.textContent = state.saveConfidence.lastSave
       ? formatSaveTarget(state.saveConfidence.lastSave.target)
-      : 'project world';
+      : formatSaveTarget(state.saveConfidence.currentTarget);
     this.els.testSpawnHoverBtn.classList.toggle('is-active', state.testSpawnMode === 'hover');
     this.els.testSpawnCenterBtn.classList.toggle('is-active', state.testSpawnMode === 'center');
     this.els.testSpawnLabel.textContent = state.testSpawnLabel;
@@ -268,15 +291,30 @@ export class EditorHudController {
     const isWalkability = state.toolMode === 'walkability';
     const isElevation = state.toolMode === 'elevation';
     const isZone = state.toolMode === 'zone';
+    const isEncounter = state.toolMode === 'encounter';
+    const isNpc = state.toolMode === 'npc';
     this.els.modeTerrainBtn.classList.toggle('is-active', isTerrain);
     this.els.modeObjectBtn.classList.toggle('is-active', isObject);
     this.els.modeWalkabilityBtn.classList.toggle('is-active', isWalkability);
     this.els.modeElevationBtn.classList.toggle('is-active', isElevation);
     this.els.modeZoneBtn.classList.toggle('is-active', isZone);
+    this.els.modeEncounterBtn.classList.toggle('is-active', isEncounter);
+    this.els.modeNpcBtn.classList.toggle('is-active', isNpc);
     this.els.brushSection.classList.toggle('editor-hidden', !isTerrain);
     this.els.objectSection.classList.toggle('editor-hidden', !isObject);
     this.els.tileMetaSection.classList.toggle('editor-hidden', !(isWalkability || isElevation));
     this.els.zoneSection.classList.toggle('editor-hidden', !isZone);
+    this.els.npcSection.classList.toggle('editor-hidden', !isNpc);
+
+    // NPC mode
+    this.els.npcCount.textContent = String(state.npcAnchorCount);
+    syncSelectOptions(
+      this.els.npcDefinitionSelect,
+      state.npcDefinitions.map((d) => ({ value: d.id, label: d.displayName })),
+    );
+    if (this.els.npcDefinitionSelect.value !== state.selectedNpcDefinitionId) {
+      this.els.npcDefinitionSelect.value = state.selectedNpcDefinitionId;
+    }
 
     // Zone tag selector
     const zoneLabel = state.selectedZoneTag ?? 'erase';
@@ -385,6 +423,23 @@ export class EditorHudController {
 
 function formatFlip(brush: { flipX: boolean; flipY: boolean }): string {
   return `${brush.flipX ? 'X' : '–'} ${brush.flipY ? 'Y' : '–'}`;
+}
+
+function syncSelectOptions(
+  select: HTMLSelectElement,
+  options: Array<{ value: string; label: string }>,
+): void {
+  const existing = Array.from(select.options).map((o) => o.value).join(',');
+  const incoming = options.map((o) => o.value).join(',');
+  if (existing === incoming) return;
+
+  select.innerHTML = '';
+  for (const { value, label } of options) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    select.appendChild(opt);
+  }
 }
 
 function formatDirtyChunks(summary: { count: number; keys: string[] }): string {

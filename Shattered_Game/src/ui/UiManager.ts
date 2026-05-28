@@ -5,6 +5,10 @@ import { formatSkillXpToastLines } from './UiFormatters';
 import { ToastSystem } from './ToastSystem';
 import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
 import { UIOverlayManager } from './overlay/UIOverlayManager';
+import type { ShopPopupCallbacks } from './overlay/ShopPopupContent';
+import type { ShopSnapshot } from '../trading/TraderTypes';
+import type { PlayerInventorySnapshot } from '../player/PlayerInventoryState';
+import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import { SKILL_UNLOCKS } from '../skills/SkillUnlockData';
 import { SkillUnlockRegistry } from '../skills/SkillUnlockRegistry';
 
@@ -116,6 +120,10 @@ export class UiManager {
     this.overlay.pushMessage(message, 'system');
   }
 
+  pushMessage(message: string, channel: 'game' | 'error' | 'reward' | 'system' = 'game'): void {
+    this.overlay.pushMessage(message, channel);
+  }
+
   toggleJournal(): boolean {
     return this.overlay.toggleTab('journal');
   }
@@ -126,6 +134,16 @@ export class UiManager {
 
   toggleSkills(): boolean {
     return this.overlay.toggleTab('journal');
+  }
+
+  openShop(
+    shopId: string,
+    shopSnapshot: ShopSnapshot,
+    inventory: PlayerInventorySnapshot,
+    currency: CurrencySnapshot,
+    callbacks: ShopPopupCallbacks,
+  ): void {
+    this.overlay.openShop(shopId, shopSnapshot, inventory, currency, callbacks);
   }
 
   getChoiceMenuOptionIndexAt(screenX: number, screenY: number): number | null {

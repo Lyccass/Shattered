@@ -133,7 +133,7 @@ describe('Player light attack indicator math', () => {
         50,
         0,
         {
-          centerX: 156,
+          centerX: 150,
           centerY: 50,
           radiusX: 14,
           radiusY: 18,
@@ -367,9 +367,9 @@ describe('PlayerCombatState', () => {
       reason: 'Still recovering.',
     });
 
-    state.update(1_900, 500, false);
-    expect(state.getSnapshot(1_900).lightAttackPhase).toBe('idle');
-    expect(state.tryStartLightAttack(1_900)).toEqual({ ok: true });
+    state.update(2_050, 650, false);
+    expect(state.getSnapshot(2_050).lightAttackPhase).toBe('idle');
+    expect(state.tryStartLightAttack(2_050)).toEqual({ ok: true });
   });
 
   it('restores the player safely after being downed', () => {
@@ -555,11 +555,13 @@ describe('EnemyStateMachine', () => {
     }, buildUpdateContext(100, 80, 0));
     expect(jumpResult.state.currentAttackId).toBe('wretch_jump');
 
-    // Roar: player at 52 world units = 3.25 tiles — in roar range (0–3.5), outside swipe (0–2.8)
+    // Roar: player at 48 world units = 3 tiles - in roar range while swipe is cooling down
+    const roarState = createBaseState('enemy_roar_select');
+    roarState.attackCooldownEndsAtMs.wretch_swipe = 1_000;
     const roarResult = advanceEnemyStateMachine(definition, {
-      ...createBaseState('enemy_roar_select'),
+      ...roarState,
       currentState: 'aggro',
-    }, buildUpdateContext(100, 52, 0));
+    }, buildUpdateContext(100, 48, 0));
     expect(roarResult.state.currentAttackId).toBe('wretch_roar');
 
     // Swipe on cooldown — roar should fire instead at 1.5 tiles

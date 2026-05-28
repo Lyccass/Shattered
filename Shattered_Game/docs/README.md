@@ -13,6 +13,7 @@ chronology notes that used to live in this folder.
 3. [world-and-persistence.md](world-and-persistence.md) - maps, chunks, terrain, save state, runtime state.
 4. [gameplay-systems.md](gameplay-systems.md) - controls, UI, crafting, contracts, skills, combat.
 5. [map-editor.md](map-editor.md) - editor app, authoring model, import/export, next editor layers.
+6. [CLEANUP.md](CLEANUP.md) - current refactor, optimization, and MMO-readiness backlog.
 
 ## Current Prototype Shape
 

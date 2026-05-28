@@ -3,6 +3,12 @@ import type { TerrainFamily } from '../map/TerrainTypes';
 import type { ObjectDefinition } from '../../objects/ObjectTypes';
 import { assertValidMapShape } from '../map/MapValidation';
 import {
+  parseEditorEncounterAreas,
+  resizeEditorEncounterAreas,
+  serializeEditorEncounterAreas,
+  type EditorEncounterArea,
+} from './EditorEncounterModel';
+import {
   mapDefinitionToSingleWorldChunk,
   worldChunkDefinitionToMapDefinition,
   type MapToChunkOptions,
@@ -49,6 +55,13 @@ export type EditorEnemySpawn = {
   tileY: number;
 };
 
+export type EditorNpcAnchor = {
+  id: string;
+  definitionId: string;
+  tileX: number;
+  tileY: number;
+};
+
 export type EditorMapDefinition = {
   id: string;
   displayName: string;
@@ -64,6 +77,8 @@ export type EditorMapDefinition = {
   customObjectDefinitions: ObjectDefinition[];
   objects: EditorPlacedObject[];
   enemySpawns: EditorEnemySpawn[];
+  encounterAreas: EditorEncounterArea[];
+  npcAnchors: EditorNpcAnchor[];
   transitions: MapTransition[];
   /** editor-only: maps "chunkX,chunkY" → human name for that chunk */
   chunkNames?: Record<string, string>;
@@ -102,6 +117,8 @@ export function createEditorMap(
     customObjectDefinitions: [],
     objects: [],
     enemySpawns: [],
+    encounterAreas: [],
+    npcAnchors: [],
     transitions: [],
   };
 
@@ -330,6 +347,8 @@ export function resizeEditorMap(
     terrainZones,
     objects: map.objects.filter((object) => isTileInsideBounds(object.tileX, object.tileY, width, height)),
     enemySpawns: map.enemySpawns.filter((spawn) => isTileInsideBounds(spawn.tileX, spawn.tileY, width, height)),
+    encounterAreas: resizeEditorEncounterAreas(map.encounterAreas, width, height),
+    npcAnchors: (map.npcAnchors ?? []).filter((anchor) => isTileInsideBounds(anchor.tileX, anchor.tileY, width, height)),
     transitions: map.transitions.filter((transition) =>
       isTileInsideBounds(transition.fromTile.tileX, transition.fromTile.tileY, width, height),
     ),
@@ -381,7 +400,14 @@ export function exportEditorMapToMapDefinition(
     objects: map.objects.map(toMapPlacedObject),
     transitions: map.transitions.map((transition) => ({ ...transition })),
     zones: exportZoneTilesToRects(map.terrainZones, map.width, map.height),
-    interactionAnchors: [],
+    interactionAnchors: (map.npcAnchors ?? []).map((anchor) => ({
+      id: anchor.id,
+      interactionType: 'npc' as const,
+      tileX: anchor.tileX,
+      tileY: anchor.tileY,
+      npcDefinitionId: anchor.definitionId,
+      text: anchor.definitionId,
+    })),
     metadata: {
       source: 'map_editor_v0',
       editorTerrainTiles,
@@ -399,6 +425,7 @@ export function exportEditorMapToMapDefinition(
         ? { editorObjectDefinitions: serializeObjectDefinitions(map.customObjectDefinitions, includeEditorAssetData) }
         : {}),
       ...(map.enemySpawns.length > 0 ? { editorEnemySpawns: map.enemySpawns } : {}),
+      ...(map.encounterAreas.length > 0 ? { editorEncounterAreas: serializeEditorEncounterAreas(map.encounterAreas) } : {}),
       ...(map.chunkNames && Object.keys(map.chunkNames).length > 0 ? { editorChunkNames: map.chunkNames } : {}),
     },
   };
@@ -437,6 +464,8 @@ export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapD
       tileY: object.tileY,
     })),
     enemySpawns: parseEditorEnemySpawns(map.metadata?.editorEnemySpawns),
+    encounterAreas: parseEditorEncounterAreas(map.metadata?.editorEncounterAreas),
+    npcAnchors: parseEditorNpcAnchors(map.interactionAnchors),
     transitions: map.transitions.map((transition) => ({ ...transition })),
   };
 }
@@ -881,6 +910,31 @@ function parseEditorEnemySpawns(value: unknown): EditorEnemySpawn[] {
       tileX: spawn.tileX,
       tileY: spawn.tileY,
     }];
+  });
+}
+
+function parseEditorNpcAnchors(value: unknown): EditorNpcAnchor[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((anchor): EditorNpcAnchor[] => {
+    if (!isRecord(anchor)) return [];
+
+    if (
+      anchor['interactionType'] !== 'npc' ||
+      typeof anchor['id'] !== 'string' ||
+      typeof anchor['tileX'] !== 'number' ||
+      typeof anchor['tileY'] !== 'number'
+    ) {
+      return [];
+    }
+
+    const definitionId = typeof anchor['npcDefinitionId'] === 'string'
+      ? anchor['npcDefinitionId']
+      : String(anchor['id']);
+
+    return [{ id: anchor['id'], definitionId, tileX: anchor['tileX'], tileY: anchor['tileY'] }];
   });
 }
 

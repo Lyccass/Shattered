@@ -79,6 +79,11 @@ function validatePlayerSaveState(input: unknown): SaveValidationResult<PlayerSav
   const activeEffects = validateActiveEffectSaveStates(record.value.activeEffects);
   if (!activeEffects.ok) return activeEffects;
 
+  const equippedSlots = record.value.equippedSlots === undefined
+    ? undefined
+    : readStringRecord(record.value.equippedSlots, 'PlayerSaveState.equippedSlots');
+  if (equippedSlots && !equippedSlots.ok) return equippedSlots;
+
   return {
     ok: true,
     value: {
@@ -95,6 +100,7 @@ function validatePlayerSaveState(input: unknown): SaveValidationResult<PlayerSav
       skillXp: skillXp.value,
       journal: journal.value,
       activeEffects: activeEffects.value,
+      ...(equippedSlots ? { equippedSlots: equippedSlots.value } : {}),
     },
   };
 }
@@ -398,6 +404,21 @@ function readNumberRecord(value: unknown, label: string): SaveValidationResult<R
     const numberResult = readNumber(entryValue, `${label}.${key}`);
     if (!numberResult.ok) return numberResult;
     parsed[key] = Math.max(0, Math.floor(numberResult.value));
+  }
+
+  return { ok: true, value: parsed };
+}
+
+function readStringRecord(value: unknown, label: string): SaveValidationResult<Record<string, string>> {
+  const record = asRecord(value, label);
+  if (!record.ok) return record;
+
+  const parsed: Record<string, string> = {};
+
+  for (const [key, entryValue] of Object.entries(record.value)) {
+    const stringResult = readString(entryValue, `${label}.${key}`);
+    if (!stringResult.ok) return stringResult;
+    parsed[key] = stringResult.value;
   }
 
   return { ok: true, value: parsed };

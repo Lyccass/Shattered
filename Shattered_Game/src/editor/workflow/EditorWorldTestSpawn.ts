@@ -28,8 +28,10 @@ export function resolveEditorWorldTestSpawn(
       x: Math.floor(context.mapWidth / 2),
       y: Math.floor(context.mapHeight / 2),
     };
-  const globalTileX = context.originChunkX * context.chunkSize + clampTile(localTile.x, context.mapWidth);
-  const globalTileY = context.originChunkY * context.chunkSize + clampTile(localTile.y, context.mapHeight);
+  const clampedX = clampTile(localTile.x, context.mapWidth);
+  const clampedY = clampTile(localTile.y, context.mapHeight);
+  const globalTileX = context.originChunkX * context.chunkSize + clampedX;
+  const globalTileY = context.originChunkY * context.chunkSize + clampedY;
   const chunkX = Math.floor(globalTileX / context.chunkSize);
   const chunkY = Math.floor(globalTileY / context.chunkSize);
   const localChunkTileX = positiveModulo(globalTileX, context.chunkSize);
@@ -38,7 +40,7 @@ export function resolveEditorWorldTestSpawn(
   return {
     chunkX,
     chunkY,
-    label: `${chunkX},${chunkY} tile ${localChunkTileX},${localChunkTileY}`,
+    label: `Tile ${clampedX}, ${clampedY}`,
     localTileX: localChunkTileX,
     localTileY: localChunkTileY,
     spawnId: `chunk_${chunkX}_${chunkY}_tile_${localChunkTileX}_${localChunkTileY}`,

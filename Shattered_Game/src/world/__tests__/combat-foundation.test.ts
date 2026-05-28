@@ -302,11 +302,11 @@ describe('Combat foundation input routing', () => {
 });
 
 describe('placement facing target', () => {
-  it('resolves screen-facing directions to adjacent isometric tiles', () => {
-    expect(getFacingTileOffset('up')).toEqual({ x: -1, y: -1 });
-    expect(getFacingTileOffset('down')).toEqual({ x: 1, y: 1 });
-    expect(getFacingTileOffset('left')).toEqual({ x: -1, y: 1 });
-    expect(getFacingTileOffset('right')).toEqual({ x: 1, y: -1 });
+  it('resolves screen-facing directions to adjacent grid tiles', () => {
+    expect(getFacingTileOffset('up')).toEqual({ x: 0, y: -1 });
+    expect(getFacingTileOffset('down')).toEqual({ x: 0, y: 1 });
+    expect(getFacingTileOffset('left')).toEqual({ x: -1, y: 0 });
+    expect(getFacingTileOffset('right')).toEqual({ x: 1, y: 0 });
   });
 });
 

@@ -5,6 +5,7 @@ import {
   type EditorMapDefinition,
   type EditorTerrainTilePaint,
 } from '../../shared/editor/EditorMapModel';
+import type { EditorEncounterArea } from '../../shared/editor/EditorEncounterModel';
 import type { ChunkCoordinate } from '../../shared/world/ChunkKey';
 import { createTerrainPalette } from '../../shared/world/TerrainPalette';
 import { validateWorldChunkDefinition } from '../../shared/world/ChunkValidation';
@@ -182,6 +183,9 @@ function createChunkMapSlice(
       tileX: spawn.tileX - startX,
       tileY: spawn.tileY - startY,
     }));
+  chunkMap.encounterAreas = map.encounterAreas
+    .map((area) => clipEncounterAreaToRect(area, startX, startY, width, height))
+    .filter((area): area is EditorEncounterArea => area !== null);
   chunkMap.transitions = map.transitions
     .filter((transition) => isInsideRect(transition.fromTile.tileX, transition.fromTile.tileY, startX, startY, width, height))
     .map((transition) => ({
@@ -197,6 +201,13 @@ function createChunkMapSlice(
           tileY: transition.visualAnchor.tileY - startY,
         }
         : undefined,
+    }));
+  chunkMap.npcAnchors = map.npcAnchors
+    .filter((anchor) => isInsideRect(anchor.tileX, anchor.tileY, startX, startY, width, height))
+    .map((anchor) => ({
+      ...anchor,
+      tileX: anchor.tileX - startX,
+      tileY: anchor.tileY - startY,
     }));
 
   return {
@@ -297,6 +308,21 @@ function applyChunk(
         tileY: spawn.tileY + startY,
       })),
     ],
+    encounterAreas: [
+      ...map.encounterAreas.filter((area) =>
+        !doesRectIntersect(area.tileX, area.tileY, area.width, area.height, startX, startY, chunkMap.width, chunkMap.height),
+      ),
+      ...chunkMap.encounterAreas.map((area) => ({
+        ...area,
+        tileX: area.tileX + startX,
+        tileY: area.tileY + startY,
+        manualSpawns: area.manualSpawns.map((spawn) => ({
+          ...spawn,
+          tileX: spawn.tileX + startX,
+          tileY: spawn.tileY + startY,
+        })),
+      })),
+    ],
     transitions: [
       ...map.transitions.filter((transition) =>
         !isInsideRect(transition.fromTile.tileX, transition.fromTile.tileY, startX, startY, chunkMap.width, chunkMap.height),
@@ -314,6 +340,16 @@ function applyChunk(
             tileY: transition.visualAnchor.tileY + startY,
           }
           : undefined,
+      })),
+    ],
+    npcAnchors: [
+      ...map.npcAnchors.filter((anchor) =>
+        !isInsideRect(anchor.tileX, anchor.tileY, startX, startY, chunkMap.width, chunkMap.height),
+      ),
+      ...chunkMap.npcAnchors.map((anchor) => ({
+        ...anchor,
+        tileX: anchor.tileX + startX,
+        tileY: anchor.tileY + startY,
       })),
     ],
   };
@@ -382,6 +418,58 @@ function isInsideRect(
   height: number,
 ): boolean {
   return tileX >= rectX && tileY >= rectY && tileX < rectX + width && tileY < rectY + height;
+}
+
+function clipEncounterAreaToRect(
+  area: EditorEncounterArea,
+  rectX: number,
+  rectY: number,
+  width: number,
+  height: number,
+): EditorEncounterArea | null {
+  const minX = Math.max(area.tileX, rectX);
+  const minY = Math.max(area.tileY, rectY);
+  const maxX = Math.min(area.tileX + area.width, rectX + width);
+  const maxY = Math.min(area.tileY + area.height, rectY + height);
+
+  if (maxX <= minX || maxY <= minY) {
+    return null;
+  }
+
+  return {
+    ...area,
+    tileX: minX - rectX,
+    tileY: minY - rectY,
+    width: maxX - minX,
+    height: maxY - minY,
+    tags: [...area.tags],
+    spawnRules: area.spawnRules.map((rule) => ({ ...rule })),
+    manualSpawns: area.manualSpawns
+      .filter((spawn) => isInsideRect(spawn.tileX, spawn.tileY, minX, minY, maxX - minX, maxY - minY))
+      .map((spawn) => ({
+        ...spawn,
+        tileX: spawn.tileX - rectX,
+        tileY: spawn.tileY - rectY,
+      })),
+  };
+}
+
+function doesRectIntersect(
+  leftX: number,
+  leftY: number,
+  leftWidth: number,
+  leftHeight: number,
+  rightX: number,
+  rightY: number,
+  rightWidth: number,
+  rightHeight: number,
+): boolean {
+  return (
+    leftX < rightX + rightWidth &&
+    leftX + leftWidth > rightX &&
+    leftY < rightY + rightHeight &&
+    leftY + leftHeight > rightY
+  );
 }
 
 function tileKey(tileX: number, tileY: number): string {

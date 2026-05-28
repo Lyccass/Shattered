@@ -10,6 +10,10 @@ import { XpDropPanel } from './panels/XpDropPanel';
 import { ChoiceMenuPopup } from './panels/ChoiceMenuPopup';
 import { PopupWindow } from './PopupWindow';
 import { SkillDetailWindow } from './SkillDetailWindow';
+import { ShopPopupContent, type ShopPopupCallbacks } from './ShopPopupContent';
+import type { ShopSnapshot } from '../../trading/TraderTypes';
+import type { PlayerInventorySnapshot } from '../../player/PlayerInventoryState';
+import type { CurrencySnapshot } from '../../player/PlayerCurrencyState';
 
 export class UIOverlayManager {
   private readonly overlay: HTMLElement;
@@ -22,6 +26,8 @@ export class UIOverlayManager {
   private popup: PopupWindow | null = null;
   private lastSkillPopupId: string | null = null;
   private skillDetailWindow: SkillDetailWindow | null = null;
+  private shopContent: ShopPopupContent | null = null;
+  private openShopId: string | null = null;
 
   constructor(callbacks: UIOverlayCallbacks) {
     // Locate or create the overlay div (created in index.html)
@@ -149,6 +155,37 @@ export class UIOverlayManager {
   closePopup(): void {
     this.popup?.close();
     this.popup = null;
+  }
+
+  /**
+   * Open (or toggle) the shop popup for the given shopId.
+   * Calling with the same shopId while already open closes it.
+   */
+  openShop(
+    shopId: string,
+    shopSnapshot: ShopSnapshot,
+    inventory: PlayerInventorySnapshot,
+    currency: CurrencySnapshot,
+    callbacks: ShopPopupCallbacks,
+  ): void {
+    const isSameShopOpen = this.popup?.isOpen() && this.openShopId === shopId;
+    if (this.popup?.isOpen()) {
+      this.popup.destroy();
+      this.popup = null;
+      this.shopContent = null;
+      this.openShopId = null;
+    }
+    if (isSameShopOpen) return;
+
+    this.openShopId = shopId;
+    this.shopContent = new ShopPopupContent(shopSnapshot, inventory, currency, callbacks);
+    this.popup = new PopupWindow(this.overlay, shopSnapshot.displayName, () => {
+      this.popup = null;
+      this.shopContent = null;
+      this.openShopId = null;
+    });
+    this.popup.addModifier('ui-popup--shop');
+    this.popup.open(this.shopContent.el);
   }
 
   destroy(): void {

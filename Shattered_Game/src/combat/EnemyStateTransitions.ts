@@ -6,6 +6,7 @@ import {
   moveToward,
   resolveApproachTarget,
   resolveJumpLandingPoint,
+  resolveRetreatTarget,
 } from './EnemyMovement';
 import { buildConeTelegraphPolygon } from './EnemyAttackMath';
 import {
@@ -203,6 +204,14 @@ export function handleEnemyApproach({
     return;
   }
 
+  if (definition.retreatRangeTiles !== undefined && context.nowMs < state.settleUntilMs) {
+    const retreatDistanceWorld = tilesToWorldRange(definition.retreatRangeTiles, context.tileWidth, context.tileHeight);
+    const retreatTarget = resolveRetreatTarget(state, context, retreatDistanceWorld);
+    moveToward(state, retreatTarget.x, retreatTarget.y, definition.moveSpeed, context.deltaMs, 0, context);
+    state.facingRad = angleTo(state.worldX, state.worldY, context.playerWorldX, context.playerWorldY);
+    return;
+  }
+
   const approachTarget = resolveApproachTarget(state, context);
   const preApproachX = state.worldX;
   const preApproachY = state.worldY;
@@ -213,7 +222,7 @@ export function handleEnemyApproach({
     approachTarget.y,
     definition.moveSpeed,
     context.deltaMs,
-    minimumBodySpacingWorld,
+    0,
     context,
   );
 
@@ -380,7 +389,9 @@ export function handleEnemyRecovery({
   state.currentState = 'aggro';
   state.phaseStartedAtMs = null;
   state.phaseEndsAtMs = null;
-  state.settleUntilMs = context.nowMs + 500 + Math.floor(Math.random() * 600);
+  state.settleUntilMs = definition.retreatRangeTiles !== undefined
+    ? context.nowMs + 1800 + Math.floor(Math.random() * 700)
+    : context.nowMs + 500 + Math.floor(Math.random() * 600);
 
   if (attack) {
     state.attackCooldownEndsAtMs[attack.id] = context.nowMs + attack.cooldownMs;

@@ -13,6 +13,14 @@ export class PlayerCurrencyState {
     this.totalCopperValue = Math.max(0, this.totalCopperValue + Math.max(0, amount));
   }
 
+  /** Deduct copper. Returns false (and does nothing) if balance is insufficient. */
+  spendCopper(amount: number): boolean {
+    const cost = Math.floor(amount);
+    if (cost <= 0 || this.totalCopperValue < cost) return false;
+    this.totalCopperValue -= cost;
+    return true;
+  }
+
   getTotalCopperValue(): number {
     return this.totalCopperValue;
   }

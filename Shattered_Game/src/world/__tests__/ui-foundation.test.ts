@@ -30,21 +30,20 @@ describe('UiFormatters', () => {
   it('formats the dedicated inventory panel with full pouch contents', () => {
     const text = formatInventoryPanelText(
       {
-        // wood/stone/herb are stackable materials; firestarter_set and warm_tea are non-stackable slots
+        // Current item definitions model materials and consumables as non-stackable inventory slots.
         stacks: { wood: 3, stone: 2, herb: 1, firestarter_set: 1, warm_tea: 2 },
       },
       { copper: 55, silver: 1, gold: 0, platinum: 0 },
     );
 
     expect(text).toContain('[Inventory]');
-    // stackable materials show with ×count
-    expect(text).toContain('- Driftwood ×3');
-    expect(text).toContain('- Stone ×2');
-    expect(text).toContain('- Herb ×1');
     // non-stackable: one line per slot
+    expect(text.split('- Driftwood').length - 1).toBe(3);
+    expect(text.split('- Stone').length - 1).toBe(2);
+    expect(text.split('- Herb').length - 1).toBe(1);
     expect(text).toContain('- Firestarter Set');
     expect(text).toContain('- Warm Tea');
-    // warm_tea count=2 → two separate slot lines
+    // warm_tea count=2 -> two separate slot lines
     expect(text.split('- Warm Tea').length - 1).toBe(2);
     expect(text).toContain('- Copper: 55');
     expect(text).not.toContain('Harbor reputation');

@@ -1,11 +1,17 @@
 import type {
   MapDefinition,
   MapInteractionAnchor,
+  MapNpcAnchor,
   MapPlacedObject,
   MapResourceNodeAnchor,
   MapZone,
 } from '../map/MapTypes';
 import { isTerrainFamily, type TerrainFamily } from '../map/TerrainTypes';
+import {
+  editorEncounterAreasToHabitats,
+  habitatsToEditorEncounterAreas,
+  parseEditorEncounterAreas,
+} from '../editor/EditorEncounterModel';
 import {
   createTerrainPalette,
   decodeTerrainPaletteLayer,
@@ -16,6 +22,7 @@ import {
 } from './TerrainPalette';
 import type {
   ChunkZoneDefinition,
+  NpcAnchorChunkDefinition,
   ResourceNodeDefinition,
   WorldChunkDefinition,
 } from './ChunkTypes';
@@ -62,7 +69,18 @@ export function mapDefinitionToSingleWorldChunk(
       transitions: map.transitions.map((transition) => ({ ...transition })),
     },
     habitatLayer: {
-      habitats: [],
+      habitats: editorEncounterAreasToHabitats(parseEditorEncounterAreas(map.metadata?.editorEncounterAreas)),
+    },
+    npcLayer: {
+      anchors: (map.interactionAnchors ?? [])
+        .filter((a): a is MapNpcAnchor => a.interactionType === 'npc')
+        .map((a) => ({
+          id: a.id,
+          npcDefinitionId: a.npcDefinitionId ?? '',
+          tileX: a.tileX,
+          tileY: a.tileY,
+          ...(a.text ? { text: a.text } : {}),
+        })),
     },
     metadata,
   };
@@ -87,6 +105,9 @@ export function worldChunkDefinitionToMapDefinition(
     chunkX: chunk.chunkX,
     chunkY: chunk.chunkY,
     ...(chunk.metadata ?? {}),
+    ...(chunk.habitatLayer.habitats.length > 0
+      ? { editorEncounterAreas: habitatsToEditorEncounterAreas(chunk.habitatLayer.habitats) }
+      : {}),
     ...(Object.keys(exactTerrainTiles).length > 0
       ? {
         editorTerrainTiles: {
@@ -114,7 +135,10 @@ export function worldChunkDefinitionToMapDefinition(
     objects: chunk.objectLayer.objects.map(toMapObject),
     transitions: chunk.connectionLayer?.transitions.map((transition) => ({ ...transition })) ?? [],
     zones: chunk.zoneLayer.zones.map(toMapZone),
-    interactionAnchors: chunk.resourceLayer.nodes.map(toMapResourceAnchor),
+    interactionAnchors: [
+      ...chunk.resourceLayer.nodes.map(toMapResourceAnchor),
+      ...(chunk.npcLayer?.anchors ?? []).map(toMapNpcAnchor),
+    ],
     metadata,
   };
 }
@@ -422,5 +446,16 @@ function toMapResourceAnchor(node: ResourceNodeDefinition): MapInteractionAnchor
     resourceNodeType: node.resourceDefinitionId as MapResourceNodeAnchor['resourceNodeType'],
     tileX: node.tileX,
     tileY: node.tileY,
+  };
+}
+
+function toMapNpcAnchor(anchor: NpcAnchorChunkDefinition): MapNpcAnchor {
+  return {
+    id: anchor.id,
+    interactionType: 'npc',
+    npcDefinitionId: anchor.npcDefinitionId,
+    text: anchor.text ?? anchor.npcDefinitionId,
+    tileX: anchor.tileX,
+    tileY: anchor.tileY,
   };
 }

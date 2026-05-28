@@ -54,6 +54,12 @@ export function validateWorldChunkDefinition(chunk: WorldChunkDefinition): Chunk
     if (!isRectInBounds(habitat.tileX, habitat.tileY, habitat.width, habitat.height, chunk.width, chunk.height)) {
       errors.push(`Habitat "${habitat.id}" is out of chunk bounds.`);
     }
+
+    for (const manualSpawn of habitat.manualSpawns ?? []) {
+      if (!isTileInBounds(manualSpawn.tileX, manualSpawn.tileY, chunk.width, chunk.height)) {
+        errors.push(`Manual spawn "${manualSpawn.id}" in habitat "${habitat.id}" is out of chunk bounds.`);
+      }
+    }
   }
 
   for (const zone of chunk.zoneLayer.zones) {

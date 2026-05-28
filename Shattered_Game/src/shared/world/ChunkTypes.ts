@@ -66,8 +66,12 @@ export type ZoneLayerDefinition = {
 export type SpawnRuleDefinition = {
   id: string;
   creatureFamilyId: string;
+  enemyDefinitionId?: string;
   densityHint?: number;
   maxPopulation?: number;
+  respawnMs?: number;
+  weight?: number;
+  lootTableId?: string;
   initialMaturityLevel?: number;
   maxMaturityLevel?: number;
   maturityTickMs?: number;
@@ -77,18 +81,41 @@ export type SpawnRuleDefinition = {
   maxWorldState?: Record<string, number | string>;
 };
 
+export type ManualSpawnDefinition = {
+  id: string;
+  enemyDefinitionId: string;
+  tileX: number;
+  tileY: number;
+  respawnMs?: number;
+  lootTableId?: string;
+};
+
 export type HabitatDefinition = {
   id: string;
+  name?: string;
   tileX: number;
   tileY: number;
   width: number;
   height: number;
   tags?: string[];
   spawnRules: SpawnRuleDefinition[];
+  manualSpawns?: ManualSpawnDefinition[];
 };
 
 export type HabitatLayerDefinition = {
   habitats: HabitatDefinition[];
+};
+
+export type NpcAnchorChunkDefinition = {
+  id: string;
+  npcDefinitionId: string;
+  tileX: number;
+  tileY: number;
+  text?: string;
+};
+
+export type NpcLayerDefinition = {
+  anchors: NpcAnchorChunkDefinition[];
 };
 
 export type ConnectionLayerDefinition = {
@@ -109,6 +136,7 @@ export type WorldChunkDefinition = {
   zoneLayer: ZoneLayerDefinition;
   connectionLayer?: ConnectionLayerDefinition;
   habitatLayer: HabitatLayerDefinition;
+  npcLayer?: NpcLayerDefinition;
   metadata?: Record<string, unknown>;
 };
 

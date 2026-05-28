@@ -8,11 +8,12 @@ export const WOLF_AGGRESSIVE: EnemyDefinition = {
   tier: 1,
   maxHealth: 5,
   behavior: 'aggressive',
-  moveSpeed: PLAYER_CONFIG.movementSpeed * 0.40,
+  moveSpeed: PLAYER_CONFIG.movementSpeed * 0.70,
   collisionRadiusTiles: 0.55,
   aggroRangeTiles: 8,
   leashRangeTiles: 14,
   deAggroRangeTiles: 20,
+  retreatRangeTiles: 4.0,
   lootTables: [
     { oneIn: 1, entries: [{ itemId: 'bone', weight: 1 }] },
     {

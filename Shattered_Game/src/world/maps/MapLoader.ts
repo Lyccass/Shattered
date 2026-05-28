@@ -60,6 +60,7 @@ export class MapLoader {
       zones: definition.zones ?? [],
       zoneIndex: new MapZoneIndex(definition.zones ?? []),
       interactionAnchors: definition.interactionAnchors ?? [],
+      enemySpawns: [],
     };
 
     return this.currentRuntime;
@@ -112,6 +113,7 @@ export class MapLoader {
       zones: proceduralDefinition.zones ?? [],
       zoneIndex: new MapZoneIndex(proceduralDefinition.zones ?? []),
       interactionAnchors: proceduralDefinition.interactionAnchors ?? [],
+      enemySpawns: [],
     };
 
     return this.currentRuntime;
@@ -194,6 +196,7 @@ export class MapLoader {
       zones: [],
       zoneIndex: new MapZoneIndex([]),
       interactionAnchors: [],
+      enemySpawns: [],
       streamedWorld: {
         provider,
         activeWindow,

@@ -12,6 +12,8 @@ export type NpcDefinition = {
   behavior: NpcBehavior;
   ambientLines: string[];
   dialogue: NpcDialogueLine[];
+  /** If set, interacting with this NPC opens the shop with this ID. */
+  shopId?: string;
 };
 
 export type NpcRuntimeState = {

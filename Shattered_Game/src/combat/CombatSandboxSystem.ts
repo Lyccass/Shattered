@@ -13,7 +13,6 @@ import { resolveAttackTarget, playerAttackHitsEnemy } from './PlayerAttackTarget
 import type { PlayerAttackWorldShape } from './PlayerAttackTargeting';
 import type { PlayerDerivedStats, WeaponAttackShape } from '../equipment/EquipmentTypes';
 import { resolveTileDodgeMotion } from './PlayerDodgeTargeting';
-import { separatePlayerFromEnemyTile } from './PlayerEnemySeparation';
 import type { SfxEventId } from '../audio/SfxTypes';
 import type { LevelUpEvent, SkillXpDelta } from '../skills/SkillTypes';
 import type { UiHandledResult } from '../ui/UiTypes';
@@ -21,6 +20,7 @@ import { COMBAT_SANDBOX_SPAWNS } from './CombatSandboxDefinitions';
 import type { CombatUiSnapshot } from './CombatUiTypes';
 import { EnemySystem } from './EnemySystem';
 import type { EnemyUpdateEvent } from './EnemyStateMachine';
+import type { EnemySpawnDefinition } from './EnemyTypes';
 import { PlayerCombatState } from './PlayerCombatState';
 import type { PlayerController } from '../player/PlayerController';
 import type { IsoTilemap } from '../world/IsoTilemap';
@@ -83,7 +83,7 @@ export class CombatSandboxSystem {
     this.onCombatXp = onCombatXp;
   }
 
-  setMapContext(mapId: string, tilemap: IsoTilemap): void {
+  setMapContext(mapId: string, tilemap: IsoTilemap, extraSpawns: EnemySpawnDefinition[] = []): void {
     this.currentTilemap = tilemap;
 
     for (const es of this.enemySystems) {
@@ -91,7 +91,10 @@ export class CombatSandboxSystem {
     }
     this.enemySystems = [];
 
-    const spawns = COMBAT_SANDBOX_SPAWNS.filter((s) => s.mapId === mapId);
+    const spawns = [
+      ...COMBAT_SANDBOX_SPAWNS.filter((s) => s.mapId === mapId),
+      ...extraSpawns,
+    ];
     for (const spawn of spawns) {
       const es = new EnemySystem(this.scene, this.telegraphSystem);
       es.setMapContext(mapId, tilemap, spawn);
@@ -543,7 +546,9 @@ export class CombatSandboxSystem {
     }
 
     const tileWidth = this.currentTilemap.tileWidth;
+    const engagedId = this.getEngagedEnemyId();
     const hitSystem = this.enemySystems.find((es) => {
+      if (engagedId !== null && es.getRuntimeId() !== engagedId) return false;
       const pos = es.getWorldPosition();
       if (!pos) return false;
       const radiusPx = es.getCollisionRadiusTiles() * tileWidth;
@@ -689,12 +694,20 @@ export class CombatSandboxSystem {
       return;
     }
 
+    const feet = playerController.getFeetPoint();
     for (const es of this.enemySystems) {
-      separatePlayerFromEnemyTile({
-        tilemap: this.currentTilemap,
-        playerController,
-        enemyTile: es.getOccupiedTile(),
-      });
+      const pos = es.getWorldPosition();
+      if (!pos) continue;
+      const radiusPx = es.getCollisionRadiusTiles() * this.currentTilemap.tileWidth;
+      const dx = feet.x - pos.x;
+      const dy = feet.y - pos.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq >= radiusPx * radiusPx || distSq < 0.0001) continue;
+      const dist = Math.sqrt(distSq);
+      const push = radiusPx - dist;
+      feet.x += (dx / dist) * push;
+      feet.y += (dy / dist) * push;
+      playerController.setFeetWorldPosition(feet.x, feet.y);
     }
   }
 

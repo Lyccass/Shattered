@@ -90,6 +90,95 @@ describe('EditorDirtyChunkBundle', () => {
     });
   });
 
+  it('exports encounter areas as chunk habitat data and imports them back', () => {
+    const source = createEditorMap(64, 32, 'grass', 'source_map', 'Source Map', grassPaint);
+    source.encounterAreas.push({
+      id: 'forest_edge',
+      name: 'Forest Edge',
+      tileX: 30,
+      tileY: 4,
+      width: 8,
+      height: 6,
+      tags: ['wilds', 'forest'],
+      spawnRules: [
+        {
+          id: 'wolf_rule',
+          enemyDefinitionId: 'wolf_passive',
+          creatureFamilyId: 'wolf',
+          maxPopulation: 4,
+          respawnMs: 45_000,
+          weight: 2,
+          lootTableId: 'wolf_common',
+        },
+      ],
+      manualSpawns: [
+        {
+          id: 'fixed_wolf',
+          enemyDefinitionId: 'wolf_passive',
+          tileX: 35,
+          tileY: 6,
+          respawnMs: 60_000,
+          lootTableId: 'wolf_common',
+        },
+      ],
+    });
+    const target = createEditorMap(64, 32, 'grass', 'target_map', 'Target Map', grassPaint);
+
+    const bundle = createDirtyChunkBundle(source, [{ chunkX: 1, chunkY: 0 }], {
+      chunkSize: 32,
+      exportedAt: '2026-05-20T00:00:00.000Z',
+      regionId: 'test_region',
+      worldId: 'the_wake',
+    });
+    const chunk = bundle.chunks[0];
+
+    expect(chunk.habitatLayer.habitats).toEqual([
+      expect.objectContaining({
+        id: 'forest_edge',
+        name: 'Forest Edge',
+        tileX: 0,
+        tileY: 4,
+        width: 6,
+        height: 6,
+        tags: ['wilds', 'forest'],
+        spawnRules: [
+          expect.objectContaining({
+            enemyDefinitionId: 'wolf_passive',
+            maxPopulation: 4,
+            respawnMs: 45_000,
+            lootTableId: 'wolf_common',
+          }),
+        ],
+        manualSpawns: [
+          expect.objectContaining({
+            id: 'fixed_wolf',
+            tileX: 3,
+            tileY: 6,
+          }),
+        ],
+      }),
+    ]);
+
+    const imported = applyDirtyChunkBundle(target, bundle);
+
+    expect(imported.encounterAreas).toEqual([
+      expect.objectContaining({
+        id: 'forest_edge',
+        tileX: 32,
+        tileY: 4,
+        width: 6,
+        height: 6,
+        manualSpawns: [
+          expect.objectContaining({
+            id: 'fixed_wolf',
+            tileX: 35,
+            tileY: 6,
+          }),
+        ],
+      }),
+    ]);
+  });
+
   it('can strip image payloads from project-library chunk bundles', () => {
     const customPaint: EditorTerrainTilePaint = {
       ...stonePaint,
@@ -119,6 +208,28 @@ describe('EditorDirtyChunkBundle', () => {
       flipY: customPaint.flipY,
     });
     expect(referenceOnlyBundle.chunks[0].metadata?.editorTerrainTiles).toBeUndefined();
+  });
+
+  it('exports NPC anchors into chunk npcLayer and imports them back', () => {
+    const source = createEditorMap(64, 32, 'grass', 'source_map', 'Source Map', grassPaint);
+    source.npcAnchors.push({ id: 'maren_1', definitionId: 'trader_maren', tileX: 33, tileY: 5 });
+    const target = createEditorMap(64, 32, 'grass', 'target_map', 'Target Map', grassPaint);
+
+    const bundle = createDirtyChunkBundle(source, [{ chunkX: 1, chunkY: 0 }], {
+      chunkSize: 32,
+      exportedAt: '2026-05-20T00:00:00.000Z',
+      regionId: 'test_region',
+      worldId: 'the_wake',
+    });
+
+    expect(bundle.chunks[0].npcLayer?.anchors).toEqual([
+      expect.objectContaining({ npcDefinitionId: 'trader_maren', tileX: 1, tileY: 5 }),
+    ]);
+
+    const imported = applyDirtyChunkBundle(target, bundle);
+    expect(imported.npcAnchors).toEqual([
+      expect.objectContaining({ id: 'maren_1', definitionId: 'trader_maren', tileX: 33, tileY: 5 }),
+    ]);
   });
 
   it('rejects malformed dirty chunk bundle json safely', () => {

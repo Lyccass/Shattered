@@ -404,7 +404,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const runtime = this.worldRuntimeCoordinator.getCurrentRuntime();
-    this.combatSandboxSystem.setMapContext(runtime.definition.id, runtime.isoTilemap);
+    this.combatSandboxSystem.setMapContext(runtime.definition.id, runtime.isoTilemap, runtime.enemySpawns);
     this.playerController.setExternalOccupancyValidator((feetWorldX, feetWorldY) =>
       this.combatSandboxSystem?.canPlayerOccupy(feetWorldX, feetWorldY) ?? true,
     );
@@ -482,8 +482,9 @@ export class GameScene extends Phaser.Scene {
     const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
-    const tile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
-    const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
+    const rawTile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
+    const dropTile = findNearestWalkableTile(rawTile, isoTilemap) ?? rawTile;
+    const center = isoTilemap.transform.getTileCenterWorld(dropTile.x, dropTile.y);
     this.groundItemSystem.spawnFromLootTable(mapId, lootTables, center.x, center.y, this.time.now);
   }
 
@@ -557,11 +558,53 @@ export class GameScene extends Phaser.Scene {
       this.bindRuntimeSupportSystems();
     }
 
+    if (result.openShopId) {
+      this.openShopPopup(result.openShopId);
+    }
+
     this.worldRuntimeCoordinator.updatePlayerRuntimeState();
 
     if (allowAutosave) {
       this.saveController?.maybeAutosaveForResult(result, this.getSaveControllerContext());
     }
+  }
+
+  private openShopPopup(shopId: string): void {
+    const coordinator = this.worldRuntimeCoordinator;
+    const uiManager = this.uiManager;
+    if (!coordinator || !uiManager) return;
+
+    const shopSnapshot = coordinator.getShopSnapshot(shopId);
+    if (!shopSnapshot) return;
+
+    const getRefreshedState = () => ({
+      shop: coordinator.getShopSnapshot(shopId)!,
+      inventory: coordinator.getPlayerInventorySnapshot(),
+      currency: coordinator.getPlayerCurrencySnapshot(),
+    });
+
+    uiManager.openShop(
+      shopId,
+      shopSnapshot,
+      coordinator.getPlayerInventorySnapshot(),
+      coordinator.getPlayerCurrencySnapshot(),
+      {
+        onBuy: (itemId, qty) => {
+          const r = coordinator.tryBuyFromShop(shopId, itemId, qty);
+          if (r.ok) coordinator.updatePlayerRuntimeState();
+          return r;
+        },
+        onSell: (itemId, qty) => {
+          const r = coordinator.trySellToShop(shopId, itemId, qty);
+          if (r.ok) coordinator.updatePlayerRuntimeState();
+          return r;
+        },
+        getRefreshedState,
+        onMessage: (msg, ok) => {
+          uiManager.pushMessage(msg, ok ? 'game' : 'error');
+        },
+      },
+    );
   }
 
   private tryCombatDodge(): void {
@@ -643,6 +686,25 @@ function getRequestedSpawnId(): string {
   }
 
   return new URLSearchParams(window.location.search).get('spawnId') ?? 'default';
+}
+
+function findNearestWalkableTile(
+  origin: { x: number; y: number },
+  tilemap: { isTileWalkable: (x: number, y: number) => boolean; isTileInBounds: (x: number, y: number) => boolean },
+): { x: number; y: number } | null {
+  const offsets = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 },
+    { x: 1, y: 1 }, { x: -1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 },
+  ];
+  for (const off of offsets) {
+    const tx = origin.x + off.x;
+    const ty = origin.y + off.y;
+    if (tilemap.isTileInBounds(tx, ty) && tilemap.isTileWalkable(tx, ty)) {
+      return { x: tx, y: ty };
+    }
+  }
+  return null;
 }
 
 function isDeferredInteractionAction(

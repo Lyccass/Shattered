@@ -141,7 +141,18 @@ export class WorldInteractionHandlers {
     if (npcDefId && this.npcRegistry?.has(npcDefId)) {
       const def = this.npcRegistry.get(npcDefId);
       const dialogueLine = def.dialogue[0]?.text ?? target.anchor.text;
-      this.getNpcSystem?.()?.showBubble(target.definition.id, '...', nowMs);
+      this.getNpcSystem?.()?.showBubble(target.definition.id, dialogueLine, nowMs);
+
+      if (def.shopId) {
+        return {
+          ok: true,
+          interactionType: 'npc',
+          targetId: target.definition.id,
+          message: dialogueLine,
+          openShopId: def.shopId,
+        };
+      }
+
       return {
         ok: true,
         interactionType: 'npc',

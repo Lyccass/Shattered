@@ -64,6 +64,7 @@ export type EnemyDefinition = {
   deAggroRangeTiles?: number; // max chase distance from player; defaults to 15 tiles
   outOfCombatRegenIntervalMs?: number; // ms between +1 HP ticks when idle; defaults to 15000
   behavior?: EnemyBehavior; // default 'aggressive' when omitted
+  retreatRangeTiles?: number; // if set, wolf retreats to this distance (in attack-range tile units) after each attack
   attacks: EnemyAttackDefinition[];
   lootTables?: EnemyLootTable[];
 };

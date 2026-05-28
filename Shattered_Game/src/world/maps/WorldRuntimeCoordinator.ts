@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
 import { createChunkKey } from '../../shared/world/ChunkKey';
 import { parseEditorObjectDefinitions } from '../../shared/editor/EditorMapModel';
+import { parseEditorEncounterAreas, type EditorEncounterArea } from '../../shared/editor/EditorEncounterModel';
 import type { ActionProgressSnapshot } from '../../actions/ActionProgressTypes';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
@@ -65,8 +66,10 @@ import { WorldInteractionTargetCoordinator } from './WorldInteractionTargetCoord
 import { NpcRegistry } from '../../npcs/NpcRegistry';
 import { NpcSystem } from '../../npcs/NpcSystem';
 import { NpcVisualController } from '../../npcs/NpcVisualController';
+import { ShopSystem } from '../../trading/ShopSystem';
+import type { ShopSnapshot } from '../../trading/TraderTypes';
 import { getChunkCoordForTile } from '../chunks/TerrainChunkMath';
-import { materializeWorldChunkRuntimeLayers } from '../streaming/WorldChunkRuntimeLayers';
+import { materializeWorldChunkRuntimeLayers, type WorldChunkRuntimeLayers } from '../streaming/WorldChunkRuntimeLayers';
 
 export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
@@ -107,6 +110,7 @@ export class WorldRuntimeCoordinator {
   private readonly npcRegistry = new NpcRegistry();
   private npcSystem: NpcSystem | null = null;
   private npcVisualController: NpcVisualController | null = null;
+  private readonly shopSystem = new ShopSystem();
 
   private bindings?: WorldRuntimeBindings;
   private currentRuntime?: LoadedMapRuntime;
@@ -272,6 +276,19 @@ export class WorldRuntimeCoordinator {
       );
     }
 
+    const editorAreas = parseEditorEncounterAreas(runtime.definition.metadata?.editorEncounterAreas);
+    const editorMapId = runtime.definition.id;
+    runtime.enemySpawns = editorAreas.flatMap((area) => [
+      ...(area.manualSpawns ?? []).map((spawn) => ({
+        id: `editor_${spawn.id}`,
+        definitionId: spawn.enemyDefinitionId,
+        mapId: editorMapId,
+        tileX: spawn.tileX,
+        tileY: spawn.tileY,
+      })),
+      ...synthesizeEditorAreaRuleSpawns(area, editorMapId),
+    ]);
+
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
     this.reconcileStreamedWorldRuntime(runtime);
 
@@ -330,6 +347,7 @@ export class WorldRuntimeCoordinator {
 
     const nowMs = this.scene.time.now;
     this.playerSessionState.update(nowMs);
+    this.shopSystem.update(nowMs);
     const resourceStateChanged = this.resourceNodeSystem.updateRuntimeState(
       nowMs,
       this.objectManager.getPlacementSystem(),
@@ -451,6 +469,28 @@ export class WorldRuntimeCoordinator {
     return { ok: true, interactionType: 'item_use', targetId: itemId, message: `Unequipped ${name}.` };
   }
 
+  getPlayerInventorySnapshot() {
+    return this.playerSessionState.getInventorySnapshot();
+  }
+
+  getPlayerCurrencySnapshot() {
+    return this.playerSessionState.getCurrencySnapshot();
+  }
+
+  // ─── Shop ────────────────────────────────────────────────────────────────────
+
+  getShopSnapshot(shopId: string): ShopSnapshot | null {
+    return this.shopSystem.getSnapshot(shopId);
+  }
+
+  tryBuyFromShop(shopId: string, itemId: string, qty = 1): { ok: boolean; message: string } {
+    return this.shopSystem.tryBuy(shopId, itemId, this.playerSessionState, qty);
+  }
+
+  trySellToShop(shopId: string, itemId: string, qty = 1): { ok: boolean; message: string } {
+    return this.shopSystem.trySell(shopId, itemId, this.playerSessionState, qty);
+  }
+
   placeItemInFacingDirection(itemId: string): InteractionResult {
     if (!this.bindings || !this.currentRuntime) {
       return { ok: false, interactionType: 'item_use', targetId: itemId, message: 'Placement unavailable.' };
@@ -493,6 +533,8 @@ export class WorldRuntimeCoordinator {
 
   seedStartingInventory(items: Record<string, number>): void {
     this.playerSessionState.getInventoryState().addMany(items);
+    // Give the player a small purse to get started with trading
+    this.playerSessionState.getCurrencyState().addCopper(250);
   }
 
   setGroundItemCollector(fn: (id: string) => { itemId: string; count: number } | null): void {
@@ -504,6 +546,11 @@ export class WorldRuntimeCoordinator {
   }
 
   private handleGroundItemInteraction(target: GroundItemInteractionTarget): InteractionResult {
+    const inventory = this.playerSessionState.getInventoryState();
+    const isStackable = (id: string) => this.itemRegistry.find(id)?.stackable ?? false;
+    if (!inventory.canAdd(target.itemId, target.count, isStackable, 28)) {
+      return { ok: false, interactionType: 'ground_item', targetId: target.dropId, message: 'Not enough space in your inventory.', toastKind: 'error' };
+    }
     const collected = this.groundItemCollector?.(target.dropId) ?? null;
     if (!collected) {
       return { ok: false, interactionType: 'ground_item', targetId: target.dropId, message: 'Item already gone.' };
@@ -944,6 +991,12 @@ export class WorldRuntimeCoordinator {
 
     const runtimeLayers = activeChunks.map(materializeWorldChunkRuntimeLayers);
 
+    // Collect newly-materialized layers BEFORE the loop marks them, so NPC spawning
+    // can distinguish new chunks from already-loaded ones.
+    const newlyMaterializedLayers = runtimeLayers.filter(
+      (layers) => !streaming.materializedChunkKeys.has(layers.chunkKey),
+    );
+
     for (const layers of runtimeLayers) {
       if (streaming.materializedChunkKeys.has(layers.chunkKey)) {
         continue;
@@ -973,8 +1026,23 @@ export class WorldRuntimeCoordinator {
     }
 
     runtime.definition.objects = runtimeLayers.flatMap((layers) => layers.objects);
-    runtime.interactionAnchors = runtimeLayers.flatMap((layers) => layers.resourceAnchors);
+    const allResourceAnchors = runtimeLayers.flatMap((layers) => layers.resourceAnchors);
+    const allNpcAnchors = runtimeLayers.flatMap((layers) => layers.npcAnchors);
+    runtime.interactionAnchors = [...allResourceAnchors, ...allNpcAnchors];
     runtime.definition.interactionAnchors = runtime.interactionAnchors;
+
+    runtime.enemySpawns = runtimeLayers.flatMap((layers) =>
+      layers.manualEnemySpawns.map((spawn) => ({
+        id: spawn.id,
+        definitionId: spawn.enemyDefinitionId,
+        mapId: runtime.definition.id,
+        tileX: spawn.tileX,
+        tileY: spawn.tileY,
+      }))
+    );
+
+    this.syncStreamedNpcVisuals(runtime, newlyMaterializedLayers);
+
     runtime.transitions = runtimeLayers.flatMap((layers) => layers.transitions);
     runtime.definition.transitions = runtime.transitions;
     this.mapTransitionSystem.setTransitions(runtime.transitions);
@@ -991,6 +1059,38 @@ export class WorldRuntimeCoordinator {
       objectPlacementSystem,
     );
     this.rebuildInteractionTargets();
+  }
+
+  private syncStreamedNpcVisuals(
+    runtime: LoadedMapRuntime,
+    newLayers: WorldChunkRuntimeLayers[],
+  ): void {
+    if (!this.npcSystem || !this.npcVisualController) {
+      return;
+    }
+
+    const newNpcAnchors = newLayers.flatMap((layers) => layers.npcAnchors);
+
+    if (newNpcAnchors.length === 0) {
+      return;
+    }
+
+    const nowMs = this.scene.time.now;
+    for (const anchor of newNpcAnchors) {
+      if (!anchor.npcDefinitionId || !this.npcRegistry.has(anchor.npcDefinitionId)) {
+        continue;
+      }
+      const def = this.npcRegistry.get(anchor.npcDefinitionId);
+      this.npcSystem.spawn(
+        anchor.id,
+        def,
+        anchor.tileX,
+        anchor.tileY,
+        anchor.patrolTiles ?? [],
+        runtime.isoTilemap,
+        nowMs,
+      );
+    }
   }
 
   private async loadTransitionDestination(targetMapId: string, targetSpawnId: string): Promise<void> {
@@ -1082,4 +1182,25 @@ export class WorldRuntimeCoordinator {
 
     this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
   }
+}
+
+function synthesizeEditorAreaRuleSpawns(
+  area: EditorEncounterArea,
+  mapId: string,
+): import('./MapRuntime').RuntimeEnemySpawn[] {
+  const totalTiles = area.width * area.height;
+  return area.spawnRules.flatMap((rule, ruleIndex) => {
+    const count = Math.min(rule.maxPopulation, totalTiles);
+    const stride = Math.max(1, Math.floor(totalTiles / count));
+    return Array.from({ length: count }, (_, i) => {
+      const index = (i * stride) % totalTiles;
+      return {
+        id: `editor_rule_${area.id}_${ruleIndex}_${i}`,
+        definitionId: rule.enemyDefinitionId,
+        mapId,
+        tileX: area.tileX + (index % area.width),
+        tileY: area.tileY + Math.floor(index / area.width),
+      };
+    });
+  });
 }

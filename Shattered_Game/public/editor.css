@@ -483,6 +483,16 @@ canvas {
   margin-top: 0;
 }
 
+.ed-encounter-grid-3,
+.ed-encounter-grid-4 {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.ed-encounter-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.ed-encounter-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
 /* ── Asset management subsection ────────────── */
 .ed-asset-mgmt {
   margin-top: 8px;

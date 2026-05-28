@@ -1,6 +1,7 @@
 import { createChunkKey, type ChunkKey } from '../../shared/world/ChunkKey';
 import type { WorldChunkDefinition } from '../../shared/world/ChunkTypes';
 import type {
+  MapNpcAnchor,
   MapPlacedObject,
   MapResourceNodeAnchor,
   MapTransition,
@@ -9,10 +10,19 @@ import type {
   ResourceNodeType,
 } from '../maps/MapTypes';
 
+export type RuntimeManualEnemySpawn = {
+  id: string;
+  enemyDefinitionId: string;
+  tileX: number;
+  tileY: number;
+};
+
 export type WorldChunkRuntimeLayers = {
   chunkKey: ChunkKey;
   objects: MapPlacedObject[];
   resourceAnchors: MapResourceNodeAnchor[];
+  npcAnchors: MapNpcAnchor[];
+  manualEnemySpawns: RuntimeManualEnemySpawn[];
   transitions: MapTransition[];
   zones: MapZone[];
 };
@@ -80,6 +90,23 @@ export function materializeWorldChunkRuntimeLayers(chunk: WorldChunkDefinition):
         sourceChunkKey: chunkKey,
       },
     })),
+    npcAnchors: (chunk.npcLayer?.anchors ?? []).map((anchor) => ({
+      id: createChunkScopedId(chunk, chunkKey, 'npc', anchor.id),
+      interactionType: 'npc' as const,
+      tileX: tileOrigin.x + anchor.tileX,
+      tileY: tileOrigin.y + anchor.tileY,
+      npcDefinitionId: anchor.npcDefinitionId,
+      text: anchor.text ?? anchor.npcDefinitionId,
+    })),
+    manualEnemySpawns: chunk.habitatLayer.habitats.flatMap((habitat) => [
+      ...(habitat.manualSpawns ?? []).map((spawn) => ({
+        id: createChunkScopedId(chunk, chunkKey, 'spawn', spawn.id),
+        enemyDefinitionId: spawn.enemyDefinitionId,
+        tileX: tileOrigin.x + spawn.tileX,
+        tileY: tileOrigin.y + spawn.tileY,
+      })),
+      ...synthesizeHabitatRuleSpawns(chunk, chunkKey, habitat, tileOrigin),
+    ]),
     zones: chunk.zoneLayer.zones.map((zone) => ({
       id: createChunkScopedId(chunk, chunkKey, 'zone', zone.id),
       tileX: tileOrigin.x + zone.tileX,
@@ -101,10 +128,33 @@ function getChunkTileOrigin(chunk: WorldChunkDefinition): { x: number; y: number
 function createChunkScopedId(
   chunk: WorldChunkDefinition,
   chunkKey: ChunkKey,
-  kind: 'object' | 'resource' | 'transition' | 'zone',
+  kind: 'object' | 'resource' | 'transition' | 'zone' | 'npc' | 'spawn',
   localId: string,
 ): string {
   return `${chunk.worldId}:${chunkKey}:${kind}:${localId}`;
+}
+
+function synthesizeHabitatRuleSpawns(
+  chunk: WorldChunkDefinition,
+  chunkKey: ChunkKey,
+  habitat: WorldChunkDefinition['habitatLayer']['habitats'][number],
+  tileOrigin: { x: number; y: number },
+): RuntimeManualEnemySpawn[] {
+  const totalTiles = habitat.width * habitat.height;
+  return habitat.spawnRules.flatMap((rule, ruleIndex) => {
+    const defId = rule.enemyDefinitionId ?? rule.creatureFamilyId;
+    const count = Math.min(rule.maxPopulation ?? 1, totalTiles);
+    const stride = Math.max(1, Math.floor(totalTiles / count));
+    return Array.from({ length: count }, (_, i) => {
+      const index = (i * stride) % totalTiles;
+      return {
+        id: createChunkScopedId(chunk, chunkKey, 'spawn', `${habitat.id}_r${ruleIndex}_${i}`),
+        enemyDefinitionId: defId,
+        tileX: tileOrigin.x + habitat.tileX + (index % habitat.width),
+        tileY: tileOrigin.y + habitat.tileY + Math.floor(index / habitat.width),
+      };
+    });
+  });
 }
 
 function isResourceNodeType(value: unknown): value is ResourceNodeType {

@@ -16,7 +16,6 @@ import type { TelegraphSystem } from './TelegraphSystem';
 import type { IsoTilemap } from '../world/IsoTilemap';
 import { EnemyAttackTileRenderer } from './EnemyAttackTileRenderer';
 import {
-  blocksEnemyFeetAt,
   getEnemyOccupiedTile,
   getEnemyOccupiedTiles,
   getEnemyOccupiedTileSamples,
@@ -210,12 +209,12 @@ export class EnemySystem {
   }
 
   blocksFeetAt(worldX: number, worldY: number): boolean {
-    return blocksEnemyFeetAt({
-      tilemap: this.tilemap,
-      occupiedTile: this.getOccupiedTile(),
-      worldX,
-      worldY,
-    });
+    if (!this.runtimeState || !this.definition || !this.tilemap) return false;
+    if (this.runtimeState.currentState === 'dead') return false;
+    const dx = worldX - this.runtimeState.worldX;
+    const dy = worldY - this.runtimeState.worldY;
+    const radiusPx = this.definition.collisionRadiusTiles * this.tilemap.tileWidth;
+    return dx * dx + dy * dy < radiusPx * radiusPx;
   }
 
   getOccupiedTile(): { x: number; y: number } | null {
@@ -256,15 +255,27 @@ export class EnemySystem {
     this.visualController.applyState(state, this.definition, nowMs, isActuallyMoving);
   }
 
-  private applyTelegraphEvents(events: EnemyUpdateEvent[], _nowMs: number): void {
+  private applyTelegraphEvents(events: EnemyUpdateEvent[], nowMs: number): void {
     events.forEach((event) => {
       if (event.kind === 'telegraph_show') {
+        this.telegraphSystem.showTelegraph({
+          id: event.telegraphId,
+          worldX: event.worldX,
+          worldY: event.worldY,
+          shape: event.shape,
+          durationMs: event.durationMs,
+          startedAtMs: nowMs,
+          warningColor: resolveAttackWarningColor(event.attackKind),
+          strokeAlpha: 0.85,
+          fillAlphaMultiplier: 0.28,
+        });
         if (event.tiles && event.tiles.length > 0) {
           this.attackTileRenderer.render(event.tiles, event.attackKind);
         }
       }
 
       if (event.kind === 'telegraph_remove') {
+        this.telegraphSystem.removeTelegraph(event.telegraphId);
         this.attackTileRenderer.clear();
       }
     });
@@ -308,5 +319,14 @@ export class EnemySystem {
     this.attackTileRenderer.clear();
 
     this.runtimeState = resetEnemyRuntimeState(this.runtimeState, this.definition);
+  }
+}
+
+function resolveAttackWarningColor(attackKind: string): number {
+  switch (attackKind) {
+    case 'jump': return 0xf97316;
+    case 'stab': return 0xfbbf24;
+    case 'cone': return 0xa855f7;
+    default: return 0xef4444;
   }
 }

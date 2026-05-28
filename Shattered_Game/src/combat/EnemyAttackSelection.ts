@@ -29,8 +29,8 @@ export function selectEnemyAttack(
   }
 
   const stab = readyAttacks.find((attack) => attack.kind === 'stab');
-  const cone = readyAttacks.find((attack) => attack.kind === 'cone');
   const jump = readyAttacks.find((attack) => attack.kind === 'jump');
+  const cone = readyAttacks.find((attack) => attack.kind === 'cone');
 
-  return stab ?? cone ?? jump ?? readyAttacks[0] ?? null;
+  return stab ?? jump ?? cone ?? readyAttacks[0] ?? null;
 }

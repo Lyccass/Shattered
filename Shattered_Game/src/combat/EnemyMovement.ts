@@ -34,6 +34,7 @@ export function moveToward(
 export function resolveApproachTarget(
   state: EnemyRuntimeState,
   context: EnemyUpdateContext,
+  orbitTiles = 1.0,
 ): { x: number; y: number } {
   const dx = state.worldX - context.playerWorldX;
   const dy = state.worldY - context.playerWorldY;
@@ -52,13 +53,41 @@ export function resolveApproachTarget(
   const tangentX = -outwardY * state.orbitDirection;
   const tangentY = outwardX * state.orbitDirection;
   const orbitRadius = context.nowMs < state.settleUntilMs
-    ? context.tileWidth * (1.95 + 0.65 * Math.sin(context.nowMs * 0.006))
-    : context.tileWidth * 2.6;
-  const tangentBias = context.tileWidth * 1.6;
+    ? context.tileWidth * (0.8 + 0.4 * Math.sin(context.nowMs * 0.006))
+    : context.tileWidth * orbitTiles;
+  const tangentBias = context.tileWidth * 0.5;
 
   return {
     x: context.playerWorldX + outwardX * orbitRadius + tangentX * tangentBias,
     y: context.playerWorldY + outwardY * orbitRadius + tangentY * tangentBias,
+  };
+}
+
+export function resolveRetreatTarget(
+  state: EnemyRuntimeState,
+  context: EnemyUpdateContext,
+  retreatDistanceWorld: number,
+): { x: number; y: number } {
+  const dx = state.worldX - context.playerWorldX;
+  const dy = state.worldY - context.playerWorldY;
+  const distanceToPlayer = Math.hypot(dx, dy);
+
+  if (distanceToPlayer <= 0.001) {
+    const angle = state.facingRad + Math.PI;
+    return {
+      x: state.worldX + Math.cos(angle) * retreatDistanceWorld,
+      y: state.worldY + Math.sin(angle) * retreatDistanceWorld,
+    };
+  }
+
+  const outwardX = dx / distanceToPlayer;
+  const outwardY = dy / distanceToPlayer;
+  const tangentX = -outwardY * state.orbitDirection;
+  const tangentY = outwardX * state.orbitDirection;
+
+  return {
+    x: context.playerWorldX + outwardX * retreatDistanceWorld + tangentX * retreatDistanceWorld * 0.2,
+    y: context.playerWorldY + outwardY * retreatDistanceWorld + tangentY * retreatDistanceWorld * 0.2,
   };
 }
 

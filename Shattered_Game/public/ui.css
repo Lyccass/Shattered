@@ -1668,3 +1668,223 @@
 .choice-menu-footer span {
   margin-right: 8px;
 }
+
+/* ═══════════════════════════════════════════════════════
+   SHOP POPUP  (.ui-popup--shop + .shp-*)
+   OSRS-style: store grid (left) | inventory grid (right)
+   + info/action bar at the bottom
+   ═══════════════════════════════════════════════════════ */
+
+.ui-popup--shop {
+  width: 580px;
+}
+
+.ui-popup--shop .ui-popup-body {
+  padding: 0;
+}
+
+/* ── Root layout ───────────────────────────────────────── */
+.shp-root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Two-pane split ────────────────────────────────────── */
+.shp-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid var(--c-panel-border);
+}
+
+.shp-pane {
+  padding: 10px 12px 12px;
+}
+
+.shp-pane + .shp-pane {
+  border-left: 1px solid var(--c-panel-border);
+}
+
+.shp-pane-label {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.shp-pane-label--full {
+  color: #ef4444;
+}
+
+/* ── Item slot grid ────────────────────────────────────── */
+.shp-grid {
+  display: grid;
+  gap: 4px;
+}
+
+.shp-slot {
+  aspect-ratio: 1;
+  background: var(--c-slot-bg);
+  border: var(--border-slot);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  transition: background var(--tr), border-color var(--tr);
+  overflow: hidden;
+}
+
+.shp-slot:not(:empty) {
+  cursor: pointer;
+}
+
+.shp-slot:not(:empty):hover {
+  background: var(--c-slot-hover);
+  border-color: var(--c-secondary);
+}
+
+.shp-slot--selected {
+  border-color: var(--c-primary) !important;
+  box-shadow: 0 0 0 1px var(--c-primary) inset;
+  background: rgba(210, 160, 60, 0.12) !important;
+}
+
+.shp-slot--depleted {
+  opacity: 0.35;
+}
+
+.shp-slot--no-value {
+  opacity: 0.5;
+}
+
+.shp-slot-icon {
+  font-size: 22px;
+  line-height: 1;
+  user-select: none;
+}
+
+.shp-slot-count {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 9px;
+  color: #ffffaa;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* ── Info / action bar ─────────────────────────────────── */
+.shp-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  min-height: 54px;
+  background: rgba(97, 60, 24, 0.12);
+  flex-shrink: 0;
+}
+
+.shp-info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.shp-info-icon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.shp-info-name {
+  font-size: var(--fs-sm);
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.shp-info-price {
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.shp-info-price--buy  { color: var(--c-copper); }
+.shp-info-price--sell { color: #8ecf8e; }
+
+.shp-info-stock {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  white-space: nowrap;
+}
+
+.shp-info-hint {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  font-style: italic;
+}
+
+.shp-info-no-value {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  font-style: italic;
+}
+
+.shp-info-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Transaction buttons ───────────────────────────────── */
+.shp-btn {
+  padding: 4px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--c-panel-border);
+  background: var(--c-slot-bg);
+  color: var(--c-text);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--tr), border-color var(--tr), color var(--tr);
+}
+
+.shp-btn:hover:not(:disabled) {
+  background: var(--c-slot-hover);
+  border-color: var(--c-secondary);
+  color: var(--c-primary);
+}
+
+.shp-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Purse balance ─────────────────────────────────────── */
+.shp-info-purse {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  padding-left: 8px;
+  border-left: 1px solid var(--c-panel-border);
+  white-space: nowrap;
+}
+
+.shp-bal-label  { color: var(--c-text-dim); margin-right: 2px; }
+.shp-bal-copper { color: var(--c-copper); }
+.shp-bal-silver { color: var(--c-silver); }
+.shp-bal-gold   { color: var(--c-gold); }
+.shp-bal-plat   { color: var(--c-platinum); }

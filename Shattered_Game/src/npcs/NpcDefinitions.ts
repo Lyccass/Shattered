@@ -14,8 +14,9 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
     ],
     dialogue: [
       {
-        text: 'Welcome. I deal in supplies and curiosities. Trading is coming soon.',
+        text: 'Welcome. Browse my wares — good stock, fair prices.',
       },
     ],
+    shopId: 'maren_general',
   },
 ];

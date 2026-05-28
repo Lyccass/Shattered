@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { TerrainFamily } from '../../shared/map/TerrainTypes';
 
-export type EditorToolMode = 'terrain' | 'object' | 'walkability' | 'elevation' | 'zone';
+export type EditorToolMode = 'terrain' | 'object' | 'walkability' | 'elevation' | 'zone' | 'encounter' | 'npc';
 type ZoomDirection = 'in' | 'out';
 
 type EditorInputHandlers = {
