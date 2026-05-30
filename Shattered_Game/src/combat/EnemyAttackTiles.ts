@@ -147,7 +147,7 @@ function tileMatchesAttackShape(
   return isPointInsideAttackAtPoint(attack, state, context, center.x, center.y);
 }
 
-function isPointInsideAttackAtPoint(
+export function isPointInsideAttackAtPoint(
   attack: EnemyAttackDefinition,
   state: EnemyRuntimeState,
   context: EnemyUpdateContext,

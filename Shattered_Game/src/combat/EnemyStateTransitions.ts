@@ -1,7 +1,7 @@
 import { computeEnemyBlockingRadius } from './EnemyMetrics';
 import { clearAttackState, getCurrentAttack } from './EnemyAttackState';
 import { selectEnemyAttack } from './EnemyAttackSelection';
-import { buildAttackTargetTiles } from './EnemyAttackTiles';
+import { buildAttackTargetTiles, isPointInsideAttackAtPoint } from './EnemyAttackTiles';
 import {
   moveToward,
   resolveApproachTarget,
@@ -212,7 +212,8 @@ export function handleEnemyApproach({
     return;
   }
 
-  const approachTarget = resolveApproachTarget(state, context);
+  const orbitTiles = resolveDesiredOrbitTiles(definition, state, context);
+  const approachTarget = resolveApproachTarget(state, context, orbitTiles);
   const preApproachX = state.worldX;
   const preApproachY = state.worldY;
 
@@ -335,7 +336,7 @@ export function handleEnemyActive({
   }
 
   if (!state.attackResolved) {
-    const hitResult = evaluateAttackHit(state, context);
+    const hitResult = evaluateAttackHit(definition, state, context);
 
     if (hitResult.reason !== 'outside') {
       const knockbackFields = attack.knockback && hitResult.hit
@@ -608,14 +609,44 @@ function buildAttackTelegraph(
   }
 }
 
+function resolveDesiredOrbitTiles(
+  definition: EnemyDefinition,
+  state: EnemyRuntimeState,
+  context: EnemyUpdateContext,
+): number {
+  if (context.nowMs < state.globalCooldownEndsAtMs) return 1.0;
+
+  const biteOrConeReady = definition.attacks.some(
+    (a) => (a.kind === 'stab' || a.kind === 'cone') && context.nowMs >= (state.attackCooldownEndsAtMs[a.id] ?? 0),
+  );
+  if (biteOrConeReady) return 1.0;
+
+  const jumpReady = definition.attacks.some(
+    (a) => a.kind === 'jump' && context.nowMs >= (state.attackCooldownEndsAtMs[a.id] ?? 0),
+  );
+  if (jumpReady) return 2.0;
+
+  return 1.0;
+}
+
 function evaluateAttackHit(
+  definition: EnemyDefinition,
   state: EnemyRuntimeState,
   context: EnemyUpdateContext,
 ): { hit: boolean; reason: 'hit' | 'outside' | 'invulnerable' } {
-  const inShape = state.attackTargetTiles.some((attackTile) =>
-    context.playerOccupiedTiles.some((playerTile) =>
-      playerTile.x === attackTile.x && playerTile.y === attackTile.y,
-    ));
+  const attack = definition.attacks.find((a) => a.id === state.currentAttackId);
+
+  if (!attack) {
+    return { hit: false, reason: 'outside' };
+  }
+
+  const inShape = isPointInsideAttackAtPoint(
+    attack,
+    state,
+    context,
+    context.playerWorldX,
+    context.playerWorldY,
+  );
 
   if (!inShape) {
     return { hit: false, reason: 'outside' };

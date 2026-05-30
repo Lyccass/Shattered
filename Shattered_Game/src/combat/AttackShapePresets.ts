@@ -17,11 +17,11 @@ export const CONE_3T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTile
 export const CONE_5T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 5,   angleDeg: 120, minRangeTiles: 0.5 };
 export const CONE_7T: EnemyAttackTelegraphDefinition = { kind: 'cone', rangeTiles: 7,   angleDeg: 120, minRangeTiles: 0.5 };
 
-// ── Jump circles — perfect circle landing zones ───────────────────────────────
-export const CIRCLE_SM: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 1.5 };
-export const CIRCLE_MD: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 2.0 };
-export const CIRCLE_LG: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 2.5 };
-export const CIRCLE_XL: EnemyAttackTelegraphDefinition = { kind: 'circle', radiusTiles: 3.0 };
+// ── Jump ovals — isometric ellipses (2:1 X:Y matches tile aspect ratio) ──────
+export const CIRCLE_SM: EnemyAttackTelegraphDefinition = { kind: 'ellipse', radiusXTiles: 1.5, radiusYTiles: 0.75 };
+export const CIRCLE_MD: EnemyAttackTelegraphDefinition = { kind: 'ellipse', radiusXTiles: 2.0, radiusYTiles: 1.0 };
+export const CIRCLE_LG: EnemyAttackTelegraphDefinition = { kind: 'ellipse', radiusXTiles: 2.5, radiusYTiles: 1.25 };
+export const CIRCLE_XL: EnemyAttackTelegraphDefinition = { kind: 'ellipse', radiusXTiles: 3.0, radiusYTiles: 1.5 };
 
 // ── Stabs — narrow forward thrust, offset so the attacker body is excluded ───
 export const STAB_1T: EnemyAttackTelegraphDefinition  = { kind: 'rectangle', lengthTiles: 1.5, widthTiles: 1.0, minOffsetTiles: 0.3 };

@@ -30,7 +30,7 @@ export const WOLF_PASSIVE: EnemyDefinition = {
       displayName: 'Bite',
       kind: 'stab',
       minRangeTiles: 0,
-      maxRangeTiles: 1.5,
+      maxRangeTiles: 2.5,
       damage: 1,
       timing: { windupMs: 500, activeMs: 160, recoveryMs: 700 },
       telegraph: STAB_2T,

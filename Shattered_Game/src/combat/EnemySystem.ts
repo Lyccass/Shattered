@@ -269,14 +269,10 @@ export class EnemySystem {
           strokeAlpha: 0.85,
           fillAlphaMultiplier: 0.28,
         });
-        if (event.tiles && event.tiles.length > 0) {
-          this.attackTileRenderer.render(event.tiles, event.attackKind);
-        }
       }
 
       if (event.kind === 'telegraph_remove') {
         this.telegraphSystem.removeTelegraph(event.telegraphId);
-        this.attackTileRenderer.clear();
       }
     });
   }

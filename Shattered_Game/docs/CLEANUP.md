@@ -134,6 +134,17 @@ Progress:
   pass overlay state rather than draw shapes directly.
 - 2026-05-28: Extracted the connection panel open/save/delete workflow into
   `src/editor/ui/EditorConnectionPanelController.ts`.
+- 2026-05-28: Extracted world/chunk window panel binding, form parsing, world
+  creation, and load dispatch into
+  `src/editor/ui/EditorWorldPanelController.ts`.
+- 2026-05-28: Extracted dirty chunk save, project-world verification,
+  chunk-library save/load/delete, and save-confidence snapshot ownership into
+  `src/editor/chunks/EditorChunkPersistenceController.ts`.
+- 2026-05-30: Extracted custom terrain/object definition create/delete
+  workflows into
+  `src/editor/assets/EditorCustomDefinitionWorkflowController.ts`.
+- 2026-05-30: Extracted resize-map and chunk-name panel binding/parsing into
+  `src/editor/ui/EditorMapStructurePanelController.ts`.
 
 Acceptance:
 

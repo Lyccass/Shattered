@@ -696,13 +696,14 @@ export class CombatSandboxSystem {
 
     const feet = playerController.getFeetPoint();
     for (const es of this.enemySystems) {
+      if (!es.blocksFeetAt(feet.x, feet.y)) continue;
       const pos = es.getWorldPosition();
       if (!pos) continue;
       const radiusPx = es.getCollisionRadiusTiles() * this.currentTilemap.tileWidth;
       const dx = feet.x - pos.x;
       const dy = feet.y - pos.y;
       const distSq = dx * dx + dy * dy;
-      if (distSq >= radiusPx * radiusPx || distSq < 0.0001) continue;
+      if (distSq < 0.0001) continue;
       const dist = Math.sqrt(distSq);
       const push = radiusPx - dist;
       feet.x += (dx / dist) * push;
