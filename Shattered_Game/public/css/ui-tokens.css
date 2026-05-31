@@ -1,0 +1,100 @@
+/* ═══════════════════════════════════════════════════════
+   SHATTERED — UI DESIGN TOKENS
+   Edit :root to retheme the entire UI at once.
+   ═══════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Asimovian';
+  src: url('/assets/fonts/Asimovian-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+:root {
+  /* ── Brand Colors ─────────────────────────────────── */
+  --c-primary:        #FFFCC3;
+  --c-primary-dim:    #CECCA0;
+  --c-secondary:      #613C18;
+  --c-secondary-dark: #3a2209;
+
+  /* ── Icon States ──────────────────────────────────── */
+  --c-icon-default:    #FFFCC3;
+  --c-icon-active:     #E592DC;
+  --c-combat-active:   #FF0000;
+  --c-combat-inactive: #CECCA0;
+
+  /* ── Surfaces ─────────────────────────────────────── */
+  --c-panel-bg:    rgba(6, 3, 1, 0.70);
+  --c-panel-border:#613C18;
+  --c-slot-bg:     rgba(16, 8, 2, 0.65);
+  --c-slot-border: #3a2209;
+  --c-slot-hover:  rgba(255, 252, 195, 0.08);
+  --c-surface-alt: rgba(28, 14, 4, 0.80);
+
+  /* ── Glass / Blur ─────────────────────────────────── */
+  --glass-blur:       14px;
+  --glass-blur-popup: 22px;
+
+  /* ── Semantic Text ────────────────────────────────── */
+  --c-text:        #FFFCC3;
+  --c-text-dim:    #CECCA0;
+  --c-text-muted:  #7a6840;
+  --c-text-system: #a0c4ff;
+  --c-text-reward: #ffd700;
+  --c-text-enemy:  #ff6b6b;
+  --c-text-error:  #ff4444;
+
+  /* ── HP / Bars ────────────────────────────────────── */
+  --c-hp-fill:   #3d8a3d;
+  --c-hp-low:    #c03030;
+  --c-hp-bg:     #111111;
+  --c-stam-fill: #b8860b;
+
+  /* ── Currency ─────────────────────────────────────── */
+  --c-copper:   #b87333;
+  --c-silver:   #c0c0c0;
+  --c-gold:     #ffd700;
+  --c-platinum: #e5e4e2;
+
+  /* ── Typography ───────────────────────────────────── */
+  --font: 'Asimovian', 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+  --fs-xs:   13px;
+  --fs-sm:   15px;
+  --fs-base: 16px;
+  --fs-md:   18px;
+  --fs-lg:   20px;
+  --fs-xl:   23px;
+
+  /* ── Spacing ──────────────────────────────────────── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+
+  /* ── Dimensions ───────────────────────────────────── */
+  /*
+    Panel height and icon bar height must match.
+    Icon bar total = 8 × --icon-btn-h + 8 × 4px (gaps) + 8px (padding)
+    = 8×52 + 32 + 8 = 456px + spacer → set taskbar height to --panel-h
+  */
+  --panel-w:     245px;
+  --panel-h:     480px;   /* = taskbar column height */
+  --icon-col-w:  62px;
+  --icon-btn-h:  52px;
+  --slot-size:   55px;
+  --minimap-size:185px;
+  --orb-size:    36px;
+  --chat-w:      525px;
+  --chat-h:      150px;
+  --enemy-w:     260px;
+
+  /* ── Effects ──────────────────────────────────────── */
+  --border-panel: 2px solid var(--c-panel-border);
+  --border-slot:  1px solid var(--c-slot-border);
+  --radius-sm:    3px;
+  --radius-md:    5px;
+  --shadow:       0 4px 24px rgba(0,0,0,0.75), 0 1px 4px rgba(0,0,0,0.5);
+  --tr:           80ms ease;
+}
+
+

@@ -1,0 +1,146 @@
+/* ── Visibility utility ── */
+.editor-hidden { display: none !important; }
+
+html, body {
+  width: 100%; height: 100%;
+  margin: 0; overflow: hidden;
+  background: #07111f;
+  position: relative;
+}
+
+#editor {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+}
+
+canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* ── Editor overlay — column layout ─────────── */
+#editor-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ══════════════════════════════════════════════
+   MENU BAR
+   ══════════════════════════════════════════════ */
+.ed-menubar {
+  pointer-events: all;
+  flex-shrink: 0;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(8, 4, 1, 0.96);
+  border-bottom: 1px solid var(--c-secondary-dark);
+  padding: 0 8px;
+  font-family: var(--font);
+  user-select: none;
+  overflow: hidden;
+}
+
+.ed-menu-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+}
+
+.ed-menu-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #4a3618;
+  margin-right: 3px;
+  white-space: nowrap;
+}
+
+.ed-menu-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--c-secondary-dark);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.ed-menu-spacer {
+  flex: 1;
+}
+
+.ed-menu-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--c-text-muted);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 7px;
+  cursor: pointer;
+  border-radius: 2px;
+  white-space: nowrap;
+  line-height: 1;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.ed-menu-btn:hover {
+  background: var(--c-slot-hover);
+  color: var(--c-primary-dim);
+  border-color: var(--c-slot-border);
+}
+
+.ed-menu-btn:active {
+  background: rgba(97, 60, 24, 0.4);
+  color: var(--c-primary);
+}
+
+.ed-menu-btn--accent {
+  color: #86efac;
+  border-color: rgba(134, 239, 172, 0.25);
+}
+
+.ed-menu-btn--accent:hover {
+  background: rgba(134, 239, 172, 0.1);
+  color: #bbf7d0;
+  border-color: rgba(134, 239, 172, 0.5);
+}
+
+.ed-menu-name-input {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--c-primary-dim);
+  font-family: var(--font);
+  font-size: 11px;
+  padding: 3px 6px;
+  width: 160px;
+  outline: none;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.ed-menu-name-input:hover {
+  border-color: var(--c-slot-border);
+  background: var(--c-slot-hover);
+}
+
+.ed-menu-name-input:focus {
+  border-color: var(--c-panel-border);
+  background: rgba(16, 8, 2, 0.8);
+  color: var(--c-text);
+}
+
+.ed-menu-dirty {
+  font-size: 10px;
+  color: var(--c-text-muted);
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.ed-menu-dirty.is-dirty { color: #f59e0b; }
+

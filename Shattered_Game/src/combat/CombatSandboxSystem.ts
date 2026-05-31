@@ -677,7 +677,12 @@ export class CombatSandboxSystem {
           this.currentAttackRecoveryMs,
         );
         this.playerAttackHitResolved = false;
-        this.playerAttackFeedbackRenderer.clear();
+        this.playerAttackFeedbackRenderer.showRecovery({
+          nowMs,
+          tilemap: this.currentTilemap,
+          playerController,
+          recoveryMs: this.currentAttackRecoveryMs,
+        });
         break;
       default:
 

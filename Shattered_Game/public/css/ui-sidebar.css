@@ -1,0 +1,707 @@
+/* ═══════════════════════════════════════════════════════
+   BOTTOM-RIGHT: SIDEBAR
+   [panel area] [icon column]   — both anchored to bottom
+   ═══════════════════════════════════════════════════════ */
+
+#ui-sidebar {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+/* ── Panel Area (left of icon column) ───────────────── */
+
+.ui-panel-area {
+  width: var(--panel-w);
+  height: var(--panel-h);
+  background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-top: var(--border-panel);
+  border-left: var(--border-panel);
+  border-bottom: var(--border-panel);
+  border-right: 1px solid var(--c-secondary-dark);
+  overflow: hidden;   /* no scrollbars; content must fit */
+  flex-shrink: 0;
+}
+
+/* Skills panel floats to top-left, detached from sidebar */
+.ui-panel-area--topleft {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  width: 310px;
+  height: auto;
+  max-height: 460px;
+  border: var(--border-panel);
+  border-radius: var(--radius-md);
+  overflow: visible;
+  box-shadow: var(--shadow);
+}
+
+.ui-panel-area--topleft .skills-tab {
+  height: auto;
+  max-height: 420px;
+  border-radius: var(--radius-md);
+}
+
+/* Larger, more prominent skill rows when in top-left view */
+.ui-panel-area--topleft .skill-row {
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+.ui-panel-area--topleft .skill-name {
+  font-size: var(--fs-md);
+}
+
+.ui-panel-area--topleft .skill-rank-stage {
+  font-size: var(--fs-xs);
+}
+
+.ui-panel-area--topleft .skill-bar-track {
+  height: 9px;
+}
+
+.ui-panel-area--topleft .skill-xp {
+  font-size: var(--fs-xs);
+}
+
+.panel-tab-content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.panel-title {
+  font-size: var(--fs-sm);
+  color: var(--c-text-muted);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  padding: var(--sp-2) var(--sp-3) var(--sp-1);
+  border-bottom: 1px solid var(--c-secondary-dark);
+  flex-shrink: 0;
+}
+
+/* ── Vertical Icon Column (right edge) ──────────────── */
+
+.ui-taskbar {
+  width: var(--icon-col-w);
+  height: var(--panel-h);
+  background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--border-panel);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;   /* buttons fill full column width */
+  padding: var(--sp-1) 0;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Spacer pushes Settings to the bottom */
+.taskbar-spacer { flex: 1; }
+
+/* Visual divider between taskbar button groups */
+.taskbar-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--c-secondary), transparent);
+  margin: 3px 8px;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
+.taskbar-btn {
+  width: 100%;
+  height: var(--icon-btn-h);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  position: relative;
+  transition: background var(--tr);
+  flex-shrink: 0;
+}
+
+.taskbar-btn:hover { background: var(--c-slot-hover); }
+
+/* Active: full-width tinted background + inset right-edge accent — no pseudo-element, no nested box */
+.taskbar-btn.is-active {
+  background: rgba(229, 146, 220, 0.13);
+  box-shadow: inset -3px 0 0 var(--c-icon-active);
+}
+
+/* CSS-mask technique: fixed square icon, centered in button */
+.taskbar-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+          mask: var(--icon-url) center / contain no-repeat;
+  background-color: var(--c-icon-default);
+  transition: background-color var(--tr);
+}
+
+.taskbar-btn.is-active .taskbar-icon         { background-color: var(--c-icon-active); }
+.taskbar-btn--combat   .taskbar-icon         { background-color: var(--c-combat-inactive); }
+.taskbar-btn--combat.combat-on               { background: rgba(255, 0, 0, 0.10); box-shadow: inset -3px 0 0 var(--c-combat-active); }
+.taskbar-btn--combat.combat-on .taskbar-icon { background-color: var(--c-combat-active); }
+.taskbar-btn--sprint.sprint-on               { background: rgba(255, 210, 60, 0.10); box-shadow: inset -3px 0 0 #FFD23C; }
+.taskbar-btn--sprint.sprint-on .taskbar-icon { background-color: #FFD23C; }
+
+
+/* Tooltip — opens to the LEFT */
+.taskbar-btn[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  right: calc(100% + 6px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--c-panel-bg);
+  border: 1px solid var(--c-secondary);
+  color: var(--c-text);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  padding: 3px var(--sp-2);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  letter-spacing: 0.05em;
+  z-index: 20;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   INVENTORY TAB — flex-fill, no scroll
+   ═══════════════════════════════════════════════════════ */
+
+.inventory-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-2) 0;
+  gap: var(--sp-2);
+}
+
+.inventory-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.inv-slot {
+  background: var(--c-slot-bg);
+  border: var(--border-slot);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  overflow: hidden;
+  transition: background var(--tr), border-color var(--tr);
+}
+
+.inv-slot:hover         { background: var(--c-slot-hover); border-color: var(--c-secondary-dark); }
+.inv-slot.has-item      { cursor: pointer; }
+.inv-slot.has-item:hover { border-color: var(--c-secondary); }
+
+.inv-slot-icon  { font-size: 20px; line-height: 1; user-select: none; }
+.inv-slot-label { font-size: 9px; color: var(--c-text-dim); text-align: center; padding: 2px; word-break: break-word; }
+.inv-slot-count {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-size: var(--fs-xs);
+  color: #ffffaa;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.coin-purse {
+  flex-shrink: 0;
+  height: 50px;
+  margin-bottom: var(--sp-2);
+  background: var(--c-slot-bg);
+  border: var(--border-slot);
+  border-radius: var(--radius-sm);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 var(--sp-2);
+}
+
+.coin-entry { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.coin-symbol { font-size: 14px; line-height: 1; }
+.coin-value  { font-size: var(--fs-xs); letter-spacing: 0.04em; }
+
+.coin-entry--copper .coin-value { color: var(--c-copper); }
+.coin-entry--silver .coin-value { color: var(--c-silver); }
+.coin-entry--gold   .coin-value { color: var(--c-gold); }
+.coin-entry--plat   .coin-value { color: var(--c-platinum); }
+
+
+/* ═══════════════════════════════════════════════════════
+   INVENTORY — DRAG / SELECTION STATES
+   ═══════════════════════════════════════════════════════ */
+
+.inv-slot.drag-over {
+  border-color: var(--c-primary);
+  background: rgba(255,252,195,0.12);
+}
+
+.inv-slot.dragging {
+  opacity: 0.45;
+}
+
+.inv-slot.is-selected {
+  border-color: #e592dc;
+  box-shadow: 0 0 0 1px #e592dc inset;
+  background: rgba(229,146,220,0.10);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ITEM CONTEXT MENU
+   ═══════════════════════════════════════════════════════ */
+
+.item-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 148px;
+  background: var(--c-panel-bg);
+  backdrop-filter: blur(var(--glass-blur-popup));
+  -webkit-backdrop-filter: blur(var(--glass-blur-popup));
+  border: var(--border-panel);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  padding: 4px 0;
+  pointer-events: auto;
+  font-family: var(--font);
+}
+
+.item-ctx-btn {
+  display: block;
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  color: var(--c-text);
+  font-family: var(--font);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: background var(--tr);
+}
+
+.item-ctx-btn:hover {
+  background: var(--c-slot-hover);
+  color: var(--c-primary);
+}
+
+.item-ctx-btn--danger {
+  color: var(--c-text-error);
+}
+
+.item-ctx-btn--danger:hover {
+  background: rgba(255,68,68,0.10);
+  color: #ff6666;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   EQUIPMENT TAB
+   ═══════════════════════════════════════════════════════ */
+
+.equipment-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Equipment / Stats toggle bar ── */
+.equip-toggle-bar {
+  display: flex;
+  border-bottom: 2px solid var(--c-panel-border);
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.equip-toggle-btn {
+  flex: 1;
+  padding: 9px 4px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  color: var(--c-text-muted);
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--tr), border-color var(--tr), background var(--tr);
+}
+.equip-toggle-btn:hover {
+  color: var(--c-text-dim);
+  background: rgba(255, 255, 255, 0.04);
+}
+.equip-toggle-btn--active {
+  color: var(--c-primary) !important;
+  border-bottom-color: var(--c-secondary) !important;
+  background: rgba(97, 60, 24, 0.22);
+}
+
+.equip-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-secondary) transparent;
+}
+
+/* ── Equipment slot grid ── */
+.equipment-layout {
+  height: 100%;
+  display: grid;
+  grid-template-areas:
+    ". head ."
+    "back necklace ammo"
+    "gloves body ring"
+    "main_hand legs off_hand"
+    ". feet .";
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: repeat(5, 1fr);
+  gap: 4px;
+  padding: var(--sp-2);
+}
+
+.equip-slot {
+  background: var(--c-slot-bg);
+  border: 1px solid var(--c-slot-border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  cursor: pointer;
+  transition: background var(--tr), border-color var(--tr);
+  position: relative;
+}
+.equip-slot::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.07);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.equip-slot:hover {
+  background: var(--c-slot-hover);
+  border-color: var(--c-secondary-dark);
+}
+
+.equip-slot-label {
+  font-size: 8px;
+  color: var(--c-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+}
+
+.equip-slot[data-slot="head"]      { grid-area: head; }
+.equip-slot[data-slot="back"]      { grid-area: back; }
+.equip-slot[data-slot="necklace"]  { grid-area: necklace; }
+.equip-slot[data-slot="ammo"]      { grid-area: ammo; }
+.equip-slot[data-slot="gloves"]    { grid-area: gloves; }
+.equip-slot[data-slot="body"]      { grid-area: body; }
+.equip-slot[data-slot="ring"]      { grid-area: ring; }
+.equip-slot[data-slot="main_hand"] { grid-area: main_hand; }
+.equip-slot[data-slot="legs"]      { grid-area: legs; }
+.equip-slot[data-slot="off_hand"]  { grid-area: off_hand; }
+.equip-slot[data-slot="feet"]      { grid-area: feet; }
+
+.equip-slot--filled .equip-slot-label {
+  color: var(--c-primary);
+  font-size: 9px;
+}
+
+/* ── Stats view ── */
+.equip-stats {
+  padding: 8px 0 12px;
+}
+
+.equip-stats-group {
+  padding: 10px 18px 5px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-secondary);
+  border-bottom: 1px solid rgba(97, 60, 24, 0.3);
+  margin-bottom: 2px;
+}
+
+.equip-stats-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 6px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background var(--tr);
+}
+.equip-stats-row:hover { background: rgba(255, 255, 255, 0.03); }
+
+/* Stat tooltip — appended to <body>, escapes overflow:hidden panels */
+.stat-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #1a1209;
+  border: 1px solid rgba(97, 60, 24, 0.5);
+  color: var(--c-text-dim);
+  font-size: 10px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  border-radius: 3px;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+  white-space: normal;
+  opacity: 0;
+  transition: none; /* hidden instantly — JS controls the delay */
+}
+.stat-tooltip--visible {
+  opacity: 1;
+  transition: opacity 0.15s ease; /* fade in once JS adds the class */
+}
+
+.equip-stats-label {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+}
+
+.equip-stats-value {
+  font-size: var(--fs-xs);
+  color: var(--c-primary);
+  letter-spacing: 0.04em;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SKILLS TAB
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Container ──────────────────────────────────────── */
+.skills-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  gap: var(--sp-3);
+}
+
+/* ── Skill row ──────────────────────────────────────── */
+.skill-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 6px;
+  transition: border-color 200ms;
+}
+.skill-row--expanded {
+  border-color: var(--c-panel-border);
+  background: rgba(255,255,255,0.03);
+}
+
+.skill-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.skill-header--clickable {
+  cursor: pointer;
+  user-select: none;
+}
+.skill-header--clickable:hover .skill-name {
+  color: var(--c-icon-active);
+}
+
+.skill-name {
+  font-size: var(--fs-sm);
+  color: var(--c-text);
+  letter-spacing: 0.04em;
+  transition: color 150ms;
+}
+
+.skill-rank-stage {
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  letter-spacing: 0.06em;
+}
+.skill-sep { opacity: 0.5; margin: 0 2px; }
+
+/* ── XP bar ─────────────────────────────────────────── */
+.skill-bar-track {
+  width: 100%;
+  height: 6px;
+  background: var(--c-hp-bg);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.skill-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--c-secondary) 0%, #c87c3a 100%);
+  border-radius: 3px;
+  transition: width 400ms ease;
+}
+
+.skill-xp {
+  font-size: var(--fs-xs);
+  color: var(--c-text-muted);
+  letter-spacing: 0.04em;
+  text-align: right;
+}
+
+/* ═══════════════════════════════════════════════════════
+   JOURNAL TAB — fill-height, overflow hidden
+   ═══════════════════════════════════════════════════════ */
+
+.journal-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.journal-body { padding: 0 var(--sp-2) var(--sp-2); overflow: hidden; }
+
+.journal-stat-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--c-secondary-dark);
+  margin-bottom: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.journal-entries {
+  overflow: hidden;
+  flex: 1;
+}
+
+.journal-entry {
+  margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--c-secondary-dark);
+}
+
+.journal-entry:last-child   { border-bottom: none; margin-bottom: 0; }
+.journal-entry-name         { font-size: var(--fs-sm); color: var(--c-text); margin-bottom: var(--sp-1); }
+.journal-entry-line         { font-size: var(--fs-xs); color: var(--c-text-dim); line-height: 1.4; }
+.journal-entry-status       { font-size: var(--fs-xs); margin-top: 3px; }
+.journal-entry-status.ready         { color: var(--c-text-reward); }
+.journal-entry-status.in-progress   { color: var(--c-text-muted); }
+
+.journal-empty { font-size: var(--fs-sm); color: var(--c-text-muted); text-align: center; padding: 40px var(--sp-2); }
+.journal-stat-highlight { color: var(--c-primary); }
+
+
+/* ═══════════════════════════════════════════════════════
+   MAP TAB
+   ═══════════════════════════════════════════════════════ */
+
+.map-tab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #0a120a;
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-text-muted);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.08em;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   SETTINGS TAB
+   ═══════════════════════════════════════════════════════ */
+
+.settings-tab   { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.settings-body  { flex: 1; overflow: hidden; padding: 0 var(--sp-2) var(--sp-2); }
+
+.settings-group       { margin-bottom: var(--sp-3); }
+.settings-group-label { font-size: var(--fs-xs); color: var(--c-text-muted); letter-spacing: 0.10em; text-transform: uppercase; margin-bottom: var(--sp-1); }
+
+.settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-1) 0;
+  border-bottom: 1px solid var(--c-secondary-dark);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label  { font-size: var(--fs-xs); color: var(--c-text-dim); }
+
+.settings-toggle {
+  width: 32px;
+  height: 16px;
+  background: var(--c-slot-bg);
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  transition: background var(--tr);
+}
+.settings-toggle.on { background: var(--c-secondary); }
+.settings-toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: var(--c-text-dim);
+  border-radius: 50%;
+  transition: transform var(--tr);
+}
+.settings-toggle.on::after { transform: translateX(16px); background: var(--c-primary); }
+
+

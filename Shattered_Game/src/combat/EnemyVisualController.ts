@@ -141,10 +141,14 @@ export class EnemyVisualController {
         this.visual.setTint(activeAttack?.kind === 'jump' ? 0xffffff : 0xdc2626);
         this.visual.setScale(scaleX * ANIM.activeScaleBump, scaleY * ANIM.activeScaleBump);
         break;
-      case 'recovery':
-        this.visual.setTint(0xfb7185);
-        this.visual.setScale(scaleX * ANIM.recoveryScaleBump, scaleY * ANIM.recoveryScaleBump);
+      case 'recovery': {
+        // Pop to 1.1× at start of recovery then settle — draws eye to the punish window
+        const popT = Math.max(0, 1 - phaseProgress * 5);
+        const recoveryScale = ANIM.recoveryScaleBump + 0.14 * popT;
+        this.visual.setTint(0x4ade80);
+        this.visual.setScale(scaleX * recoveryScale, scaleY * recoveryScale);
         break;
+      }
       case 'dead':
         this.visual.setTint(0x6b7280);
         this.visual.setScale(ANIM.deadScale);

@@ -1,0 +1,78 @@
+/* ═══════════════════════════════════════════════
+   HELP / SHORTCUTS PANEL  (floating, left edge)
+   ═══════════════════════════════════════════════ */
+.ed-help-panel {
+  position: absolute;
+  top: 36px;           /* below menubar */
+  left: 260px;         /* right of sidebar */
+  width: 210px;
+  max-height: calc(100% - 44px);
+  overflow-y: auto;
+  background: rgba(8, 4, 1, 0.97);
+  border: 1px solid var(--c-panel-border);
+  border-left: none;
+  border-radius: 0 2px 2px 0;
+  z-index: 250;
+  pointer-events: all;
+  padding: 10px 12px 14px;
+  font-family: var(--font);
+  color: var(--c-text);
+  display: none;
+  box-shadow: 4px 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+.ed-help-panel.is-visible { display: block; }
+
+.ed-help-panel::-webkit-scrollbar { width: 4px; }
+.ed-help-panel::-webkit-scrollbar-track { background: transparent; }
+.ed-help-panel::-webkit-scrollbar-thumb { background: #3a2209; border-radius: 2px; }
+
+.ed-help-panel-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--c-primary);
+  margin-bottom: 8px;
+}
+
+/* ── Shortcuts ───────────────────────────────── */
+.ed-shortcut-group {
+  margin-top: 8px;
+}
+
+.ed-shortcut-group-label {
+  font-size: 10px;
+  color: #4a3618;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  margin-top: 2px;
+}
+
+.ed-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.ed-key {
+  background: rgba(97, 60, 24, 0.35);
+  border: 1px solid var(--c-panel-border);
+  border-radius: 2px;
+  padding: 1px 5px;
+  font-size: 10px;
+  color: var(--c-primary-dim);
+  font-family: 'Courier New', monospace;
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.ed-key-desc {
+  color: var(--c-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+

@@ -19,9 +19,10 @@ const FEEDBACK = {
   slashFadeDurationMs:       160,
 };
 
-const PLAYER_ATTACK_WINDUP_TELEGRAPH_ID = 'player_light_attack_windup';
-const PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID = 'player_light_attack_active';
-const PLAYER_ATTACK_SLASH_TELEGRAPH_ID = 'player_light_attack_slash';
+const PLAYER_ATTACK_WINDUP_TELEGRAPH_ID    = 'player_light_attack_windup';
+const PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID    = 'player_light_attack_active';
+const PLAYER_ATTACK_SLASH_TELEGRAPH_ID     = 'player_light_attack_slash';
+const PLAYER_ATTACK_RECOVERY_TELEGRAPH_ID  = 'player_light_attack_recovery';
 
 export class PlayerAttackFeedbackRenderer {
   constructor(
@@ -110,6 +111,35 @@ export class PlayerAttackFeedbackRenderer {
     });
   }
 
+  showRecovery({
+    nowMs,
+    tilemap,
+    playerController,
+    recoveryMs,
+  }: {
+    nowMs: number;
+    tilemap: IsoTilemap | null;
+    playerController: PlayerController;
+    recoveryMs: number;
+  }): void {
+    this.clear();
+    if (!tilemap) return;
+    const feet = playerController.getFeetPoint();
+    const radius = tilemap.tileWidth * 0.45;
+    this.telegraphSystem.showTelegraph({
+      id: PLAYER_ATTACK_RECOVERY_TELEGRAPH_ID,
+      worldX: feet.x,
+      worldY: feet.y,
+      shape: { kind: 'circle', radius },
+      durationMs: recoveryMs,
+      startedAtMs: nowMs,
+      warningColor: 0xf97316,
+      fadeOutMs: recoveryMs,
+      strokeAlpha: 0.75,
+      fillAlphaMultiplier: 0.12,
+    });
+  }
+
   drawSlashVfx(targetWorld: { x: number; y: number } | null): void {
     if (!targetWorld) {
       return;
@@ -135,5 +165,6 @@ export class PlayerAttackFeedbackRenderer {
     this.telegraphSystem.removeTelegraph(PLAYER_ATTACK_WINDUP_TELEGRAPH_ID);
     this.telegraphSystem.removeTelegraph(PLAYER_ATTACK_ACTIVE_TELEGRAPH_ID);
     this.telegraphSystem.removeTelegraph(PLAYER_ATTACK_SLASH_TELEGRAPH_ID);
+    this.telegraphSystem.removeTelegraph(PLAYER_ATTACK_RECOVERY_TELEGRAPH_ID);
   }
 }

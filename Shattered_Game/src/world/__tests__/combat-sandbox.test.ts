@@ -527,7 +527,7 @@ describe('EnemyStateMachine', () => {
     expect(result.state.currentState).toBe('recovery');
   });
 
-  it('creates a circle telegraph for jump attacks', () => {
+  it('creates an ellipse telegraph for jump attacks', () => {
     const aggroState = {
       ...createBaseState('enemy_jump'),
       currentState: 'aggro' as const,
@@ -540,7 +540,7 @@ describe('EnemyStateMachine', () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: 'telegraph_show',
-          shape: expect.objectContaining({ kind: 'circle' }),
+          shape: expect.objectContaining({ kind: 'ellipse' }),
           tiles: expect.any(Array),
         }),
       ]),

@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
 import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
-import { createChunkKey } from '../../shared/world/ChunkKey';
 import { parseEditorObjectDefinitions } from '../../shared/editor/EditorMapModel';
-import { parseEditorEncounterAreas, type EditorEncounterArea } from '../../shared/editor/EditorEncounterModel';
+import { parseEditorEncounterAreas } from '../../shared/editor/EditorEncounterModel';
 import type { ActionProgressSnapshot } from '../../actions/ActionProgressTypes';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
@@ -68,8 +67,8 @@ import { NpcSystem } from '../../npcs/NpcSystem';
 import { NpcVisualController } from '../../npcs/NpcVisualController';
 import { ShopSystem } from '../../trading/ShopSystem';
 import type { ShopSnapshot } from '../../trading/TraderTypes';
-import { getChunkCoordForTile } from '../chunks/TerrainChunkMath';
-import { materializeWorldChunkRuntimeLayers, type WorldChunkRuntimeLayers } from '../streaming/WorldChunkRuntimeLayers';
+import { WorldChunkStreamingReconciler } from './WorldChunkStreamingReconciler';
+import { synthesizeEditorAreaSpawns } from './WorldEncounterSpawnBridge';
 
 export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
@@ -111,6 +110,7 @@ export class WorldRuntimeCoordinator {
   private npcSystem: NpcSystem | null = null;
   private npcVisualController: NpcVisualController | null = null;
   private readonly shopSystem = new ShopSystem();
+  private readonly streamingReconciler: WorldChunkStreamingReconciler;
 
   private bindings?: WorldRuntimeBindings;
   private currentRuntime?: LoadedMapRuntime;
@@ -239,6 +239,19 @@ export class WorldRuntimeCoordinator {
         this.updatePlayerRuntimeState();
       },
     });
+
+    this.streamingReconciler = new WorldChunkStreamingReconciler({
+      scene: this.scene,
+      npcRegistry: this.npcRegistry,
+      objectManager: this.objectManager,
+      mapTransitionSystem: this.mapTransitionSystem,
+      mapTransitionVisualSystem: this.mapTransitionVisualSystem,
+      resourceNodeSystem: this.resourceNodeSystem,
+      getNpcSystem: () => this.npcSystem,
+      getNpcVisualController: () => this.npcVisualController,
+      getCurrentRuntime: () => this.currentRuntime,
+      onReconciled: () => this.rebuildInteractionTargets(),
+    });
   }
 
   loadMap(mapId: string, spawnId: string): LoadedMapRuntime {
@@ -277,20 +290,10 @@ export class WorldRuntimeCoordinator {
     }
 
     const editorAreas = parseEditorEncounterAreas(runtime.definition.metadata?.editorEncounterAreas);
-    const editorMapId = runtime.definition.id;
-    runtime.enemySpawns = editorAreas.flatMap((area) => [
-      ...(area.manualSpawns ?? []).map((spawn) => ({
-        id: `editor_${spawn.id}`,
-        definitionId: spawn.enemyDefinitionId,
-        mapId: editorMapId,
-        tileX: spawn.tileX,
-        tileY: spawn.tileY,
-      })),
-      ...synthesizeEditorAreaRuleSpawns(area, editorMapId),
-    ]);
+    runtime.enemySpawns = synthesizeEditorAreaSpawns(editorAreas, runtime.definition.id);
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
-    this.reconcileStreamedWorldRuntime(runtime);
+    this.streamingReconciler.reconcile(runtime);
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -315,7 +318,7 @@ export class WorldRuntimeCoordinator {
     this.npcVisualController = new NpcVisualController(this.scene);
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
-    this.reconcileStreamedWorldRuntime(runtime);
+    this.streamingReconciler.reconcile(runtime);
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -373,7 +376,9 @@ export class WorldRuntimeCoordinator {
     }
 
     const feetTile = this.bindings.playerController.getFeetTile();
-    void this.updateStreamedWorldWindow(feetTile.x, feetTile.y);
+    if (this.currentRuntime) {
+      void this.streamingReconciler.tryStreamAroundTile(feetTile.x, feetTile.y, this.currentRuntime);
+    }
     this.updateActiveInteraction(feetTile.x, feetTile.y);
     this.placementModeSystem.updatePreview(this.bindings.playerController);
     this.updateActionProgress(deltaMs);
@@ -923,176 +928,6 @@ export class WorldRuntimeCoordinator {
     this.mapRuntimeConfigurator.rebuildInteractionTargets(this.currentRuntime);
   }
 
-  private async updateStreamedWorldWindow(tileX: number, tileY: number): Promise<void> {
-    const runtime = this.currentRuntime;
-    const streaming = runtime?.streamedWorld;
-
-    if (!runtime || !streaming) {
-      return;
-    }
-
-    const manifest = streaming.provider.getManifest();
-    const centerChunk = getChunkCoordForTile(tileX, tileY, manifest.chunkSize);
-    const centerChunkKey = createChunkKey(centerChunk);
-
-    if (
-      streaming.lastCenterChunkKey === centerChunkKey ||
-      streaming.loadingCenterChunkKey !== null
-    ) {
-      return;
-    }
-
-    streaming.loadingCenterChunkKey = centerChunkKey;
-
-    try {
-      const loadedChunks = await streaming.activeWindow.loadAroundChunk(centerChunk);
-
-      if (this.currentRuntime !== runtime) {
-        return;
-      }
-
-      runtime.isoTilemap.applyWorldChunks(loadedChunks, {
-        invalidateAdjacentRendererChunks: false,
-      });
-      this.reconcileStreamedWorldRuntime(runtime);
-      streaming.lastCenterChunkKey = centerChunkKey;
-    } catch (error) {
-      console.error(`[WorldRuntimeCoordinator] Failed to stream chunks around ${centerChunkKey}:`, error);
-    } finally {
-      if (streaming.loadingCenterChunkKey === centerChunkKey) {
-        streaming.loadingCenterChunkKey = null;
-      }
-    }
-  }
-
-  private reconcileStreamedWorldRuntime(runtime: LoadedMapRuntime): void {
-    const streaming = runtime.streamedWorld;
-    const objectPlacementSystem = this.objectManager.getPlacementSystem();
-
-    if (!streaming || !objectPlacementSystem) {
-      return;
-    }
-
-    const activeChunks = streaming.activeWindow.getActiveChunks();
-    const activeChunkKeys = new Set(activeChunks.map((chunk) => createChunkKey(chunk)));
-
-    for (const chunkKey of Array.from(streaming.materializedChunkKeys)) {
-      if (activeChunkKeys.has(chunkKey)) {
-        continue;
-      }
-
-      for (const objectId of streaming.materializedObjectIdsByChunk.get(chunkKey) ?? []) {
-        objectPlacementSystem.removeObject(objectId);
-      }
-
-      streaming.materializedObjectIdsByChunk.delete(chunkKey);
-      streaming.materializedChunkKeys.delete(chunkKey);
-    }
-
-    const runtimeLayers = activeChunks.map(materializeWorldChunkRuntimeLayers);
-
-    // Collect newly-materialized layers BEFORE the loop marks them, so NPC spawning
-    // can distinguish new chunks from already-loaded ones.
-    const newlyMaterializedLayers = runtimeLayers.filter(
-      (layers) => !streaming.materializedChunkKeys.has(layers.chunkKey),
-    );
-
-    for (const layers of runtimeLayers) {
-      if (streaming.materializedChunkKeys.has(layers.chunkKey)) {
-        continue;
-      }
-
-      const placedObjectIds: string[] = [];
-
-      for (const object of layers.objects) {
-        if (objectPlacementSystem.getInstance(object.id)) {
-          placedObjectIds.push(object.id);
-          continue;
-        }
-
-        try {
-          const placed = objectPlacementSystem.placeAuthoredObject(runtime.definition.id, object);
-          placedObjectIds.push(placed.id);
-        } catch (error) {
-          console.warn(
-            `[WorldRuntimeCoordinator] Skipped streamed object "${object.id}" in chunk ${layers.chunkKey}:`,
-            error,
-          );
-        }
-      }
-
-      streaming.materializedObjectIdsByChunk.set(layers.chunkKey, placedObjectIds);
-      streaming.materializedChunkKeys.add(layers.chunkKey);
-    }
-
-    runtime.definition.objects = runtimeLayers.flatMap((layers) => layers.objects);
-    const allResourceAnchors = runtimeLayers.flatMap((layers) => layers.resourceAnchors);
-    const allNpcAnchors = runtimeLayers.flatMap((layers) => layers.npcAnchors);
-    runtime.interactionAnchors = [...allResourceAnchors, ...allNpcAnchors];
-    runtime.definition.interactionAnchors = runtime.interactionAnchors;
-
-    runtime.enemySpawns = runtimeLayers.flatMap((layers) =>
-      layers.manualEnemySpawns.map((spawn) => ({
-        id: spawn.id,
-        definitionId: spawn.enemyDefinitionId,
-        mapId: runtime.definition.id,
-        tileX: spawn.tileX,
-        tileY: spawn.tileY,
-      }))
-    );
-
-    this.syncStreamedNpcVisuals(runtime, newlyMaterializedLayers);
-
-    runtime.transitions = runtimeLayers.flatMap((layers) => layers.transitions);
-    runtime.definition.transitions = runtime.transitions;
-    this.mapTransitionSystem.setTransitions(runtime.transitions);
-    this.mapTransitionVisualSystem.setMapContext(runtime.isoTilemap.transform, runtime.transitions);
-    runtime.zones = runtimeLayers.flatMap((layers) => layers.zones);
-    runtime.definition.zones = runtime.zones;
-    runtime.zoneIndex.setZones(runtime.zones);
-
-    this.resourceNodeSystem.setMapNodes(
-      runtime.definition.id,
-      runtime.interactionAnchors.filter((anchor) => anchor.interactionType === 'resource_node'),
-      runtime.definition.objects,
-      this.scene.time.now,
-      objectPlacementSystem,
-    );
-    this.rebuildInteractionTargets();
-  }
-
-  private syncStreamedNpcVisuals(
-    runtime: LoadedMapRuntime,
-    newLayers: WorldChunkRuntimeLayers[],
-  ): void {
-    if (!this.npcSystem || !this.npcVisualController) {
-      return;
-    }
-
-    const newNpcAnchors = newLayers.flatMap((layers) => layers.npcAnchors);
-
-    if (newNpcAnchors.length === 0) {
-      return;
-    }
-
-    const nowMs = this.scene.time.now;
-    for (const anchor of newNpcAnchors) {
-      if (!anchor.npcDefinitionId || !this.npcRegistry.has(anchor.npcDefinitionId)) {
-        continue;
-      }
-      const def = this.npcRegistry.get(anchor.npcDefinitionId);
-      this.npcSystem.spawn(
-        anchor.id,
-        def,
-        anchor.tileX,
-        anchor.tileY,
-        anchor.patrolTiles ?? [],
-        runtime.isoTilemap,
-        nowMs,
-      );
-    }
-  }
-
   private async loadTransitionDestination(targetMapId: string, targetSpawnId: string): Promise<void> {
     const manifestUrl = `/data/worlds/${targetMapId}/world.manifest.json`;
 
@@ -1182,25 +1017,4 @@ export class WorldRuntimeCoordinator {
 
     this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
   }
-}
-
-function synthesizeEditorAreaRuleSpawns(
-  area: EditorEncounterArea,
-  mapId: string,
-): import('./MapRuntime').RuntimeEnemySpawn[] {
-  const totalTiles = area.width * area.height;
-  return area.spawnRules.flatMap((rule, ruleIndex) => {
-    const count = Math.min(rule.maxPopulation, totalTiles);
-    const stride = Math.max(1, Math.floor(totalTiles / count));
-    return Array.from({ length: count }, (_, i) => {
-      const index = (i * stride) % totalTiles;
-      return {
-        id: `editor_rule_${area.id}_${ruleIndex}_${i}`,
-        definitionId: rule.enemyDefinitionId,
-        mapId,
-        tileX: area.tileX + (index % area.width),
-        tileY: area.tileY + Math.floor(index / area.width),
-      };
-    });
-  });
 }

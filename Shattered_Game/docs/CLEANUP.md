@@ -17,17 +17,18 @@ technical cleanup roadmap.
 - JSON files scanned: 18.
 - HTML/CSS files scanned: 4.
 - PNG assets inventoried: 508.
-- Largest code monoliths:
-  - `src/editor/EditorScene.ts`: 2492 lines.
-  - `public/ui.css`: 1886 lines.
-  - `public/editor.css`: 1233 lines.
-  - `src/world/maps/WorldRuntimeCoordinator.ts`: 1113 lines.
-  - `src/shared/editor/EditorMapModel.ts`: 1033 lines.
-  - `editor.html`: 827 lines.
-  - `src/combat/CombatSandboxSystem.ts`: 774 lines.
-  - `src/editor/ui/EditorDefinitionPanelController.ts`: 739 lines.
-  - `src/scenes/GameScene.ts`: 694 lines.
-  - `src/editor/io/EditorLocalLibrary.ts`: 618 lines.
+- Largest code monoliths (original → current):
+  - `src/editor/EditorScene.ts`: 2492 → 561 lines. ✅ Extracted 14 controllers.
+  - `public/ui.css`: 1886 → 6-line aggregator. ✅ Split into 5 focused files in public/css/.
+  - `public/editor.css`: 1233 → 5-line aggregator. ✅ Split into 4 focused files in public/css/.
+  - `src/world/maps/WorldRuntimeCoordinator.ts`: 1113 → 1020 lines. Streaming/reconcile extracted.
+  - `src/shared/editor/EditorMapModel.ts`: 1033 → 61-line barrel. ✅ Split into 7 focused files.
+  - `editor.html`: 827 lines. Untouched (HTML monolith, no framework support for splitting).
+  - `src/combat/CombatSandboxSystem.ts`: 774 → 793 lines. Grown; Phaser-bound, no clean split.
+  - `src/editor/ui/EditorDefinitionPanelController.ts`: 739 lines. Single show() DOM method.
+  - `src/scenes/GameScene.ts`: 694 → 714 lines. Well-delegated scene orchestrator.
+  - `src/editor/io/EditorLocalLibrary.ts`: 618 → 527 lines. Preview rendering extracted.
+  - `src/combat/EnemyStateTransitions.ts` (new): 660 → 513 lines. Telegraph builder extracted.
 - Largest generated/editor data files:
   - `data/editor-library/published/ZWRpdG9yX3Rlc3RfbWFw.json`: 9468 lines.
   - Several saved maps/drafts are over 100 KB.
@@ -145,6 +146,29 @@ Progress:
   `src/editor/assets/EditorCustomDefinitionWorkflowController.ts`.
 - 2026-05-30: Extracted resize-map and chunk-name panel binding/parsing into
   `src/editor/ui/EditorMapStructurePanelController.ts`.
+- 2026-05-30: Extracted test launch, save-before-test, world spawn query, and
+  test map cleanup into `src/editor/workflow/EditorTestLaunchController.ts`.
+- 2026-05-30: Extracted draft restore, working draft persistence, and
+  world-chunk window loading into
+  `src/editor/workflow/EditorWorldLoadController.ts`.
+- 2026-05-30: Extracted terrain/object primary edit actions, walkability,
+  elevation, zone painting, and selected edit state into
+  `src/editor/workflow/EditorMapEditWorkflowController.ts`.
+- 2026-05-30: Extracted tool mode, palette, brush/object selection, cycling,
+  brush flipping, and brush-size workflow into
+  `src/editor/workflow/EditorSelectionWorkflowController.ts`.
+- 2026-05-30: Extracted undo/redo history application into
+  `src/editor/workflow/EditorUndoRedoController.ts`.
+- 2026-05-30: Extracted HUD state assembly and encounter panel projection into
+  `src/editor/ui/EditorHudStateController.ts`.
+- 2026-05-30: Extracted custom asset texture loading, preview data URLs, and
+  imported terrain scale repair into
+  `src/editor/assets/EditorAssetTextureWorkflowController.ts`.
+- 2026-05-30: Extracted map rename, serializable-map hydration, and world chunk
+  export into `src/editor/workflow/EditorMapDocumentController.ts`.
+- 2026-05-30: Extracted scene render bridge duties for terrain/object redraw,
+  overlay redraw, pointer-to-tile conversion, and camera centering into
+  `src/editor/rendering/EditorSceneRenderController.ts`.
 
 Acceptance:
 
@@ -179,6 +203,26 @@ Target files:
 - `EditorProjectLibraryApi.ts`
   - Project file access helpers. Keep this out of pure shared model code.
 
+Progress:
+
+- 2026-05-31: Extracted types, creation helpers, and shared coordinate utils
+  into `src/shared/editor/EditorMapTypes.ts`.
+- 2026-05-31: Extracted terrain tile reads/writes, walkability, elevation, and
+  zone painting into `src/shared/editor/EditorTerrainLayerModel.ts`.
+- 2026-05-31: Extracted object placement/removal into
+  `src/shared/editor/EditorObjectLayerModel.ts`.
+- 2026-05-31: Extracted resize logic into `src/shared/editor/EditorMapResize.ts`.
+- 2026-05-31: Extracted all export/import/serialize/parse logic including zone
+  rect conversion into `src/shared/editor/EditorMapSerializer.ts`.
+- 2026-05-31: Extracted chunk conversion into
+  `src/shared/editor/EditorChunkAdapter.ts`.
+- 2026-05-31: Extracted project-library publish/clear/load and localStorage
+  fallback into `src/shared/editor/EditorProjectLibraryApi.ts`.
+- 2026-05-31: `EditorMapModel.ts` is now a 61-line re-export barrel. All 35
+  existing importers work without modification. All 276 tests pass.
+- 2026-05-31: Corrected stale combat-sandbox test that expected `circle`
+  telegraph shape; jump attack now uses `ellipse`.
+
 Acceptance:
 
 - Map model files are small enough that their ownership is obvious.
@@ -210,6 +254,20 @@ Target files:
   - Runtime save hydration and persistence handoff.
 - `WorldShopBridge`
   - Shop registration and interaction behavior.
+
+Progress:
+
+- 2026-05-31: Extracted streaming window management, chunk materialization/
+  dematerialization, NPC visual sync, and layer reconciliation into
+  `src/world/maps/WorldChunkStreamingReconciler.ts` (207 lines).
+- 2026-05-31: Extracted legacy EditorEncounterArea spawn synthesis into
+  `src/world/maps/WorldEncounterSpawnBridge.ts` (39 lines).
+- 2026-05-31: WorldRuntimeCoordinator reduced from 1206 → 1020 lines. All 276
+  tests pass.
+- Previously extracted: WorldPrototypeSaveController (save/restore),
+  WorldInteractionOrchestrator (interaction flow), WorldInteractionTargetCoordinator
+  (target selection), WorldMapRuntimeConfigurator (runtime wiring),
+  WorldActionBroker (action progress), WorldObjectManager (object system).
 
 Acceptance:
 
@@ -374,6 +432,22 @@ Target shape:
   - definition/import panels
   - encounter/resource/connection panels
 
+Progress:
+
+- 2026-05-31: Split `public/ui.css` (1890 lines) into 5 files in `public/css/`:
+  - `ui-tokens.css` (100 lines) — design tokens and fonts
+  - `ui-hud.css` (271 lines) — overlay root, enemy nameplate, minimap, XP drops
+  - `ui-sidebar.css` (707 lines) — sidebar shell, inventory, equipment, skills, journal, map, settings tabs
+  - `ui-chat.css` (87 lines) — chat panel
+  - `ui-popups.css` (725 lines) — popup window, skill detail, choice menu, shop
+  - `public/ui.css` is now a 6-line aggregator with `@import` statements.
+- 2026-05-31: Split `public/editor.css` (1233 lines) into 4 files in `public/css/`:
+  - `editor-base.css` (146 lines) — base reset and menu bar
+  - `editor-workspace.css` (377 lines) — workspace row, sidebar, all panels
+  - `editor-help.css` (78 lines) — help/shortcuts panel
+  - `editor-overlays.css` (632 lines) — palette, library, dialogs
+  - `public/editor.css` is now a 5-line aggregator with `@import` statements.
+
 Acceptance:
 
 - New editor panels do not require editing a 1200-line stylesheet directly.
@@ -405,10 +479,12 @@ When those are true, the database model is straightforward:
 
 ## Suggested Next 10 Slices
 
-1. Extract world window/chunk save/test launch controllers.
-2. Split `EditorMapModel.ts` into types, layer models, serializer, and chunk
-   adapter.
-3. Split `WorldRuntimeCoordinator.ts` streaming and layer reconciliation.
+1. Done 2026-05-28: Extract world window/chunk save/test launch controllers.
+2. Done 2026-05-31: Split `EditorMapModel.ts` into types, layer models,
+   serializer, chunk adapter, and project library API.
+3. Done 2026-05-31: Split WorldRuntimeCoordinator streaming and layer
+   reconciliation into WorldChunkStreamingReconciler and
+   WorldEncounterSpawnBridge (1206 → 1020 lines).
 4. Add runtime chunk metrics and render texture pooling.
 5. Implement runtime spawn controllers from encounter areas.
 6. Add resource-node authoring and loot profile validation.
