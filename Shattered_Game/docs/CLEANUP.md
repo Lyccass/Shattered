@@ -334,6 +334,20 @@ Acceptance:
 The editor now has the beginning of encounter authoring, but runtime enemy
 spawning is not complete enough for production map building.
 
+Progress:
+
+- 2026-05-31: Threaded `respawnMs` from authored encounter schema all the way
+  through to `EnemySystem`. Previously hardcoded to 60 seconds.
+  - `EditorEncounterRule.respawnMs` and `EditorManualEncounterSpawn.respawnMs`
+    now flow through `WorldEncounterSpawnBridge` → `RuntimeEnemySpawn` →
+    `EnemySpawnDefinition` → `EnemySystem.deathResetDelayMs`.
+  - `WorldChunkRuntimeLayers.RuntimeManualEnemySpawn` likewise carries
+    `respawnMs` from `SpawnRuleDefinition` and `ManualSpawnDefinition`.
+  - `WorldChunkStreamingReconciler` propagates it to `runtime.enemySpawns`.
+  - `EnemyKilledEvent` now includes `spawnId` for future population tracking.
+  - `EnemySystem.getSpawnId()` exposes the spawn identity.
+  - 3 new tests verify the data flow end-to-end (279 tests total).
+
 Next work:
 
 - Convert authored encounter areas into runtime spawn controllers.
@@ -357,6 +371,29 @@ Acceptance:
 - Editor-authored spawn areas create enemies in the prototype.
 - Killing enemies does not modify the authored chunk file.
 - Respawn state can later move to a server without changing the chunk schema.
+
+## NPC Dialogue System
+
+**Done 2026-05-31:**
+
+- Added `NpcDialogueOption` type with four outcome kinds: `close`, `shop`,
+  `reply`, `contract_board`.
+- Added `options?: NpcDialogueOption[]` to `NpcDefinition`.
+- Created `NpcDialogueMenuHandler` — a `ChoiceMenuHandler` that maps player
+  choices to outcomes without knowing about the menu coordinator.
+- Extended `ChoiceMenuHandlerOutcome` with `open_menu` kind so a dialogue option
+  can chain directly into the contract board choice menu.
+- `ChoiceMenuCoordinator.confirm()` handles `open_menu` by replacing the active
+  handler — menus can now chain.
+- `WorldInteractionHandlers.createNpcDialogueMenuHandler()` creates the handler,
+  shows the greeting bubble, and falls back to legacy `shopId` behaviour when
+  `options` is absent.
+- `WorldInteractionOrchestrator.tryOpenSystemMenu()` now dispatches NPCs with
+  dialogue options to the choice menu before falling through to the old path.
+- `NpcDefinitions` expanded from 1 → 3 NPCs, each with full option sets:
+  Trader Maren (shop + contracts + reply + close), Harbour Warden (contracts +
+  reply + close), Old Hermit (two reply options + close).
+- 8 new tests in `npc-dialogue.test.ts`. Suite: 287 tests, 31 files.
 
 ## P2 - World, Dungeon, And Connection Authoring
 
@@ -453,6 +490,55 @@ Acceptance:
 - New editor panels do not require editing a 1200-line stylesheet directly.
 - Shared tokens remain central, but domain UI can evolve independently.
 
+## Live Worldstate Engine
+
+**Done 2026-05-31:**
+
+- New `WorldEnvironmentState` in `src/world/session/`. Holds a mutable runtime
+  copy of the region's env vars (separate from the authored manifest baseline).
+- Area clearing → `monsterPressure −5`, `routeSafety +3` per cleared area.
+  Triggered from `GameScene.handleEnemyKilled()` via `encounterPopulation`.
+- `WorldRuntimeCoordinator.applyAreaCleared()` public entry point.
+- `WorldRuntimeCoordinator.getEnvironmentThreatLevel()` exposes 0–100 threat.
+- `onChange` listeners push env updates to `ContractBoardSystem` (contract gating)
+  and `ShopSystem` (price multiplier).
+- **Shop pricing**: `ShopSystem.setPriceMultiplier()`. At monsterPressure 0 → ×1.0;
+  at 100 → ×1.5. Applied in `calcBuyPrice` per transaction.
+- **Enemy threat behaviors** (new, from user request):
+  - Aggro range scales with threat: ×1.0 at 0, ×1.5 at 100. Applied in both
+    `handleEnemyIdle` and `handleEnemyApproach`.
+  - Passive enemies (e.g., wolves) become aggressive at `threatLevel ≥ 60`.
+    Same logic path as aggressive enemies — they will aggro on sight.
+  - `CombatSandboxSystem.setThreatLevelSource(fn)` wires the live env into
+    every `EnemySystem.update()` call via `EnemyUpdateContext.threatLevel`.
+- **Auto-trigger map transitions**: walking onto a transition tile in
+  `updatePlayerRuntimeState` now auto-fires `loadTransitionDestination` — no
+  E-press required.
+
+## Loot Profiles On Encounter Areas
+
+**Done 2026-05-31:**
+
+- `lootTableId?: string` added to `RuntimeManualEnemySpawn`, `RuntimeEnemySpawn`,
+  `EnemySpawnDefinition`, `WorldEncounterSpawnBridge` (both rule and manual spawns),
+  `WorldChunkRuntimeLayers` (both manual and rule spawns), `WorldChunkStreamingReconciler`,
+  and `EnemyKilledEvent`.
+- `CombatSandboxSystem` builds a `lootTableIdBySpawnId` map at `setMapContext` time.
+- `GameScene.handleEnemyKilled()` uses the area's `lootTableId` to look up an
+  alternative enemy definition's loot tables, falling back to the killed enemy's
+  default if not set.
+
+## Streaming Metrics
+
+**Done 2026-05-31:**
+
+- `TerrainChunkStats` now includes `tilesDrawnThisFrame`, `renderTexturesAllocated`,
+  `renderTexturesDestroyed`.
+- `IsoTilemapChunkRenderer` accumulates these during `updateChunkLifecycle`:
+  tiles drawn = sum of processed tiles from visible + prefetch build queues;
+  RT allocated = count at `materializeChunk`; RT destroyed = count at eviction.
+- `DebugOverlaySystem` shows them in the HUD stats row.
+
 ## P3 - Database And MMO Direction
 
 Do not start the database layer yet for static map authoring. Start it after:
@@ -476,6 +562,60 @@ When those are true, the database model is straightforward:
   - quest progress
   - economy/trading records
 - Chunk activation is driven by player positions, not camera position.
+
+## World-State-Triggered Contract Unlock
+
+**Done 2026-05-31:**
+
+- Added `minWorldState?: Partial<Record<RegionEnvironmentVariable, number>>` to
+  `ContractDefinition`.
+- `ContractBoardSystem.setEnvironmentVariables()` stores the active region's
+  environment for availability checks.
+- `ContractBoardSystem.isContractAvailable()` now gates contracts on worldstate
+  thresholds.
+- `WorldRuntimeCoordinator.applyRegionEnvironment()` reads `environmentVariables`
+  from `WorldManifest.metadata` and pushes them to the contract system after
+  every reconcile.
+- `data/worlds/the_wake/world.manifest.json` now ships default environment values
+  (corruption: 0, monsterPressure: 10, prosperity: 50, routeSafety: 80).
+- Two new locked contracts in `ContractDefinitions.ts`:
+  "Clear the Shores" (minMonsterPressure: 30) and
+  "Corruption Survey" (minCorruption: 20).
+- 4 new tests in `contract-board.test.ts`.
+
+## Compact Chunk Terrain Format
+
+**Done 2026-05-31:**
+
+- Project-library saves now write `editorBrushCatalog` (unique brushes only) +
+  `editorTerrainTileIds` (2D grid of brush IDs) instead of `editorTerrainTiles`
+  (one full paint record per tile).
+- For a 64×64 map with one brush: saves shrink from ~400 KB → ~5 KB of terrain
+  metadata. Maps with 10 unique brushes save ~6× space.
+- Portable exports (for sharing/backup) still use the old per-tile format so
+  files remain self-contained without external asset lookup.
+- `createEditorMapFromMapDefinition` reads both formats; old files load without
+  migration.
+- 2 new tests in `EditorMapModel.test.ts` cover compact round-trip.
+
+## Enemy Population Caps
+
+**Done 2026-05-31:**
+
+- Added `areaId?: string` to `RuntimeEnemySpawn`, `RuntimeManualEnemySpawn`,
+  and `EnemySpawnDefinition`.
+- `WorldEncounterSpawnBridge` and `WorldChunkRuntimeLayers` now carry `areaId`
+  from authored encounter areas and habitat IDs respectively.
+- `WorldChunkStreamingReconciler` propagates `areaId` to `runtime.enemySpawns`.
+- `EnemyKilledEvent` now includes `areaId?`.
+- `CombatSandboxSystem` builds an `areaIdBySpawnId` map at `setMapContext` time
+  and includes it in kill events.
+- New `WorldEncounterPopulationTracker` class:
+  - `registerSpawns()`, `recordKill()`, `recordRespawn()`
+  - `getAliveCount()`, `getTotalCount()`, `isAreaCleared()`
+  - `getAreaIds()`, `getClearedAreaIds()`
+- `GameScene` registers spawns and records kills into the tracker.
+- 7 new tests in `encounter-population.test.ts`.
 
 ## Suggested Next 10 Slices
 

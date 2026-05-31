@@ -28,6 +28,9 @@ import type { TelegraphSystem } from './TelegraphSystem';
 import type { GameEventBus } from '../events/GameEventBus';
 
 export type EnemyKilledEvent = {
+  spawnId: string;
+  areaId?: string;
+  lootTableId?: string;
   enemyDefinitionId: string;
   worldX: number;
   worldY: number;
@@ -64,6 +67,9 @@ export class CombatSandboxSystem {
   private onEnemyKilled?: (event: EnemyKilledEvent) => void;
   private onPlayerDied?: (worldX: number, worldY: number) => void;
   private onCombatXp?: (delta: SkillXpDelta) => LevelUpEvent[];
+  private readonly areaIdBySpawnId = new Map<string, string>();
+  private readonly lootTableIdBySpawnId = new Map<string, string>();
+  private getThreatLevel: () => number = () => 0;
 
   constructor(
     scene: Phaser.Scene,
@@ -83,6 +89,10 @@ export class CombatSandboxSystem {
     this.onCombatXp = onCombatXp;
   }
 
+  setThreatLevelSource(fn: () => number): void {
+    this.getThreatLevel = fn;
+  }
+
   setMapContext(mapId: string, tilemap: IsoTilemap, extraSpawns: EnemySpawnDefinition[] = []): void {
     this.currentTilemap = tilemap;
 
@@ -90,6 +100,8 @@ export class CombatSandboxSystem {
       es.destroy();
     }
     this.enemySystems = [];
+    this.areaIdBySpawnId.clear();
+    this.lootTableIdBySpawnId.clear();
 
     const spawns = [
       ...COMBAT_SANDBOX_SPAWNS.filter((s) => s.mapId === mapId),
@@ -99,6 +111,8 @@ export class CombatSandboxSystem {
       const es = new EnemySystem(this.scene, this.telegraphSystem);
       es.setMapContext(mapId, tilemap, spawn);
       this.enemySystems.push(es);
+      if (spawn.areaId) this.areaIdBySpawnId.set(spawn.id, spawn.areaId);
+      if (spawn.lootTableId) this.lootTableIdBySpawnId.set(spawn.id, spawn.lootTableId);
     }
 
     this.playerCombatState.leaveCombat();
@@ -145,6 +159,7 @@ export class CombatSandboxSystem {
     );
 
     const engagedEnemyId = this.getEngagedEnemyId();
+    const threatLevel = this.getThreatLevel();
 
     const events: EnemyUpdateEvent[] = [];
     if (!inHitStop) {
@@ -158,6 +173,7 @@ export class CombatSandboxSystem {
           playerOccupiedTiles,
           engagedEnemyId,
           this.currentPlayerTier,
+          threatLevel,
         );
         events.push(...esEvents);
       }
@@ -597,8 +613,16 @@ export class CombatSandboxSystem {
     if (outcome.killed && this.onEnemyKilled) {
       const pos = hitSystem.getWorldPosition();
       const defId = hitSystem.getDefinitionId();
-      if (pos && defId) {
-        this.onEnemyKilled({ enemyDefinitionId: defId, worldX: pos.x, worldY: pos.y });
+      const spawnId = hitSystem.getSpawnId();
+      if (pos && defId && spawnId) {
+        this.onEnemyKilled({
+          spawnId,
+          areaId: this.areaIdBySpawnId.get(spawnId),
+          lootTableId: this.lootTableIdBySpawnId.get(spawnId),
+          enemyDefinitionId: defId,
+          worldX: pos.x,
+          worldY: pos.y,
+        });
       }
     }
 

@@ -10,6 +10,7 @@ import type {
 import { createSingleTileInteractionTiles } from '../interactions/InteractionTypes';
 import type { ContractRegistry } from './ContractRegistry';
 import type { ContractDefinition } from './ContractTypes';
+import type { RegionEnvironmentVariable } from '../shared/world/RegionManifestTypes';
 
 type ContractBoardState = {
   mapId: string;
@@ -18,8 +19,13 @@ type ContractBoardState = {
 
 export class ContractBoardSystem {
   private currentBoards = new Map<string, ContractBoardState>();
+  private environmentVariables: Partial<Record<RegionEnvironmentVariable, number | string>> = {};
 
   constructor(private readonly contractRegistry: ContractRegistry) {}
+
+  setEnvironmentVariables(env: Partial<Record<RegionEnvironmentVariable, number | string>>): void {
+    this.environmentVariables = env;
+  }
 
   setMapBoards(mapId: string, anchors: MapContractBoardAnchor[]): void {
     this.currentBoards = new Map(
@@ -297,7 +303,20 @@ export class ContractBoardSystem {
     contract: ContractDefinition,
     playerSessionState: PlayerSessionState,
   ): boolean {
-    return contract.repeatable || !playerSessionState.isContractCompletedNonRepeatable(contract.id);
+    if (!contract.repeatable && playerSessionState.isContractCompletedNonRepeatable(contract.id)) {
+      return false;
+    }
+
+    if (contract.minWorldState) {
+      for (const [key, threshold] of Object.entries(contract.minWorldState) as [RegionEnvironmentVariable, number][]) {
+        const current = Number(this.environmentVariables[key] ?? 0);
+        if (current < threshold) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 
   private getMissingRequirementsMessage(contract: ContractDefinition): string {

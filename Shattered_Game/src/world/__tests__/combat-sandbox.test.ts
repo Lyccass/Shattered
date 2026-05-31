@@ -28,6 +28,11 @@ import {
   shouldRespawnEnemy,
 } from '../../combat/EnemyRuntimeStateUtils';
 import { PlayerCombatState } from '../../combat/PlayerCombatState';
+import { synthesizeEditorAreaSpawns } from '../../world/maps/WorldEncounterSpawnBridge';
+import {
+  createEditorEncounterArea,
+  createEditorManualEncounterSpawn,
+} from '../../shared/editor/EditorEncounterModel';
 
 describe('CombatDodge', () => {
   it('snaps free-angle dodge aim to the nearest isometric grid direction', () => {
@@ -471,6 +476,7 @@ describe('EnemyStateMachine', () => {
       }],
       playerEngagedWithEnemyId: null,
       playerTier: 1,
+      threatLevel: 0,
       ...tileContext,
     };
   }
@@ -734,5 +740,45 @@ describe('EnemySystem runtime HP/reset', () => {
     const resetState = resetEnemyRuntimeState(outcome.state, definition);
     expect(resetState.currentState).toBe('idle');
     expect(resetState.health).toBe(5);
+  });
+});
+
+describe('synthesizeEditorAreaSpawns respawnMs threading', () => {
+
+  it('carries respawnMs from spawn rule into RuntimeEnemySpawn', () => {
+    const area = createEditorEncounterArea(0, 0, 'wolf_aggressive');
+    area.spawnRules[0].respawnMs = 30_000;
+    area.spawnRules[0].maxPopulation = 1;
+
+    const spawns = synthesizeEditorAreaSpawns([area], 'test_map');
+
+    expect(spawns.length).toBeGreaterThan(0);
+    expect(spawns[0].respawnMs).toBe(30_000);
+  });
+
+  it('carries respawnMs from manual spawn into RuntimeEnemySpawn', () => {
+    const area = createEditorEncounterArea(0, 0, 'wolf_aggressive');
+    area.spawnRules = [];
+    const manual = createEditorManualEncounterSpawn(2, 2, 'wolf_aggressive');
+    manual.respawnMs = 15_000;
+    area.manualSpawns = [manual];
+
+    const spawns = synthesizeEditorAreaSpawns([area], 'test_map');
+
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0].respawnMs).toBe(15_000);
+    expect(spawns[0].tileX).toBe(2);
+    expect(spawns[0].tileY).toBe(2);
+  });
+
+  it('uses authored respawnMs as death reset delay in applyEnemyDamage', () => {
+    const CUSTOM_RESPAWN_MS = 5_000;
+    const state = { currentState: 'idle', health: 3 } as Parameters<typeof applyEnemyDamage>[0];
+    const outcome = applyEnemyDamage(state, 3, 1_000, CUSTOM_RESPAWN_MS);
+
+    expect(outcome.killed).toBe(true);
+    expect(outcome.state.phaseEndsAtMs).toBe(1_000 + CUSTOM_RESPAWN_MS);
+    expect(shouldRespawnEnemy(outcome.state, 5_999)).toBe(false);
+    expect(shouldRespawnEnemy(outcome.state, 6_000)).toBe(true);
   });
 });

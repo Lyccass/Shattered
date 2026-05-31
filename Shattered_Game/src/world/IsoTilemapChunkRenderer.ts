@@ -56,6 +56,9 @@ export type TerrainChunkStats = {
   pendingGroundBuildCount: number;
   pendingGridBuildCount: number;
   chunkDebugEnabled: boolean;
+  tilesDrawnThisFrame: number;
+  renderTexturesAllocated: number;
+  renderTexturesDestroyed: number;
 };
 
 export class IsoTilemapChunkRenderer {
@@ -80,6 +83,9 @@ export class IsoTilemapChunkRenderer {
   private peakMaterializedChunkCount = 0;
   private pendingGroundBuildCount = 0;
   private pendingGridBuildCount = 0;
+  private tilesDrawnThisFrame = 0;
+  private renderTexturesAllocated = 0;
+  private renderTexturesDestroyed = 0;
 
   constructor(
     private readonly config: IsoTilemapChunkRendererConfig,
@@ -181,6 +187,9 @@ export class IsoTilemapChunkRenderer {
       pendingGroundBuildCount: this.pendingGroundBuildCount,
       pendingGridBuildCount: this.pendingGridBuildCount,
       chunkDebugEnabled: this.chunkDebugVisible,
+      tilesDrawnThisFrame: this.tilesDrawnThisFrame,
+      renderTexturesAllocated: this.renderTexturesAllocated,
+      renderTexturesDestroyed: this.renderTexturesDestroyed,
     };
   }
 
@@ -290,6 +299,7 @@ export class IsoTilemapChunkRenderer {
           this.materializedChunks.delete(config.key);
           this.chunkConfigsByKey.delete(config.key);
           this.evictedChunkCount += 1;
+          this.renderTexturesDestroyed += 1;
           chunk = undefined;
         }
       } else if (!shouldRetain) {
@@ -317,6 +327,7 @@ export class IsoTilemapChunkRenderer {
       centerChunkY,
     );
     const frameStartedAt = this.now();
+    this.tilesDrawnThisFrame = 0;
 
     const visibleBuildResult = this.processGroundBuildQueue(
       sortedVisibleGroundKeys,
@@ -360,6 +371,8 @@ export class IsoTilemapChunkRenderer {
       frameStartedAt,
       this.gridBuildTimeBudgetMs,
     );
+
+    this.tilesDrawnThisFrame = visibleBuildResult.processedTiles + (prefetchBuildResult?.processedTiles ?? 0);
 
     this.pendingGroundBuildCount = [...sortedVisibleGroundKeys, ...sortedPrefetchGroundKeys].filter((key) => {
       const chunk = this.materializedChunks.get(key);
@@ -508,6 +521,7 @@ export class IsoTilemapChunkRenderer {
     chunk.gridLayer.setVisible(false);
     this.materializedChunks.set(config.key, chunk);
     this.peakMaterializedChunkCount = Math.max(this.peakMaterializedChunkCount, this.materializedChunks.size);
+    this.renderTexturesAllocated += 1;
 
     return chunk;
   }

@@ -1,4 +1,5 @@
 import type { SkillXpDelta } from '../skills/SkillTypes';
+import type { RegionEnvironmentVariable } from '../shared/world/RegionManifestTypes';
 
 export type ContractReward = {
   copper?: number;
@@ -18,4 +19,11 @@ export type ContractDefinition = {
   repeatable: boolean;
   interactionType: 'contract_board';
   tags: string[];
+  /**
+   * Region environment thresholds that must ALL be met for this contract to
+   * appear on the board. Missing keys are treated as no requirement.
+   * Example: { corruption: 25 } means the contract only appears when the
+   * region's corruption value is at least 25.
+   */
+  minWorldState?: Partial<Record<RegionEnvironmentVariable, number>>;
 };

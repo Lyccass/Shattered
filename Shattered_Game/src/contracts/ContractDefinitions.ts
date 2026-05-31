@@ -37,4 +37,38 @@ export const CONTRACT_DEFINITIONS: ContractDefinition[] = [
     interactionType: 'contract_board',
     tags: ['harbor', 'supplies', 'starter_contract'],
   },
+  {
+    id: 'clear_the_shores',
+    displayName: 'Clear the Shores',
+    description: 'The monsters are pressing closer to the harbour. Push them back. The warden is paying.',
+    rewards: {
+      copper: 120,
+      harborReputation: 3,
+      xpRewards: {
+        melee: 40,
+        defence: 20,
+      },
+    },
+    repeatable: false,
+    interactionType: 'contract_board',
+    tags: ['harbor', 'combat', 'worldstate'],
+    minWorldState: { monsterPressure: 30 },
+  },
+  {
+    id: 'corruption_survey',
+    displayName: 'Survey the Corruption',
+    description: 'Something is spreading through the outer islands. Chart the affected areas and report back.',
+    rewards: {
+      copper: 85,
+      harborReputation: 2,
+      xpRewards: {
+        trade: 15,
+        melee: 10,
+      },
+    },
+    repeatable: false,
+    interactionType: 'contract_board',
+    tags: ['harbor', 'exploration', 'worldstate'],
+    minWorldState: { corruption: 20 },
+  },
 ];

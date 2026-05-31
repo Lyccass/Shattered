@@ -11,6 +11,7 @@ export type ChoiceMenuHandlerOutcome =
   | { kind: 'craft'; workbenchId: string; recipeId: string }
   | { kind: 'use_target'; target: InteractionTarget }
   | { kind: 'inspect_target'; target: InteractionTarget }
+  | { kind: 'open_menu'; handler: ChoiceMenuHandler }
   | { kind: 'result'; result: InteractionResult; closeMenu?: boolean };
 
 // Implemented by each system that can open a choice menu.
@@ -91,6 +92,18 @@ export class ChoiceMenuCoordinator {
       this.state.cancel();
       this.handler = null;
       return { kind: 'inspect_target', target: outcome.target };
+    }
+
+    if (outcome.kind === 'open_menu') {
+      const options = outcome.handler.getOptions(playerState);
+      if (options.length === 0) {
+        this.state.cancel();
+        this.handler = null;
+        return { kind: 'none' };
+      }
+      this.handler = outcome.handler;
+      this.state.open(outcome.handler.title, options);
+      return { kind: 'none' };
     }
 
     if (outcome.closeMenu) {

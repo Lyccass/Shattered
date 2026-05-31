@@ -12,6 +12,9 @@ export function synthesizeEditorAreaSpawns(
       mapId,
       tileX: spawn.tileX,
       tileY: spawn.tileY,
+      respawnMs: spawn.respawnMs,
+      areaId: area.id,
+      lootTableId: spawn.lootTableId,
     })),
     ...synthesizeAreaRuleSpawns(area, mapId),
   ]);
@@ -33,6 +36,9 @@ function synthesizeAreaRuleSpawns(
         mapId,
         tileX: area.tileX + (index % area.width),
         tileY: area.tileY + Math.floor(index / area.width),
+        respawnMs: rule.respawnMs,
+        areaId: area.id,
+        lootTableId: rule.lootTableId,
       };
     });
   });

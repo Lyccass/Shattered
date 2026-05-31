@@ -24,8 +24,17 @@ export function exportEditorMapToMapDefinition(
 ): MapDefinition {
   const includeEditorAssetData = options.includeEditorAssetData ?? true;
   const includeEditorAssetDefinitions = options.includeEditorAssetDefinitions ?? true;
-  const editorTerrainTiles = serializeTerrainTilePaintRecord(map.terrainTiles, includeEditorAssetData);
   const editorAssetReferences = createEditorAssetReferences(map);
+
+  // Compact format (project library): brush catalog + tile ID grid instead of per-tile records.
+  // Portable format (export/share): keep full per-tile records so the file is self-contained.
+  const terrainMeta: Record<string, unknown> = includeEditorAssetData
+    ? { editorTerrainTiles: serializeTerrainTilePaintRecord(map.terrainTiles, true) }
+    : {
+        editorBrushCatalog: buildEditorBrushCatalog(map.terrainTiles),
+        editorTerrainTileIds: buildEditorTerrainTileIds(map.terrainTiles, map.width, map.height),
+      };
+
   const mapDefinition: MapDefinition = {
     id: map.id,
     displayName: map.displayName,
@@ -53,7 +62,7 @@ export function exportEditorMapToMapDefinition(
     })),
     metadata: {
       source: 'map_editor_v0',
-      editorTerrainTiles,
+      ...terrainMeta,
       ...(editorAssetReferences ? { editorAssetReferences } : {}),
       ...(Object.keys(map.terrainWalkability).length > 0
         ? { editorTerrainWalkability: map.terrainWalkability }
@@ -86,7 +95,7 @@ export function createEditorMapFromMapDefinition(map: MapDefinition): EditorMapD
     width: map.width,
     height: map.height,
     terrain: map.terrain.map((row) => [...row]),
-    terrainTiles: parseEditorTerrainTiles(map.metadata?.editorTerrainTiles),
+    terrainTiles: parseEditorTerrainTilesAny(map.metadata, map.width, map.height),
     terrainWalkability: parseEditorTerrainWalkability(map.metadata?.editorTerrainWalkability),
     terrainElevation: parseEditorTerrainElevation(map.metadata?.editorTerrainElevation),
     terrainZones: importZoneRectsToTiles(map.zones ?? []),
@@ -507,4 +516,66 @@ function parseEditorChunkNames(value: unknown): Record<string, string> | undefin
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// ── Compact terrain format helpers ───────────────────────────────────────────
+
+/** Collects only the unique brush definitions referenced by the tile map. */
+function buildEditorBrushCatalog(
+  terrainTiles: Record<string, EditorTerrainTilePaint>,
+): Record<string, EditorTerrainTilePaint> {
+  const catalog: Record<string, EditorTerrainTilePaint> = {};
+  for (const paint of Object.values(terrainTiles)) {
+    if (!catalog[paint.id]) {
+      const { textureDataUrl, ...paintWithoutData } = paint;
+      catalog[paint.id] = paintWithoutData;
+    }
+  }
+  return catalog;
+}
+
+/** Produces a row×col grid of brush IDs, one entry per tile. */
+function buildEditorTerrainTileIds(
+  terrainTiles: Record<string, EditorTerrainTilePaint>,
+  width: number,
+  height: number,
+): string[][] {
+  return Array.from({ length: height }, (_, row) =>
+    Array.from({ length: width }, (_, col) => terrainTiles[tileKey(col, row)]?.id ?? ''),
+  );
+}
+
+/**
+ * Parses terrain tiles from either format:
+ *   - New compact: editorBrushCatalog + editorTerrainTileIds
+ *   - Legacy:      editorTerrainTiles (per-tile paint records)
+ */
+function parseEditorTerrainTilesAny(
+  metadata: Record<string, unknown> | undefined,
+  width: number,
+  height: number,
+): Record<string, EditorTerrainTilePaint> {
+  if (!metadata) return {};
+
+  const catalog = metadata.editorBrushCatalog;
+  const tileIds = metadata.editorTerrainTileIds;
+
+  if (isRecord(catalog) && Array.isArray(tileIds)) {
+    const brushes = parseEditorTerrainTiles(catalog);
+    const tiles: Record<string, EditorTerrainTilePaint> = {};
+
+    for (let row = 0; row < height; row++) {
+      const rowArr = tileIds[row];
+      if (!Array.isArray(rowArr)) continue;
+      for (let col = 0; col < width; col++) {
+        const brushId = rowArr[col];
+        if (typeof brushId === 'string' && brushId && brushes[brushId]) {
+          tiles[tileKey(col, row)] = brushes[brushId];
+        }
+      }
+    }
+    return tiles;
+  }
+
+  return parseEditorTerrainTiles(metadata.editorTerrainTiles);
 }

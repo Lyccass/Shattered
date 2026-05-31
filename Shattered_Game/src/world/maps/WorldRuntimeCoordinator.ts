@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ActionProgressSystem } from '../../actions/ActionProgressSystem';
 import { parseEditorObjectDefinitions } from '../../shared/editor/EditorMapModel';
 import { parseEditorEncounterAreas } from '../../shared/editor/EditorEncounterModel';
+import { WorldEnvironmentState } from '../session/WorldEnvironmentState';
 import type { ActionProgressSnapshot } from '../../actions/ActionProgressTypes';
 import { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import { CONTRACT_DEFINITIONS } from '../../contracts/ContractDefinitions';
@@ -110,6 +111,7 @@ export class WorldRuntimeCoordinator {
   private npcSystem: NpcSystem | null = null;
   private npcVisualController: NpcVisualController | null = null;
   private readonly shopSystem = new ShopSystem();
+  private readonly worldEnv = new WorldEnvironmentState();
   private readonly streamingReconciler: WorldChunkStreamingReconciler;
 
   private bindings?: WorldRuntimeBindings;
@@ -252,6 +254,19 @@ export class WorldRuntimeCoordinator {
       getCurrentRuntime: () => this.currentRuntime,
       onReconciled: () => this.rebuildInteractionTargets(),
     });
+
+    this.worldEnv.onChange((vars) => {
+      this.contractBoardSystem.setEnvironmentVariables(vars as Record<string, number | string>);
+      this.shopSystem.setPriceMultiplier(this.worldEnv.getShopPriceMultiplier());
+    });
+  }
+
+  applyAreaCleared(clearedCount: number): void {
+    this.worldEnv.onAreaCleared(clearedCount);
+  }
+
+  getEnvironmentThreatLevel(): number {
+    return this.worldEnv.getThreatLevel();
   }
 
   loadMap(mapId: string, spawnId: string): LoadedMapRuntime {
@@ -319,6 +334,7 @@ export class WorldRuntimeCoordinator {
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
     this.streamingReconciler.reconcile(runtime);
+    this.applyRegionEnvironment(runtime);
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -379,6 +395,13 @@ export class WorldRuntimeCoordinator {
     if (this.currentRuntime) {
       void this.streamingReconciler.tryStreamAroundTile(feetTile.x, feetTile.y, this.currentRuntime);
     }
+
+    const autoTransition = this.mapTransitionSystem.getTransitionAtTile(feetTile.x, feetTile.y);
+    if (autoTransition && !this.actionProgressSystem.isActive()) {
+      void this.loadTransitionDestination(autoTransition.targetMapId, autoTransition.targetSpawnId);
+      return this.consumePendingUiResults();
+    }
+
     this.updateActiveInteraction(feetTile.x, feetTile.y);
     this.placementModeSystem.updatePreview(this.bindings.playerController);
     this.updateActionProgress(deltaMs);
@@ -1016,5 +1039,12 @@ export class WorldRuntimeCoordinator {
     }
 
     this.scene.cameras.main.centerOn(this.bindings.player.x, this.bindings.player.y);
+  }
+
+  private applyRegionEnvironment(runtime: import('./MapRuntime').LoadedMapRuntime): void {
+    const rawEnv = runtime.streamedWorld?.provider.getManifest().metadata?.environmentVariables;
+    if (rawEnv !== null && typeof rawEnv === 'object' && !Array.isArray(rawEnv)) {
+      this.worldEnv.setInitial(rawEnv as Record<string, unknown>);
+    }
   }
 }

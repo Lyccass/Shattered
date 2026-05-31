@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   createEditorMap,
+  createEditorMapFromMapDefinition,
   createEditorMapFromWorldChunkDefinition,
   addEditorPlacedObject,
   exportEditorMapToMapDefinition,
@@ -194,7 +195,7 @@ describe('EditorMapModel', () => {
     });
   });
 
-  it('serializes project-library maps as asset references without image payloads', () => {
+  it('serializes project-library maps in compact format without image payloads', () => {
     const customTile: EditorTerrainTilePaint = {
       ...FLIPPED_STONE_TILE,
       textureDataUrl: 'data:image/png;base64,very-large-payload',
@@ -205,14 +206,40 @@ describe('EditorMapModel', () => {
 
     const parsed = JSON.parse(serializeEditorMapForProjectLibrary(map)) as any;
 
+    // No image data at all
     expect(JSON.stringify(parsed)).not.toContain('very-large-payload');
-    expect(parsed.metadata.editorTerrainBrushes).toBeUndefined();
-    expect(parsed.metadata.editorTerrainTiles['1,1']).toMatchObject({
+    // Compact format: catalog + tile ID grid instead of per-tile records
+    expect(parsed.metadata.editorTerrainTiles).toBeUndefined();
+    expect(parsed.metadata.editorBrushCatalog).toBeDefined();
+    expect(parsed.metadata.editorTerrainTileIds).toBeDefined();
+    // Catalog has the brush without image data
+    expect(parsed.metadata.editorBrushCatalog[customTile.id]).toMatchObject({
       id: customTile.id,
       textureKey: customTile.textureKey,
     });
-    expect(parsed.metadata.editorTerrainTiles['1,1'].textureDataUrl).toBeUndefined();
+    expect(parsed.metadata.editorBrushCatalog[customTile.id]?.textureDataUrl).toBeUndefined();
+    // Tile [1][1] references the custom brush
+    expect(parsed.metadata.editorTerrainTileIds[1][1]).toBe(customTile.id);
+    // Custom brush definitions stripped (references only)
+    expect(parsed.metadata.editorTerrainBrushes).toBeUndefined();
     expect(parsed.metadata.editorAssetReferences.terrainBrushIds).toContain(customTile.id);
+  });
+
+  it('round-trips compact format back to terrainTiles', () => {
+    const customTile: EditorTerrainTilePaint = {
+      ...FLIPPED_STONE_TILE,
+    };
+    const map = createEditorMap(2, 2, 'grass');
+    paintTerrainTile(map, 1, 1, customTile);
+
+    const json = serializeEditorMapForProjectLibrary(map);
+    const mapDef = JSON.parse(json);
+    const restored = createEditorMapFromMapDefinition(mapDef);
+
+    expect(restored.terrainTiles['1,1']).toMatchObject({
+      id: customTile.id,
+      textureKey: customTile.textureKey,
+    });
   });
 
   it('validates exported maps', () => {

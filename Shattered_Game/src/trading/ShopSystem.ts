@@ -18,6 +18,11 @@ type ShopRuntime = {
 
 export class ShopSystem {
   private readonly shops = new Map<string, ShopRuntime>();
+  private priceMultiplier = 1.0;
+
+  setPriceMultiplier(multiplier: number): void {
+    this.priceMultiplier = Math.max(0.5, multiplier);
+  }
 
   constructor() {
     for (const def of SHOP_DEFINITIONS) {
@@ -80,7 +85,7 @@ export class ShopSystem {
     if (entry.stock <= 0) return { ok: false, message: 'Out of stock.' };
 
     const actualQty = Math.min(qty, entry.stock);
-    const priceEach = this.calcBuyPrice(shop.def, entry);
+    const priceEach = Math.ceil(this.calcBuyPrice(shop.def, entry) * this.priceMultiplier);
     const totalPrice = priceEach * actualQty;
 
     const inv = playerState.getInventoryState();

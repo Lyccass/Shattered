@@ -141,3 +141,58 @@ describe('ContractBoardSystem', () => {
     expect(system.getAvailableContracts('harbor_contract_board_01', playerSessionState)).toHaveLength(0);
   });
 });
+
+describe('worldstate-gated contracts', () => {
+  const lockedContract: ContractDefinition = {
+    id: 'locked_contract',
+    displayName: 'Locked Contract',
+    description: 'Only appears when monsterPressure >= 50.',
+    rewards: { copper: 100 },
+    repeatable: true,
+    interactionType: 'contract_board',
+    tags: ['combat'],
+    minWorldState: { monsterPressure: 50 },
+  };
+
+  it('hides worldstate-gated contract when environment threshold is not met', () => {
+    const system = createSystem([lockedContract]);
+    system.setEnvironmentVariables({ monsterPressure: 30 });
+    const playerState = new PlayerSessionState();
+
+    expect(system.getAvailableContracts('harbor_contract_board_01', playerState)).toHaveLength(0);
+  });
+
+  it('shows worldstate-gated contract when environment threshold is met exactly', () => {
+    const system = createSystem([lockedContract]);
+    system.setEnvironmentVariables({ monsterPressure: 50 });
+    const playerState = new PlayerSessionState();
+
+    expect(system.getAvailableContracts('harbor_contract_board_01', playerState)).toHaveLength(1);
+  });
+
+  it('shows worldstate-gated contract when environment exceeds threshold', () => {
+    const system = createSystem([lockedContract]);
+    system.setEnvironmentVariables({ monsterPressure: 80 });
+    const playerState = new PlayerSessionState();
+
+    expect(system.getAvailableContracts('harbor_contract_board_01', playerState)).toHaveLength(1);
+  });
+
+  it('shows non-gated contracts regardless of environment', () => {
+    const normalContract: ContractDefinition = {
+      id: 'normal',
+      displayName: 'Normal',
+      description: 'Always available.',
+      rewards: { copper: 10 },
+      repeatable: true,
+      interactionType: 'contract_board',
+      tags: [],
+    };
+    const system = createSystem([normalContract, lockedContract]);
+    system.setEnvironmentVariables({ monsterPressure: 0 });
+    const playerState = new PlayerSessionState();
+
+    expect(system.getAvailableContracts('harbor_contract_board_01', playerState)).toHaveLength(1);
+    expect(system.getAvailableContracts('harbor_contract_board_01', playerState)[0].id).toBe('normal');
+  });
+});

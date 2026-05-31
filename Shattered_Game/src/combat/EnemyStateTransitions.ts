@@ -42,8 +42,13 @@ export function handleEnemyIdle({ definition, state, context }: EnemyTransitionA
   // Tier gap: enemy is beneath the player's notice
   const tooWeak = definition.tier <= context.playerTier - 2;
 
+  // At 60+ threat, passive enemies become aggressive and aggro on sight like normal enemies.
+  const threatOverridesPassive = isPassive && context.threatLevel >= 60;
+  // Aggro range scales with threat: ×1.0 at 0 threat, ×1.5 at 100 threat.
+  const aggroRangeMultiplier = 1 + (context.threatLevel / 100) * 0.5;
+
   if (!lockedOut && !tooWeak) {
-    if (isPassive) {
+    if (isPassive && !threatOverridesPassive) {
       if (state.reactiveAggro) {
         state.wanderTargetWorldX = null;
         state.wanderTargetWorldY = null;
@@ -57,7 +62,7 @@ export function handleEnemyIdle({ definition, state, context }: EnemyTransitionA
         context.playerWorldX,
         context.playerWorldY,
       );
-      const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth;
+      const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth * aggroRangeMultiplier;
 
       if (distanceToPlayer <= aggroRangeWorld) {
         state.wanderTargetWorldX = null;
@@ -184,7 +189,8 @@ export function handleEnemyApproach({
     context.tileWidth,
     context.tileHeight,
   );
-  const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth;
+  const aggroRangeMultiplier = 1 + (context.threatLevel / 100) * 0.5;
+  const aggroRangeWorld = definition.aggroRangeTiles * context.tileWidth * aggroRangeMultiplier;
   const leashRangeWorld = definition.leashRangeTiles * context.tileWidth;
   const deAggroRangeWorld = (definition.deAggroRangeTiles ?? 15) * context.tileWidth;
 

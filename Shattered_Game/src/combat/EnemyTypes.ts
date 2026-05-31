@@ -75,6 +75,9 @@ export type EnemySpawnDefinition = {
   mapId: string;
   tileX: number;
   tileY: number;
+  respawnMs?: number;
+  areaId?: string;
+  lootTableId?: string;
 };
 
 export type EnemyRuntimeState = {

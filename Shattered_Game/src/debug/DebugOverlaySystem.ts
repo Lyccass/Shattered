@@ -173,6 +173,9 @@ export class DebugOverlaySystem {
       pendingGroundBuildCount: 0,
       pendingGridBuildCount: 0,
       chunkDebugEnabled: false,
+      tilesDrawnThisFrame: 0,
+      renderTexturesAllocated: 0,
+      renderTexturesDestroyed: 0,
     };
 
     this.detailText.setText([
@@ -200,6 +203,7 @@ export class DebugOverlaySystem {
       `Grid mode: ${gridMode}`,
       `Map/chunks: ${this.isoTilemap.width}x${this.isoTilemap.height} / configured ${resolvedChunkStats.configuredChunkCount} / visible ${resolvedChunkStats.visibleChunkCount} / cached ${resolvedChunkStats.cachedChunkCount} / resident ${resolvedChunkStats.materializedChunkCount}`,
       `Chunk queues: ground ${resolvedChunkStats.pendingGroundBuildCount} / grid ${resolvedChunkStats.pendingGridBuildCount}   peak resident: ${resolvedChunkStats.peakMaterializedChunkCount}   evicted: ${resolvedChunkStats.evictedChunkCount}`,
+      `Tiles drawn: ${resolvedChunkStats.tilesDrawnThisFrame}   RT alloc: ${resolvedChunkStats.renderTexturesAllocated}   RT destroyed: ${resolvedChunkStats.renderTexturesDestroyed}`,
       `Terrain-blocked tiles: ${this.isoTilemap.getTerrainBlockedTileCount()}`,
       `Object instances: ${objectInstanceCount}   object-blocked tiles: ${objectBlockedCount}`,
       `Object debug overlays: ${objectDebugOn ? 'on' : 'off'}`,

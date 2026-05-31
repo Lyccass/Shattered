@@ -47,6 +47,7 @@ function ctx(
     playerOccupiedTiles: [{ x: Math.round(playerX / TILE_W), y: Math.round(playerY / TILE_H) }],
     playerEngagedWithEnemyId,
     playerTier,
+    threatLevel: 0,
   };
 }
 

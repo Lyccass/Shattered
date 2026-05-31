@@ -12,6 +12,11 @@ export type RuntimeEnemySpawn = {
   mapId: string;
   tileX: number;
   tileY: number;
+  respawnMs?: number;
+  /** Encounter area this spawn belongs to — used for population tracking. */
+  areaId?: string;
+  /** If set, overrides the enemy's default loot table when it is killed. */
+  lootTableId?: string;
 };
 
 export type StreamedWorldRuntime = {

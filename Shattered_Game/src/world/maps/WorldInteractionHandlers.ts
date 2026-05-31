@@ -30,6 +30,8 @@ import type { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem'
 import type { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { NpcRegistry } from '../../npcs/NpcRegistry';
 import type { NpcSystem } from '../../npcs/NpcSystem';
+import { NpcDialogueMenuHandler } from '../../npcs/NpcDialogueMenuHandler';
+import type { ChoiceMenuHandler } from '../../interactions/ChoiceMenuCoordinator';
 import { getMapDisplayName } from './MapDefinitions';
 
 export class WorldInteractionHandlers {
@@ -44,6 +46,21 @@ export class WorldInteractionHandlers {
     private readonly npcRegistry?: NpcRegistry,
     private readonly getNpcSystem?: () => NpcSystem | null,
   ) {}
+
+  createNpcDialogueMenuHandler(target: NpcInteractionTarget): ChoiceMenuHandler | null {
+    const npcDefId = target.anchor.npcDefinitionId;
+    if (!npcDefId || !this.npcRegistry?.has(npcDefId)) return null;
+
+    const def = this.npcRegistry.get(npcDefId);
+    if (!def.options?.length) return null;
+
+    const greetingLine = def.dialogue[0]?.text;
+    if (greetingLine) {
+      this.getNpcSystem?.()?.showBubble(target.definition.id, greetingLine, this.scene.time.now);
+    }
+
+    return new NpcDialogueMenuHandler(def, target.definition.id, this.contractBoardSystem);
+  }
 
   build(): InteractionHandlers {
     return {

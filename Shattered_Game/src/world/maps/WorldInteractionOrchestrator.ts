@@ -7,6 +7,7 @@ import type {
 } from '../../interactions/InteractionTypes';
 import {
   isContractBoardTarget,
+  isNpcTarget,
   isPlacedObjectTarget,
   isResourceNodeTarget,
   isWorkbenchTarget,
@@ -215,6 +216,13 @@ export class WorldInteractionOrchestrator {
   }
 
   private tryOpenSystemMenu(target: InteractionTarget): boolean {
+    if (isNpcTarget(target)) {
+      const handler = this.deps.interactionHandlers.createNpcDialogueMenuHandler(target);
+      if (handler) {
+        return this.deps.choiceMenuCoordinator.tryOpen(handler, this.deps.playerSessionState);
+      }
+    }
+
     if (isWorkbenchTarget(target)) {
       const handler = this.deps.workbenchSystem.createMenuHandler(target.anchor.id);
       return this.deps.choiceMenuCoordinator.tryOpen(handler, this.deps.playerSessionState);

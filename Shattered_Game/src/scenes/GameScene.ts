@@ -33,6 +33,7 @@ import { GroundItemSystem } from '../world/items/GroundItemSystem';
 import type { EnemyKilledEvent } from '../combat/CombatSandboxSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
+import { WorldEncounterPopulationTracker } from '../combat/WorldEncounterPopulationTracker';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
@@ -53,6 +54,7 @@ export class GameScene extends Phaser.Scene {
   private tileHighlight?: Phaser.GameObjects.Graphics;
   private hasShutdown = false;
   private mapLoadSerial = 0;
+  private readonly encounterPopulation = new WorldEncounterPopulationTracker();
 
   constructor() {
     super('GameScene');
@@ -405,6 +407,10 @@ export class GameScene extends Phaser.Scene {
 
     const runtime = this.worldRuntimeCoordinator.getCurrentRuntime();
     this.combatSandboxSystem.setMapContext(runtime.definition.id, runtime.isoTilemap, runtime.enemySpawns);
+    this.combatSandboxSystem.setThreatLevelSource(
+      () => this.worldRuntimeCoordinator?.getEnvironmentThreatLevel() ?? 0,
+    );
+    this.encounterPopulation.registerSpawns(runtime.enemySpawns);
     this.playerController.setExternalOccupancyValidator((feetWorldX, feetWorldY) =>
       this.combatSandboxSystem?.canPlayerOccupy(feetWorldX, feetWorldY) ?? true,
     );
@@ -475,9 +481,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handleEnemyKilled(evt: EnemyKilledEvent): void {
+    if (evt.spawnId && evt.areaId) {
+      this.encounterPopulation.recordKill(evt.spawnId, evt.areaId);
+      if (this.encounterPopulation.isAreaCleared(evt.areaId)) {
+        this.worldRuntimeCoordinator?.applyAreaCleared(1);
+      }
+    }
     if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
     const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === evt.enemyDefinitionId);
-    const lootTables = enemyDef?.lootTables;
+    // Use area-specific loot profile if authored; fall back to enemy default loot tables.
+    const lootTables = evt.lootTableId
+      ? ENEMY_DEFINITIONS.find((d) => d.id === evt.lootTableId)?.lootTables ?? enemyDef?.lootTables
+      : enemyDef?.lootTables;
     if (!lootTables || lootTables.length === 0) return;
     const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();

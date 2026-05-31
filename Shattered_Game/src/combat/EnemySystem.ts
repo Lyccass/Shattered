@@ -22,9 +22,9 @@ import {
 } from './EnemyOccupancy';
 import { EnemyVisualController } from './EnemyVisualController';
 
-export class EnemySystem {
-  private static readonly DEATH_RESET_DELAY_MS = 60_000;
+const DEFAULT_DEATH_RESET_DELAY_MS = 60_000;
 
+export class EnemySystem {
   private readonly enemyRegistry = new EnemyRegistry(ENEMY_DEFINITIONS);
   private readonly attackTileRenderer: EnemyAttackTileRenderer;
   private readonly visualController: EnemyVisualController;
@@ -32,6 +32,7 @@ export class EnemySystem {
   private definition: EnemyDefinition | null = null;
   private activeMapId: string | null = null;
   private tilemap: IsoTilemap | null = null;
+  private deathResetDelayMs = DEFAULT_DEATH_RESET_DELAY_MS;
 
   constructor(
     scene: Phaser.Scene,
@@ -52,6 +53,7 @@ export class EnemySystem {
     }
 
     this.definition = this.enemyRegistry.get(spawn.definitionId);
+    this.deathResetDelayMs = spawn.respawnMs ?? DEFAULT_DEATH_RESET_DELAY_MS;
     const origin = tilemap.getTileCenterWorld(spawn.tileX, spawn.tileY);
     this.runtimeState = createEnemyRuntimeState(this.definition, spawn, origin.x, origin.y);
     this.visualController.spawn(this.runtimeState);
@@ -66,6 +68,7 @@ export class EnemySystem {
     playerOccupiedTiles: Array<{ x: number; y: number }>,
     playerEngagedWithEnemyId: string | null = null,
     playerTier = 1,
+    threatLevel = 0,
   ): EnemyUpdateEvent[] {
     if (!this.runtimeState || !this.definition || !this.tilemap) {
       return [];
@@ -97,6 +100,7 @@ export class EnemySystem {
       isTileWalkable: (tileX, tileY) => this.tilemap!.isTileWalkable(tileX, tileY),
       playerEngagedWithEnemyId,
       playerTier,
+      threatLevel,
     });
 
     const isActuallyMoving = Math.hypot(result.state.worldX - prevX, result.state.worldY - prevY) > 0.5;
@@ -117,7 +121,7 @@ export class EnemySystem {
       this.runtimeState,
       amount,
       nowMs,
-      EnemySystem.DEATH_RESET_DELAY_MS,
+      this.deathResetDelayMs,
     );
     this.runtimeState = result.state;
 
@@ -180,6 +184,10 @@ export class EnemySystem {
 
   getDefinitionId(): string | null {
     return this.definition?.id ?? null;
+  }
+
+  getSpawnId(): string | null {
+    return this.runtimeState?.id ?? null;
   }
 
   getCollisionRadiusTiles(): number {

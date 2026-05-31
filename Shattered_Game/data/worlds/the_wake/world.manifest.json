@@ -92,6 +92,12 @@
     "wake_basic"
   ],
   "metadata": {
-    "authoringVersion": "world_manifest_v1"
+    "authoringVersion": "world_manifest_v1",
+    "environmentVariables": {
+      "corruption": 0,
+      "monsterPressure": 10,
+      "prosperity": 50,
+      "routeSafety": 80
+    }
   }
 }

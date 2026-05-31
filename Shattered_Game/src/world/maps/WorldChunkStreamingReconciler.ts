@@ -102,6 +102,9 @@ export class WorldChunkStreamingReconciler {
         mapId: runtime.definition.id,
         tileX: spawn.tileX,
         tileY: spawn.tileY,
+        ...(spawn.respawnMs !== undefined ? { respawnMs: spawn.respawnMs } : {}),
+        ...(spawn.areaId !== undefined ? { areaId: spawn.areaId } : {}),
+        ...(spawn.lootTableId !== undefined ? { lootTableId: spawn.lootTableId } : {}),
       }))
     );
 

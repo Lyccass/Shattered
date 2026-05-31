@@ -15,6 +15,9 @@ export type RuntimeManualEnemySpawn = {
   enemyDefinitionId: string;
   tileX: number;
   tileY: number;
+  respawnMs?: number;
+  areaId?: string;
+  lootTableId?: string;
 };
 
 export type WorldChunkRuntimeLayers = {
@@ -104,6 +107,9 @@ export function materializeWorldChunkRuntimeLayers(chunk: WorldChunkDefinition):
         enemyDefinitionId: spawn.enemyDefinitionId,
         tileX: tileOrigin.x + spawn.tileX,
         tileY: tileOrigin.y + spawn.tileY,
+        ...(spawn.respawnMs !== undefined ? { respawnMs: spawn.respawnMs } : {}),
+        areaId: habitat.id,
+        ...(spawn.lootTableId !== undefined ? { lootTableId: spawn.lootTableId } : {}),
       })),
       ...synthesizeHabitatRuleSpawns(chunk, chunkKey, habitat, tileOrigin),
     ]),
@@ -152,6 +158,9 @@ function synthesizeHabitatRuleSpawns(
         enemyDefinitionId: defId,
         tileX: tileOrigin.x + habitat.tileX + (index % habitat.width),
         tileY: tileOrigin.y + habitat.tileY + Math.floor(index / habitat.width),
+        ...(rule.respawnMs !== undefined ? { respawnMs: rule.respawnMs } : {}),
+        areaId: habitat.id,
+        ...(rule.lootTableId !== undefined ? { lootTableId: rule.lootTableId } : {}),
       };
     });
   });
