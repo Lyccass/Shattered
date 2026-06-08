@@ -1,0 +1,227 @@
+/* ─── Combat HUD ─────────────────────────────────────────────────────────── */
+
+/* Initiative bar — top center */
+#ui-combat-init {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: row;
+  gap: 6px;
+  align-items: flex-end;
+  z-index: 120;
+  pointer-events: none;
+}
+
+#ui-combat-init.active {
+  display: flex;
+}
+
+.combat-init-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: rgba(12, 7, 2, 0.90);
+  border: 1px solid #613C18;
+  border-radius: 4px;
+  padding: 4px 6px;
+  min-width: 52px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.combat-init-card.is-active {
+  border-color: #f57a00;
+  transform: translateY(-4px);
+  box-shadow: 0 0 8px rgba(245, 122, 0, 0.45);
+}
+
+.combat-init-card.is-player {
+  border-color: #1e6fbf;
+}
+
+.combat-init-card.is-player.is-active {
+  border-color: #f57a00;
+}
+
+.combat-init-name {
+  font-family: 'Asimovian', 'Palatino Linotype', serif;
+  font-size: 9px;
+  color: #CECCA0;
+  white-space: nowrap;
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combat-init-card.is-active .combat-init-name {
+  color: #FFFCC3;
+}
+
+.combat-init-hp-bar {
+  width: 40px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.combat-init-hp-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #4ade80;
+  transition: width 0.2s;
+}
+
+.combat-init-card.is-player .combat-init-hp-fill {
+  background: #1e6fbf;
+}
+
+/* Action bar — bottom center */
+#ui-combat-actions {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  z-index: 120;
+  pointer-events: auto;
+}
+
+#ui-combat-actions.active {
+  display: flex;
+}
+
+.combat-resources {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+}
+
+.combat-pips {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+}
+
+.combat-pip {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid #613C18;
+  background: rgba(12, 7, 2, 0.7);
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.combat-pip.filled {
+  background: #FFFCC3;
+  border-color: #FFFCC3;
+}
+
+.combat-pip.ap-pip.filled {
+  background: #ff6b6b;
+  border-color: #ff6b6b;
+  box-shadow: 0 0 4px rgba(255, 107, 107, 0.5);
+}
+
+.combat-pip.mp-pip.filled {
+  background: #4ab3f5;
+  border-color: #4ab3f5;
+  box-shadow: 0 0 4px rgba(74, 179, 245, 0.4);
+}
+
+.combat-pip-label {
+  font-family: 'Asimovian', 'Palatino Linotype', serif;
+  font-size: 9px;
+  color: #7a6840;
+  margin-right: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.combat-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.combat-btn {
+  font-family: 'Asimovian', 'Palatino Linotype', serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #FFFCC3;
+  background: rgba(12, 7, 2, 0.90);
+  border: 1px solid #613C18;
+  border-radius: 3px;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.combat-btn:hover {
+  background: rgba(97, 60, 24, 0.55);
+  border-color: #CECCA0;
+}
+
+.combat-btn:active {
+  background: rgba(97, 60, 24, 0.80);
+}
+
+.combat-btn.attack-btn {
+  border-color: #ff6b6b;
+  color: #ff6b6b;
+}
+
+.combat-btn.attack-btn:hover {
+  background: rgba(255, 107, 107, 0.18);
+  border-color: #ff9999;
+  color: #FFFCC3;
+}
+
+.combat-btn.attack-btn.active {
+  background: rgba(255, 107, 107, 0.30);
+  border-color: #ff6b6b;
+  color: #FFFCC3;
+  box-shadow: 0 0 6px rgba(255, 107, 107, 0.45);
+}
+
+.combat-btn.end-turn-btn {
+  border-color: #f57a00;
+  color: #f57a00;
+}
+
+.combat-btn.end-turn-btn:hover {
+  background: rgba(245, 122, 0, 0.18);
+  border-color: #ffaa44;
+  color: #FFFCC3;
+}
+
+.combat-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Round indicator */
+.combat-round {
+  font-family: 'Asimovian', 'Palatino Linotype', serif;
+  font-size: 9px;
+  color: #7a6840;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Enemy turn dimming */
+#ui-combat-actions.enemy-turn .combat-buttons .combat-btn {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}

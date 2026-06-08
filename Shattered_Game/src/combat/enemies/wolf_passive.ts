@@ -1,5 +1,4 @@
 import { PLAYER_CONFIG } from '../../player/PlayerConfig';
-import { CIRCLE_SM, CONE_3T, STAB_2T } from '../AttackShapePresets';
 import type { EnemyDefinition } from '../EnemyTypes';
 
 export const WOLF_PASSIVE: EnemyDefinition = {
@@ -7,13 +6,15 @@ export const WOLF_PASSIVE: EnemyDefinition = {
   displayName: 'Wolf',
   tier: 1,
   maxHealth: 5,
+  initiative: 8,
+  mpPerTurn: 3,
+  apPerTurn: 1,
+  defense: 0,
   behavior: 'passive',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.70,
   collisionRadiusTiles: 0.55,
   aggroRangeTiles: 0,
   leashRangeTiles: 10,
-  deAggroRangeTiles: 15,
-  retreatRangeTiles: 4.0,
   lootTables: [
     { oneIn: 1, entries: [{ itemId: 'bone', weight: 1 }] },
     {
@@ -28,39 +29,21 @@ export const WOLF_PASSIVE: EnemyDefinition = {
     {
       id: 'wolf_bite',
       displayName: 'Bite',
-      kind: 'stab',
+      apCost: 1,
       minRangeTiles: 0,
-      maxRangeTiles: 2.5,
-      damage: 1,
-      timing: { windupMs: 500, activeMs: 160, recoveryMs: 700 },
-      telegraph: STAB_2T,
-      cooldownMs: 1_200,
-      globalCooldownMs: 900,
-    },
-    {
-      id: 'wolf_roar',
-      displayName: 'Roar',
-      kind: 'cone',
-      minRangeTiles: 0,
-      maxRangeTiles: 2.5,
-      damage: 1,
-      timing: { windupMs: 1_000, activeMs: 250, recoveryMs: 1_200 },
-      telegraph: CONE_3T,
-      cooldownMs: 4_000,
-      globalCooldownMs: 3_000,
-      knockback: { forceTiles: 2.0 },
+      maxRangeTiles: 1,
+      damage: 2,
+      hitChance: 75,
     },
     {
       id: 'wolf_lunge',
       displayName: 'Lunge',
-      kind: 'jump',
-      minRangeTiles: 2,
-      maxRangeTiles: 6,
-      damage: 1,
-      timing: { windupMs: 900, activeMs: 200, recoveryMs: 1_000 },
-      telegraph: CIRCLE_SM,
-      cooldownMs: 3_500,
-      globalCooldownMs: 2_800,
+      apCost: 1,
+      minRangeTiles: 0,
+      maxRangeTiles: 2,
+      damage: 2,
+      hitChance: 65,
+      cooldownTurns: 2,
     },
   ],
 };

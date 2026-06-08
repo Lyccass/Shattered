@@ -1,4 +1,4 @@
-import type { CombatUiSnapshot } from '../../combat/CombatUiTypes';
+import type { TurnCombatUiSnapshot } from '../../combat/CombatUiTypes';
 import type { SkillSnapshot } from '../../skills/SkillTypes';
 import type { UIOverlayCallbacks, TabId } from './UITokens';
 import type { UiStateSnapshot } from '../UiTypes';
@@ -8,6 +8,7 @@ import { ChatPanel } from './panels/ChatPanel';
 import { TaskbarPanel } from './panels/TaskbarPanel';
 import { XpDropPanel } from './panels/XpDropPanel';
 import { ChoiceMenuPopup } from './panels/ChoiceMenuPopup';
+import { CombatHud } from './panels/CombatHud';
 import { PopupWindow } from './PopupWindow';
 import { SkillDetailWindow } from './SkillDetailWindow';
 import { ShopPopupContent, type ShopPopupCallbacks } from './ShopPopupContent';
@@ -23,6 +24,7 @@ export class UIOverlayManager {
   private readonly taskbarPanel: TaskbarPanel;
   private readonly xpDropPanel: XpDropPanel;
   private readonly choiceMenuPopup: ChoiceMenuPopup;
+  private readonly combatHud: CombatHud;
   private popup: PopupWindow | null = null;
   private lastSkillPopupId: string | null = null;
   private skillDetailWindow: SkillDetailWindow | null = null;
@@ -48,6 +50,11 @@ export class UIOverlayManager {
       (skill) => this.openSkillDetail(skill),
     );
     this.xpDropPanel     = new XpDropPanel(this.overlay);
+    this.combatHud       = new CombatHud(
+      this.overlay,
+      callbacks.onCombatEndTurn,
+      callbacks.onCombatAttackMode,
+    );
     this.choiceMenuPopup = new ChoiceMenuPopup(
       this.overlay,
       callbacks.onChoiceMenuSelect,
@@ -58,19 +65,20 @@ export class UIOverlayManager {
 
   update(
     state: UiStateSnapshot,
-    combat: CombatUiSnapshot | null,
+    combat: TurnCombatUiSnapshot | null,
     controlMode: 'explore' | 'combat',
   ): void {
     this.choiceMenuPopup.update(state.choiceMenu);
+    this.combatHud.update(combat);
     this.enemyPanel.update(combat);
     this.minimapPanel.updatePlayerStats(
-      combat?.player?.currentHp   ?? null,
-      combat?.player?.maxHp       ?? null,
-      combat?.player?.stamina     ?? null,
-      combat?.player?.maxStamina  ?? null,
+      combat?.playerCurrentHp ?? null,
+      combat?.playerMaxHp     ?? null,
+      null,
+      null,
     );
     this.taskbarPanel.setCombatMode(controlMode === 'combat');
-    this.taskbarPanel.setSprintMode(combat?.player?.isSprinting ?? false);
+    this.taskbarPanel.setSprintMode(combat?.isSprinting ?? false);
     this.taskbarPanel.update(
       state.inventory,
       state.currency,
@@ -189,6 +197,7 @@ export class UIOverlayManager {
   }
 
   destroy(): void {
+    this.combatHud.destroy();
     this.enemyPanel.destroy();
     this.minimapPanel.destroy();
     this.chatPanel.destroy();

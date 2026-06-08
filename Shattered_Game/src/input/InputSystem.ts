@@ -38,8 +38,9 @@ export class InputSystem {
   }
 
   // Returns true when the player controller should process movement input.
+  // In combat mode the player moves via turn actions, not free WASD.
   shouldProcessMovement(): boolean {
-    return this.mode === 'normal' || this.mode === 'combat';
+    return this.mode === 'normal';
   }
 
   destroy(): void {
@@ -98,16 +99,6 @@ export class InputSystem {
     this.rawKeydownHandlers.push(wrapped);
   }
 
-  private onKeyUp(key: string, handler: () => void): void {
-    const event = `keyup-${key}`;
-    const wrapped = () => {
-      handler();
-    };
-
-    this.keyboard.on(event, wrapped);
-    this.keyupHandlers.set(event, wrapped);
-  }
-
   private onPointerDown(handler: (pointer: Phaser.Input.Pointer) => void): void {
     this.sceneInput.on('pointerdown', handler);
     this.pointerDownHandlers.push(handler);
@@ -127,7 +118,7 @@ export class InputSystem {
         this.callbacks.onMenuConfirm();
       } else if (this.mode === 'placement') {
         this.callbacks.onPlacementConfirm();
-      } else if (this.mode === 'normal' || this.mode === 'combat') {
+      } else if (this.mode === 'normal') {
         this.callbacks.onInteract();
       }
     });
@@ -139,53 +130,20 @@ export class InputSystem {
       }
     });
 
-    // --- SPACE: dodge in normal/combat modes ---
+    // --- SPACE: end turn in combat; sprint toggle outside combat ---
     this.on('SPACE', () => {
-      if (this.mode !== 'normal' && this.mode !== 'combat') {
-        return;
+      if (this.mode === 'combat') {
+        this.callbacks.onCombatEndTurn();
+      } else if (this.mode === 'normal') {
+        this.callbacks.onToggleSprint();
       }
-
-      this.callbacks.onCombatDodge();
     });
 
-    // --- SHIFT: sprint toggle in normal/combat modes ---
-    this.on('SHIFT', () => {
-      if (this.mode !== 'normal' && this.mode !== 'combat') {
-        return;
-      }
-
-      this.callbacks.onToggleSprint();
-    });
-
-    // --- Q held: guard in combat mode ---
-    this.on('Q', () => {
-      if (this.mode !== 'combat') {
-        return;
-      }
-
-      this.callbacks.onGuardStart();
-    });
-
-    this.onKeyUp('Q', () => {
-      this.callbacks.onGuardEnd();
-    });
-
-    // --- F: temporary light attack key in combat mode ---
+    // --- F: flee in combat mode ---
     this.on('F', () => {
-      if (this.mode !== 'combat') {
-        return;
+      if (this.mode === 'combat') {
+        this.callbacks.onCombatFlee();
       }
-
-      this.callbacks.onPlayerLightAttack();
-    });
-
-    // --- R: toggle explore/combat control mode ---
-    this.on('R', () => {
-      if (this.mode !== 'normal' && this.mode !== 'combat') {
-        return;
-      }
-
-      this.callbacks.onToggleControlMode();
     });
 
     this.onPointerDown((pointer) => {
@@ -196,26 +154,15 @@ export class InputSystem {
         return;
       }
 
-      if (this.mode !== 'normal' && this.mode !== 'combat') {
-        return;
-      }
-
       const worldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
       const worldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
 
-      if (worldX === null || worldY === null) {
-        return;
-      }
+      if (worldX === null || worldY === null) return;
 
       if (this.mode === 'combat') {
+        // Left click: route to pointer interact → GameScene dispatches to session.handleTileClick
         if (pointer.button === 0 || pointer.leftButtonDown()) {
-          // Try to interact with whatever was clicked first; falls back to reposition if nothing there
           this.callbacks.onPointerInteract(worldX, worldY);
-          return;
-        }
-
-        if (pointer.button === 2) {
-          this.callbacks.onPlayerLightAttack();
         }
         return;
       }

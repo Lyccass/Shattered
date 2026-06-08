@@ -1,4 +1,4 @@
-import type { CombatUiSnapshot } from '../../../combat/CombatUiTypes';
+import type { TurnCombatUiSnapshot } from '../../../combat/CombatUiTypes';
 import { requireElement } from '../../domUtils';
 
 const LOW_HP_THRESHOLD = 0.25;
@@ -36,8 +36,10 @@ export class EnemyPanel {
     overlay.appendChild(this.root);
   }
 
-  update(combat: CombatUiSnapshot | null): void {
-    const enemy = combat?.enemy ?? null;
+  update(combat: TurnCombatUiSnapshot | null): void {
+    const enemy = combat?.active
+      ? (combat.turnOrder.find((p) => p.kind === 'enemy') ?? null)
+      : null;
 
     if (!enemy) {
       this.root.classList.add('ui-hidden');
@@ -46,15 +48,15 @@ export class EnemyPanel {
 
     this.root.classList.remove('ui-hidden');
     this.nameEl.textContent = enemy.name;
-    this.tierEl.textContent = `Rank ${enemy.tier}`;
+    this.tierEl.textContent = enemy.isActive ? '◀' : '';
 
-    const ratio = enemy.maxHealth > 0
-      ? Math.max(0, Math.min(1, enemy.health / enemy.maxHealth))
+    const ratio = enemy.maxHp > 0
+      ? Math.max(0, Math.min(1, enemy.hp / enemy.maxHp))
       : 0;
 
     this.hpFill.style.width = `${ratio * 100}%`;
     this.hpFill.classList.toggle('is-low', ratio <= LOW_HP_THRESHOLD);
-    this.hpText.textContent = `${enemy.health} / ${enemy.maxHealth}`;
+    this.hpText.textContent = `${enemy.hp} / ${enemy.maxHp}`;
   }
 
   destroy(): void {

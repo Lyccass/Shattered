@@ -1,8 +1,6 @@
 import Phaser from 'phaser';
-import { CombatAnimationStateController } from '../combat/CombatAnimationStateController';
-import type { CombatAnimationStateId } from '../combat/CombatAnimationTypes';
+import { PlayerAnimationStateController, type PlayerAnimationStateId } from './PlayerAnimationState';
 import {
-  PLAYER_ATTACK_ANIMATION_KEY,
   PLAYER_DASH_ANIMATION_KEY,
   PLAYER_DEAD_ANIMATION_KEY,
   getPlayerDirectionalAnimationKey,
@@ -21,7 +19,7 @@ import type { PlayerFacingDirection } from './PlayerFacing';
 type HorizontalFacing = 'left' | 'right';
 
 export class PlayerVisualSystem {
-  private readonly animationState = new CombatAnimationStateController();
+  private readonly animationState = new PlayerAnimationStateController();
   private currentAnimationKey: string | null = null;
 
   constructor(private readonly sprite: Phaser.GameObjects.Sprite) {
@@ -49,7 +47,7 @@ export class PlayerVisualSystem {
     this.sprite.setDepth(getDynamicDepth(feetWorldY, PLAYER_CONFIG.depthTieBreaker));
   }
 
-  requestCombatState(state: CombatAnimationStateId, nowMs: number, durationMs = 0): void {
+  requestCombatState(state: PlayerAnimationStateId, nowMs: number, durationMs = 0): void {
     this.animationState.requestState(state, nowMs, durationMs);
   }
 
@@ -57,12 +55,12 @@ export class PlayerVisualSystem {
     this.animationState.reset();
   }
 
-  getCombatState(nowMs: number): CombatAnimationStateId {
+  getCombatState(nowMs: number): PlayerAnimationStateId {
     return this.animationState.getState(nowMs);
   }
 
   private applyVisualState(
-    state: CombatAnimationStateId,
+    state: PlayerAnimationStateId,
     isMoving: boolean,
     isSprinting: boolean,
     facingDirection: PlayerFacingDirection,
@@ -103,8 +101,8 @@ export class PlayerVisualSystem {
 }
 
 function resolveAnimationKey(
-  state: CombatAnimationStateId,
-  isMoving: boolean,
+  state: PlayerAnimationStateId,
+  _isMoving: boolean,
   isSprinting: boolean,
   facingDirection: PlayerFacingDirection,
   horizontalFacing: HorizontalFacing,
@@ -120,30 +118,10 @@ function resolveAnimationKey(
           direction,
         );
       }
-
       return getPlayerDirectionalAnimationKey(
         facingDirection === 'up' ? PLAYER_WALK_UP_ANIMATION_KEY : PLAYER_WALK_ANIMATION_KEY,
         direction,
       );
-    case 'attack_windup':
-    case 'attack_active':
-      return getPlayerDirectionalAnimationKey(PLAYER_ATTACK_ANIMATION_KEY, direction);
-    case 'attack_recovery':
-      if (isMoving) {
-        if (isSprinting) {
-          return getPlayerDirectionalAnimationKey(
-            facingDirection === 'up' ? PLAYER_SPRINT_UP_ANIMATION_KEY : PLAYER_SPRINT_ANIMATION_KEY,
-            direction,
-          );
-        }
-
-        return getPlayerDirectionalAnimationKey(
-          facingDirection === 'up' ? PLAYER_WALK_UP_ANIMATION_KEY : PLAYER_WALK_ANIMATION_KEY,
-          direction,
-        );
-      }
-
-      return getPlayerDirectionalAnimationKey(PLAYER_IDLE_ANIMATION_KEY, direction);
     case 'dodge':
       return getPlayerDirectionalAnimationKey(PLAYER_DASH_ANIMATION_KEY, direction);
     case 'hurt':

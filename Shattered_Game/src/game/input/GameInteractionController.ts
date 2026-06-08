@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import type { InteractionResult, InteractionTarget } from '../../interactions/InteractionTypes';
 import type { PlayerController } from '../../player/PlayerController';
-import type { TelegraphSystem } from '../../combat/TelegraphSystem';
 import type { UiManager } from '../../ui/UiManager';
 import type {
   DeferredInteractionAction,
@@ -18,7 +17,6 @@ type GameplayResultHandler = (
 type GameInteractionControllerDeps = {
   getWorldRuntimeCoordinator: () => WorldRuntimeCoordinator | undefined;
   getPlayerController: () => PlayerController | undefined;
-  getTelegraphSystem: () => TelegraphSystem | undefined;
   getUiManager: () => UiManager | undefined;
   getControlMode: () => ControlMode;
   handleGameplayResult: GameplayResultHandler;
@@ -203,9 +201,8 @@ export class GameInteractionController {
   moveToPointer(worldX: number, worldY: number, preservePendingInteraction = false): void {
     const playerController = this.deps.getPlayerController();
     const worldRuntimeCoordinator = this.deps.getWorldRuntimeCoordinator();
-    const telegraphSystem = this.deps.getTelegraphSystem();
 
-    if (!playerController || !worldRuntimeCoordinator || !telegraphSystem) {
+    if (!playerController || !worldRuntimeCoordinator) {
       return;
     }
 
@@ -221,28 +218,7 @@ export class GameInteractionController {
       return;
     }
 
-    const tileCenter = isoTilemap.transform.getTileCenterWorld(targetTile.x, targetTile.y);
-    const tilePoints = isoTilemap.transform.getTileDiamondPoints(targetTile.x, targetTile.y);
-    const walkable = isoTilemap.isTileWalkable(targetTile.x, targetTile.y);
-
-    if (!walkable) {
-      telegraphSystem.showTelegraph({
-        id: 'move-blocked',
-        worldX: tileCenter.x,
-        worldY: tileCenter.y,
-        shape: {
-          kind: 'polygon',
-          points: tilePoints.map((point) => ({
-            x: point.x - tileCenter.x,
-            y: point.y - tileCenter.y,
-          })),
-        },
-        startedAtMs: this.scene.time.now,
-        durationMs: 800,
-        warningColor: 0xef4444,
-        strokeAlpha: 0.9,
-        fillAlphaMultiplier: 0.3,
-      });
+    if (!isoTilemap.isTileWalkable(targetTile.x, targetTile.y)) {
       playerController.clearClickMoveTarget();
       if (!preservePendingInteraction) {
         this.clearPendingPointerInteraction();
@@ -254,6 +230,7 @@ export class GameInteractionController {
       this.clearPendingPointerInteraction();
     }
 
+    const tileCenter = isoTilemap.transform.getTileCenterWorld(targetTile.x, targetTile.y);
     playerController.setClickMoveTarget(
       tileCenter.x,
       tileCenter.y,

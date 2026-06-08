@@ -1,6 +1,6 @@
 import { ActionProgressPanel } from './ActionProgressPanel';
 import Phaser from 'phaser';
-import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
+import type { TurnCombatUiSnapshot } from '../combat/CombatUiTypes';
 import { formatSkillXpToastLines } from './UiFormatters';
 import { ToastSystem } from './ToastSystem';
 import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
@@ -14,6 +14,8 @@ import { SkillUnlockRegistry } from '../skills/SkillUnlockRegistry';
 
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
+  onCombatEndTurn: () => void;
+  onCombatAttackMode: () => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;
@@ -44,6 +46,8 @@ export class UiManager {
 
     this.overlay = new UIOverlayManager({
       onCombatToggle:          callbacks.onCombatToggle,
+      onCombatEndTurn:         callbacks.onCombatEndTurn,
+      onCombatAttackMode:      callbacks.onCombatAttackMode,
       onSprintToggle:          callbacks.onSprintToggle,
       onInventoryItemUse:      callbacks.onInventoryItemUse,
       onInventoryItemDrop:     callbacks.onInventoryItemDrop,
@@ -66,7 +70,7 @@ export class UiManager {
 
   update(
     state: UiStateSnapshot,
-    combat: CombatUiSnapshot | null = null,
+    combat: TurnCombatUiSnapshot | null = null,
     controlMode: 'explore' | 'combat' = 'explore',
   ): void {
     this.actionProgressPanel.update(state.actionProgress);

@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import type { CombatDodgeDirection } from '../combat/CombatDodge';
 import type { PlayerMovementSystem } from './PlayerMovementSystem';
 
 type ActiveDodgeMotion = {
@@ -29,7 +28,7 @@ export class PlayerDodgeMotionController {
     this.dodgeMotion = null;
   }
 
-  start(direction: CombatDodgeDirection, distance: number, durationMs: number): void {
+  start(direction: { x: number; y: number }, distance: number, durationMs: number): void {
     const length = Math.hypot(direction.x, direction.y);
 
     if (length <= 0.0001 || distance <= 0 || durationMs <= 0) {

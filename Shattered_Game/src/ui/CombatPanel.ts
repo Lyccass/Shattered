@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { CombatUiSnapshot } from '../combat/CombatUiTypes';
+import type { TurnCombatUiSnapshot } from '../combat/CombatUiTypes';
 import { formatCombatPanelText } from './UiFormatters';
 import { createUiText } from './UiTextFactory';
 
@@ -11,7 +11,7 @@ export class CombatPanel {
     this.text.setVisible(false);
   }
 
-  update(snapshot: CombatUiSnapshot | null): void {
+  update(snapshot: TurnCombatUiSnapshot | null): void {
     const content = formatCombatPanelText(snapshot);
     this.text.setText(content);
     this.text.setVisible(content.length > 0);

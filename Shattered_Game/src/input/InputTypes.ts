@@ -9,15 +9,14 @@ export type InputCallbacks = {
   // Normal-mode interactions
   onInteract: () => void;
   onCancelAction: () => void;
-  onCombatDodge: () => void;
   onToggleSprint: () => void;
-  onGuardStart: () => void;
-  onGuardEnd: () => void;
-  onPlayerLightAttack: () => void;
   onMoveToPointer: (worldX: number, worldY: number) => void;
   onPointerInteract: (worldX: number, worldY: number) => void;
   onPointerContext: (worldX: number, worldY: number) => void;
-  onToggleControlMode: () => void;
+
+  // Turn combat actions (active only in 'combat' InputMode)
+  onCombatEndTurn: () => void;
+  onCombatFlee: () => void;
 
   // Menu mode
   onMenuMoveUp: () => void;

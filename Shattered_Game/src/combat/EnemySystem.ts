@@ -1,336 +1,207 @@
 import Phaser from 'phaser';
 import { EnemyRegistry } from './EnemyRegistry';
-import {
-  applyEnemyDamage,
-  resetEnemyRuntimeState,
-  shouldRespawnEnemy,
-} from './EnemyRuntimeStateUtils';
-import {
-  advanceEnemyStateMachine,
-  createEnemyRuntimeState,
-  type EnemyUpdateEvent,
-} from './EnemyStateMachine';
-import type { EnemyDefinition, EnemyRuntimeState, EnemySpawnDefinition, EnemyUiSnapshot } from './EnemyTypes';
 import { ENEMY_DEFINITIONS } from './EnemyDefinitions';
-import type { TelegraphSystem } from './TelegraphSystem';
-import type { IsoTilemap } from '../world/IsoTilemap';
-import { EnemyAttackTileRenderer } from './EnemyAttackTileRenderer';
-import {
-  getEnemyOccupiedTile,
-  getEnemyOccupiedTiles,
-  getEnemyOccupiedTileSamples,
-} from './EnemyOccupancy';
 import { EnemyVisualController } from './EnemyVisualController';
+import type { EnemyTurnVisualState } from './EnemyVisualController';
+import type { EnemyDefinition, EnemyRuntimeRecord, EnemySpawnDefinition } from './EnemyTypes';
+import type { IsoTilemap } from '../world/IsoTilemap';
 
-const DEFAULT_DEATH_RESET_DELAY_MS = 60_000;
+const DEFAULT_RESPAWN_MS = 60_000;
 
 export class EnemySystem {
-  private readonly enemyRegistry = new EnemyRegistry(ENEMY_DEFINITIONS);
-  private readonly attackTileRenderer: EnemyAttackTileRenderer;
+  private readonly registry = new EnemyRegistry(ENEMY_DEFINITIONS);
   private readonly visualController: EnemyVisualController;
-  private runtimeState: EnemyRuntimeState | null = null;
-  private definition: EnemyDefinition | null = null;
-  private activeMapId: string | null = null;
-  private tilemap: IsoTilemap | null = null;
-  private deathResetDelayMs = DEFAULT_DEATH_RESET_DELAY_MS;
 
-  constructor(
-    scene: Phaser.Scene,
-    private readonly telegraphSystem: TelegraphSystem,
-  ) {
-    this.attackTileRenderer = new EnemyAttackTileRenderer(scene);
+  private record:     EnemyRuntimeRecord | null = null;
+  private definition: EnemyDefinition    | null = null;
+  private tilemap:    IsoTilemap         | null = null;
+
+  /** True while the enemy is a participant in an active turn combat. */
+  private _inCombat = false;
+
+  constructor(scene: Phaser.Scene) {
     this.visualController = new EnemyVisualController(scene);
   }
 
+  // ─── Lifecycle ────────────────────────────────────────────────────────────
+
   setMapContext(mapId: string, tilemap: IsoTilemap, spawn: EnemySpawnDefinition | null): void {
     this.clearRuntime();
-    this.activeMapId = mapId;
     this.tilemap = tilemap;
-    this.attackTileRenderer.setTilemap(tilemap);
 
-    if (!spawn) {
+    if (!spawn) return;
+
+    this.definition = this.registry.get(spawn.definitionId);
+    const origin    = tilemap.getTileCenterWorld(spawn.tileX, spawn.tileY);
+
+    this.record = {
+      id:          spawn.id,
+      definitionId: spawn.definitionId,
+      mapId,
+      spawnTileX:  spawn.tileX,
+      spawnTileY:  spawn.tileY,
+      tileX:       spawn.tileX,
+      tileY:       spawn.tileY,
+      worldX:      origin.x,
+      worldY:      origin.y,
+      hp:          this.definition.maxHealth,
+      maxHp:       this.definition.maxHealth,
+      inCombat:    false,
+      diedAtMs:    null,
+      respawnMs:   spawn.respawnMs ?? DEFAULT_RESPAWN_MS,
+    };
+
+    this.visualController.spawn(origin.x, origin.y);
+  }
+
+  // ─── Per-frame update (called by GameScene outside of combat) ────────────
+
+  /**
+   * Handles respawn timing and drives the visual controller.
+   * TurnCombatSession calls setVisualState() separately during combat turns.
+   */
+  update(nowMs: number): void {
+    if (!this.record || !this.tilemap) return;
+
+    // Respawn dead enemies
+    if (this.record.diedAtMs !== null) {
+      if (nowMs - this.record.diedAtMs >= this.record.respawnMs) {
+        this.respawn();
+      } else {
+        this.visualController.applyTurnState(
+          this.record.worldX, this.record.worldY,
+          false, 0, this.record.maxHp, 'dead', nowMs,
+        );
+      }
       return;
     }
 
-    this.definition = this.enemyRegistry.get(spawn.definitionId);
-    this.deathResetDelayMs = spawn.respawnMs ?? DEFAULT_DEATH_RESET_DELAY_MS;
-    const origin = tilemap.getTileCenterWorld(spawn.tileX, spawn.tileY);
-    this.runtimeState = createEnemyRuntimeState(this.definition, spawn, origin.x, origin.y);
-    this.visualController.spawn(this.runtimeState);
+    // Normal idle rendering (outside combat, session drives during combat)
+    if (!this._inCombat) {
+      this.visualController.applyTurnState(
+        this.record.worldX, this.record.worldY,
+        false, this.record.hp, this.record.maxHp, 'idle', nowMs,
+      );
+    }
   }
 
-  update(
+  // ─── Combat integration ───────────────────────────────────────────────────
+
+  setInCombat(inCombat: boolean): void {
+    this._inCombat = inCombat;
+    if (this.record) this.record.inCombat = inCombat;
+  }
+
+  get inCombat(): boolean { return this._inCombat; }
+
+  /** Called by TurnCombatSession each frame during the enemy's turn. */
+  applyVisualUpdate(
+    worldX: number,
+    worldY: number,
+    facingRightward: boolean,
+    hp: number,
+    visualState: EnemyTurnVisualState,
     nowMs: number,
-    deltaMs: number,
-    playerWorldX: number,
-    playerWorldY: number,
-    playerInvulnerable: boolean,
-    playerOccupiedTiles: Array<{ x: number; y: number }>,
-    playerEngagedWithEnemyId: string | null = null,
-    playerTier = 1,
-    threatLevel = 0,
-  ): EnemyUpdateEvent[] {
-    if (!this.runtimeState || !this.definition || !this.tilemap) {
-      return [];
-    }
-
-    if (shouldRespawnEnemy(this.runtimeState, nowMs)) {
-      this.resetRuntimeState();
-      this.applyVisualState(this.runtimeState, nowMs, false);
-      return [];
-    }
-
-    const prevX = this.runtimeState.worldX;
-    const prevY = this.runtimeState.worldY;
-
-    const result = advanceEnemyStateMachine(this.definition, this.runtimeState, {
-      nowMs,
-      deltaMs,
-      playerWorldX,
-      playerWorldY,
-      playerInvulnerable,
-      playerOccupiedTiles,
-      tileWidth: this.tilemap.tileWidth,
-      tileHeight: this.tilemap.tileHeight,
-      mapWidth: this.tilemap.width,
-      mapHeight: this.tilemap.height,
-      worldToTile: (worldX, worldY) => this.tilemap!.transform.worldToTile(worldX, worldY),
-      getTileCenterWorld: (tileX, tileY) => this.tilemap!.getTileCenterWorld(tileX, tileY),
-      getTileDiamondPoints: (tileX, tileY) => this.tilemap!.transform.getTileDiamondPoints(tileX, tileY),
-      isTileWalkable: (tileX, tileY) => this.tilemap!.isTileWalkable(tileX, tileY),
-      playerEngagedWithEnemyId,
-      playerTier,
-      threatLevel,
-    });
-
-    const isActuallyMoving = Math.hypot(result.state.worldX - prevX, result.state.worldY - prevY) > 0.5;
-    this.runtimeState = result.state;
-    this.tickEnemyRegen(nowMs);
-    this.applyVisualState(result.state, nowMs, isActuallyMoving);
-    this.applyTelegraphEvents(result.events, nowMs);
-    return result.events;
-  }
-
-  applyDamage(amount: number, nowMs: number): { hit: boolean; killed: boolean; currentHp: number } {
-    if (!this.runtimeState || !this.definition || this.runtimeState.currentState === 'dead') {
-      return { hit: false, killed: false, currentHp: this.runtimeState?.health ?? 0 };
-    }
-
-    const telegraphId = this.runtimeState.telegraphId;
-    const result = applyEnemyDamage(
-      this.runtimeState,
-      amount,
-      nowMs,
-      this.deathResetDelayMs,
+  ): void {
+    if (!this.record) return;
+    this.record.worldX = worldX;
+    this.record.worldY = worldY;
+    this.visualController.applyTurnState(
+      worldX, worldY, facingRightward, hp, this.record.maxHp, visualState, nowMs,
     );
-    this.runtimeState = result.state;
-
-    if (result.hit && !result.killed) {
-      this.visualController.flashHit(nowMs);
-      if (this.definition.behavior === 'passive' && !this.runtimeState.reactiveAggro) {
-        this.runtimeState = { ...this.runtimeState, reactiveAggro: true };
-      }
-    }
-
-    if (!result.killed) {
-      return result;
-    }
-
-    if (telegraphId) {
-      this.telegraphSystem.removeTelegraph(telegraphId);
-    }
-    this.applyVisualState(this.runtimeState, nowMs, false);
-    return result;
   }
 
-  isInPunishWindow(): boolean {
-    return this.runtimeState?.currentState === 'recovery';
+  setCombatTile(tileX: number, tileY: number): void {
+    if (!this.record || !this.tilemap) return;
+    const world = this.tilemap.getTileCenterWorld(tileX, tileY);
+    this.record.tileX = tileX;
+    this.record.tileY = tileY;
+    this.record.worldX = world.x;
+    this.record.worldY = world.y;
   }
 
-  isEngaged(): boolean {
-    const s = this.runtimeState?.currentState;
-    return s !== undefined && s !== 'idle' && s !== 'dead' && s !== 'reset';
+  flashHit(nowMs: number): void {
+    this.visualController.flashHit(nowMs);
   }
 
-  getRuntimeId(): string | null {
-    return this.runtimeState?.id ?? null;
+  /** Apply damage to the record HP. Returns true if killed. */
+  applyDamage(amount: number): boolean {
+    if (!this.record) return false;
+    this.record.hp = Math.max(0, this.record.hp - amount);
+    return this.record.hp <= 0;
   }
+
+  recordDeath(nowMs: number): void {
+    if (!this.record) return;
+    this.record.diedAtMs = nowMs;
+    this.record.hp = 0;
+    this._inCombat = false;
+    this.record.inCombat = false;
+  }
+
+  // ─── Queries ──────────────────────────────────────────────────────────────
+
+  isAlive(): boolean {
+    return !!this.record && this.record.diedAtMs === null && this.record.hp > 0;
+  }
+
+  getRecord(): EnemyRuntimeRecord | null { return this.record; }
+  getDefinition(): EnemyDefinition | null { return this.definition; }
+  getSpawnId(): string | null { return this.record?.id ?? null; }
+  getDefinitionId(): string | null { return this.definition?.id ?? null; }
 
   getWorldPosition(): { x: number; y: number } | null {
-    if (!this.runtimeState) {
-      return null;
-    }
-
-    return { x: this.runtimeState.worldX, y: this.runtimeState.worldY };
+    if (!this.record) return null;
+    return { x: this.record.worldX, y: this.record.worldY };
   }
 
-  isCombatActive(playerWorldX: number, playerWorldY: number): boolean {
-    if (!this.runtimeState || !this.definition) {
-      return false;
-    }
-
-    const state = this.runtimeState.currentState;
-    if (state === 'dead' || state === 'reset') {
-      return false;
-    }
-
-    if (state !== 'idle') {
-      return true;
-    }
-
-    const dist = Math.hypot(this.runtimeState.worldX - playerWorldX, this.runtimeState.worldY - playerWorldY);
-    return dist <= this.definition.aggroRangeTiles * (this.tilemap?.tileWidth ?? 32);
+  getCurrentTile(): { x: number; y: number } | null {
+    if (!this.record) return null;
+    return { x: this.record.tileX, y: this.record.tileY };
   }
 
-  getDefinitionId(): string | null {
-    return this.definition?.id ?? null;
+  /** Whether this enemy would start combat if the player walks into aggro range. */
+  wouldAggro(): boolean {
+    if (!this.definition || !this.record) return false;
+    if (!this.isAlive()) return false;
+    if (this._inCombat) return false;
+    return (this.definition.behavior ?? 'aggressive') === 'aggressive';
   }
 
-  getSpawnId(): string | null {
-    return this.runtimeState?.id ?? null;
-  }
-
-  getCollisionRadiusTiles(): number {
-    return this.definition?.collisionRadiusTiles ?? 0.5;
-  }
-
-  getUiSnapshot(): EnemyUiSnapshot | null {
-    if (!this.runtimeState || !this.definition) {
-      return null;
-    }
-
-    const runtimeState = this.runtimeState;
-    const definition = this.definition;
-
-    const activeAttack = runtimeState.currentAttackId
-      ? definition.attacks.find((attack) => attack.id === runtimeState.currentAttackId) ?? null
-      : null;
-
-    return {
-      name: definition.displayName,
-      tier: definition.tier,
-      state: runtimeState.currentState,
-      health: runtimeState.health,
-      maxHealth: definition.maxHealth,
-      activeAttackName: activeAttack?.displayName ?? null,
-    };
-  }
-
-  blocksFeetAt(worldX: number, worldY: number): boolean {
-    if (!this.runtimeState || !this.definition || !this.tilemap) return false;
-    if (this.runtimeState.currentState === 'dead') return false;
-    const dx = worldX - this.runtimeState.worldX;
-    const dy = worldY - this.runtimeState.worldY;
-    const radiusPx = this.definition.collisionRadiusTiles * this.tilemap.tileWidth;
-    return dx * dx + dy * dy < radiusPx * radiusPx;
-  }
-
-  getOccupiedTile(): { x: number; y: number } | null {
-    return getEnemyOccupiedTile(this.runtimeState, this.tilemap);
-  }
-
-  getOccupiedTiles(): Array<{ x: number; y: number }> {
-    return getEnemyOccupiedTiles(this.runtimeState, this.tilemap);
-  }
-
-  getOccupiedTileSamples(): Array<{ x: number; y: number }> {
-    return getEnemyOccupiedTileSamples({
-      tilemap: this.tilemap,
-      occupiedTile: this.getOccupiedTile(),
-    });
-  }
-
-  getActiveMapId(): string | null {
-    return this.activeMapId;
-  }
-
-  forceReset(): void {
-    this.resetRuntimeState();
+  isInAggroRange(playerTileX: number, playerTileY: number): boolean {
+    if (!this.record || !this.definition) return false;
+    const dx = Math.abs(playerTileX - this.record.tileX);
+    const dy = Math.abs(playerTileY - this.record.tileY);
+    return Math.max(dx, dy) <= this.definition.aggroRangeTiles;
   }
 
   destroy(): void {
-    this.clearRuntime();
-    this.attackTileRenderer.destroy();
-    this.activeMapId = null;
+    this.visualController.destroy();
+    this.record = null;
+    this.definition = null;
     this.tilemap = null;
   }
 
-  private applyVisualState(state: EnemyRuntimeState, nowMs: number, isActuallyMoving: boolean): void {
-    if (!this.definition) {
-      return;
-    }
-
-    this.visualController.applyState(state, this.definition, nowMs, isActuallyMoving);
-  }
-
-  private applyTelegraphEvents(events: EnemyUpdateEvent[], nowMs: number): void {
-    events.forEach((event) => {
-      if (event.kind === 'telegraph_show') {
-        this.telegraphSystem.showTelegraph({
-          id: event.telegraphId,
-          worldX: event.worldX,
-          worldY: event.worldY,
-          shape: event.shape,
-          durationMs: event.durationMs,
-          startedAtMs: nowMs,
-          warningColor: resolveAttackWarningColor(event.attackKind),
-          strokeAlpha: 0.85,
-          fillAlphaMultiplier: 0.28,
-        });
-      }
-
-      if (event.kind === 'telegraph_remove') {
-        this.telegraphSystem.removeTelegraph(event.telegraphId);
-      }
-    });
-  }
-
-  private tickEnemyRegen(nowMs: number): void {
-    if (!this.runtimeState || !this.definition) return;
-
-    const state = this.runtimeState.currentState;
-    if (state !== 'idle' && state !== 'reset') return;
-    if (this.runtimeState.health >= this.definition.maxHealth) return;
-    if (nowMs < this.runtimeState.nextRegenMs) return;
-
-    const regenAmount = Math.max(1, Math.floor(this.definition.maxHealth * 0.01));
-    this.runtimeState = {
-      ...this.runtimeState,
-      health: Math.min(this.definition.maxHealth, this.runtimeState.health + regenAmount),
-      nextRegenMs: nowMs + (this.definition.outOfCombatRegenIntervalMs ?? 15_000),
-    };
-  }
+  // ─── Private ──────────────────────────────────────────────────────────────
 
   private clearRuntime(): void {
-    if (this.runtimeState?.telegraphId) {
-      this.telegraphSystem.removeTelegraph(this.runtimeState.telegraphId);
-    }
-    this.attackTileRenderer.clear();
-
-    this.runtimeState = null;
-    this.definition = null;
     this.visualController.destroy();
+    this.record = null;
+    this.definition = null;
+    this._inCombat = false;
   }
 
-  private resetRuntimeState(): void {
-    if (!this.runtimeState || !this.definition) {
-      return;
-    }
-
-    if (this.runtimeState.telegraphId) {
-      this.telegraphSystem.removeTelegraph(this.runtimeState.telegraphId);
-    }
-    this.attackTileRenderer.clear();
-
-    this.runtimeState = resetEnemyRuntimeState(this.runtimeState, this.definition);
-  }
-}
-
-function resolveAttackWarningColor(attackKind: string): number {
-  switch (attackKind) {
-    case 'jump': return 0xf97316;
-    case 'stab': return 0xfbbf24;
-    case 'cone': return 0xa855f7;
-    default: return 0xef4444;
+  private respawn(): void {
+    if (!this.record || !this.definition || !this.tilemap) return;
+    const origin = this.tilemap.getTileCenterWorld(this.record.spawnTileX, this.record.spawnTileY);
+    this.record.tileX    = this.record.spawnTileX;
+    this.record.tileY    = this.record.spawnTileY;
+    this.record.worldX   = origin.x;
+    this.record.worldY   = origin.y;
+    this.record.hp       = this.record.maxHp;
+    this.record.diedAtMs = null;
+    this.record.inCombat = false;
+    this._inCombat = false;
+    this.visualController.spawn(origin.x, origin.y);
   }
 }

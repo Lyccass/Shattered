@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
 import { SfxSystem } from '../audio/SfxSystem';
 import { CameraSystem } from '../camera/CameraSystem';
-import { CombatSandboxSystem } from '../combat/CombatSandboxSystem';
 import { createEnemyAnimations, preloadEnemyAssets } from '../combat/EnemyAssets';
-import { TelegraphSystem } from '../combat/TelegraphSystem';
+import { TurnCombatSession } from '../combat/turn/TurnCombatSession';
 import { DebugOverlaySystem } from '../debug/DebugOverlaySystem';
 import { GameEventBus } from '../events/GameEventBus';
 import { GameInteractionController } from '../game/input/GameInteractionController';
@@ -30,7 +29,6 @@ import {
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
 import type { InteractionResult } from '../interactions/InteractionTypes';
 import { GroundItemSystem } from '../world/items/GroundItemSystem';
-import type { EnemyKilledEvent } from '../combat/CombatSandboxSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
 import { WorldEncounterPopulationTracker } from '../combat/WorldEncounterPopulationTracker';
@@ -40,8 +38,7 @@ export class GameScene extends Phaser.Scene {
   private player?: Phaser.GameObjects.Sprite;
   private playerController?: PlayerController;
   private cameraSystem?: CameraSystem;
-  private telegraphSystem?: TelegraphSystem;
-  private combatSandboxSystem?: CombatSandboxSystem;
+  private turnCombatSession?: TurnCombatSession;
   private debugOverlaySystem?: DebugOverlaySystem;
   private uiManager?: UiManager;
   private interactionController?: GameInteractionController;
@@ -50,8 +47,9 @@ export class GameScene extends Phaser.Scene {
   private worldRuntimeCoordinator?: WorldRuntimeCoordinator;
   private inputSystem?: InputSystem;
   private groundItemSystem?: GroundItemSystem;
-  private controlMode: 'explore' | 'combat' = 'explore';
   private tileHighlight?: Phaser.GameObjects.Graphics;
+  private isSprinting = false;
+  private isCombatStance = false;
   private hasShutdown = false;
   private mapLoadSerial = 0;
   private readonly encounterPopulation = new WorldEncounterPopulationTracker();
@@ -72,17 +70,23 @@ export class GameScene extends Phaser.Scene {
     createPlayerAnimations(this);
     createEnemyAnimations(this);
 
-    this.telegraphSystem = new TelegraphSystem(this);
     this.sfxSystem = new SfxSystem(this, this.gameEventBus);
     this.groundItemSystem = new GroundItemSystem(this);
-    this.combatSandboxSystem = new CombatSandboxSystem(
-      this,
-      this.gameEventBus,
-      this.telegraphSystem,
-      (evt: EnemyKilledEvent) => this.handleEnemyKilled(evt),
-      (worldX, worldY) => this.handlePlayerDied(worldX, worldY),
-      (delta) => this.worldRuntimeCoordinator?.addCombatXp(delta) ?? [],
+
+    this.turnCombatSession = new TurnCombatSession(this, this.gameEventBus);
+    this.turnCombatSession.onEnd((evt) => {
+      if (evt.reason === 'player_died') {
+        this.handlePlayerDied();
+      }
+    });
+    this.turnCombatSession.onXp((delta) =>
+      this.worldRuntimeCoordinator?.addCombatXp(delta) ?? [],
     );
+    this.turnCombatSession.onEnemyKilled(
+      (spawnId, areaId, definitionId, worldX, worldY) =>
+        this.handleEnemyKilledForLoot(spawnId, areaId, definitionId, worldX, worldY),
+    );
+
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.worldRuntimeCoordinator.setGroundItemCollector(
       (id) => this.groundItemSystem?.collectDrop(id) ?? null,
@@ -97,7 +101,9 @@ export class GameScene extends Phaser.Scene {
       this.initializeWorldRuntime(initialMapId, 'default');
     }
     this.uiManager = new UiManager(this, {
-      onCombatToggle:         () => this.toggleControlMode(),
+      onCombatToggle:         () => this.toggleCombatStance(),
+      onCombatEndTurn:        () => this.turnCombatSession?.tryPlayerEndTurn(),
+      onCombatAttackMode:     () => this.turnCombatSession?.toggleAttackMode(),
       onSprintToggle:         () => this.tryToggleSprint(),
       onInventoryItemUse:     (itemId) => this.tryUseItem(itemId),
       onInventoryItemDrop:    (itemId) => this.tryDropItem(itemId),
@@ -118,9 +124,8 @@ export class GameScene extends Phaser.Scene {
     this.interactionController = new GameInteractionController(this, {
       getWorldRuntimeCoordinator: () => this.worldRuntimeCoordinator,
       getPlayerController: () => this.playerController,
-      getTelegraphSystem: () => this.telegraphSystem,
       getUiManager: () => this.uiManager,
-      getControlMode: () => this.controlMode,
+      getControlMode: () => this.turnCombatSession?.isInCombat() ? 'combat' : 'explore',
       handleGameplayResult: (result, options) => this.handleGameplayResult(result, options),
     });
     this.tileHighlight = this.add.graphics();
@@ -136,46 +141,29 @@ export class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.inputSystem?.setMode(this.computeInputMode());
 
-    // Sync combat animation state before player movement so attack phase locks
-    // are visible to isAttackMovementBlocked within the same frame.
-    if (this.combatSandboxSystem && this.playerController) {
-      this.combatSandboxSystem.preSyncAttackVisuals(this.time.now, this.playerController);
-    }
-
-    if (this.inputSystem?.shouldProcessMovement() ?? true) {
-      this.playerController?.update(delta, this.time.now);
-    }
+    // Always run player controller — click-move must process even during combat turns.
+    this.playerController?.update(delta, this.time.now);
 
     this.groundItemSystem?.tick(this.time.now);
     this.refreshGroundItemTargets();
-    if (this.combatSandboxSystem && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
+
+    if (this.turnCombatSession && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
       const derived = this.worldRuntimeCoordinator.getDerivedStats();
-      this.combatSandboxSystem.syncDerivedStats(derived);
-      const skillSnapshots = this.worldRuntimeCoordinator.getPlayerSkillSnapshots();
-      const maxCombatRank = Math.max(1, ...skillSnapshots
-        .filter((s) => s.id === 'melee' || s.id === 'defence')
-        .map((s) => s.rank));
-      this.combatSandboxSystem.syncPlayerTier(maxCombatRank);
+      this.turnCombatSession.setDerivedStats(derived);
     }
+
+    this.turnCombatSession?.update(this.time.now);
+
     const uiResults = this.worldRuntimeCoordinator?.updatePlayerRuntimeState(delta) ?? [];
     this.interactionController?.resolvePendingPointerInteraction();
     uiResults.forEach((result) => this.handleGameplayResult(result, { allowAutosave: true }));
-    const combatResults =
-      this.combatSandboxSystem && this.playerController
-        ? this.combatSandboxSystem.update(this.time.now, delta, this.playerController)
-        : [];
-    combatResults.forEach((result) => this.uiManager?.handleResult(result));
-
-    if (this.combatSandboxSystem?.consumePendingScreenShake()) {
-      this.cameras.main.shake(80, 0.003);
-    }
 
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
-    this.telegraphSystem?.update(this.time.now);
+    const isInCombat = this.turnCombatSession?.isInCombat() ?? false;
     this.uiManager?.update(
       this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot(),
-      this.combatSandboxSystem?.getUiSnapshot(this.time.now) ?? null,
-      this.controlMode,
+      this.turnCombatSession?.getUiSnapshot() ?? null,
+      isInCombat ? 'combat' : 'explore',
     );
     this.updateTileHighlight();
     this.debugOverlaySystem?.update();
@@ -203,7 +191,7 @@ export class GameScene extends Phaser.Scene {
     if (this.worldRuntimeCoordinator?.isChoiceMenuOpen()) return 'menu';
     if (this.worldRuntimeCoordinator?.isPlacementModeActive()) return 'placement';
     if (this.worldRuntimeCoordinator?.isActionInProgress()) return 'action_progress';
-    return this.controlMode === 'combat' ? 'combat' : 'normal';
+    return (this.turnCombatSession?.isInCombat() ?? false) ? 'combat' : 'normal';
   }
 
   private handleShutdown(): void {
@@ -218,12 +206,10 @@ export class GameScene extends Phaser.Scene {
     this.debugOverlaySystem = undefined;
     this.tileHighlight?.destroy();
     this.tileHighlight = undefined;
-    this.combatSandboxSystem?.destroy();
-    this.combatSandboxSystem = undefined;
+    this.turnCombatSession?.destroy();
+    this.turnCombatSession = undefined;
     this.groundItemSystem?.destroy();
     this.groundItemSystem = undefined;
-    this.telegraphSystem?.destroy();
-    this.telegraphSystem = undefined;
     this.uiManager?.destroy();
     this.uiManager = undefined;
     this.interactionController = undefined;
@@ -240,17 +226,34 @@ export class GameScene extends Phaser.Scene {
     return {
       onInteract: () => this.interactionController?.triggerActiveInteraction(),
       onCancelAction: () => this.cancelActiveActionForUi(),
-      onCombatDodge: () => this.tryCombatDodge(),
       onToggleSprint: () => this.tryToggleSprint(),
-      onGuardStart: () => this.combatSandboxSystem?.setGuardHeld(true),
-      onGuardEnd: () => this.combatSandboxSystem?.setGuardHeld(false),
-      onPlayerLightAttack: () => this.tryPlayerLightAttack(),
+      onCombatEndTurn: () => this.turnCombatSession?.tryPlayerEndTurn(),
+      onCombatFlee: () => this.turnCombatSession?.tryPlayerFlee(),
       onMoveToPointer: (worldX, worldY) => this.interactionController?.moveToPointer(worldX, worldY),
-      onPointerInteract: (worldX, worldY) =>
-        this.interactionController?.pointerInteraction(worldX, worldY),
+      onPointerInteract: (worldX, worldY) => {
+        const tilemap = this.worldRuntimeCoordinator?.getIsoTilemap();
+
+        if (this.turnCombatSession?.isInCombat()) {
+          if (tilemap) {
+            const tile = tilemap.transform.worldToTile(worldX, worldY);
+            this.turnCombatSession.handleTileClick(tile.x, tile.y);
+          }
+          return;
+        }
+
+        // Combat stance: player can click enemies to start combat with passive mobs
+        if (this.isCombatStance && tilemap) {
+          const tile = tilemap.transform.worldToTile(worldX, worldY);
+          const triggered = this.turnCombatSession?.tryTriggerCombatAtTile(
+            tile.x, tile.y, this.time.now,
+          );
+          if (triggered) return;
+        }
+
+        this.interactionController?.pointerInteraction(worldX, worldY);
+      },
       onPointerContext: (worldX, worldY) =>
         this.interactionController?.pointerContext(worldX, worldY),
-      onToggleControlMode: () => this.toggleControlMode(),
       onMenuMoveUp:   () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
       onMenuConfirm:  () => this.tryConfirmChoiceMenu(),
@@ -400,25 +403,24 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private bindCombatSandboxToRuntime(): void {
-    if (!this.playerController || !this.worldRuntimeCoordinator || !this.combatSandboxSystem) {
+  private bindTurnCombatToRuntime(): void {
+    if (!this.playerController || !this.worldRuntimeCoordinator || !this.turnCombatSession) {
       return;
     }
 
     const runtime = this.worldRuntimeCoordinator.getCurrentRuntime();
-    this.combatSandboxSystem.setMapContext(runtime.definition.id, runtime.isoTilemap, runtime.enemySpawns);
-    this.combatSandboxSystem.setThreatLevelSource(
-      () => this.worldRuntimeCoordinator?.getEnvironmentThreatLevel() ?? 0,
+    this.turnCombatSession.setMapContext(
+      runtime.definition.id,
+      runtime.isoTilemap,
+      runtime.enemySpawns,
     );
+    this.turnCombatSession.setPlayerController(this.playerController);
     this.encounterPopulation.registerSpawns(runtime.enemySpawns);
-    this.playerController.setExternalOccupancyValidator((feetWorldX, feetWorldY) =>
-      this.combatSandboxSystem?.canPlayerOccupy(feetWorldX, feetWorldY) ?? true,
-    );
   }
 
   private bindRuntimeSupportSystems(): void {
     this.bindDebugOverlayToRuntime();
-    this.bindCombatSandboxToRuntime();
+    this.bindTurnCombatToRuntime();
     const mapId = this.worldRuntimeCoordinator?.getCurrentRuntime().definition.id ?? '';
     this.groundItemSystem?.setActiveMap(mapId);
   }
@@ -460,44 +462,67 @@ export class GameScene extends Phaser.Scene {
     this.uiManager?.handleResult(result);
   }
 
-  private handlePlayerDied(worldX: number, worldY: number): void {
+  private toggleCombatStance(): void {
+    if (this.turnCombatSession?.isInCombat()) return;
+    this.isCombatStance = !this.isCombatStance;
+    this.uiManager?.showInfo(
+      this.isCombatStance ? 'Combat stance ON — click an enemy to engage.' : 'Combat stance OFF.',
+    );
+  }
+
+  private tryToggleSprint(): void {
+    if (this.turnCombatSession?.isInCombat()) return;
+    this.isSprinting = !this.isSprinting;
+    const multiplier = this.isSprinting ? 1.6 : 1.0;
+    this.playerController?.setMovementSpeedMultiplier(multiplier);
+    this.turnCombatSession?.setSprinting(this.isSprinting);
+  }
+
+  private handlePlayerDied(): void {
     if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
 
-    // Capture death map and exact tile center BEFORE transitioning maps
     const deathMapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
-    const tile = isoTilemap.transform.worldToTile(worldX, worldY);
+
+    const playerPos = this.playerController?.getFeetPoint() ?? { x: 0, y: 0 };
+    const tile = isoTilemap.transform.worldToTile(playerPos.x, playerPos.y);
     const center = isoTilemap.transform.getTileCenterWorld(tile.x, tile.y);
-    const despawnAtMs = this.time.now + 900_000; // 15 minutes
+    const despawnAtMs = this.time.now + 900_000;
 
     for (const { id, count } of this.worldRuntimeCoordinator.drainAllInventoryItems()) {
       this.groundItemSystem.spawnDrop(deathMapId, id, count, center.x, center.y, this.time.now, despawnAtMs);
     }
 
+    this.isSprinting = false;
+    this.playerController?.setMovementSpeedMultiplier(1.0);
     this.uiManager?.showInfo('You were downed. Your items were left behind.');
     this.initializeWorldRuntime('test_home_island', 'default');
     this.playerController?.resetCombatVisual();
+    this.turnCombatSession?.resetPlayerHp();
   }
 
-  private handleEnemyKilled(evt: EnemyKilledEvent): void {
-    if (evt.spawnId && evt.areaId) {
-      this.encounterPopulation.recordKill(evt.spawnId, evt.areaId);
-      if (this.encounterPopulation.isAreaCleared(evt.areaId)) {
+  private handleEnemyKilledForLoot(
+    spawnId: string,
+    areaId: string | undefined,
+    definitionId: string | undefined,
+    worldX: number,
+    worldY: number,
+  ): void {
+    if (areaId) {
+      this.encounterPopulation.recordKill(spawnId, areaId);
+      if (this.encounterPopulation.isAreaCleared(areaId)) {
         this.worldRuntimeCoordinator?.applyAreaCleared(1);
       }
     }
     if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
-    const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === evt.enemyDefinitionId);
-    // Use area-specific loot profile if authored; fall back to enemy default loot tables.
-    const lootTables = evt.lootTableId
-      ? ENEMY_DEFINITIONS.find((d) => d.id === evt.lootTableId)?.lootTables ?? enemyDef?.lootTables
-      : enemyDef?.lootTables;
+    const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === definitionId);
+    const lootTables = enemyDef?.lootTables;
     if (!lootTables || lootTables.length === 0) return;
     const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
-    const rawTile = isoTilemap.transform.worldToTile(evt.worldX, evt.worldY);
+    const rawTile = isoTilemap.transform.worldToTile(worldX, worldY);
     const dropTile = findNearestWalkableTile(rawTile, isoTilemap) ?? rawTile;
     const center = isoTilemap.transform.getTileCenterWorld(dropTile.x, dropTile.y);
     this.groundItemSystem.spawnFromLootTable(mapId, lootTables, center.x, center.y, this.time.now);
@@ -619,70 +644,6 @@ export class GameScene extends Phaser.Scene {
           uiManager.pushMessage(msg, ok ? 'game' : 'error');
         },
       },
-    );
-  }
-
-  private tryCombatDodge(): void {
-    if (!this.combatSandboxSystem || !this.playerController) {
-      return;
-    }
-
-    this.interactionController?.clearPendingPointerInteraction();
-    const pointer = this.input.activePointer;
-    const targetWorldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
-    const targetWorldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
-    this.playerController.setFacingFromTarget(targetWorldX, targetWorldY);
-    const result = this.combatSandboxSystem.tryDodge(
-      this.time.now,
-      this.playerController,
-      targetWorldX,
-      targetWorldY,
-    );
-
-    if (result) {
-      this.uiManager?.handleResult(result);
-    }
-  }
-
-  private tryToggleSprint(): void {
-    const result = this.combatSandboxSystem?.toggleSprint();
-
-    if (result) {
-      this.uiManager?.handleResult(result);
-    }
-  }
-
-  private tryPlayerLightAttack(): void {
-    if (!this.combatSandboxSystem || !this.playerController) {
-      return;
-    }
-
-    const pointer = this.input.activePointer;
-    const targetWorldX = Number.isFinite(pointer.worldX) ? pointer.worldX : null;
-    const targetWorldY = Number.isFinite(pointer.worldY) ? pointer.worldY : null;
-    this.playerController.setFacingFromTarget(targetWorldX, targetWorldY);
-    const result = this.combatSandboxSystem.tryPlayerLightAttack(
-      this.time.now,
-      this.playerController,
-      targetWorldX,
-      targetWorldY,
-    );
-
-    if (result) {
-      this.uiManager?.handleResult(result);
-    }
-  }
-
-  private toggleControlMode(): void {
-    this.controlMode = this.controlMode === 'combat' ? 'explore' : 'combat';
-    this.interactionController?.clearPendingPointerInteraction();
-
-    if (this.controlMode === 'combat') {
-      this.playerController?.clearClickMoveTarget();
-    }
-
-    this.uiManager?.showInfo(
-      this.controlMode === 'combat' ? 'Combat controls enabled.' : 'Explore controls enabled.',
     );
   }
 }

@@ -1,73 +1,67 @@
-import type { AttackTimingDefinition } from './CombatTiming';
+import type { StatusEffectKind } from './turn/TurnCombatTypes';
 
-export type EnemyStateId =
-  | 'idle'
-  | 'aggro'
-  | 'approach'
-  | 'windup'
-  | 'active'
-  | 'recovery'
-  | 'hurt'
-  | 'dead'
-  | 'reset';
-
-export type EnemyTelegraphShapeDefinition =
-  | { kind: 'circle'; radiusTiles: number }
-  | { kind: 'ellipse'; radiusXTiles: number; radiusYTiles: number }
-  | { kind: 'rectangle'; widthTiles: number; heightTiles: number };
-
-export type EnemyAttackTelegraphDefinition =
-  | { kind: 'circle'; radiusTiles: number }
-  | { kind: 'ellipse'; radiusXTiles: number; radiusYTiles: number }
-  | { kind: 'cone'; rangeTiles: number; angleDeg: number; minRangeTiles?: number }
-  | { kind: 'rectangle'; widthTiles: number; lengthTiles: number; minOffsetTiles?: number }
-  | { kind: 'line'; lengthTiles: number; widthTiles: number; minOffsetTiles?: number };
-
-export type EnemyAttackDefinition = {
-  id: string;
-  displayName: string;
-  kind: 'jump' | 'cone' | 'stab' | 'pulse';
-  minRangeTiles: number;
-  maxRangeTiles: number;
-  damage: number;
-  timing: AttackTimingDefinition;
-  telegraph: EnemyAttackTelegraphDefinition;
-  cooldownMs: number;
-  globalCooldownMs: number;
-  knockback?: { forceTiles: number };
-};
+export type EnemyBehavior = 'aggressive' | 'passive';
 
 export type EnemyLootTableEntry = {
   itemId: string;
-  count?: number; // how many to give; default 1
-  weight: number; // relative probability weight within the table
+  count?: number;
+  weight: number;
 };
 
-// A loot table fires with 1/oneIn probability (oneIn:1 = always),
-// then picks exactly one entry by weighted random.
 export type EnemyLootTable = {
   oneIn: number;
   entries: EnemyLootTableEntry[];
 };
 
-export type EnemyBehavior = 'aggressive' | 'passive';
+export type TurnAttackDefinition = {
+  id: string;
+  displayName: string;
+  /** AP cost to use this attack (typically 1). */
+  apCost: number;
+  minRangeTiles: number;
+  maxRangeTiles: number;
+  /** Max hit; damage is rolled 0–damage (OSRS-style). */
+  damage: number;
+  /** 0–100 percentage. Defaults to 80 when omitted. */
+  hitChance?: number;
+  /** Optional status effect applied on hit. */
+  statusEffect?: {
+    kind: StatusEffectKind;
+    turns: number;
+    value: number;
+  };
+  /** Turns the enemy must wait before using this attack again (0 = no cooldown). */
+  cooldownTurns?: number;
+};
 
 export type EnemyDefinition = {
   id: string;
   displayName: string;
-  tier: number; // 1–10 matching skill rank scale
+  /** 1–10 matching skill rank scale. */
+  tier: number;
   maxHealth: number;
+  /** Lower initiative acts first. Used as base before the 1–6 random roll. */
+  initiative: number;
+  /** Movement points per turn. */
+  mpPerTurn: number;
+  /** Action points per turn. */
+  apPerTurn: number;
+  /** Base defence (each point reduces enemy hit chance by 5%, min 10%). */
+  defense: number;
+  /** Pixel speed used for visual move tweens. */
   moveSpeed: number;
   collisionRadiusTiles: number;
+  /** Tile radius at which this enemy will enter combat when walking past. */
   aggroRangeTiles: number;
+  /** Max tiles the enemy can be from its spawn before the encounter ends. */
   leashRangeTiles: number;
-  deAggroRangeTiles?: number; // max chase distance from player; defaults to 15 tiles
-  outOfCombatRegenIntervalMs?: number; // ms between +1 HP ticks when idle; defaults to 15000
-  behavior?: EnemyBehavior; // default 'aggressive' when omitted
-  retreatRangeTiles?: number; // if set, wolf retreats to this distance (in attack-range tile units) after each attack
-  attacks: EnemyAttackDefinition[];
+  /** 'aggressive' attacks on sight; 'passive' only reacts when combat is triggered. */
+  behavior?: EnemyBehavior;
+  attacks: TurnAttackDefinition[];
   lootTables?: EnemyLootTable[];
 };
+
+// ─── Spawn / runtime types ────────────────────────────────────────────────────
 
 export type EnemySpawnDefinition = {
   id: string;
@@ -80,50 +74,30 @@ export type EnemySpawnDefinition = {
   lootTableId?: string;
 };
 
-export type EnemyRuntimeState = {
+/** Minimal runtime record kept by EnemySystem for visual + combat tracking. */
+export type EnemyRuntimeRecord = {
   id: string;
   definitionId: string;
   mapId: string;
-  originTileX: number;
-  originTileY: number;
-  originWorldX: number;
-  originWorldY: number;
+  spawnTileX: number;
+  spawnTileY: number;
+  /** Current tile position (may differ from spawn while in combat). */
+  tileX: number;
+  tileY: number;
   worldX: number;
   worldY: number;
-  currentState: EnemyStateId;
-  health: number;
-  facingRad: number;
-  currentAttackId: string | null;
-  attackTargetWorldX: number | null;
-  attackTargetWorldY: number | null;
-  attackRotationRad: number | null;
-  attackTargetTiles: Array<{ x: number; y: number }>;
-  orbitDirection: -1 | 1;
-  settleUntilMs: number;
-  attackCooldownEndsAtMs: Record<string, number>;
-  globalCooldownEndsAtMs: number;
-  phaseStartedAtMs: number | null;
-  phaseEndsAtMs: number | null;
-  telegraphId: string | null;
-  attackResolved: boolean;
-  jumpOriginWorldX: number | null;
-  jumpOriginWorldY: number | null;
-  jumpLandingWorldX: number | null;
-  jumpLandingWorldY: number | null;
-  reactiveAggro: boolean; // passive enemies set this when hit; cleared on reset
-  leashAnchorWorldX: number; // updated on hit; leash check uses this instead of origin
-  leashAnchorWorldY: number;
-  wanderTargetWorldX: number | null;
-  wanderTargetWorldY: number | null;
-  nextWanderMs: number;
-  nextRegenMs: number;
+  hp: number;
+  maxHp: number;
+  /** Whether this enemy is currently participating in a turn combat session. */
+  inCombat: boolean;
+  /** Wall-clock time this enemy died (null = alive). */
+  diedAtMs: number | null;
+  respawnMs: number;
 };
 
 export type EnemyUiSnapshot = {
   name: string;
   tier: number;
-  state: EnemyStateId;
-  health: number;
-  maxHealth: number;
-  activeAttackName: string | null;
+  hp: number;
+  maxHp: number;
 };

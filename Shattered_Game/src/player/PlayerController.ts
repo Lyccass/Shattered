@@ -1,8 +1,5 @@
 import Phaser from 'phaser';
-import {
-  type CombatDodgeDirection,
-} from '../combat/CombatDodge';
-import type { CombatAnimationStateId } from '../combat/CombatAnimationTypes';
+import type { PlayerAnimationStateId } from './PlayerAnimationState';
 import { IsoTilemap } from '../world/IsoTilemap';
 import { PlayerClickMovementController } from './PlayerClickMovementController';
 import { PlayerCollisionSystem } from './PlayerCollisionSystem';
@@ -241,7 +238,7 @@ export class PlayerController {
   }
 
   resolveDodgeTarget(
-    direction: CombatDodgeDirection,
+    direction: { x: number; y: number },
     distance: number,
     stepDistance = 4,
   ): Phaser.Math.Vector2 | null {
@@ -276,13 +273,13 @@ export class PlayerController {
     return new Phaser.Math.Vector2(normalizedX * furthestDistance, normalizedY * furthestDistance);
   }
 
-  startDodgeMotion(direction: CombatDodgeDirection, distance: number, durationMs: number): void {
+  startDodgeMotion(direction: { x: number; y: number }, distance: number, durationMs: number): void {
     this.clearClickMoveTarget();
     this.dodgeMotion.start(direction, distance, durationMs);
   }
 
   requestCombatVisualState(
-    state: CombatAnimationStateId,
+    state: PlayerAnimationStateId,
     nowMs: number,
     durationMs = 0,
   ): void {
@@ -293,7 +290,7 @@ export class PlayerController {
     this.visuals.resetCombatState();
   }
 
-  getCombatVisualState(nowMs: number): CombatAnimationStateId {
+  getCombatVisualState(nowMs: number): PlayerAnimationStateId {
     return this.visuals.getCombatState(nowMs);
   }
 
@@ -327,14 +324,12 @@ export class PlayerController {
     return usingClickMove;
   }
 
-  private isAttackFacingLocked(nowMs: number): boolean {
-    const state = this.visuals.getCombatState(nowMs);
-    return state === 'attack_windup' || state === 'attack_active' || state === 'attack_recovery';
+  private isAttackFacingLocked(_nowMs: number): boolean {
+    return false;
   }
 
-  private isAttackMovementBlocked(nowMs: number): boolean {
-    const state = this.visuals.getCombatState(nowMs);
-    return state === 'attack_active';
+  private isAttackMovementBlocked(_nowMs: number): boolean {
+    return false;
   }
 
   private recoverIfBlocked(): void {
