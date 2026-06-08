@@ -103,7 +103,8 @@ export class GameScene extends Phaser.Scene {
     this.uiManager = new UiManager(this, {
       onCombatToggle:         () => this.toggleCombatStance(),
       onCombatEndTurn:        () => this.turnCombatSession?.tryPlayerEndTurn(),
-      onCombatAttackMode:     () => this.turnCombatSession?.toggleAttackMode(),
+      onCombatAttackMode:     (attackId) => this.turnCombatSession?.toggleAttackMode(attackId),
+      onCombatGuard:          () => this.turnCombatSession?.tryPlayerGuard(),
       onSprintToggle:         () => this.tryToggleSprint(),
       onInventoryItemUse:     (itemId) => this.tryUseItem(itemId),
       onInventoryItemDrop:    (itemId) => this.tryDropItem(itemId),

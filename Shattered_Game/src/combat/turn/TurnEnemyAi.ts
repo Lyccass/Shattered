@@ -7,6 +7,7 @@ import type { ActionOutcome, TurnAction, TurnCombatState } from './TurnCombatTyp
 import {
   getBestApproachTile,
   getAttackableTargets,
+  getUsableAttacks,
   type TurnTileContext,
 } from './TurnActionValidator';
 
@@ -77,7 +78,8 @@ export function chooseEnemyAction(
   if (targets.length > 0 && actor.apRemaining > 0) {
     // Prefer the player; fall back to any attackable target
     const playerTarget = targets.find((t) => t.kind === 'player') ?? targets[0];
-    return { kind: 'attack', targetId: playerTarget.id };
+    const attack = chooseBestAttack(actor, playerTarget);
+    return { kind: 'attack', targetId: playerTarget.id, attackId: attack?.id };
   }
 
   // 2. Should we end turn? (no AP and no MP left)
@@ -102,4 +104,20 @@ export function chooseEnemyAction(
 
   // 4. Nothing useful — end turn
   return { kind: 'end_turn' };
+}
+
+function chooseBestAttack(
+  actor: NonNullable<ReturnType<typeof getActiveParticipant>>,
+  target: NonNullable<ReturnType<typeof getActiveParticipant>>,
+) {
+  return getUsableAttacks(actor, target)
+    .slice()
+    .sort((a, b) => scoreAttack(b) - scoreAttack(a))[0] ?? null;
+}
+
+function scoreAttack(attack: { damage: number; maxRangeTiles: number; cooldownTurns?: number; statusEffect?: unknown }): number {
+  return attack.damage
+    + (attack.statusEffect ? 2 : 0)
+    + (attack.cooldownTurns && attack.cooldownTurns > 0 ? 0.5 : 0)
+    + attack.maxRangeTiles * 0.1;
 }

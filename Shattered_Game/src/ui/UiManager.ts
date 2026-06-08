@@ -15,7 +15,8 @@ import { SkillUnlockRegistry } from '../skills/SkillUnlockRegistry';
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
   onCombatEndTurn: () => void;
-  onCombatAttackMode: () => void;
+  onCombatAttackMode: (attackId?: string) => void;
+  onCombatGuard: () => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;
@@ -48,6 +49,7 @@ export class UiManager {
       onCombatToggle:          callbacks.onCombatToggle,
       onCombatEndTurn:         callbacks.onCombatEndTurn,
       onCombatAttackMode:      callbacks.onCombatAttackMode,
+      onCombatGuard:           callbacks.onCombatGuard,
       onSprintToggle:          callbacks.onSprintToggle,
       onInventoryItemUse:      callbacks.onInventoryItemUse,
       onInventoryItemDrop:     callbacks.onInventoryItemDrop,

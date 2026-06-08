@@ -219,7 +219,7 @@ export function formatCombatPanelText(snapshot: TurnCombatUiSnapshot | null): st
   const lines = [
     '[Turn Combat]',
     player
-      ? `HP ${player.hp}/${player.maxHp}   AP ${player.apRemaining}/${player.apMax}   MP ${player.mpRemaining}/${player.mpMax}`
+      ? `HP ${player.hp}/${player.maxHp}   Main ${player.apRemaining}/${player.apMax}   Sec ${player.secondaryActionRemaining}/${player.secondaryActionMax}   Move ${player.mpRemaining}/${player.mpMax}`
       : 'HP ???',
     `Round ${snapshot.round} — ${snapshot.phase === 'player_turn' ? 'Your turn' : 'Enemy turn'}`,
   ];

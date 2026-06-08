@@ -18,10 +18,12 @@ import { resolveEnemyTurn } from './TurnEnemyAi';
 import type {
   ActionOutcome,
   CombatEndReason,
+  TurnAttack,
   TurnAction,
   TurnCombatState,
   TurnCombatUiSnapshot,
   TurnParticipant,
+  TurnDamageType,
 } from './TurnCombatTypes';
 import type { TurnTileContext } from './TurnActionValidator';
 import { getBestApproachTile, getReachableTiles } from './TurnActionValidator';
@@ -41,6 +43,8 @@ type AnimStep =
 const ENEMY_MOVE_TWEEN_MS  = 280;
 const ENEMY_ATTACK_WAIT_MS = 420;
 const ENEMY_TURN_DELAY_MS  = 180;
+const PLAYER_MAIN_ACTIONS_PER_TURN      = 1;
+const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
 
 export class TurnCombatSession {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -59,6 +63,7 @@ export class TurnCombatSession {
   private _isSprinting = false;
   /** Whether the player has activated "pick a target" attack mode. */
   private _isAttackMode = false;
+  private selectedPlayerAttackId: string | null = null;
 
   private readonly previewRenderer: TurnActionPreviewRenderer;
   private readonly hitsplatRenderer: HitsplatRenderer;
@@ -186,28 +191,45 @@ export class TurnCombatSession {
     return this.submitPlayerAction({ kind: 'move', toTileX, toTileY });
   }
 
-  tryPlayerAttack(targetId: string): ActionOutcome | null {
+  tryPlayerAttack(targetId: string, attackId = this.selectedPlayerAttackId ?? undefined): ActionOutcome | null {
     if (!this.canAcceptPlayerInput()) return null;
     this._isAttackMode = false;
-    return this.submitPlayerAction({ kind: 'attack', targetId });
+    this.selectedPlayerAttackId = null;
+    return this.submitPlayerAction({ kind: 'attack', targetId, attackId });
   }
 
   tryPlayerEndTurn(): void {
     if (!this.canAcceptPlayerInput()) return;
     this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
     this.submitPlayerAction({ kind: 'end_turn' });
   }
 
   tryPlayerFlee(): ActionOutcome | null {
     if (!this.canAcceptPlayerInput()) return null;
     this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
     return this.submitPlayerAction({ kind: 'flee' });
   }
 
+  tryPlayerGuard(): ActionOutcome | null {
+    if (!this.canAcceptPlayerInput()) return null;
+    this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
+    return this.submitPlayerAction({ kind: 'guard' });
+  }
+
   /** Toggle the "pick-a-target" attack cursor on/off. */
-  toggleAttackMode(): void {
+  toggleAttackMode(attackId?: string): void {
     if (!this.isPlayerTurn() || this.isAnimating()) return;
-    this._isAttackMode = !this._isAttackMode;
+    if (this._isAttackMode && this.selectedPlayerAttackId === (attackId ?? null)) {
+      this._isAttackMode = false;
+      this.selectedPlayerAttackId = null;
+      return;
+    }
+
+    this._isAttackMode = true;
+    this.selectedPlayerAttackId = attackId ?? null;
   }
 
   /**
@@ -225,13 +247,15 @@ export class TurnCombatSession {
     if (this._isAttackMode) {
       // In attack mode: any click resolves it
       this._isAttackMode = false;
-      if (targetParticipant) return this.tryPlayerAttack(targetParticipant.id);
+      const attackId = this.selectedPlayerAttackId ?? undefined;
+      this.selectedPlayerAttackId = null;
+      if (targetParticipant) return this.tryPlayerAttack(targetParticipant.id, attackId);
       return null; // cancelled by clicking empty tile
     }
 
     // Normal mode: attack if in range, otherwise move toward enemy
     if (targetParticipant) {
-      const attackResult = this.tryPlayerAttack(targetParticipant.id);
+      const attackResult = this.tryPlayerAttack(targetParticipant.id, undefined);
       if (attackResult?.kind !== 'invalid') return attackResult;
 
       // Out of attack range — move toward the enemy as far as possible
@@ -263,6 +287,7 @@ export class TurnCombatSession {
       playerMaxHp: this.persistedPlayerMaxHp ?? this.derivedStats?.maxHp ?? null,
       isSprinting: this._isSprinting,
       isAttackMode: this._isAttackMode,
+      selectedAttackId: this.selectedPlayerAttackId,
     };
   }
 
@@ -346,6 +371,7 @@ export class TurnCombatSession {
     const maxHp = this.derivedStats.maxHp;
     this.persistedPlayerMaxHp = maxHp;
     if (this.persistedPlayerHp === null) this.persistedPlayerHp = maxHp;
+    const playerAttacks = buildPlayerTurnAttacks(this.derivedStats);
 
     const playerParticipant: TurnParticipant = {
       id:              'player',
@@ -355,14 +381,22 @@ export class TurnCombatSession {
       tileY:           playerTileY,
       hp:              this.persistedPlayerHp,
       maxHp:           maxHp,
-      apMax:           1,
+      apMax:           PLAYER_MAIN_ACTIONS_PER_TURN,
       mpMax:           6,
-      apRemaining:     1,
+      apRemaining:     PLAYER_MAIN_ACTIONS_PER_TURN,
+      secondaryActionMax: PLAYER_SECONDARY_ACTIONS_PER_TURN,
+      secondaryActionRemaining: PLAYER_SECONDARY_ACTIONS_PER_TURN,
       mpRemaining:     6,
       initiative:      5,
       attackPower:     this.derivedStats.attack,
+      hitChance:       this.derivedStats.accuracy,
       defensePower:    Math.floor(this.derivedStats.physicalDefence / 10),
-      attackRangeTiles: Math.max(1, Math.round(this.derivedStats.reachTiles)),
+      slashDefence:    Math.floor(this.derivedStats.slashDefence / 10),
+      pierceDefence:   Math.floor(this.derivedStats.pierceDefence / 10),
+      crushDefence:    Math.floor(this.derivedStats.crushDefence / 10),
+      attackRangeTiles: Math.max(...playerAttacks.map((attack) => attack.maxRangeTiles)),
+      attacks:         playerAttacks,
+      attackCooldowns: {},
       weaponId:        this.derivedStats.weaponArchetype,
       statusEffects:   [],
     };
@@ -390,7 +424,27 @@ export class TurnCombatSession {
           attackPower:     def.attacks[0]?.damage ?? 1,
           hitChance:       def.attacks[0]?.hitChance,
           defensePower:    def.defense,
+          slashDefence:    def.defense,
+          pierceDefence:   def.defense,
+          crushDefence:    def.defense,
           attackRangeTiles: def.attacks[0]?.maxRangeTiles ?? 1,
+          attacks:         def.attacks.map((attack) => ({
+            id: attack.id,
+            displayName: attack.displayName,
+            apCost: attack.apCost,
+            minRangeTiles: attack.minRangeTiles,
+            maxRangeTiles: attack.maxRangeTiles,
+            damage: attack.damage,
+            damageType: 'slash',
+            hitChance: attack.hitChance,
+            statusEffect: attack.statusEffect ? {
+              kind: attack.statusEffect.kind,
+              turns: attack.statusEffect.turns,
+              value: attack.statusEffect.value,
+            } : undefined,
+            cooldownTurns: attack.cooldownTurns ?? 0,
+          })),
+          attackCooldowns: {},
           definitionId:    def.id,
           spawnId:         record.id,
           areaId:          undefined,
@@ -605,6 +659,7 @@ export class TurnCombatSession {
     this.animQueue     = [];
     this.blockedByAnim = false;
     this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
     this.previewRenderer.clear();
     this.onCombatEnd?.({ reason, killedSpawnIds: killedIds.filter(Boolean) });
   }
@@ -615,6 +670,7 @@ export class TurnCombatSession {
     this.animQueue     = [];
     this.blockedByAnim = false;
     this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
   }
 
   // ─── Private: helpers ─────────────────────────────────────────────────────
@@ -664,4 +720,65 @@ export class TurnCombatSession {
 
 function easeOut(t: number): number {
   return 1 - (1 - t) * (1 - t);
+}
+
+function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
+  const minRangeTiles = getPlayerMinRangeTiles(stats);
+  const maxRangeTiles = Math.max(minRangeTiles, Math.max(1, Math.round(stats.reachTiles)));
+  const hitCount = stats.attackShape.kind === 'thrust' && stats.attackShape.doubleHit ? 2 : 1;
+  const styles = getWeaponAttackStyles(stats.weaponArchetype);
+
+  return styles.map((style) => ({
+    id: `${stats.weaponArchetype}_${style.damageType}`,
+    displayName: style.displayName,
+    apCost: 1,
+    minRangeTiles,
+    maxRangeTiles: maxRangeTiles + style.rangeBonus,
+    damage: Math.max(1, stats.attack + style.damageBonus),
+    damageType: style.damageType,
+    hitCount: style.damageType === stats.damageType ? hitCount : 1,
+    oncePerTurn: true,
+    hitChance: Math.max(10, stats.accuracy + style.accuracyBonus),
+    cooldownTurns: 0,
+  }));
+}
+
+function getPlayerMinRangeTiles(stats: PlayerDerivedStats): number {
+  if (stats.attackShape.kind !== 'arc') return 0;
+  return Math.max(0, Math.ceil(stats.attackShape.minRangeTiles ?? 0));
+}
+
+function getWeaponAttackStyles(archetype: PlayerDerivedStats['weaponArchetype']): Array<{
+  damageType: TurnDamageType;
+  displayName: string;
+  accuracyBonus: number;
+  damageBonus: number;
+  rangeBonus: number;
+}> {
+  switch (archetype) {
+    case 'dagger':
+      return [
+        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8, damageBonus: 0, rangeBonus: 0 },
+        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0 },
+      ];
+    case 'spear':
+      return [
+        { damageType: 'pierce', displayName: 'Stab', accuracyBonus: 5, damageBonus: 0, rangeBonus: 0 },
+      ];
+    case 'axe':
+      return [
+        { damageType: 'slash', displayName: 'Slash', accuracyBonus: 0,  damageBonus: 1, rangeBonus: 0 },
+        { damageType: 'crush', displayName: 'Crush', accuracyBonus: -6, damageBonus: 2, rangeBonus: 0 },
+      ];
+    case 'hammer':
+      return [
+        { damageType: 'crush', displayName: 'Crush', accuracyBonus: -4, damageBonus: 2, rangeBonus: 0 },
+      ];
+    case 'sword':
+    default:
+      return [
+        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0 },
+        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 3, damageBonus: 0, rangeBonus: 0 },
+      ];
+  }
 }

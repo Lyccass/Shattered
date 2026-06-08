@@ -247,6 +247,288 @@ describe('attack action', () => {
     expect(outcome).toMatchObject({ kind: 'attacked', hit: false, damage: 0 });
     expect(next.participants.find((p) => p.id === 'e1')?.hp).toBe(5);
   });
+
+  it('uses armour rating against the selected damage type for hit chance', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.5); // attack roll = 50
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'stab',
+        displayName: 'Stab',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 2,
+        damageType: 'pierce',
+        hitChance: 80,
+      }],
+    });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      defensePower: 0,
+      pierceDefence: 8,
+      slashDefence: 0,
+      crushDefence: 0,
+    });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1', attackId: 'stab' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'attacked', hit: false, damage: 0 });
+  });
+
+  it('guard spends the main action and reduces incoming hit chance', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10, apRemaining: 1, defensePower: 0 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      attacks: [{
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 2,
+        damageType: 'slash',
+        hitChance: 80,
+      }],
+    });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: guardedState } = applyAction(state, { kind: 'guard' }, OPEN_CTX);
+    expect(outcome).toMatchObject({ kind: 'guarded', actorId: 'player' });
+    expect(guardedState.participants.find((p) => p.id === 'player')?.apRemaining).toBe(0);
+
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.65); // attack roll = 65, misses guarded 80 - 4*5 = 60
+
+    const enemyAttackState = {
+      ...guardedState,
+      activeIndex: 1,
+      phase: 'enemy_turn' as const,
+      participants: guardedState.participants.map((p) =>
+        p.id === 'e1' ? { ...p, apRemaining: 1 } : p,
+      ),
+    };
+    const { outcome: attackOutcome } = applyAction(
+      enemyAttackState,
+      { kind: 'attack', targetId: 'player', attackId: 'bite' },
+      OPEN_CTX,
+    );
+    expect(attackOutcome).toMatchObject({ kind: 'attacked', hit: false, damage: 0 });
+  });
+
+  it('starts and ticks cooldowns per attack on the actor turn cycle', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0) // hit roll
+      .mockReturnValueOnce(0); // damage roll
+
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      attacks: [
+        {
+          id: 'bite',
+          displayName: 'Bite',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 1,
+        },
+        {
+          id: 'roar',
+          displayName: 'Roar',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 2,
+          damage: 1,
+          cooldownTurns: 2,
+        },
+      ],
+      attackCooldowns: {},
+    });
+    const state = {
+      participants: [enemy, player],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcome, state: afterAttack } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'player', attackId: 'roar' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'attacked', attackId: 'roar' });
+    expect(afterAttack.participants.find((p) => p.id === 'e1')?.attackCooldowns?.roar).toBe(3);
+
+    const { state: playerTurn } = advanceTurn(afterAttack);
+    const { state: enemyTurn } = advanceTurn(playerTurn);
+
+    expect(enemyTurn.participants.find((p) => p.id === 'e1')?.attackCooldowns?.roar).toBe(2);
+  });
+
+  it('sums damage from multi-hit attacks', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0) // first hit roll
+      .mockReturnValueOnce(0) // first damage roll
+      .mockReturnValueOnce(0) // second hit roll
+      .mockReturnValueOnce(0); // second damage roll
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'double_strike',
+        displayName: 'Double Strike',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 2,
+        hitChance: 100,
+        hitCount: 2,
+      }],
+    });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10, hp: 10 });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1', attackId: 'double_strike' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'attacked', attackId: 'double_strike', damage: 2 });
+    expect(next.participants.find((p) => p.id === 'e1')?.hp).toBe(8);
+  });
+
+  it('defaults to the first usable attack and spends that main action cost', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      apMax: 1,
+      apRemaining: 1,
+      attacks: [
+        {
+          id: 'sword_light',
+          displayName: 'Strike',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 2,
+          hitChance: 100,
+        },
+        {
+          id: 'sword_heavy',
+          displayName: 'Power Strike',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 5,
+          hitChance: 100,
+        },
+      ],
+    });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10, hp: 10 });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'attacked', attackId: 'sword_light' });
+    expect(next.participants.find((p) => p.id === 'player')?.apRemaining).toBe(0);
+  });
+
+  it('locks once-per-turn attacks until the actor next turn starts', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      apMax: 2,
+      apRemaining: 2,
+      attacks: [{
+        id: 'dagger_light',
+        displayName: 'Double Strike',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        hitChance: 100,
+        oncePerTurn: true,
+      }],
+    });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10, hp: 10 });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { state: afterAttack } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1', attackId: 'dagger_light' },
+      OPEN_CTX,
+    );
+    expect(afterAttack.participants.find((p) => p.id === 'player')?.attackCooldowns?.dagger_light).toBe(1);
+
+    const secondAttempt = applyAction(
+      afterAttack,
+      { kind: 'attack', targetId: 'e1', attackId: 'dagger_light' },
+      OPEN_CTX,
+    );
+    expect(secondAttempt.outcome.kind).toBe('invalid');
+
+    const { state: enemyTurn } = advanceTurn(afterAttack);
+    const { state: playerTurn } = advanceTurn(enemyTurn);
+    expect(playerTurn.participants.find((p) => p.id === 'player')?.attackCooldowns?.dagger_light).toBeUndefined();
+  });
 });
 
 // ─── flee action ──────────────────────────────────────────────────────────
@@ -419,6 +701,53 @@ describe('enemy AI', () => {
 
     const action = chooseEnemyAction(state, OPEN_CTX);
     expect(action.kind).toBe('attack');
+  });
+
+  it('chooses an available special attack, then falls back while it is cooling down', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy  = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      attacks: [
+        {
+          id: 'bite',
+          displayName: 'Bite',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 2,
+        },
+        {
+          id: 'roar',
+          displayName: 'Roar',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 2,
+          damage: 1,
+          statusEffect: { kind: 'slowed', turns: 2, value: 1 },
+          cooldownTurns: 3,
+        },
+      ],
+      attackCooldowns: {},
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    const specialAction = chooseEnemyAction(state, OPEN_CTX);
+    expect(specialAction).toMatchObject({ kind: 'attack', attackId: 'roar' });
+
+    const coolingDown = {
+      ...state,
+      participants: state.participants.map((p) =>
+        p.id === 'e1' ? { ...p, attackCooldowns: { roar: 2 } } : p,
+      ),
+    };
+    const fallbackAction = chooseEnemyAction(coolingDown, OPEN_CTX);
+    expect(fallbackAction).toMatchObject({ kind: 'attack', attackId: 'bite' });
   });
 
   it('chooses move when player is out of range', () => {

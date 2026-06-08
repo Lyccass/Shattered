@@ -12,15 +12,19 @@ export class CombatHud {
   private readonly actionBar: HTMLElement;
 
   private readonly apPipsEl: HTMLElement;
+  private readonly secondaryPipsEl: HTMLElement;
   private readonly mpPipsEl: HTMLElement;
-  private readonly attackBtn: HTMLButtonElement;
+  private readonly lightAttackBtn: HTMLButtonElement;
+  private readonly heavyAttackBtn: HTMLButtonElement;
+  private readonly guardBtn: HTMLButtonElement;
   private readonly endTurnBtn: HTMLButtonElement;
   private readonly roundLabel: HTMLElement;
 
   constructor(
     container: HTMLElement,
     private readonly onEndTurn: () => void,
-    private readonly onAttackMode: () => void,
+    private readonly onAttackMode: (attackId?: string) => void,
+    private readonly onGuard: () => void,
   ) {
     // ── Initiative bar ────────────────────────────────────────────────────
     this.initBar = document.createElement('div');
@@ -38,11 +42,21 @@ export class CombatHud {
     apGroup.className = 'combat-pips';
     const apLabel = document.createElement('span');
     apLabel.className = 'combat-pip-label';
-    apLabel.textContent = 'AP';
+    apLabel.textContent = 'Main';
     this.apPipsEl = document.createElement('div');
     this.apPipsEl.className = 'combat-pips';
     apGroup.appendChild(apLabel);
     apGroup.appendChild(this.apPipsEl);
+
+    const secondaryGroup = document.createElement('div');
+    secondaryGroup.className = 'combat-pips';
+    const secondaryLabel = document.createElement('span');
+    secondaryLabel.className = 'combat-pip-label';
+    secondaryLabel.textContent = 'Sec';
+    this.secondaryPipsEl = document.createElement('div');
+    this.secondaryPipsEl.className = 'combat-pips';
+    secondaryGroup.appendChild(secondaryLabel);
+    secondaryGroup.appendChild(this.secondaryPipsEl);
 
     const mpGroup = document.createElement('div');
     mpGroup.className = 'combat-pips';
@@ -55,23 +69,34 @@ export class CombatHud {
     mpGroup.appendChild(this.mpPipsEl);
 
     resources.appendChild(apGroup);
+    resources.appendChild(secondaryGroup);
     resources.appendChild(mpGroup);
 
     // Buttons row
     const buttons = document.createElement('div');
     buttons.className = 'combat-buttons';
 
-    this.attackBtn = document.createElement('button');
-    this.attackBtn.className = 'combat-btn attack-btn';
-    this.attackBtn.textContent = 'Attack';
-    this.attackBtn.addEventListener('click', () => this.onAttackMode());
+    this.lightAttackBtn = document.createElement('button');
+    this.lightAttackBtn.className = 'combat-btn attack-btn light-attack-btn';
+    this.lightAttackBtn.textContent = 'Light';
+
+    this.heavyAttackBtn = document.createElement('button');
+    this.heavyAttackBtn.className = 'combat-btn attack-btn heavy-attack-btn';
+    this.heavyAttackBtn.textContent = 'Style';
+
+    this.guardBtn = document.createElement('button');
+    this.guardBtn.className = 'combat-btn guard-btn';
+    this.guardBtn.textContent = 'Guard';
+    this.guardBtn.addEventListener('click', () => this.onGuard());
 
     this.endTurnBtn = document.createElement('button');
     this.endTurnBtn.className = 'combat-btn end-turn-btn';
     this.endTurnBtn.textContent = 'End Turn';
     this.endTurnBtn.addEventListener('click', () => this.onEndTurn());
 
-    buttons.appendChild(this.attackBtn);
+    buttons.appendChild(this.lightAttackBtn);
+    buttons.appendChild(this.heavyAttackBtn);
+    buttons.appendChild(this.guardBtn);
     buttons.appendChild(this.endTurnBtn);
 
     // Round indicator
@@ -140,22 +165,27 @@ export class CombatHud {
     // AP pips
     if (player) {
       this.buildPips(this.apPipsEl, player.apMax, player.apRemaining, 'ap-pip');
+      this.buildPips(this.secondaryPipsEl, player.secondaryActionMax, player.secondaryActionRemaining, 'secondary-pip');
       this.buildPips(this.mpPipsEl, player.mpMax, player.mpRemaining, 'mp-pip');
     } else {
       this.apPipsEl.innerHTML = '';
+      this.secondaryPipsEl.innerHTML = '';
       this.mpPipsEl.innerHTML = '';
     }
 
-    const canAttack = isPlayerTurn && (player?.apRemaining ?? 0) > 0;
+    const attacks = player?.attacks ?? [];
+    const lightAttack = attacks[0] ?? null;
+    const heavyAttack = attacks[1] ?? null;
     const canMove   = isPlayerTurn && (player?.mpRemaining ?? 0) > 0;
     const canAct    = isPlayerTurn;
 
-    this.attackBtn.disabled = !canAttack;
+    this.configureAttackButton(this.lightAttackBtn, lightAttack, player?.apRemaining ?? 0, isPlayerTurn, combat.selectedAttackId);
+    this.configureAttackButton(this.heavyAttackBtn, heavyAttack, player?.apRemaining ?? 0, isPlayerTurn, combat.selectedAttackId);
+    this.guardBtn.disabled = !isPlayerTurn || (player?.apRemaining ?? 0) <= 0;
+    this.guardBtn.title = this.guardBtn.disabled ? 'Needs Main Action' : 'Guard until your next turn';
     this.endTurnBtn.disabled = !canAct;
-    this.attackBtn.classList.toggle('active', combat.isAttackMode);
 
     // Tooltip cues
-    this.attackBtn.title  = canAttack  ? 'Pick a target to attack (A)' : 'No AP remaining';
     this.endTurnBtn.title = canAct     ? 'End your turn (Space)' : "It's not your turn";
 
     void canMove; // no explicit move button — clicking a tile moves
@@ -197,6 +227,36 @@ export class CombatHud {
     Array.from(container.children).forEach((pip, i) => {
       pip.classList.toggle('filled', i < remaining);
     });
+  }
+
+  private configureAttackButton(
+    button: HTMLButtonElement,
+    attack: { id: string; displayName: string; apCost: number; cooldownRemaining: number } | null,
+    apRemaining: number,
+    isPlayerTurn: boolean,
+    selectedAttackId: string | null,
+  ): void {
+    button.onclick = null;
+
+    if (!attack) {
+      button.textContent = 'Attack';
+      button.disabled = true;
+      button.classList.remove('active');
+      button.title = 'No attack available';
+      return;
+    }
+
+    button.textContent = `${attack.displayName}`;
+    const lacksAp = apRemaining < attack.apCost;
+    const coolingDown = attack.cooldownRemaining > 0;
+    button.disabled = !isPlayerTurn || lacksAp || coolingDown;
+    button.classList.toggle('active', selectedAttackId === attack.id);
+    button.title = coolingDown
+      ? `${attack.displayName} cooling down: ${attack.cooldownRemaining} turn(s)`
+      : lacksAp
+        ? 'Needs Main Action'
+        : `Pick a target for ${attack.displayName} (Main Action)`;
+    button.onclick = () => this.onAttackMode(attack.id);
   }
 }
 

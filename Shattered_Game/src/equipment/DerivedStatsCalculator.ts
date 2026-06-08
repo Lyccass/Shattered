@@ -53,6 +53,7 @@ export function computeDerivedStats(
   const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
   const weaponArchetype: WeaponArchetype = weapon?.archetype ?? DEFAULT_ARCHETYPE;
   const attackShape: WeaponAttackShape = weapon?.attackShape ?? DEFAULT_ATTACK_SHAPE;
+  const damageType = weapon?.damageType ?? 'slash';
   const { windupMs: attackWindupMs, activeMs: attackActiveMs } = getArchetypeTimings(weaponArchetype);
   const attackRecoveryMs = Math.max(MIN_RECOVERY_MS, attackSpeedMs - attackWindupMs - attackActiveMs);
   const reachTiles = weapon?.reachTiles ?? BASE_REACH_TILES;
@@ -109,6 +110,7 @@ export function computeDerivedStats(
     attackRecoveryMs,
     weaponArchetype,
     attackShape,
+    damageType,
     reachTiles,
     attackStaminaCost,
     dodgeChance,

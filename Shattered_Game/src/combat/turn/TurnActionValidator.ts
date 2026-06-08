@@ -1,4 +1,4 @@
-import type { TurnCombatState, TurnParticipant } from './TurnCombatTypes';
+import type { TurnAttack, TurnCombatState, TurnParticipant } from './TurnCombatTypes';
 
 export interface TurnTileContext {
   isTileWalkable(tileX: number, tileY: number): boolean;
@@ -74,8 +74,24 @@ export function getAttackableTargets(
     if (p.id === attacker.id) return false;
     if (p.kind === attacker.kind) return false; // don't attack own side
     if (p.hp <= 0) return false;
-    const dist = chebyshevDist(attacker.tileX, attacker.tileY, p.tileX, p.tileY);
-    return dist <= attacker.attackRangeTiles;
+    return getUsableAttacks(attacker, p).length > 0;
+  });
+}
+
+export function getUsableAttacks(
+  attacker: TurnParticipant,
+  target: TurnParticipant,
+): TurnAttack[] {
+  if (attacker.apRemaining <= 0) return [];
+  if (attacker.hp <= 0) return [];
+  if (target.hp <= 0) return [];
+
+  const dist = chebyshevDist(attacker.tileX, attacker.tileY, target.tileX, target.tileY);
+
+  return getParticipantAttacks(attacker).filter((attack) => {
+    if (attacker.apRemaining < attack.apCost) return false;
+    if ((attacker.attackCooldowns?.[attack.id] ?? 0) > 0) return false;
+    return dist >= attack.minRangeTiles && dist <= attack.maxRangeTiles;
   });
 }
 
@@ -96,9 +112,13 @@ export function isValidAttack(
   attacker: TurnParticipant,
   targetId: string,
   state: TurnCombatState,
+  attackId?: string,
 ): boolean {
-  const targets = getAttackableTargets(attacker, state);
-  return targets.some((t) => t.id === targetId);
+  const target = state.participants.find((p) => p.id === targetId);
+  if (!target) return false;
+
+  const attacks = getUsableAttacks(attacker, target);
+  return attackId ? attacks.some((attack) => attack.id === attackId) : attacks.length > 0;
 }
 
 export function chebyshevDist(ax: number, ay: number, bx: number, by: number): number {
@@ -111,6 +131,23 @@ export function chebyshevDist(ax: number, ay: number, bx: number, by: number): n
  */
 export function stepsBetween(ax: number, ay: number, bx: number, by: number): number {
   return chebyshevDist(ax, ay, bx, by);
+}
+
+export function getParticipantAttacks(participant: TurnParticipant): TurnAttack[] {
+  if (participant.attacks && participant.attacks.length > 0) {
+    return participant.attacks;
+  }
+
+  return [{
+    id: 'basic_attack',
+    displayName: 'Attack',
+    apCost: 1,
+    minRangeTiles: 0,
+    maxRangeTiles: participant.attackRangeTiles,
+    damage: participant.attackPower,
+    hitChance: participant.hitChance,
+    cooldownTurns: 0,
+  }];
 }
 
 /**

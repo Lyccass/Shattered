@@ -94,6 +94,7 @@ export type PlayerDerivedStats = {
   attackRecoveryMs: number;
   weaponArchetype: WeaponArchetype;
   attackShape: WeaponAttackShape;
+  damageType: PhysicalDamageType;
   reachTiles: number;
   attackStaminaCost: number;
   dodgeChance: number;
@@ -128,6 +129,7 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     attackRecoveryMs: 640,
     weaponArchetype: 'sword',
     attackShape: { kind: 'arc', angleDeg: 180, rangeTiles: 1.5 },
+    damageType: 'slash',
     reachTiles: 1.0,
     attackStaminaCost: 12,
     dodgeChance: 0,

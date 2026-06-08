@@ -2,6 +2,8 @@ import type {
   ActionOutcome,
   CombatEndReason,
   StatusEffect,
+  TurnAttack,
+  TurnAttackUiSnapshot,
   TurnAction,
   TurnCombatState,
   TurnCombatUiSnapshot,
@@ -10,6 +12,7 @@ import type {
   TurnPhase,
 } from './TurnCombatTypes';
 import {
+  getUsableAttacks,
   isValidAttack,
   isValidMove,
   type TurnTileContext,
@@ -25,6 +28,8 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
   const withRoll = participants.map((p) => ({
     ...p,
     statusEffects: [...p.statusEffects],
+    attacks: cloneAttacks(p.attacks),
+    attackCooldowns: { ...(p.attackCooldowns ?? {}) },
     initiative: p.initiative + Math.floor(Math.random() * 6) + 1,
   }));
 
@@ -72,7 +77,8 @@ export function applyAction(
 
   switch (action.kind) {
     case 'move':    return applyMove(state, active, action.toTileX, action.toTileY, tileCtx);
-    case 'attack':  return applyAttack(state, active, action.targetId);
+    case 'attack':  return applyAttack(state, active, action.targetId, action.attackId);
+    case 'guard':   return applyGuard(state, active);
     case 'end_turn': return advanceTurn(state);
     case 'flee':    return applyFlee(state, active);
   }
@@ -160,6 +166,7 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
       playerMaxHp: null,
       isSprinting: false,
       isAttackMode: false,
+      selectedAttackId: null,
       activeParticipantId: null,
       turnOrder: [],
     };
@@ -168,19 +175,34 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
   const activeId = state.turnOrderIds[state.activeIndex] ?? null;
   const player = state.participants.find((p) => p.kind === 'player') ?? null;
 
-  const toUiSnap = (p: TurnParticipant): TurnParticipantUiSnapshot => ({
-    id: p.id,
-    kind: p.kind,
-    name: p.name,
-    hp: p.hp,
-    maxHp: p.maxHp,
-    apRemaining: p.apRemaining,
-    apMax: p.apMax,
-    mpRemaining: p.mpRemaining,
-    mpMax: p.mpMax,
-    statusEffects: p.statusEffects,
-    isActive: p.id === activeId,
-  });
+  const toUiSnap = (p: TurnParticipant): TurnParticipantUiSnapshot => {
+    const attacks: TurnAttackUiSnapshot[] = (p.attacks ?? []).map((attack) => ({
+      id: attack.id,
+      displayName: attack.displayName,
+      apCost: attack.apCost,
+      minRangeTiles: attack.minRangeTiles,
+      maxRangeTiles: attack.maxRangeTiles,
+      cooldownRemaining: p.attackCooldowns?.[attack.id] ?? 0,
+    }));
+
+    return {
+      id: p.id,
+      kind: p.kind,
+      name: p.name,
+      hp: p.hp,
+      maxHp: p.maxHp,
+      apRemaining: p.apRemaining,
+      apMax: p.apMax,
+      mpRemaining: p.mpRemaining,
+      mpMax: p.mpMax,
+      secondaryActionRemaining: p.secondaryActionRemaining ?? 0,
+      secondaryActionMax: p.secondaryActionMax ?? 0,
+      statusEffects: p.statusEffects,
+      attacks,
+      attackCooldowns: { ...(p.attackCooldowns ?? {}) },
+      isActive: p.id === activeId,
+    };
+  };
 
   return {
     active: true,
@@ -191,6 +213,7 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
     playerMaxHp: player?.maxHp ?? null,
     isSprinting: false,
     isAttackMode: false,
+    selectedAttackId: null,
     activeParticipantId: activeId,
     turnOrder: state.participants.map(toUiSnap),
   };
@@ -233,10 +256,11 @@ function applyAttack(
   state: TurnCombatState,
   actor: TurnParticipant,
   targetId: string,
+  attackId: string | undefined,
 ): { outcome: ActionOutcome; state: TurnCombatState } {
-  if (!isValidAttack(actor, targetId, state)) {
+  if (!isValidAttack(actor, targetId, state, attackId)) {
     return {
-      outcome: { kind: 'invalid', actorId: actor.id, reason: 'Target not in range or no AP remaining.' },
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'Attack is on cooldown, target is out of range, or no AP remains.' },
       state,
     };
   }
@@ -249,20 +273,47 @@ function applyAttack(
     };
   }
 
-  // Hit roll: target defence reduces hit chance by 5% per point, floored at 10%.
-  const hitChance = Math.max(10, (actor.hitChance ?? 80) - target.defensePower * 5);
-  const hit = Math.random() * 100 < hitChance;
-  const damage = hit ? rollDamage(actor.attackPower) : 0;
+  const attack = selectUsableAttack(actor, target, attackId);
+  if (!attack) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No usable attack found.' },
+      state,
+    };
+  }
+
+  // Hit roll: target armour against this attack type reduces hit chance.
+  const armourRating = getTargetArmourRating(target, attack.damageType);
+  const hitChance = Math.max(10, (attack.hitChance ?? actor.hitChance ?? 80) - armourRating * 5);
+  const hitResult = rollAttackHit(attack, hitChance);
+  const hit = hitResult.hit;
+  const damage = hitResult.damage;
+  const statusApplied = hit && attack.statusEffect
+    ? {
+        kind: attack.statusEffect.kind,
+        turnsRemaining: attack.statusEffect.turns,
+        value: attack.statusEffect.value,
+      }
+    : undefined;
 
   let nextHp = Math.max(0, target.hp - damage);
   const killed = hit && nextHp <= 0;
 
-  // Spend 1 AP
+  const nextCooldowns = {
+    ...(actor.attackCooldowns ?? {}),
+    ...getAttackCooldownPatch(attack),
+  };
+
   let next = updateParticipant(state, actor.id, {
-    apRemaining: Math.max(0, actor.apRemaining - 1),
+    apRemaining: Math.max(0, actor.apRemaining - attack.apCost),
+    attackCooldowns: nextCooldowns,
   });
 
-  next = updateParticipant(next, targetId, { hp: nextHp });
+  next = updateParticipant(next, targetId, {
+    hp: nextHp,
+    ...(statusApplied && !killed
+      ? { statusEffects: [...target.statusEffects, statusApplied] }
+      : {}),
+  });
 
   // Check win condition before resolving status
   const endCheck = checkCombatEnd(next);
@@ -272,16 +323,29 @@ function applyAttack(
         kind: 'attacked',
         actorId: actor.id,
         targetId,
+        attackId: attack.id,
+        attackName: attack.displayName,
         damage,
         hit,
         killed,
+        statusApplied,
       },
       state: { ...next, phase: 'combat_ended', endReason: endCheck },
     };
   }
 
   return {
-    outcome: { kind: 'attacked', actorId: actor.id, targetId, damage, hit, killed },
+    outcome: {
+      kind: 'attacked',
+      actorId: actor.id,
+      targetId,
+      attackId: attack.id,
+      attackName: attack.displayName,
+      damage,
+      hit,
+      killed,
+      statusApplied,
+    },
     state: next,
   };
 }
@@ -293,6 +357,33 @@ function applyFlee(
   // Flee always succeeds for the player — exits combat, enemy resets
   const next = { ...cloneState(state), phase: 'combat_ended' as TurnPhase, endReason: 'player_fled' as const };
   return { outcome: { kind: 'fled', actorId: actor.id }, state: next };
+}
+
+function applyGuard(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+): { outcome: ActionOutcome; state: TurnCombatState } {
+  if (actor.apRemaining <= 0) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No Main Action remaining.' },
+      state,
+    };
+  }
+
+  const statusApplied: StatusEffect = {
+    kind: 'guarded',
+    turnsRemaining: 1,
+    value: 4,
+  };
+  const next = updateParticipant(state, actor.id, {
+    apRemaining: Math.max(0, actor.apRemaining - 1),
+    statusEffects: [
+      ...actor.statusEffects.filter((effect) => effect.kind !== 'guarded'),
+      statusApplied,
+    ],
+  });
+
+  return { outcome: { kind: 'guarded', actorId: actor.id, statusApplied }, state: next };
 }
 
 function tickStatusEffects(
@@ -307,7 +398,7 @@ function tickStatusEffects(
   const updated: StatusEffect[] = [];
 
   for (const effect of participant.statusEffects) {
-    if (effect.kind === 'bleeding') hpDelta += effect.value;
+    if (effect.kind === 'bleeding' || effect.kind === 'damage_over_time') hpDelta += effect.value;
     if (effect.kind === 'slowed')   mpReduction += effect.value;
 
     if (effect.turnsRemaining > 1) {
@@ -333,7 +424,9 @@ function restoreResources(state: TurnCombatState, participantId: string): TurnCo
 
   return updateParticipant(state, participantId, {
     apRemaining: p.apMax,
+    secondaryActionRemaining: p.secondaryActionMax ?? 0,
     mpRemaining: Math.max(0, p.mpMax - slowedReduction),
+    attackCooldowns: tickAttackCooldowns(p.attackCooldowns),
   });
 }
 
@@ -363,9 +456,81 @@ function findNextLivingTurnIndex(state: TurnCombatState): number | null {
   return null;
 }
 
+function selectUsableAttack(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  attackId: string | undefined,
+): TurnAttack | null {
+  const attacks = getUsableAttacks(actor, target);
+  if (attackId) {
+    return attacks.find((attack) => attack.id === attackId) ?? null;
+  }
+
+  return attacks[0] ?? null;
+}
+
+function getTargetArmourRating(
+  target: TurnParticipant,
+  damageType: TurnAttack['damageType'],
+): number {
+  const typedDefence = (() => {
+    switch (damageType) {
+      case 'slash':  return target.slashDefence ?? target.defensePower;
+      case 'pierce': return target.pierceDefence ?? target.defensePower;
+      case 'crush':  return target.crushDefence ?? target.defensePower;
+      default:       return target.defensePower;
+    }
+  })();
+
+  const guardBonus = target.statusEffects
+    .filter((effect) => effect.kind === 'guarded')
+    .reduce((sum, effect) => sum + effect.value, 0);
+
+  return typedDefence + guardBonus;
+}
+
+function tickAttackCooldowns(cooldowns: Record<string, number> | undefined): Record<string, number> {
+  if (!cooldowns) return {};
+
+  const next: Record<string, number> = {};
+  for (const [attackId, remaining] of Object.entries(cooldowns)) {
+    const decremented = Math.max(0, remaining - 1);
+    if (decremented > 0) {
+      next[attackId] = decremented;
+    }
+  }
+
+  return next;
+}
+
+function getAttackCooldownPatch(attack: TurnAttack): Record<string, number> {
+  if (attack.cooldownTurns && attack.cooldownTurns > 0) {
+    return { [attack.id]: attack.cooldownTurns + 1 };
+  }
+
+  if (attack.oncePerTurn) {
+    return { [attack.id]: 1 };
+  }
+
+  return {};
+}
+
 /** Roll 1 to maxHit inclusive so a successful hit always produces feedback. */
 function rollDamage(attackPower: number): number {
   return Math.floor(Math.random() * Math.max(1, attackPower)) + 1;
+}
+
+function rollAttackHit(attack: TurnAttack, hitChance: number): { hit: boolean; damage: number } {
+  const hitCount = Math.max(1, Math.floor(attack.hitCount ?? 1));
+  let damage = 0;
+
+  for (let i = 0; i < hitCount; i += 1) {
+    if (Math.random() * 100 < hitChance) {
+      damage += rollDamage(attack.damage);
+    }
+  }
+
+  return { hit: damage > 0, damage };
 }
 
 // ─── Immutable state helpers ──────────────────────────────────────────────────
@@ -389,6 +554,15 @@ function cloneState(state: TurnCombatState): TurnCombatState {
     participants: state.participants.map((p) => ({
       ...p,
       statusEffects: [...p.statusEffects],
+      attacks: cloneAttacks(p.attacks),
+      attackCooldowns: { ...(p.attackCooldowns ?? {}) },
     })),
   };
+}
+
+function cloneAttacks(attacks: TurnAttack[] | undefined): TurnAttack[] | undefined {
+  return attacks?.map((attack) => ({
+    ...attack,
+    statusEffect: attack.statusEffect ? { ...attack.statusEffect } : undefined,
+  }));
 }

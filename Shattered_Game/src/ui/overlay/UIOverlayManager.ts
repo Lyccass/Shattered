@@ -54,6 +54,7 @@ export class UIOverlayManager {
       this.overlay,
       callbacks.onCombatEndTurn,
       callbacks.onCombatAttackMode,
+      callbacks.onCombatGuard,
     );
     this.choiceMenuPopup = new ChoiceMenuPopup(
       this.overlay,

@@ -130,6 +130,12 @@
   box-shadow: 0 0 4px rgba(255, 107, 107, 0.5);
 }
 
+.combat-pip.secondary-pip.filled {
+  background: #facc15;
+  border-color: #facc15;
+  box-shadow: 0 0 4px rgba(250, 204, 21, 0.45);
+}
+
 .combat-pip.mp-pip.filled {
   background: #4ab3f5;
   border-color: #4ab3f5;
@@ -196,6 +202,17 @@
 .combat-btn.end-turn-btn {
   border-color: #f57a00;
   color: #f57a00;
+}
+
+.combat-btn.guard-btn {
+  border-color: #facc15;
+  color: #facc15;
+}
+
+.combat-btn.guard-btn:hover {
+  background: rgba(250, 204, 21, 0.16);
+  border-color: #ffe071;
+  color: #FFFCC3;
 }
 
 .combat-btn.end-turn-btn:hover {

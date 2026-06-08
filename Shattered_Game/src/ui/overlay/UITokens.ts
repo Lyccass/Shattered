@@ -62,7 +62,8 @@ export interface ChatMessage {
 export interface UIOverlayCallbacks {
   onCombatToggle: () => void;
   onCombatEndTurn: () => void;
-  onCombatAttackMode: () => void;
+  onCombatAttackMode: (attackId?: string) => void;
+  onCombatGuard: () => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;

@@ -11,7 +11,7 @@ export class HitsplatRenderer {
   show(worldX: number, worldY: number, damage: number, delayMs = 0): void {
     const offsetX = (Math.random() - 0.5) * 10;
     const isMiss = damage === 0;
-    const text = this.scene.add.text(worldX + offsetX, worldY - 36, isMiss ? '0' : String(damage), {
+    const text = this.scene.add.text(worldX + offsetX, worldY - 36, isMiss ? 'Miss' : String(damage), {
       fontFamily: '"JetBrains Mono", monospace',
       fontSize: '14px',
       color: isMiss ? '#94a3b8' : '#facc15',
