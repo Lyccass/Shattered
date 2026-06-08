@@ -57,6 +57,7 @@ export class EnemyVisualController {
     maxHp: number,
     visualState: EnemyTurnVisualState,
     nowMs: number,
+    showHealthBar = false,
   ): void {
     if (!this.visual) return;
 
@@ -99,7 +100,7 @@ export class EnemyVisualController {
       this.visual.setScale(WOLF.scale * (1 + 0.12 * t));
     }
 
-    this.updateHealthBar(hp, maxHp, worldX, worldY, visualState);
+    this.updateHealthBar(hp, maxHp, worldX, worldY, visualState, showHealthBar);
 
     if (this.healthBarGfx) {
       this.healthBarGfx.setDepth(getDynamicDepth(worldY, 16));
@@ -133,10 +134,11 @@ export class EnemyVisualController {
     worldX: number,
     worldY: number,
     visualState: EnemyTurnVisualState,
+    showHealthBar: boolean,
   ): void {
     if (!this.healthBarGfx) return;
 
-    if (visualState === 'dead' || visualState === 'idle') {
+    if (visualState === 'dead' || !showHealthBar) {
       this.healthBarGfx.setVisible(false);
       return;
     }

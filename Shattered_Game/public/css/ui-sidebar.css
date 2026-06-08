@@ -151,12 +151,14 @@
   transition: background-color var(--tr);
 }
 
-.taskbar-btn.is-active .taskbar-icon         { background-color: var(--c-icon-active); }
-.taskbar-btn--combat   .taskbar-icon         { background-color: var(--c-combat-inactive); }
-.taskbar-btn--combat.combat-on               { background: rgba(255, 0, 0, 0.10); box-shadow: inset -3px 0 0 var(--c-combat-active); }
-.taskbar-btn--combat.combat-on .taskbar-icon { background-color: var(--c-combat-active); }
-.taskbar-btn--sprint.sprint-on               { background: rgba(255, 210, 60, 0.10); box-shadow: inset -3px 0 0 #FFD23C; }
-.taskbar-btn--sprint.sprint-on .taskbar-icon { background-color: #FFD23C; }
+.taskbar-btn.is-active .taskbar-icon              { background-color: var(--c-icon-active); }
+.taskbar-btn--combat .taskbar-icon                { background-color: var(--c-combat-inactive); }
+.taskbar-btn--combat.combat-armed                 { background: rgba(255, 210, 60, 0.12); box-shadow: inset -3px 0 0 #FFD23C; }
+.taskbar-btn--combat.combat-armed .taskbar-icon   { background-color: #FFD23C; }
+.taskbar-btn--combat.combat-engaged               { background: rgba(255, 0, 0, 0.12); box-shadow: inset -3px 0 0 var(--c-combat-active); }
+.taskbar-btn--combat.combat-engaged .taskbar-icon { background-color: var(--c-combat-active); }
+.taskbar-btn--sprint.sprint-on                    { background: rgba(255, 210, 60, 0.10); box-shadow: inset -3px 0 0 #FFD23C; }
+.taskbar-btn--sprint.sprint-on .taskbar-icon      { background-color: #FFD23C; }
 
 
 /* Tooltip — opens to the LEFT */
@@ -703,5 +705,4 @@
   transition: transform var(--tr);
 }
 .settings-toggle.on::after { transform: translateX(16px); background: var(--c-primary); }
-
 

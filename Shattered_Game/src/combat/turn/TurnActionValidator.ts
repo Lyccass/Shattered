@@ -107,6 +107,57 @@ export function isValidMove(
   return reachable.some((t) => t.x === toTileX && t.y === toTileY);
 }
 
+export function getMovePath(
+  participant: TurnParticipant,
+  toTileX: number,
+  toTileY: number,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): { x: number; y: number }[] | null {
+  if (participant.mpRemaining <= 0) return null;
+
+  const targetKey = `${toTileX},${toTileY}`;
+  const occupied = new Set<string>(
+    state.participants
+      .filter((p) => p.id !== participant.id && p.hp > 0)
+      .map((p) => `${p.tileX},${p.tileY}`),
+  );
+
+  const startKey = `${participant.tileX},${participant.tileY}`;
+  const visited = new Set<string>([startKey]);
+  const previous = new Map<string, string>();
+  const queue: { x: number; y: number; cost: number }[] = [
+    { x: participant.tileX, y: participant.tileY, cost: 0 },
+  ];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const currentKey = `${current.x},${current.y}`;
+    if (currentKey === targetKey) {
+      return rebuildPath(previous, startKey, targetKey);
+    }
+
+    for (const [dx, dy] of DIRS_8) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = `${nx},${ny}`;
+      const newCost = current.cost + 1;
+
+      if (newCost > participant.mpRemaining) continue;
+      if (visited.has(key)) continue;
+      if (nx < 0 || ny < 0 || nx >= tileCtx.mapWidth || ny >= tileCtx.mapHeight) continue;
+      if (!tileCtx.isTileWalkable(nx, ny)) continue;
+      if (occupied.has(key)) continue;
+
+      visited.add(key);
+      previous.set(key, currentKey);
+      queue.push({ x: nx, y: ny, cost: newCost });
+    }
+  }
+
+  return null;
+}
+
 /** Returns true if the participant can attack the given target right now. */
 export function isValidAttack(
   attacker: TurnParticipant,
@@ -177,4 +228,23 @@ export function getBestApproachTile(
   }
 
   return best;
+}
+
+function rebuildPath(
+  previous: Map<string, string>,
+  startKey: string,
+  targetKey: string,
+): { x: number; y: number }[] {
+  const reversed: { x: number; y: number }[] = [];
+  let currentKey = targetKey;
+
+  while (currentKey !== startKey) {
+    const [x, y] = currentKey.split(',').map(Number);
+    reversed.push({ x, y });
+    const prev = previous.get(currentKey);
+    if (!prev) break;
+    currentKey = prev;
+  }
+
+  return reversed.reverse();
 }

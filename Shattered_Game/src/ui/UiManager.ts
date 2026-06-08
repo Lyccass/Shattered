@@ -74,11 +74,12 @@ export class UiManager {
     state: UiStateSnapshot,
     combat: TurnCombatUiSnapshot | null = null,
     controlMode: 'explore' | 'combat' = 'explore',
+    combatStanceActive = false,
   ): void {
     this.actionProgressPanel.update(state.actionProgress);
     this.toastSystem.update();
 
-    this.overlay.update(state, combat, controlMode);
+    this.overlay.update(state, combat, controlMode, combatStanceActive);
     this.overlay.tick();
   }
 

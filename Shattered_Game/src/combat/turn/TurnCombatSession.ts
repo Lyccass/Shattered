@@ -14,7 +14,7 @@ import {
   createCombatState,
   getActiveParticipant,
 } from './TurnCombatEngine';
-import { resolveEnemyTurn } from './TurnEnemyAi';
+import { resolveEnemyTurnStep } from './TurnEnemyAi';
 import type {
   ActionOutcome,
   CombatEndReason,
@@ -35,7 +35,7 @@ export type CombatEndEvent = {
 
 // Animation step types for visual sequencing
 type AnimStep =
-  | { kind: 'move_tween';    enemyId: string; fromWorld: { x: number; y: number }; toWorld: { x: number; y: number }; durationMs: number }
+  | { kind: 'move_tween';    enemyId: string; fromWorld: { x: number; y: number }; toWorld: { x: number; y: number }; durationMs: number; visualState?: 'moving' | 'attacking' }
   | { kind: 'attack_flash';  attackerId: string; targetId: string; durationMs: number }
   | { kind: 'hit_flash';     targetId: string; durationMs: number }
   | { kind: 'delay';         durationMs: number };
@@ -45,6 +45,8 @@ const ENEMY_ATTACK_WAIT_MS = 420;
 const ENEMY_TURN_DELAY_MS  = 180;
 const PLAYER_MAIN_ACTIONS_PER_TURN      = 1;
 const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
+const PLAYER_MOVE_POINTS_PER_TURN       = 5;
+const OUT_OF_COMBAT_HP_REGEN_INTERVAL_MS = 2_500;
 
 export class TurnCombatSession {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ export class TurnCombatSession {
   /** Persistent player HP across combats. Null until first combat entry. */
   private persistedPlayerHp: number | null = null;
   private persistedPlayerMaxHp: number | null = null;
+  private lastOutOfCombatRegenMs = 0;
   private _isSprinting = false;
   /** Whether the player has activated "pick a target" attack mode. */
   private _isAttackMode = false;
@@ -112,6 +115,7 @@ export class TurnCombatSession {
     this.derivedStats = stats;
     this.persistedPlayerMaxHp = stats.maxHp;
     if (this.persistedPlayerHp === null) this.persistedPlayerHp = stats.maxHp;
+    else this.persistedPlayerHp = Math.min(this.persistedPlayerHp, stats.maxHp);
   }
 
   /** Call after the player respawns so HP is reset to full. */
@@ -144,6 +148,7 @@ export class TurnCombatSession {
     }
 
     if (!this.combatState) {
+      this.updateOutOfCombatRegen(nowMs);
       this.checkAggroTrigger(nowMs);
       this.previewRenderer.update(null, this.buildTileCtx());
       return;
@@ -382,11 +387,11 @@ export class TurnCombatSession {
       hp:              this.persistedPlayerHp,
       maxHp:           maxHp,
       apMax:           PLAYER_MAIN_ACTIONS_PER_TURN,
-      mpMax:           6,
+      mpMax:           PLAYER_MOVE_POINTS_PER_TURN,
       apRemaining:     PLAYER_MAIN_ACTIONS_PER_TURN,
       secondaryActionMax: PLAYER_SECONDARY_ACTIONS_PER_TURN,
       secondaryActionRemaining: PLAYER_SECONDARY_ACTIONS_PER_TURN,
-      mpRemaining:     6,
+      mpRemaining:     PLAYER_MOVE_POINTS_PER_TURN,
       initiative:      5,
       attackPower:     this.derivedStats.attack,
       hitChance:       this.derivedStats.accuracy,
@@ -427,7 +432,7 @@ export class TurnCombatSession {
           slashDefence:    def.defense,
           pierceDefence:   def.defense,
           crushDefence:    def.defense,
-          attackRangeTiles: def.attacks[0]?.maxRangeTiles ?? 1,
+          attackRangeTiles: Math.max(1, ...def.attacks.map((attack) => attack.maxRangeTiles)),
           attacks:         def.attacks.map((attack) => ({
             id: attack.id,
             displayName: attack.displayName,
@@ -435,7 +440,7 @@ export class TurnCombatSession {
             minRangeTiles: attack.minRangeTiles,
             maxRangeTiles: attack.maxRangeTiles,
             damage: attack.damage,
-            damageType: 'slash',
+            damageType: attack.damageType ?? 'slash',
             hitChance: attack.hitChance,
             statusEffect: attack.statusEffect ? {
               kind: attack.statusEffect.kind,
@@ -443,6 +448,8 @@ export class TurnCombatSession {
               value: attack.statusEffect.value,
             } : undefined,
             cooldownTurns: attack.cooldownTurns ?? 0,
+            telegraph: attack.telegraph ? { ...attack.telegraph } : undefined,
+            forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
           })),
           attackCooldowns: {},
           definitionId:    def.id,
@@ -512,6 +519,53 @@ export class TurnCombatSession {
             }
           }
         }
+        if (outcome.pushed) this.handleForcedMovementVisual(outcome.pushed);
+        break;
+      }
+
+      case 'telegraph_resolved': {
+        if (!outcome.targetWasInArea) {
+          if (outcome.actorMoved) this.handleTelegraphActorMoveVisual(outcome.actorMoved);
+          break;
+        }
+
+        const targetEs = this.findEnemySystem(outcome.targetId);
+        if (targetEs) {
+          const pos = targetEs.getWorldPosition();
+          if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.damage);
+          if (outcome.hit) targetEs.flashHit(this.scene.time.now);
+
+          if (outcome.actorId === 'player' && outcome.hit && outcome.damage > 0) {
+            const meleeXp = outcome.damage * 4;
+            this.onCombatXp?.({ melee: meleeXp });
+          }
+        } else if (outcome.targetId === 'player') {
+          const feet = this.playerController?.getFeetPoint();
+          if (feet) this.hitsplatRenderer.show(feet.x, feet.y, outcome.damage);
+          if (outcome.hit) {
+            this.playerController?.requestCombatVisualState('hurt', this.scene.time.now, 240);
+            const attacker = this.combatState?.participants.find((p) => p.id === outcome.actorId);
+            if (attacker && this.currentTilemap) {
+              const attackerWorld = this.currentTilemap.getTileCenterWorld(attacker.tileX, attacker.tileY);
+              this.playerController?.setFacingFromTarget(attackerWorld.x, attackerWorld.y);
+            }
+          }
+        }
+
+        if (outcome.killed) {
+          const es = this.findEnemySystem(outcome.targetId);
+          if (es) {
+            const pos  = es.getWorldPosition();
+            const def  = es.getDefinition();
+            const spawnId = es.getSpawnId();
+            es.recordDeath(this.scene.time.now);
+            if (spawnId && pos && def) {
+              this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y);
+            }
+          }
+        }
+        if (outcome.actorMoved) this.handleTelegraphActorMoveVisual(outcome.actorMoved);
+        if (outcome.pushed) this.handleForcedMovementVisual(outcome.pushed);
         break;
       }
 
@@ -524,17 +578,35 @@ export class TurnCombatSession {
         } else {
           const es = this.findEnemySystem(outcome.actorId);
           if (es && this.currentTilemap) {
-            const from = this.currentTilemap.getTileCenterWorld(outcome.fromTile.x, outcome.fromTile.y);
-            const to   = this.currentTilemap.getTileCenterWorld(outcome.toTile.x, outcome.toTile.y);
-            es.setCombatTile(outcome.toTile.x, outcome.toTile.y);
-            this.animQueue.push({ kind: 'move_tween', enemyId: outcome.actorId, fromWorld: from, toWorld: to, durationMs: ENEMY_MOVE_TWEEN_MS });
+            es.setCombatTile(outcome.toTile.x, outcome.toTile.y, false);
+            this.queueEnemyMove(outcome.actorId, outcome.fromTile, outcome.path ?? [outcome.toTile]);
             this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
           }
         }
         break;
       }
 
+      case 'telegraph_prepared': {
+        const es = this.findEnemySystem(outcome.actorId);
+        const actor = this.combatState?.participants.find((p) => p.id === outcome.actorId);
+        if (es && actor && this.currentTilemap) {
+          const world = this.currentTilemap.getTileCenterWorld(actor.tileX, actor.tileY);
+          es.applyVisualUpdate(world.x, world.y, false, actor.hp, 'windup', this.scene.time.now);
+          this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
+        }
+        break;
+      }
+
+      case 'status_tick':
+        this.handleStatusTickVisual(outcome);
+        break;
+
+      case 'turn_ended':
+        for (const tick of outcome.statusTicks ?? []) this.handleStatusTickVisual(tick, 360);
+        break;
+
       case 'combat_ended':
+        for (const tick of outcome.statusTicks ?? []) this.handleStatusTickVisual(tick, 360);
         this.finalizeCombat(outcome.reason);
         break;
 
@@ -550,13 +622,14 @@ export class TurnCombatSession {
     if (!this.combatState) return;
     if (this.animQueue.length > 0) return;
 
-    const { outcomes, state: next } = resolveEnemyTurn(this.combatState, this.buildTileCtx());
+    const { outcomes, state: next } = resolveEnemyTurnStep(this.combatState, this.buildTileCtx());
     this.combatState = next;
 
     for (const outcome of outcomes) {
       this.handleOutcome(outcome);
       if (outcome.kind === 'combat_ended' || outcome.kind === 'fled') break;
     }
+    this.previewRenderer.update(this.combatState, this.buildTileCtx(), this._isAttackMode);
 
     if (this.combatState?.phase === 'combat_ended' && this.combatState.endReason) {
       this.finalizeCombat(this.combatState.endReason);
@@ -564,7 +637,7 @@ export class TurnCombatSession {
     }
 
     // Small delay before returning control to the player
-    if (next.phase === 'player_turn') {
+    if (next.phase === 'player_turn' && this.animQueue.length === 0) {
       this.animQueue.push({ kind: 'delay', durationMs: ENEMY_ATTACK_WAIT_MS });
     }
   }
@@ -595,12 +668,11 @@ export class TurnCombatSession {
         const record = this.combatState?.participants.find((p) => p.id === step.enemyId);
         if (es && record) {
           const facingRight = step.toWorld.x > step.fromWorld.x;
-          es.applyVisualUpdate(worldX, worldY, facingRight, record.hp, 'moving', nowMs);
+          es.applyVisualUpdate(worldX, worldY, facingRight, record.hp, step.visualState ?? 'moving', nowMs);
         }
         if (t >= 1) {
           if (es && record) {
-            const to = this.currentTilemap?.getTileCenterWorld(record.tileX, record.tileY);
-            if (to) es.applyVisualUpdate(to.x, to.y, false, record.hp, 'idle', nowMs);
+            es.applyVisualUpdate(step.toWorld.x, step.toWorld.y, false, record.hp, 'idle', nowMs);
           }
           this.shiftAnimQueue();
         }
@@ -689,8 +761,123 @@ export class TurnCombatSession {
     return this.playerController?.hasClickMoveTarget() ?? false;
   }
 
+  private updateOutOfCombatRegen(nowMs: number): void {
+    if (this.persistedPlayerHp === null || this.persistedPlayerMaxHp === null) return;
+    if (this.persistedPlayerHp <= 0 || this.persistedPlayerHp >= this.persistedPlayerMaxHp) {
+      this.lastOutOfCombatRegenMs = nowMs;
+      return;
+    }
+
+    if (this.lastOutOfCombatRegenMs <= 0) {
+      this.lastOutOfCombatRegenMs = nowMs;
+      return;
+    }
+
+    const ticks = Math.floor((nowMs - this.lastOutOfCombatRegenMs) / OUT_OF_COMBAT_HP_REGEN_INTERVAL_MS);
+    if (ticks <= 0) return;
+
+    this.persistedPlayerHp = Math.min(this.persistedPlayerMaxHp, this.persistedPlayerHp + ticks);
+    this.lastOutOfCombatRegenMs += ticks * OUT_OF_COMBAT_HP_REGEN_INTERVAL_MS;
+  }
+
   private findEnemySystem(participantId: string): EnemySystem | null {
     return this.enemySystems.find((es) => es.getSpawnId() === participantId) ?? null;
+  }
+
+  private handleForcedMovementVisual(pushed: {
+    targetId: string;
+    fromTile: { x: number; y: number };
+    toTile: { x: number; y: number };
+  }): void {
+    if (!this.currentTilemap) return;
+
+    const to = this.currentTilemap.getTileCenterWorld(pushed.toTile.x, pushed.toTile.y);
+    if (pushed.targetId === 'player') {
+      this.playerController?.setClickMoveTarget(to.x, to.y);
+      return;
+    }
+
+    const es = this.findEnemySystem(pushed.targetId);
+    if (!es) return;
+
+    const from = this.currentTilemap.getTileCenterWorld(pushed.fromTile.x, pushed.fromTile.y);
+    es.setCombatTile(pushed.toTile.x, pushed.toTile.y, false);
+    this.animQueue.push({
+      kind: 'move_tween',
+      enemyId: pushed.targetId,
+      fromWorld: from,
+      toWorld: to,
+      durationMs: getTileMoveDurationMs(pushed.fromTile, pushed.toTile),
+    });
+  }
+
+  private handleTelegraphActorMoveVisual(moved: {
+    targetId: string;
+    fromTile: { x: number; y: number };
+    toTile: { x: number; y: number };
+  }): void {
+    if (!this.currentTilemap) return;
+
+    const es = this.findEnemySystem(moved.targetId);
+    if (!es) return;
+
+    const from = this.currentTilemap.getTileCenterWorld(moved.fromTile.x, moved.fromTile.y);
+    const to = this.currentTilemap.getTileCenterWorld(moved.toTile.x, moved.toTile.y);
+    es.setCombatTile(moved.toTile.x, moved.toTile.y, false);
+    this.animQueue.push({
+      kind: 'move_tween',
+      enemyId: moved.targetId,
+      fromWorld: from,
+      toWorld: to,
+      durationMs: 320,
+      visualState: 'attacking',
+    });
+  }
+
+  private queueEnemyMove(
+    enemyId: string,
+    fromTile: { x: number; y: number },
+    path: { x: number; y: number }[],
+  ): void {
+    if (!this.currentTilemap) return;
+
+    let previousTile = fromTile;
+    for (const tile of path) {
+      const fromWorld = this.currentTilemap.getTileCenterWorld(previousTile.x, previousTile.y);
+      const toWorld = this.currentTilemap.getTileCenterWorld(tile.x, tile.y);
+      this.animQueue.push({
+        kind: 'move_tween',
+        enemyId,
+        fromWorld,
+        toWorld,
+        durationMs: ENEMY_MOVE_TWEEN_MS,
+      });
+      previousTile = tile;
+    }
+  }
+
+  private handleStatusTickVisual(outcome: {
+    targetId: string;
+    effectKind: 'bleeding' | 'damage_over_time' | string;
+    damage: number;
+    killed: boolean;
+  }, delayMs = 0): void {
+    const label = outcome.effectKind === 'bleeding' ? 'Bleed' : 'Dot';
+    const targetEs = this.findEnemySystem(outcome.targetId);
+    if (targetEs) {
+      const pos = targetEs.getWorldPosition();
+      if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.damage, delayMs, label, '#fb7185');
+      if (outcome.killed) targetEs.recordDeath(this.scene.time.now);
+      return;
+    }
+
+    if (outcome.targetId === 'player') {
+      const feet = this.playerController?.getFeetPoint();
+      if (feet) this.hitsplatRenderer.show(feet.x, feet.y, outcome.damage, delayMs, label, '#fb7185');
+      if (outcome.damage > 0) {
+        this.playerController?.requestCombatVisualState('hurt', this.scene.time.now, 240);
+      }
+    }
   }
 
   private buildTileCtx(): TurnTileContext {
@@ -722,9 +909,17 @@ function easeOut(t: number): number {
   return 1 - (1 - t) * (1 - t);
 }
 
+function getTileMoveDurationMs(
+  fromTile: { x: number; y: number },
+  toTile: { x: number; y: number },
+): number {
+  const tileDistance = Math.max(Math.abs(toTile.x - fromTile.x), Math.abs(toTile.y - fromTile.y));
+  return ENEMY_MOVE_TWEEN_MS * Math.max(1, tileDistance);
+}
+
 function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
   const minRangeTiles = getPlayerMinRangeTiles(stats);
-  const maxRangeTiles = Math.max(minRangeTiles, Math.max(1, Math.round(stats.reachTiles)));
+  const maxRangeTiles = Math.max(minRangeTiles, Math.max(1, Math.ceil(stats.reachTiles)));
   const hitCount = stats.attackShape.kind === 'thrust' && stats.attackShape.doubleHit ? 2 : 1;
   const styles = getWeaponAttackStyles(stats.weaponArchetype);
 

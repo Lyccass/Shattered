@@ -68,6 +68,7 @@ export class UIOverlayManager {
     state: UiStateSnapshot,
     combat: TurnCombatUiSnapshot | null,
     controlMode: 'explore' | 'combat',
+    combatStanceActive = false,
   ): void {
     this.choiceMenuPopup.update(state.choiceMenu);
     this.combatHud.update(combat);
@@ -78,7 +79,11 @@ export class UIOverlayManager {
       null,
       null,
     );
-    this.taskbarPanel.setCombatMode(controlMode === 'combat');
+    this.taskbarPanel.setCombatMode(
+      controlMode === 'combat'
+        ? 'engaged'
+        : combatStanceActive ? 'armed' : 'passive',
+    );
     this.taskbarPanel.setSprintMode(combat?.isSprinting ?? false);
     this.taskbarPanel.update(
       state.inventory,

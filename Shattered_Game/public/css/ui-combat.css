@@ -59,25 +59,6 @@
   color: #FFFCC3;
 }
 
-.combat-init-hp-bar {
-  width: 40px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.combat-init-hp-fill {
-  height: 100%;
-  border-radius: 2px;
-  background: #4ade80;
-  transition: width 0.2s;
-}
-
-.combat-init-card.is-player .combat-init-hp-fill {
-  background: #1e6fbf;
-}
-
 /* Action bar — bottom center */
 #ui-combat-actions {
   position: fixed;

@@ -165,6 +165,7 @@ export class GameScene extends Phaser.Scene {
       this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot(),
       this.turnCombatSession?.getUiSnapshot() ?? null,
       isInCombat ? 'combat' : 'explore',
+      this.isCombatStance,
     );
     this.updateTileHighlight();
     this.debugOverlaySystem?.update();
@@ -482,7 +483,11 @@ export class GameScene extends Phaser.Scene {
   private handlePlayerDied(): void {
     if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
 
-    const deathMapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
+    const deathRuntime = this.worldRuntimeCoordinator.getCurrentRuntime();
+    const deathMapId = deathRuntime.definition.id;
+    const deathWorldManifestUrl = typeof deathRuntime.definition.metadata?.worldManifestUrl === 'string'
+      ? deathRuntime.definition.metadata.worldManifestUrl
+      : null;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
 
@@ -498,7 +503,25 @@ export class GameScene extends Phaser.Scene {
     this.isSprinting = false;
     this.playerController?.setMovementSpeedMultiplier(1.0);
     this.uiManager?.showInfo('You were downed. Your items were left behind.');
-    this.initializeWorldRuntime('test_home_island', 'default');
+    void this.respawnPlayerAfterDeath({
+      mapId: deathMapId,
+      worldManifestUrl: deathWorldManifestUrl,
+    });
+  }
+
+  private async respawnPlayerAfterDeath(options: {
+    mapId: string;
+    worldManifestUrl: string | null;
+  }): Promise<void> {
+    this.playerController?.resetCombatVisual();
+    if (options.worldManifestUrl) {
+      await this.initializeWorldManifestRuntime(options.worldManifestUrl, 'default');
+    } else {
+      await this.initializeWorldRuntime(options.mapId, 'default');
+    }
+
+    if (this.hasShutdown) return;
+
     this.playerController?.resetCombatVisual();
     this.turnCombatSession?.resetPlayerHp();
   }

@@ -200,9 +200,14 @@ export class TaskbarPanel {
     return this.activeTab === tabId;
   }
 
-  setCombatMode(active: boolean): void {
-    this.combatBtn.classList.toggle('combat-on', active);
-    this.combatBtn.title = active ? 'Combat: ON' : 'Combat: OFF';
+  setCombatMode(mode: 'passive' | 'armed' | 'engaged'): void {
+    this.combatBtn.classList.toggle('combat-armed', mode === 'armed');
+    this.combatBtn.classList.toggle('combat-engaged', mode === 'engaged');
+    this.combatBtn.title = mode === 'engaged'
+      ? 'Combat: Engaged'
+      : mode === 'armed'
+        ? 'Combat Mode: ON'
+        : 'Combat: Passive';
   }
 
   setSprintMode(active: boolean): void {

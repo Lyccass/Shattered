@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyAction, advanceTurn, createCombatState, buildUiSnapshot } from './TurnCombatEngine';
-import { chooseEnemyAction, resolveEnemyTurn } from './TurnEnemyAi';
+import {
+  applyAction,
+  advanceTurn,
+  createCombatState,
+  buildUiSnapshot,
+  resolvePendingTelegraphsForActor,
+} from './TurnCombatEngine';
+import { chooseEnemyAction, resolveEnemyTurn, resolveEnemyTurnStep } from './TurnEnemyAi';
 import type { TurnParticipant } from './TurnCombatTypes';
 import type { TurnTileContext } from './TurnActionValidator';
 
@@ -107,6 +113,9 @@ describe('move action', () => {
     );
 
     expect(outcome.kind).toBe('moved');
+    expect(outcome).toMatchObject({
+      path: [{ x: 11, y: 10 }, { x: 12, y: 10 }],
+    });
     const movedPlayer = next.participants.find((p) => p.id === 'player')!;
     expect(movedPlayer.tileX).toBe(12);
     expect(movedPlayer.tileY).toBe(10);
@@ -202,6 +211,49 @@ describe('attack action', () => {
 
     const { outcome } = applyAction(state, { kind: 'attack', targetId: 'e1' }, OPEN_CTX);
     expect(outcome.kind).toBe('invalid');
+  });
+
+  it('allows selected weapon attacks to use their own max range', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attackRangeTiles: 2,
+      attacks: [
+        {
+          id: 'slash',
+          displayName: 'Slash',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 1,
+          hitChance: 100,
+        },
+        {
+          id: 'stab',
+          displayName: 'Stab',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 2,
+          damage: 1,
+          hitChance: 100,
+        },
+      ],
+    });
+    const enemy = makeEnemy('e1', { tileX: 12, tileY: 10 });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      phase: 'player_turn' as const,
+    };
+
+    const shortAttack = applyAction(state, { kind: 'attack', targetId: 'e1', attackId: 'slash' }, OPEN_CTX);
+    expect(shortAttack.outcome.kind).toBe('invalid');
+
+    const longAttack = applyAction(state, { kind: 'attack', targetId: 'e1', attackId: 'stab' }, OPEN_CTX);
+    expect(longAttack.outcome).toMatchObject({ kind: 'attacked', attackId: 'stab' });
   });
 
   it('sets combat_ended with victory when enemy HP drops to 0', () => {
@@ -529,6 +581,211 @@ describe('attack action', () => {
     const { state: playerTurn } = advanceTurn(enemyTurn);
     expect(playerTurn.participants.find((p) => p.id === 'player')?.attackCooldowns?.dagger_light).toBeUndefined();
   });
+
+  it('prepares telegraphed attacks instead of dealing immediate damage', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10, hp: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 12,
+      tileY: 10,
+      attacks: [{
+        id: 'pounce',
+        displayName: 'Pounce',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 3,
+        damage: 3,
+        hitChance: 100,
+        telegraph: { pattern: 'target_plus_adjacent', warningDamageMultiplier: 0.5 },
+        forcedMovement: { kind: 'push', distance: 1 },
+      }],
+    });
+    const state = {
+      participants: [enemy, player],
+      pendingTelegraphs: [],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'player', attackId: 'pounce' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'telegraph_prepared', attackId: 'pounce' });
+    expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(10);
+    expect(next.pendingTelegraphs).toHaveLength(1);
+    expect(next.pendingTelegraphs?.[0].tiles.some((tile) => tile.x === 10 && tile.y === 10)).toBe(true);
+  });
+
+  it('keeps newly prepared enemy telegraphs pending until that enemy acts again', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = makePlayer({ tileX: 10, tileY: 10, hp: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 12,
+      tileY: 10,
+      attacks: [{
+        id: 'pounce',
+        displayName: 'Pounce',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 3,
+        damage: 3,
+        hitChance: 100,
+        telegraph: { pattern: 'target', warningDamageMultiplier: 0.5 },
+      }],
+    });
+    const state = {
+      participants: [enemy, player],
+      pendingTelegraphs: [],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcomes, state: next } = resolveEnemyTurn(state, OPEN_CTX);
+
+    expect(outcomes.some((outcome) => outcome.kind === 'telegraph_prepared')).toBe(true);
+    expect(outcomes.some((outcome) => outcome.kind === 'telegraph_resolved')).toBe(false);
+    expect(next.phase).toBe('player_turn');
+    expect(next.pendingTelegraphs).toHaveLength(1);
+    expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(10);
+  });
+
+  it('lets movement avoid a telegraphed hit', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = makePlayer({ tileX: 10, tileY: 10, hp: 10 });
+    const enemy = makeEnemy('e1', { tileX: 12, tileY: 10 });
+    const state = {
+      participants: [enemy, player],
+      pendingTelegraphs: [{
+        id: 'pending',
+        actorId: 'e1',
+        targetId: 'player',
+        attackId: 'pounce',
+        attackName: 'Pounce',
+        damage: 3,
+        hitChance: 100,
+        forcedMovement: { kind: 'push' as const, distance: 1 },
+        originTile: { x: 12, y: 10 },
+        targetTile: { x: 10, y: 10 },
+        tiles: [{ x: 10, y: 10, intensity: 'danger' as const, damageMultiplier: 1 }],
+      }],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 1,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const moved = applyAction(state, { kind: 'move', toTileX: 10, toTileY: 11 }, OPEN_CTX);
+    const enemyTurn = {
+      ...moved.state,
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+    const { outcomes, state: resolved } = resolvePendingTelegraphsForActor(enemyTurn, 'e1', OPEN_CTX);
+
+    expect(outcomes[0]).toMatchObject({ kind: 'telegraph_resolved', targetWasInArea: false, hit: false, damage: 0 });
+    expect(outcomes[0]).toMatchObject({
+      actorMoved: { targetId: 'e1', fromTile: { x: 12, y: 10 }, toTile: { x: 10, y: 10 } },
+    });
+    expect(resolved.participants.find((p) => p.id === 'player')?.hp).toBe(10);
+    expect(resolved.participants.find((p) => p.id === 'e1')).toMatchObject({ tileX: 10, tileY: 10 });
+    expect(resolved.pendingTelegraphs).toHaveLength(0);
+  });
+
+  it('resolves telegraphed hits and pushes the target from the origin', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = makePlayer({ tileX: 10, tileY: 10, hp: 10 });
+    const enemy = makeEnemy('e1', { tileX: 12, tileY: 10 });
+    const state = {
+      participants: [enemy, player],
+      pendingTelegraphs: [{
+        id: 'pending',
+        actorId: 'e1',
+        targetId: 'player',
+        attackId: 'pounce',
+        attackName: 'Pounce',
+        damage: 3,
+        hitChance: 100,
+        forcedMovement: { kind: 'push' as const, distance: 1 },
+        originTile: { x: 12, y: 10 },
+        targetTile: { x: 10, y: 10 },
+        tiles: [{ x: 10, y: 10, intensity: 'danger' as const, damageMultiplier: 1 }],
+      }],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 2,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcomes, state: resolved } = resolvePendingTelegraphsForActor(state, 'e1', OPEN_CTX);
+
+    expect(outcomes[0]).toMatchObject({
+      kind: 'telegraph_resolved',
+      targetWasInArea: true,
+      hit: true,
+      damage: 1,
+      pushed: { targetId: 'player', fromTile: { x: 10, y: 10 }, toTile: { x: 9, y: 10 } },
+      actorMoved: { targetId: 'e1', fromTile: { x: 12, y: 10 }, toTile: { x: 10, y: 10 } },
+    });
+    expect(resolved.participants.find((p) => p.id === 'player')).toMatchObject({
+      hp: 9,
+      tileX: 9,
+      tileY: 10,
+    });
+    expect(resolved.participants.find((p) => p.id === 'e1')).toMatchObject({ tileX: 10, tileY: 10 });
+  });
+
+  it('can keep acting after resolving a pending telegraph', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = makePlayer({ tileX: 10, tileY: 10, hp: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 12,
+      tileY: 10,
+      attacks: [{
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 3,
+        damage: 2,
+        hitChance: 100,
+      }],
+    });
+    const state = {
+      participants: [enemy, player],
+      pendingTelegraphs: [{
+        id: 'pending',
+        actorId: 'e1',
+        targetId: 'player',
+        attackId: 'pounce',
+        attackName: 'Pounce',
+        damage: 3,
+        hitChance: 100,
+        originTile: { x: 12, y: 10 },
+        targetTile: { x: 10, y: 10 },
+        tiles: [{ x: 10, y: 10, intensity: 'danger' as const, damageMultiplier: 1 }],
+      }],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 2,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcomes, state: next } = resolveEnemyTurn(state, OPEN_CTX);
+
+    expect(outcomes.some((outcome) => outcome.kind === 'telegraph_resolved')).toBe(true);
+    expect(outcomes.some((outcome) => outcome.kind === 'attacked')).toBe(true);
+    expect(next.phase).toBe('player_turn');
+  });
 });
 
 // ─── flee action ──────────────────────────────────────────────────────────
@@ -612,7 +869,7 @@ describe('turn advancement', () => {
 // ─── status effects ───────────────────────────────────────────────────────
 
 describe('bleeding status effect', () => {
-  it('ticks at turn start and reduces HP', () => {
+  it('does not deal tick damage when the target stood still', () => {
     const player = makePlayer({
       initiative: 1,
       hp: 10,
@@ -628,10 +885,39 @@ describe('bleeding status effect', () => {
       phase: 'enemy_turn' as const,
     };
 
-    const { state: next } = advanceTurn(state);
+    const { outcome, state: next } = advanceTurn(state);
     const p = next.participants.find((pp) => pp.id === 'player')!;
-    expect(p.hp).toBe(8); // 10 - 2
+    expect(p.hp).toBe(10);
     expect(p.statusEffects[0]?.turnsRemaining).toBe(1);
+    expect(outcome).toMatchObject({
+      kind: 'turn_ended',
+      statusTicks: [],
+    });
+  });
+
+  it('doubles bleeding tick damage after moving more than two tiles', () => {
+    const player = makePlayer({
+      initiative: 1,
+      hp: 10,
+      bleedMovementTiles: 3,
+      statusEffects: [{ kind: 'bleeding', turnsRemaining: 2, value: 2 }],
+    });
+    const enemy = makeEnemy('e1', { initiative: 10, tileX: 20, tileY: 20 });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcome, state: next } = advanceTurn(state);
+    const p = next.participants.find((pp) => pp.id === 'player')!;
+    expect(p.hp).toBe(6);
+    expect(p.bleedMovementTiles).toBe(0);
+    expect(outcome).toMatchObject({
+      kind: 'turn_ended',
+      statusTicks: [{ kind: 'status_tick', targetId: 'player', effectKind: 'bleeding', damage: 4 }],
+    });
   });
 });
 
@@ -750,6 +1036,78 @@ describe('enemy AI', () => {
     expect(fallbackAction).toMatchObject({ kind: 'attack', attackId: 'bite' });
   });
 
+  it('chooses bite instead of telegraphed lunge when already adjacent', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      attacks: [
+        {
+          id: 'bite',
+          displayName: 'Bite',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 2,
+        },
+        {
+          id: 'lunge',
+          displayName: 'Lunge',
+          apCost: 1,
+          minRangeTiles: 2,
+          maxRangeTiles: 3,
+          damage: 4,
+          telegraph: { pattern: 'target_plus_adjacent' },
+        },
+      ],
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    expect(chooseEnemyAction(state, OPEN_CTX)).toMatchObject({ kind: 'attack', attackId: 'bite' });
+  });
+
+  it('can choose a telegraphed lunge after spending movement into range', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 12,
+      tileY: 10,
+      mpMax: 3,
+      mpRemaining: 1,
+      attacks: [
+        {
+          id: 'bite',
+          displayName: 'Bite',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 2,
+        },
+        {
+          id: 'lunge',
+          displayName: 'Lunge',
+          apCost: 1,
+          minRangeTiles: 2,
+          maxRangeTiles: 3,
+          damage: 4,
+          telegraph: { pattern: 'target_plus_adjacent' },
+        },
+      ],
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    expect(chooseEnemyAction(state, OPEN_CTX)).toMatchObject({ kind: 'attack', attackId: 'lunge' });
+  });
+
   it('chooses move when player is out of range', () => {
     const player = makePlayer({ tileX: 10, tileY: 10 });
     const enemy  = makeEnemy('e1', { tileX: 20, tileY: 10, attackRangeTiles: 1 });
@@ -798,5 +1156,95 @@ describe('enemy AI', () => {
       (o) => o.kind === 'turn_ended' || o.kind === 'combat_ended',
     );
     expect(endOutcomes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('walks into lunge range, then prepares lunge before ending the enemy turn', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 15,
+      tileY: 10,
+      mpMax: 3,
+      mpRemaining: 3,
+      attacks: [
+        {
+          id: 'bite',
+          displayName: 'Bite',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 2,
+        },
+        {
+          id: 'lunge',
+          displayName: 'Lunge',
+          apCost: 1,
+          minRangeTiles: 2,
+          maxRangeTiles: 3,
+          damage: 4,
+          telegraph: { pattern: 'target_plus_adjacent' },
+        },
+      ],
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcomes, state: next } = resolveEnemyTurn(state, OPEN_CTX);
+
+    expect(outcomes.some((outcome) => outcome.kind === 'moved')).toBe(true);
+    expect(outcomes.some((outcome) => outcome.kind === 'telegraph_prepared')).toBe(true);
+    expect(outcomes.at(-1)).toMatchObject({ kind: 'turn_ended', nextParticipantId: 'player' });
+    expect(next.pendingTelegraphs ?? []).toHaveLength(1);
+    expect(next.phase).toBe('player_turn');
+  });
+
+  it('resolves enemy AI one action per step so movement can animate before lunge setup', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 15,
+      tileY: 10,
+      mpMax: 3,
+      mpRemaining: 3,
+      attacks: [
+        {
+          id: 'bite',
+          displayName: 'Bite',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 2,
+        },
+        {
+          id: 'lunge',
+          displayName: 'Lunge',
+          apCost: 1,
+          minRangeTiles: 2,
+          maxRangeTiles: 3,
+          damage: 4,
+          telegraph: { pattern: 'target_plus_adjacent' },
+        },
+      ],
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    const moved = resolveEnemyTurnStep(state, OPEN_CTX);
+    expect(moved.outcomes).toHaveLength(1);
+    expect(moved.outcomes[0]).toMatchObject({ kind: 'moved' });
+    expect(moved.turnComplete).toBe(false);
+    expect(moved.state.phase).toBe('enemy_turn');
+
+    const prepared = resolveEnemyTurnStep(moved.state, OPEN_CTX);
+    expect(prepared.outcomes[0]).toMatchObject({ kind: 'telegraph_prepared', attackId: 'lunge' });
+    expect(prepared.outcomes.at(-1)).toMatchObject({ kind: 'turn_ended', nextParticipantId: 'player' });
+    expect(prepared.turnComplete).toBe(true);
+    expect(prepared.state.phase).toBe('player_turn');
   });
 });

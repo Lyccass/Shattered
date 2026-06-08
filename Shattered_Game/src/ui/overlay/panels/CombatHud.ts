@@ -144,15 +144,9 @@ export class CombatHud {
         p.id === activeId ? 'is-active' : '',
       ].filter(Boolean).join(' ');
 
-      const nameEl  = card.querySelector('.combat-init-name') as HTMLElement;
-      const fillEl  = card.querySelector('.combat-init-hp-fill') as HTMLElement;
+      const nameEl = card.querySelector('.combat-init-name') as HTMLElement;
 
       if (nameEl) nameEl.textContent = p.name;
-      if (fillEl) {
-        const pct = p.maxHp > 0 ? Math.max(0, (p.hp / p.maxHp) * 100) : 0;
-        fillEl.style.width = `${pct}%`;
-        fillEl.style.background = hpColor(pct);
-      }
     });
 
     // ── Action bar ────────────────────────────────────────────────────────
@@ -205,14 +199,7 @@ export class CombatHud {
     const name = document.createElement('div');
     name.className = 'combat-init-name';
 
-    const bar = document.createElement('div');
-    bar.className = 'combat-init-hp-bar';
-    const fill = document.createElement('div');
-    fill.className = 'combat-init-hp-fill';
-    bar.appendChild(fill);
-
     card.appendChild(name);
-    card.appendChild(bar);
     return card;
   }
 
@@ -258,10 +245,4 @@ export class CombatHud {
         : `Pick a target for ${attack.displayName} (Main Action)`;
     button.onclick = () => this.onAttackMode(attack.id);
   }
-}
-
-function hpColor(pct: number): string {
-  if (pct > 60) return '#4ade80';
-  if (pct > 30) return '#facc15';
-  return '#ef4444';
 }

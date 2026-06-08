@@ -2,21 +2,31 @@ import type {
   ActionOutcome,
   CombatEndReason,
   StatusEffect,
+  PendingTurnTelegraph,
   TurnAttack,
   TurnAttackUiSnapshot,
   TurnAction,
   TurnCombatState,
   TurnCombatUiSnapshot,
+  TurnForcedMovement,
   TurnParticipant,
+  TurnTelegraphConfig,
+  TurnTelegraphTile,
   TurnParticipantUiSnapshot,
   TurnPhase,
 } from './TurnCombatTypes';
 import {
+  getMovePath,
   getUsableAttacks,
   isValidAttack,
   isValidMove,
   type TurnTileContext,
 } from './TurnActionValidator';
+
+const DIRS_8 = [
+  [0, -1], [1, 0], [0, 1], [-1, 0],
+  [1, -1], [1, 1], [-1, 1], [-1, -1],
+] as const;
 
 // ─── Combat creation ──────────────────────────────────────────────────────────
 
@@ -40,6 +50,7 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
 
   return {
     participants: withRoll,
+    pendingTelegraphs: [],
     turnOrderIds: withRoll.map((p) => p.id),
     activeIndex: 0,
     round: 1,
@@ -77,7 +88,7 @@ export function applyAction(
 
   switch (action.kind) {
     case 'move':    return applyMove(state, active, action.toTileX, action.toTileY, tileCtx);
-    case 'attack':  return applyAttack(state, active, action.targetId, action.attackId);
+    case 'attack':  return applyAttack(state, active, action.targetId, action.attackId, tileCtx);
     case 'guard':   return applyGuard(state, active);
     case 'end_turn': return advanceTurn(state);
     case 'flee':    return applyFlee(state, active);
@@ -118,7 +129,8 @@ export function advanceTurn(
   if (isNewRound) next.round += 1;
 
   // Tick status effects for the participant about to act
-  next = tickStatusEffects(next, next.turnOrderIds[nextIndex]);
+  const ticked = tickStatusEffects(next, next.turnOrderIds[nextIndex]);
+  next = ticked.state;
 
   // Restore AP/MP for the participant now taking their turn
   next = restoreResources(next, next.turnOrderIds[nextIndex]);
@@ -127,7 +139,7 @@ export function advanceTurn(
   const endCheck = checkCombatEnd(next);
   if (endCheck) {
     return {
-      outcome: { kind: 'combat_ended', reason: endCheck },
+      outcome: { kind: 'combat_ended', reason: endCheck, statusTicks: ticked.outcomes },
       state: { ...next, phase: 'combat_ended', endReason: endCheck },
     };
   }
@@ -142,6 +154,7 @@ export function advanceTurn(
       kind: 'turn_ended',
       actorId,
       nextParticipantId: next.turnOrderIds[nextIndex] ?? null,
+      statusTicks: ticked.outcomes,
     },
     state: next,
   };
@@ -219,6 +232,103 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
   };
 }
 
+export function resolvePendingTelegraphsForActor(
+  state: TurnCombatState,
+  actorId: string,
+  tileCtx: TurnTileContext,
+): { outcomes: ActionOutcome[]; state: TurnCombatState } {
+  const pendingTelegraphs = state.pendingTelegraphs ?? [];
+  const pending = pendingTelegraphs.filter((telegraph) => telegraph.actorId === actorId);
+  if (pending.length === 0) return { outcomes: [], state };
+
+  const outcomes: ActionOutcome[] = [];
+  let current: TurnCombatState = {
+    ...cloneState(state),
+    pendingTelegraphs: pendingTelegraphs.filter((telegraph) => telegraph.actorId !== actorId),
+  };
+
+  for (const telegraph of pending) {
+    const actor = current.participants.find((p) => p.id === telegraph.actorId);
+    const target = current.participants.find((p) => p.id === telegraph.targetId);
+    if (!actor || !target || actor.hp <= 0 || target.hp <= 0) {
+      outcomes.push(buildTelegraphResolvedOutcome(telegraph, false, 0, false, false));
+      continue;
+    }
+
+    const hitTile = telegraph.tiles.find((tile) => tile.x === target.tileX && tile.y === target.tileY);
+    if (!hitTile) {
+      const actorMoved = getTelegraphActorLandingResult(current, actor, telegraph.targetTile, tileCtx);
+      if (actorMoved) {
+        current = updateParticipant(current, actor.id, {
+          tileX: actorMoved.toTile.x,
+          tileY: actorMoved.toTile.y,
+        });
+      }
+      outcomes.push({
+        ...buildTelegraphResolvedOutcome(telegraph, false, 0, false, false),
+        ...(actorMoved ? { actorMoved } : {}),
+      });
+      continue;
+    }
+
+    const armourRating = getTargetArmourRating(target, telegraph.damageType);
+    const hitChance = Math.max(10, (telegraph.hitChance ?? actor.hitChance ?? 80) - armourRating * 5);
+    const hit = Math.random() * 100 < hitChance;
+    const damage = hit
+      ? Math.max(1, Math.ceil(rollDamage(telegraph.damage) * hitTile.damageMultiplier))
+      : 0;
+    const nextHp = Math.max(0, target.hp - damage);
+    const killed = hit && nextHp <= 0;
+    const statusApplied = hit && telegraph.statusEffect
+      ? {
+          kind: telegraph.statusEffect.kind,
+          turnsRemaining: telegraph.statusEffect.turns,
+          value: telegraph.statusEffect.value,
+        }
+      : undefined;
+
+    current = updateParticipant(current, target.id, {
+      hp: nextHp,
+      ...(statusApplied && !killed
+        ? { statusEffects: [...target.statusEffects, statusApplied] }
+        : {}),
+    });
+
+    const pushed = hit && !killed && telegraph.forcedMovement
+      ? getForcedMovementResult(current, actor, target.id, telegraph.forcedMovement, tileCtx, telegraph.originTile)
+      : null;
+    if (pushed) {
+      current = updateParticipant(current, target.id, {
+        tileX: pushed.toTile.x,
+        tileY: pushed.toTile.y,
+      });
+    }
+
+    const actorMoved = getTelegraphActorLandingResult(current, actor, telegraph.targetTile, tileCtx);
+    if (actorMoved) {
+      current = updateParticipant(current, actor.id, {
+        tileX: actorMoved.toTile.x,
+        tileY: actorMoved.toTile.y,
+      });
+    }
+
+    outcomes.push({
+      ...buildTelegraphResolvedOutcome(telegraph, true, damage, hit, killed, statusApplied),
+      ...(pushed ? { pushed } : {}),
+      ...(actorMoved ? { actorMoved } : {}),
+    });
+
+    const endCheck = checkCombatEnd(current);
+    if (endCheck) {
+      current = { ...current, phase: 'combat_ended', endReason: endCheck };
+      outcomes.push({ kind: 'combat_ended', reason: endCheck });
+      break;
+    }
+  }
+
+  return { outcomes, state: current };
+}
+
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
 function applyMove(
@@ -237,6 +347,7 @@ function applyMove(
 
   const fromTile = { x: actor.tileX, y: actor.tileY };
   const toTile   = { x: toTileX,     y: toTileY };
+  const path = getMovePath(actor, toTileX, toTileY, state, tileCtx) ?? [toTile];
 
   const stepCost = Math.max(
     Math.abs(toTileX - actor.tileX),
@@ -247,9 +358,10 @@ function applyMove(
     tileX: toTileX,
     tileY: toTileY,
     mpRemaining: Math.max(0, actor.mpRemaining - stepCost),
+    bleedMovementTiles: (actor.bleedMovementTiles ?? 0) + stepCost,
   });
 
-  return { outcome: { kind: 'moved', actorId: actor.id, fromTile, toTile }, state: next };
+  return { outcome: { kind: 'moved', actorId: actor.id, fromTile, toTile, path }, state: next };
 }
 
 function applyAttack(
@@ -257,6 +369,7 @@ function applyAttack(
   actor: TurnParticipant,
   targetId: string,
   attackId: string | undefined,
+  tileCtx: TurnTileContext,
 ): { outcome: ActionOutcome; state: TurnCombatState } {
   if (!isValidAttack(actor, targetId, state, attackId)) {
     return {
@@ -281,6 +394,11 @@ function applyAttack(
     };
   }
 
+  const telegraphConfig = attack.telegraph;
+  if (telegraphConfig) {
+    return prepareTelegraphedAttack(state, actor, target, attack, telegraphConfig, tileCtx);
+  }
+
   // Hit roll: target armour against this attack type reduces hit chance.
   const armourRating = getTargetArmourRating(target, attack.damageType);
   const hitChance = Math.max(10, (attack.hitChance ?? actor.hitChance ?? 80) - armourRating * 5);
@@ -295,7 +413,7 @@ function applyAttack(
       }
     : undefined;
 
-  let nextHp = Math.max(0, target.hp - damage);
+  const nextHp = Math.max(0, target.hp - damage);
   const killed = hit && nextHp <= 0;
 
   const nextCooldowns = {
@@ -315,6 +433,16 @@ function applyAttack(
       : {}),
   });
 
+  const pushed = hit && !killed && attack.forcedMovement
+    ? getForcedMovementResult(next, actor, targetId, attack.forcedMovement, tileCtx)
+    : null;
+  if (pushed) {
+    next = updateParticipant(next, targetId, {
+      tileX: pushed.toTile.x,
+      tileY: pushed.toTile.y,
+    });
+  }
+
   // Check win condition before resolving status
   const endCheck = checkCombatEnd(next);
   if (endCheck) {
@@ -329,6 +457,7 @@ function applyAttack(
         hit,
         killed,
         statusApplied,
+        ...(pushed ? { pushed } : {}),
       },
       state: { ...next, phase: 'combat_ended', endReason: endCheck },
     };
@@ -345,6 +474,60 @@ function applyAttack(
       hit,
       killed,
       statusApplied,
+      ...(pushed ? { pushed } : {}),
+    },
+    state: next,
+  };
+}
+
+function prepareTelegraphedAttack(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  attack: TurnAttack,
+  telegraphConfig: TurnTelegraphConfig,
+  tileCtx: TurnTileContext,
+): { outcome: ActionOutcome; state: TurnCombatState } {
+  const telegraph: PendingTurnTelegraph = {
+    id: `${actor.id}_${attack.id}_${state.round}_${state.pendingTelegraphs?.length ?? 0}`,
+    actorId: actor.id,
+    targetId: target.id,
+    attackId: attack.id,
+    attackName: attack.displayName,
+    damage: attack.damage,
+    damageType: attack.damageType,
+    hitChance: attack.hitChance ?? actor.hitChance,
+    statusEffect: attack.statusEffect ? { ...attack.statusEffect } : undefined,
+    forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
+    originTile: { x: actor.tileX, y: actor.tileY },
+    targetTile: { x: target.tileX, y: target.tileY },
+    tiles: buildTelegraphTiles(target.tileX, target.tileY, telegraphConfig, tileCtx),
+  };
+  const nextCooldowns = {
+    ...(actor.attackCooldowns ?? {}),
+    ...getAttackCooldownPatch(attack),
+  };
+  const next = updateParticipant(
+    {
+      ...state,
+      pendingTelegraphs: [...(state.pendingTelegraphs ?? []), telegraph],
+    },
+    actor.id,
+    {
+      apRemaining: Math.max(0, actor.apRemaining - attack.apCost),
+      attackCooldowns: nextCooldowns,
+    },
+  );
+
+  return {
+    outcome: {
+      kind: 'telegraph_prepared',
+      actorId: actor.id,
+      targetId: target.id,
+      attackId: attack.id,
+      attackName: attack.displayName,
+      telegraphId: telegraph.id,
+      tiles: telegraph.tiles,
     },
     state: next,
   };
@@ -386,19 +569,172 @@ function applyGuard(
   return { outcome: { kind: 'guarded', actorId: actor.id, statusApplied }, state: next };
 }
 
+function buildTelegraphTiles(
+  targetTileX: number,
+  targetTileY: number,
+  config: NonNullable<TurnAttack['telegraph']>,
+  tileCtx: TurnTileContext,
+) {
+  const tiles: TurnTelegraphTile[] = [{
+    x: targetTileX,
+    y: targetTileY,
+    intensity: 'danger' as const,
+    damageMultiplier: 1,
+  }];
+
+  if (config.pattern === 'target_plus_adjacent') {
+    const warningDamageMultiplier = config.warningDamageMultiplier ?? 0.5;
+    for (const [dx, dy] of DIRS_8) {
+      const x = targetTileX + dx;
+      const y = targetTileY + dy;
+      if (!isTileWithinBounds(x, y, tileCtx)) continue;
+      tiles.push({
+        x,
+        y,
+        intensity: 'warning' as const,
+        damageMultiplier: warningDamageMultiplier,
+      });
+    }
+  }
+
+  return tiles.filter((tile) => isTileWithinBounds(tile.x, tile.y, tileCtx));
+}
+
+function buildTelegraphResolvedOutcome(
+  telegraph: PendingTurnTelegraph,
+  targetWasInArea: boolean,
+  damage: number,
+  hit: boolean,
+  killed: boolean,
+  statusApplied?: StatusEffect,
+): Extract<ActionOutcome, { kind: 'telegraph_resolved' }> {
+  return {
+    kind: 'telegraph_resolved',
+    actorId: telegraph.actorId,
+    targetId: telegraph.targetId,
+    attackId: telegraph.attackId,
+    attackName: telegraph.attackName,
+    damage,
+    hit,
+    killed,
+    targetWasInArea,
+    ...(statusApplied ? { statusApplied } : {}),
+  };
+}
+
+function getForcedMovementResult(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+  targetId: string,
+  forcedMovement: TurnForcedMovement,
+  tileCtx: TurnTileContext,
+  originTile = { x: actor.tileX, y: actor.tileY },
+) {
+  if (forcedMovement.kind !== 'push' || forcedMovement.distance <= 0) return null;
+
+  const target = state.participants.find((p) => p.id === targetId);
+  if (!target) return null;
+
+  let dx = Math.sign(target.tileX - originTile.x);
+  let dy = Math.sign(target.tileY - originTile.y);
+  if (dx === 0 && dy === 0) {
+    dx = Math.sign(target.tileX - actor.tileX);
+    dy = Math.sign(target.tileY - actor.tileY);
+  }
+  if (dx === 0 && dy === 0) dy = 1;
+
+  const fromTile = { x: target.tileX, y: target.tileY };
+  let toTile = fromTile;
+
+  for (let step = 0; step < forcedMovement.distance; step += 1) {
+    const nextTile = { x: toTile.x + dx, y: toTile.y + dy };
+    if (!isTileOpenForForcedMove(nextTile.x, nextTile.y, target.id, state, tileCtx)) break;
+    toTile = nextTile;
+  }
+
+  if (toTile.x === fromTile.x && toTile.y === fromTile.y) return null;
+  return { targetId: target.id, fromTile, toTile };
+}
+
+function getTelegraphActorLandingResult(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+  targetTile: { x: number; y: number },
+  tileCtx: TurnTileContext,
+) {
+  const adjacentCandidates = DIRS_8
+    .map(([dx, dy]) => ({ x: targetTile.x + dx, y: targetTile.y + dy }))
+    .sort((a, b) =>
+      Math.max(Math.abs(a.x - actor.tileX), Math.abs(a.y - actor.tileY)) -
+      Math.max(Math.abs(b.x - actor.tileX), Math.abs(b.y - actor.tileY)),
+    );
+
+  const toTile = [targetTile, ...adjacentCandidates].find((tile) =>
+    isTileOpenForForcedMove(tile.x, tile.y, actor.id, state, tileCtx),
+  );
+  if (!toTile || (toTile.x === actor.tileX && toTile.y === actor.tileY)) return null;
+
+  return {
+    targetId: actor.id,
+    fromTile: { x: actor.tileX, y: actor.tileY },
+    toTile,
+  };
+}
+
+function isTileOpenForForcedMove(
+  tileX: number,
+  tileY: number,
+  movingParticipantId: string,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): boolean {
+  if (!isTileWithinBounds(tileX, tileY, tileCtx)) return false;
+  if (!tileCtx.isTileWalkable(tileX, tileY)) return false;
+
+  return !state.participants.some((participant) =>
+    participant.id !== movingParticipantId &&
+    participant.hp > 0 &&
+    participant.tileX === tileX &&
+    participant.tileY === tileY,
+  );
+}
+
+function isTileWithinBounds(tileX: number, tileY: number, tileCtx: TurnTileContext): boolean {
+  return tileX >= 0 && tileY >= 0 && tileX < tileCtx.mapWidth && tileY < tileCtx.mapHeight;
+}
+
 function tickStatusEffects(
   state: TurnCombatState,
   participantId: string,
-): TurnCombatState {
+): { state: TurnCombatState; outcomes: Extract<ActionOutcome, { kind: 'status_tick' }>[] } {
   const participant = state.participants.find((p) => p.id === participantId);
-  if (!participant) return state;
+  if (!participant) return { state, outcomes: [] };
 
-  let hpDelta = 0;
+  let nextHp = participant.hp;
   let mpReduction = 0;
   const updated: StatusEffect[] = [];
+  const outcomes: Extract<ActionOutcome, { kind: 'status_tick' }>[] = [];
 
   for (const effect of participant.statusEffects) {
-    if (effect.kind === 'bleeding' || effect.kind === 'damage_over_time') hpDelta += effect.value;
+    if (effect.kind === 'bleeding' || effect.kind === 'damage_over_time') {
+      const movedTiles = participant.bleedMovementTiles ?? 0;
+      const rawDamage = effect.kind === 'bleeding'
+        ? movedTiles <= 0
+          ? 0
+          : effect.value * (movedTiles > 2 ? 2 : 1)
+        : effect.value;
+      const damage = Math.min(nextHp, Math.max(0, rawDamage));
+      nextHp = Math.max(0, nextHp - damage);
+      if (damage > 0) {
+        outcomes.push({
+          kind: 'status_tick',
+          targetId: participantId,
+          effectKind: effect.kind,
+          damage,
+          killed: nextHp <= 0,
+        });
+      }
+    }
     if (effect.kind === 'slowed')   mpReduction += effect.value;
 
     if (effect.turnsRemaining > 1) {
@@ -407,11 +743,15 @@ function tickStatusEffects(
     // Expired effects are dropped
   }
 
-  return updateParticipant(state, participantId, {
-    hp: Math.max(0, participant.hp - hpDelta),
-    statusEffects: updated,
-    mpRemaining: Math.max(0, participant.mpRemaining - mpReduction),
-  });
+  return {
+    state: updateParticipant(state, participantId, {
+      hp: nextHp,
+      statusEffects: updated,
+      mpRemaining: Math.max(0, participant.mpRemaining - mpReduction),
+      bleedMovementTiles: 0,
+    }),
+    outcomes,
+  };
 }
 
 function restoreResources(state: TurnCombatState, participantId: string): TurnCombatState {
@@ -551,6 +891,14 @@ function updateParticipant(
 function cloneState(state: TurnCombatState): TurnCombatState {
   return {
     ...state,
+    pendingTelegraphs: (state.pendingTelegraphs ?? []).map((telegraph) => ({
+      ...telegraph,
+      statusEffect: telegraph.statusEffect ? { ...telegraph.statusEffect } : undefined,
+      forcedMovement: telegraph.forcedMovement ? { ...telegraph.forcedMovement } : undefined,
+      originTile: { ...telegraph.originTile },
+      targetTile: { ...telegraph.targetTile },
+      tiles: telegraph.tiles.map((tile) => ({ ...tile })),
+    })),
     participants: state.participants.map((p) => ({
       ...p,
       statusEffects: [...p.statusEffects],
@@ -564,5 +912,7 @@ function cloneAttacks(attacks: TurnAttack[] | undefined): TurnAttack[] | undefin
   return attacks?.map((attack) => ({
     ...attack,
     statusEffect: attack.statusEffect ? { ...attack.statusEffect } : undefined,
+    telegraph: attack.telegraph ? { ...attack.telegraph } : undefined,
+    forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
   }));
 }

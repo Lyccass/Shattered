@@ -8,13 +8,21 @@ const FLOAT_DIST = 32;
 export class HitsplatRenderer {
   constructor(private readonly scene: Phaser.Scene) {}
 
-  show(worldX: number, worldY: number, damage: number, delayMs = 0): void {
+  show(
+    worldX: number,
+    worldY: number,
+    damage: number,
+    delayMs = 0,
+    label?: string,
+    color?: string,
+  ): void {
     const offsetX = (Math.random() - 0.5) * 10;
     const isMiss = damage === 0;
-    const text = this.scene.add.text(worldX + offsetX, worldY - 36, isMiss ? 'Miss' : String(damage), {
+    const textValue = isMiss ? 'Miss' : label ? `${label} -${damage}` : String(damage);
+    const text = this.scene.add.text(worldX + offsetX, worldY - 36, textValue, {
       fontFamily: '"JetBrains Mono", monospace',
       fontSize: '14px',
-      color: isMiss ? '#94a3b8' : '#facc15',
+      color: color ?? (isMiss ? '#94a3b8' : '#facc15'),
       stroke: '#000000',
       strokeThickness: 3,
     });

@@ -68,10 +68,11 @@ export class EnemySystem {
       if (nowMs - this.record.diedAtMs >= this.record.respawnMs) {
         this.respawn();
       } else {
-        this.visualController.applyTurnState(
-          this.record.worldX, this.record.worldY,
-          false, 0, this.record.maxHp, 'dead', nowMs,
-        );
+      this.visualController.applyTurnState(
+        this.record.worldX, this.record.worldY,
+        false, 0, this.record.maxHp, 'dead', nowMs,
+        false,
+      );
       }
       return;
     }
@@ -81,6 +82,7 @@ export class EnemySystem {
       this.visualController.applyTurnState(
         this.record.worldX, this.record.worldY,
         false, this.record.hp, this.record.maxHp, 'idle', nowMs,
+        false,
       );
     }
   }
@@ -108,16 +110,19 @@ export class EnemySystem {
     this.record.worldY = worldY;
     this.visualController.applyTurnState(
       worldX, worldY, facingRightward, hp, this.record.maxHp, visualState, nowMs,
+      true,
     );
   }
 
-  setCombatTile(tileX: number, tileY: number): void {
+  setCombatTile(tileX: number, tileY: number, syncWorld = true): void {
     if (!this.record || !this.tilemap) return;
-    const world = this.tilemap.getTileCenterWorld(tileX, tileY);
     this.record.tileX = tileX;
     this.record.tileY = tileY;
-    this.record.worldX = world.x;
-    this.record.worldY = world.y;
+    if (syncWorld) {
+      const world = this.tilemap.getTileCenterWorld(tileX, tileY);
+      this.record.worldX = world.x;
+      this.record.worldY = world.y;
+    }
   }
 
   flashHit(nowMs: number): void {

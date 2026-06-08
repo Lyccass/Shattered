@@ -1,4 +1,9 @@
-import type { StatusEffectKind } from './turn/TurnCombatTypes';
+import type {
+  StatusEffectKind,
+  TurnDamageType,
+  TurnForcedMovement,
+  TurnTelegraphConfig,
+} from './turn/TurnCombatTypes';
 
 export type EnemyBehavior = 'aggressive' | 'passive';
 
@@ -22,6 +27,7 @@ export type TurnAttackDefinition = {
   maxRangeTiles: number;
   /** Max hit; damage is rolled 0–damage (OSRS-style). */
   damage: number;
+  damageType?: TurnDamageType;
   /** 0–100 percentage. Defaults to 80 when omitted. */
   hitChance?: number;
   /** Optional status effect applied on hit. */
@@ -32,6 +38,8 @@ export type TurnAttackDefinition = {
   };
   /** Turns the enemy must wait before using this attack again (0 = no cooldown). */
   cooldownTurns?: number;
+  telegraph?: TurnTelegraphConfig;
+  forcedMovement?: TurnForcedMovement;
 };
 
 export type EnemyDefinition = {
