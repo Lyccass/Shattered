@@ -27,6 +27,19 @@ export type UiStateSnapshot = {
   equipment: EquipmentSnapshot;
 };
 
+export type MinimapTileInfo = {
+  terrain: string | null;
+  walkable: boolean;
+};
+
+export type MinimapViewport = {
+  radius: number;
+  /** [row = dy + radius][col = dx + radius], origin = player tile */
+  tiles: MinimapTileInfo[][];
+  npcs: Array<{ dx: number; dy: number }>;
+  enemies: Array<{ dx: number; dy: number }>;
+};
+
 export type MinimapSnapshot = {
   mapId: string;
   mapName: string;
@@ -35,6 +48,7 @@ export type MinimapSnapshot = {
   mapWidth: number;
   mapHeight: number;
   terrain: TerrainFamily[][];
+  viewport: MinimapViewport | null;
 };
 
 // Use this instead of an inline object literal in GameScene/tests so that

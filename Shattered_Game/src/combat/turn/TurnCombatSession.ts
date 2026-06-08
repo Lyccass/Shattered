@@ -111,6 +111,14 @@ export class TurnCombatSession {
     this.playerController = pc;
   }
 
+  getEnemyTiles(): Array<{ tileX: number; tileY: number }> {
+    return this.enemySystems.flatMap((es) => {
+      if (!es.isAlive()) return [];
+      const t = es.getCurrentTile();
+      return t ? [{ tileX: t.x, tileY: t.y }] : [];
+    });
+  }
+
   setDerivedStats(stats: PlayerDerivedStats): void {
     this.derivedStats = stats;
     this.persistedPlayerMaxHp = stats.maxHp;

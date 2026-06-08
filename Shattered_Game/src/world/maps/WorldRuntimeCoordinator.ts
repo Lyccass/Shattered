@@ -658,6 +658,10 @@ export class WorldRuntimeCoordinator {
     return !!this.currentRuntime;
   }
 
+  getNpcWorldPositions(): Array<{ worldX: number; worldY: number }> {
+    return this.npcSystem?.getStates().map((s) => ({ worldX: s.worldX, worldY: s.worldY })) ?? [];
+  }
+
   getCurrentRuntime(): LoadedMapRuntime {
     if (!this.currentRuntime) {
       throw new Error('WorldRuntimeCoordinator: no map runtime is active');

@@ -4,6 +4,7 @@ import type { UIOverlayCallbacks, TabId } from './UITokens';
 import type { MinimapSnapshot, UiStateSnapshot } from '../UiTypes';
 import { EnemyPanel } from './panels/EnemyPanel';
 import { MinimapPanel } from './panels/MinimapPanel';
+import { MapWindow } from './MapWindow';
 import { ChatPanel } from './panels/ChatPanel';
 import { TaskbarPanel } from './panels/TaskbarPanel';
 import { XpDropPanel } from './panels/XpDropPanel';
@@ -25,6 +26,10 @@ export class UIOverlayManager {
   private readonly xpDropPanel: XpDropPanel;
   private readonly choiceMenuPopup: ChoiceMenuPopup;
   private readonly combatHud: CombatHud;
+  private readonly mapContent: MapWindow;
+  private readonly mapPopup: PopupWindow;
+  private lastPlayerTileX = 0;
+  private lastPlayerTileY = 0;
   private popup: PopupWindow | null = null;
   private lastSkillPopupId: string | null = null;
   private skillDetailWindow: SkillDetailWindow | null = null;
@@ -36,7 +41,11 @@ export class UIOverlayManager {
     this.overlay = document.getElementById('ui-overlay') as HTMLElement;
 
     this.enemyPanel      = new EnemyPanel(this.overlay);
-    this.minimapPanel    = new MinimapPanel(this.overlay);
+    this.minimapPanel    = new MinimapPanel(this.overlay, () => callbacks.onMinimapClick());
+    this.mapContent      = new MapWindow(callbacks.onMapTileQuery);
+    this.mapPopup        = new PopupWindow(this.overlay, 'World Map');
+    this.mapPopup.addModifier('ui-popup--map');
+    this.mapPopup.setContent(this.mapContent.el);
     this.chatPanel       = new ChatPanel(this.overlay);
     this.taskbarPanel    = new TaskbarPanel(
       this.overlay,
@@ -48,6 +57,7 @@ export class UIOverlayManager {
       callbacks.onInventoryItemCombine,
       callbacks.onEquipmentUnequip,
       (skill) => this.openSkillDetail(skill),
+      () => this.toggleMapWindow(this.lastPlayerTileX, this.lastPlayerTileY),
     );
     this.xpDropPanel     = new XpDropPanel(this.overlay);
     this.combatHud       = new CombatHud(
@@ -82,6 +92,11 @@ export class UIOverlayManager {
       null,
     );
     this.minimapPanel.updateMap(minimap);
+    if (this.mapPopup.isOpen()) this.mapContent.update(minimap);
+    if (minimap) {
+      this.lastPlayerTileX = minimap.playerTileX;
+      this.lastPlayerTileY = minimap.playerTileY;
+    }
     this.taskbarPanel.setCombatMode(
       controlMode === 'combat'
         ? 'engaged'
@@ -96,13 +111,21 @@ export class UIOverlayManager {
       state.activeTaskCount,
       state.skills,
       state.equipment,
-      minimap,
     );
 
     // Live-update the open skill detail popup
     if (this.skillDetailWindow && this.lastSkillPopupId && this.popup?.isOpen()) {
       const snap = state.skills.find(s => s.id === this.lastSkillPopupId);
       if (snap) this.skillDetailWindow.update(snap);
+    }
+  }
+
+  toggleMapWindow(playerTileX: number, playerTileY: number): void {
+    if (this.mapPopup.isOpen()) {
+      this.mapPopup.close();
+    } else {
+      this.mapContent.setCenter(playerTileX, playerTileY);
+      this.mapPopup.open();
     }
   }
 
@@ -210,6 +233,8 @@ export class UIOverlayManager {
     this.combatHud.destroy();
     this.enemyPanel.destroy();
     this.minimapPanel.destroy();
+    this.mapPopup.destroy();
+    this.mapContent.destroy();
     this.chatPanel.destroy();
     this.taskbarPanel.destroy();
     this.xpDropPanel.destroy();

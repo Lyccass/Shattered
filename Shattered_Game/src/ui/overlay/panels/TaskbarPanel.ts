@@ -4,12 +4,10 @@ import type { PlayerInventorySnapshot } from '../../../player/PlayerInventorySta
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
-import type { MinimapSnapshot } from '../../UiTypes';
 import { UI_TOKENS, type TabId } from '../UITokens';
 import { EquipmentTabContent } from './EquipmentTabContent';
 import { InventoryTabContent } from './InventoryTabContent';
 import { JournalTabContent } from './JournalTabContent';
-import { MapTabContent } from './MapTabContent';
 import { SettingsTabContent } from './SettingsTabContent';
 import { SkillsTabContent } from './SkillsTabContent';
 
@@ -44,7 +42,6 @@ export class TaskbarPanel {
   private readonly equipmentContent: EquipmentTabContent;
   private readonly skillsContent: SkillsTabContent;
   private readonly journalContent: JournalTabContent;
-  private readonly mapContent: MapTabContent;
   private readonly settingsContent: SettingsTabContent;
 
   constructor(
@@ -57,6 +54,7 @@ export class TaskbarPanel {
     private readonly onInventoryItemCombine: (sourceId: string, targetId: string) => void,
     private readonly onEquipmentUnequip: (slot: string) => void,
     private readonly onSkillOpen: (skill: SkillSnapshot) => void,
+    private readonly onMapOpen: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.id = 'ui-sidebar';
@@ -122,7 +120,6 @@ export class TaskbarPanel {
     this.equipmentContent = new EquipmentTabContent(this.onEquipmentUnequip);
     this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
-    this.mapContent       = new MapTabContent();
     this.settingsContent  = new SettingsTabContent();
   }
 
@@ -146,6 +143,12 @@ export class TaskbarPanel {
   }
 
   private handleTabClick(tabId: TabId): void {
+    // Map opens the floating MapWindow — not a sidebar panel.
+    if (tabId === 'map') {
+      this.onMapOpen();
+      return;
+    }
+
     if (this.activeTab === tabId) {
       this.activeTab = null;
       this.panelArea.classList.add('ui-hidden');
@@ -176,7 +179,6 @@ export class TaskbarPanel {
       case 'equipment':  return this.equipmentContent.el;
       case 'skills':     return this.skillsContent.el;
       case 'journal':    return this.journalContent.el;
-      case 'map':        return this.mapContent.el;
       case 'settings':   return this.settingsContent.el;
       default:           return null;
     }
@@ -224,13 +226,11 @@ export class TaskbarPanel {
     activeTaskCount: number,
     skills: SkillSnapshot[],
     equipment: EquipmentSnapshot,
-    minimap: MinimapSnapshot | null = null,
   ): void {
     this.inventoryContent.update(inventory, currency);
     this.skillsContent.update(skills);
     this.journalContent.update(journalEntries, reputation, activeTaskCount);
     this.equipmentContent.update(equipment);
-    this.mapContent.update(minimap);
     this.settingsContent.update();
   }
 

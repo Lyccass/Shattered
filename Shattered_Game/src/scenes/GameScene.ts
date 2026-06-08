@@ -122,6 +122,18 @@ export class GameScene extends Phaser.Scene {
         const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
         if (msg) this.uiManager?.showInfo(msg);
       },
+      onMinimapClick: () => {
+        const snap = this.buildMinimapSnapshot();
+        this.uiManager?.toggleMapWindow(snap?.playerTileX ?? 0, snap?.playerTileY ?? 0);
+      },
+      onMapTileQuery: (tileX, tileY) => {
+        const iso = this.worldRuntimeCoordinator?.getIsoTilemap();
+        if (!iso) return null;
+        return {
+          terrain:  iso.getTerrainFamilyAtTile(tileX, tileY),
+          walkable: iso.isTileWalkable(tileX, tileY),
+        };
+      },
     });
     this.saveController = new GameSaveController(this);
     this.interactionController = new GameInteractionController(this, {
@@ -546,6 +558,37 @@ export class GameScene extends Phaser.Scene {
     if (!playerPos) return null;
 
     const tile = isoTilemap.transform.worldToTile(playerPos.x, playerPos.y);
+
+    const RADIUS = 12;
+    const diam = RADIUS * 2 + 1;
+    const vpTiles = Array.from({ length: diam }, (_, row) => {
+      const dy = row - RADIUS;
+      return Array.from({ length: diam }, (_, col) => {
+        const dx = col - RADIUS;
+        const tx = tile.x + dx;
+        const ty = tile.y + dy;
+        return {
+          terrain: isoTilemap.getTerrainFamilyAtTile(tx, ty),
+          walkable: isoTilemap.isTileWalkable(tx, ty),
+        };
+      });
+    });
+
+    const npcWorldPositions = this.worldRuntimeCoordinator.getNpcWorldPositions();
+    const vpNpcs = npcWorldPositions.flatMap(({ worldX, worldY }) => {
+      const npcTile = isoTilemap.transform.worldToTile(worldX, worldY);
+      const dx = npcTile.x - tile.x;
+      const dy = npcTile.y - tile.y;
+      return Math.abs(dx) <= RADIUS && Math.abs(dy) <= RADIUS ? [{ dx, dy }] : [];
+    });
+
+    const enemyTiles = this.turnCombatSession?.getEnemyTiles() ?? [];
+    const vpEnemies = enemyTiles.flatMap(({ tileX, tileY }) => {
+      const dx = tileX - tile.x;
+      const dy = tileY - tile.y;
+      return Math.abs(dx) <= RADIUS && Math.abs(dy) <= RADIUS ? [{ dx, dy }] : [];
+    });
+
     return {
       mapId: runtime.definition.id,
       mapName: runtime.definition.displayName,
@@ -554,6 +597,7 @@ export class GameScene extends Phaser.Scene {
       mapWidth: runtime.definition.width,
       mapHeight: runtime.definition.height,
       terrain: runtime.definition.terrain,
+      viewport: { radius: RADIUS, tiles: vpTiles, npcs: vpNpcs, enemies: vpEnemies },
     };
   }
 

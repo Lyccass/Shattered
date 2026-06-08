@@ -27,6 +27,8 @@ export interface UiManagerCallbacks {
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
+  onMinimapClick: () => void;
+  onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
 }
 
 const UNLOCK_REGISTRY = new SkillUnlockRegistry(SKILL_UNLOCKS);
@@ -61,6 +63,8 @@ export class UiManager {
       onChoiceMenuSelect:      callbacks.onChoiceMenuSelect,
       onChoiceMenuConfirm:     callbacks.onChoiceMenuConfirm,
       onChoiceMenuCancel:      callbacks.onChoiceMenuCancel,
+      onMinimapClick:          callbacks.onMinimapClick,
+      onMapTileQuery:          callbacks.onMapTileQuery,
     });
 
     const displayObjects = this.getPhaserDisplayObjects();
@@ -144,6 +148,10 @@ export class UiManager {
 
   toggleSkills(): boolean {
     return this.overlay.toggleTab('journal');
+  }
+
+  toggleMapWindow(playerTileX: number, playerTileY: number): void {
+    this.overlay.toggleMapWindow(playerTileX, playerTileY);
   }
 
   openShop(

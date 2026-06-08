@@ -1,5 +1,6 @@
 import { requireElement } from '../../domUtils';
-import type { MinimapSnapshot } from '../../UiTypes';
+import type { MinimapSnapshot, MinimapViewport } from '../../UiTypes';
+
 
 export class MinimapPanel {
   private readonly root: HTMLElement;
@@ -12,7 +13,7 @@ export class MinimapPanel {
   private readonly playerDot: HTMLElement;
   private lastRenderedMapKey = '';
 
-  constructor(overlay: HTMLElement) {
+  constructor(overlay: HTMLElement, private readonly onMinimapClick: () => void) {
     this.root = document.createElement('div');
     this.root.id = 'ui-minimap';
 
@@ -48,6 +49,11 @@ export class MinimapPanel {
     this.stamValue     = requireElement(this.root, '.orb-stam .orb-value');
     this.playerDot     = requireElement(this.root, '.minimap-player-dot');
 
+    // Clicking the minimap ring opens/closes the map window
+    const ring = requireElement(this.root, '.minimap-ring');
+    ring.style.cursor = 'pointer';
+    ring.addEventListener('click', () => this.onMinimapClick());
+
     this.setLocation('The Veil');
     this.renderEmptyMap();
 
@@ -76,12 +82,22 @@ export class MinimapPanel {
 
   updateMap(snapshot: MinimapSnapshot | null): void {
     if (!snapshot || snapshot.mapWidth <= 0 || snapshot.mapHeight <= 0) {
+      this.playerDot.style.display = '';
       this.playerDot.style.left = '50%';
       this.playerDot.style.top = '50%';
       return;
     }
 
     this.setLocation(snapshot.mapName);
+
+    if (snapshot.viewport) {
+      this.playerDot.style.display = 'none';
+      this.renderViewport(snapshot.viewport);
+      return;
+    }
+
+    // Legacy path: static-world terrain stored in definition.terrain
+    this.playerDot.style.display = '';
     const mapKey = `${snapshot.mapId}:${snapshot.mapWidth}x${snapshot.mapHeight}`;
     if (this.lastRenderedMapKey !== mapKey) {
       this.renderTerrain(snapshot);
@@ -91,6 +107,82 @@ export class MinimapPanel {
     const yRatio = Math.max(0, Math.min(1, (snapshot.playerTileY + 0.5) / snapshot.mapHeight));
     this.playerDot.style.left = `${xRatio * 100}%`;
     this.playerDot.style.top = `${yRatio * 100}%`;
+  }
+
+  private renderViewport(vp: MinimapViewport): void {
+    const ctx = this.mapCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const cw = this.mapCanvas.width;
+    const ch = this.mapCanvas.height;
+    const cx = cw / 2;
+    const cy = ch / 2;
+
+    // Scale so the 4 cardinal tiles (dx=R,dy=0) etc. project exactly to the
+    // circle edge, while diagonal corners extend beyond and get CSS-clipped.
+    // This guarantees the full circle is covered with no dark crescents.
+    const s  = cw / (2 * Math.SQRT2 * vp.radius);
+    const sw = s;
+    const sh = s;
+
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.fillStyle = '#0a1410';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // ── Batch terrain tiles by color (isometric diamond per tile) ─────────────
+    const diam = vp.radius * 2 + 1;
+    const colorPaths = new Map<string, Path2D>();
+
+    for (let row = 0; row < diam; row++) {
+      for (let col = 0; col < diam; col++) {
+        const t  = vp.tiles[row]?.[col];
+        const dx = col - vp.radius;
+        const dy = row - vp.radius;
+        const px = cx + (dx - dy) * sw;
+        const py = cy + (dx + dy) * sh;
+
+        const color = t ? getViewportTileColor(t.terrain, t.walkable) : '#0a1410';
+        let path = colorPaths.get(color);
+        if (!path) { path = new Path2D(); colorPaths.set(color, path); }
+
+        path.moveTo(px,       py - sh);
+        path.lineTo(px + sw,  py);
+        path.lineTo(px,       py + sh);
+        path.lineTo(px - sw,  py);
+        path.closePath();
+      }
+    }
+
+    for (const [color, path] of colorPaths) {
+      ctx.fillStyle = color;
+      ctx.fill(path);
+    }
+
+    // ── Entity dots ───────────────────────────────────────────────────────────
+    const dotR = Math.max(2, sw * 0.9);
+
+    ctx.fillStyle = '#38bdf8';
+    for (const { dx, dy } of vp.npcs) {
+      ctx.beginPath();
+      ctx.arc(cx + (dx - dy) * sw, cy + (dx + dy) * sh, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#f87171';
+    for (const { dx, dy } of vp.enemies) {
+      ctx.beginPath();
+      ctx.arc(cx + (dx - dy) * sw, cy + (dx + dy) * sh, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── Player dot — always at canvas centre ──────────────────────────────────
+    ctx.fillStyle = '#fde047';
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, dotR * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
   }
 
   private renderEmptyMap(): void {
@@ -132,6 +224,27 @@ export class MinimapPanel {
 
   destroy(): void {
     this.root.remove();
+  }
+}
+
+function getViewportTileColor(terrain: string | null, walkable: boolean): string {
+  if (!walkable) {
+    switch (terrain) {
+      case 'grass': return '#1a2a17';
+      case 'dirt':  return '#2a1e12';
+      case 'stone': return '#252a2e';
+      case 'water': return '#0e2535';
+      case 'sand':  return '#2a2314';
+      default:      return '#111111';
+    }
+  }
+  switch (terrain) {
+    case 'grass': return '#3a7032';
+    case 'dirt':  return '#7a5c38';
+    case 'stone': return '#5a6570';
+    case 'water': return '#1a5a7a';
+    case 'sand':  return '#b8a050';
+    default:      return '#2a3a2a';
   }
 }
 
