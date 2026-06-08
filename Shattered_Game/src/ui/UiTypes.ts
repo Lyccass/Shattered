@@ -10,6 +10,7 @@ import { PlayerInventoryState, type PlayerInventorySnapshot } from '../player/Pl
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
 import type { SkillId, SkillSnapshot } from '../skills/SkillTypes';
 import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
+import type { TerrainFamily } from '../shared/map/TerrainTypes';
 
 export type UiStateSnapshot = {
   activeInteraction: ActiveInteraction | null;
@@ -24,6 +25,16 @@ export type UiStateSnapshot = {
   placementState: PlacementPreviewState | null;
   actionProgress: ActionProgressSnapshot | null;
   equipment: EquipmentSnapshot;
+};
+
+export type MinimapSnapshot = {
+  mapId: string;
+  mapName: string;
+  playerTileX: number;
+  playerTileY: number;
+  mapWidth: number;
+  mapHeight: number;
+  terrain: TerrainFamily[][];
 };
 
 // Use this instead of an inline object literal in GameScene/tests so that

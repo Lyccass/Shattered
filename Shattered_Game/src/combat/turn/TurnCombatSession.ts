@@ -46,7 +46,7 @@ const ENEMY_TURN_DELAY_MS  = 180;
 const PLAYER_MAIN_ACTIONS_PER_TURN      = 1;
 const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
 const PLAYER_MOVE_POINTS_PER_TURN       = 5;
-const OUT_OF_COMBAT_HP_REGEN_INTERVAL_MS = 2_500;
+const PLAYER_HP_REGEN_INTERVAL_MS       = 60_000;
 
 export class TurnCombatSession {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ export class TurnCombatSession {
   /** Persistent player HP across combats. Null until first combat entry. */
   private persistedPlayerHp: number | null = null;
   private persistedPlayerMaxHp: number | null = null;
-  private lastOutOfCombatRegenMs = 0;
+  private lastPlayerHpRegenMs = 0;
   private _isSprinting = false;
   /** Whether the player has activated "pick a target" attack mode. */
   private _isAttackMode = false;
@@ -147,8 +147,9 @@ export class TurnCombatSession {
       if (!es.inCombat) es.update(nowMs);
     }
 
+    this.updatePlayerHpRegen(nowMs);
+
     if (!this.combatState) {
-      this.updateOutOfCombatRegen(nowMs);
       this.checkAggroTrigger(nowMs);
       this.previewRenderer.update(null, this.buildTileCtx());
       return;
@@ -171,7 +172,12 @@ export class TurnCombatSession {
     // Auto-advance turn when player has exhausted all actions
     if (this.combatState.phase === 'player_turn') {
       const active = getActiveParticipant(this.combatState);
-      if (active?.kind === 'player' && active.apRemaining === 0 && active.mpRemaining === 0) {
+      if (
+        active?.kind === 'player' &&
+        active.apRemaining === 0 &&
+        active.mpRemaining === 0 &&
+        (active.secondaryActionRemaining ?? 0) === 0
+      ) {
         this._isAttackMode = false;
         this.submitPlayerAction({ kind: 'end_turn' });
         return;
@@ -222,6 +228,13 @@ export class TurnCombatSession {
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
     return this.submitPlayerAction({ kind: 'guard' });
+  }
+
+  tryPlayerCleanse(): ActionOutcome | null {
+    if (!this.canAcceptPlayerInput()) return null;
+    this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
+    return this.submitPlayerAction({ kind: 'cleanse' });
   }
 
   /** Toggle the "pick-a-target" attack cursor on/off. */
@@ -402,6 +415,8 @@ export class TurnCombatSession {
       attackRangeTiles: Math.max(...playerAttacks.map((attack) => attack.maxRangeTiles)),
       attacks:         playerAttacks,
       attackCooldowns: {},
+      stagger:         0,
+      staggerThreshold: Math.max(10, Math.ceil(this.derivedStats.staggerThreshold / 10)),
       weaponId:        this.derivedStats.weaponArchetype,
       statusEffects:   [],
     };
@@ -452,6 +467,8 @@ export class TurnCombatSession {
             forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
           })),
           attackCooldowns: {},
+          stagger:         0,
+          staggerThreshold: 10,
           definitionId:    def.id,
           spawnId:         record.id,
           areaId:          undefined,
@@ -486,6 +503,7 @@ export class TurnCombatSession {
       case 'attacked': {
         const targetEs = this.findEnemySystem(outcome.targetId);
         if (targetEs) {
+          this.syncEnemyCombatHp(outcome.targetId);
           const pos = targetEs.getWorldPosition();
           if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.damage);
           if (outcome.hit) targetEs.flashHit(this.scene.time.now);
@@ -531,6 +549,7 @@ export class TurnCombatSession {
 
         const targetEs = this.findEnemySystem(outcome.targetId);
         if (targetEs) {
+          this.syncEnemyCombatHp(outcome.targetId);
           const pos = targetEs.getWorldPosition();
           if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.damage);
           if (outcome.hit) targetEs.flashHit(this.scene.time.now);
@@ -599,6 +618,13 @@ export class TurnCombatSession {
 
       case 'status_tick':
         this.handleStatusTickVisual(outcome);
+        break;
+
+      case 'cleansed':
+        if (outcome.actorId === 'player') {
+          const feet = this.playerController?.getFeetPoint();
+          if (feet) this.hitsplatRenderer.show(feet.x, feet.y, 0, 0, 'Cleanse', '#a7f3d0');
+        }
         break;
 
       case 'turn_ended':
@@ -761,27 +787,45 @@ export class TurnCombatSession {
     return this.playerController?.hasClickMoveTarget() ?? false;
   }
 
-  private updateOutOfCombatRegen(nowMs: number): void {
+  private updatePlayerHpRegen(nowMs: number): void {
     if (this.persistedPlayerHp === null || this.persistedPlayerMaxHp === null) return;
-    if (this.persistedPlayerHp <= 0 || this.persistedPlayerHp >= this.persistedPlayerMaxHp) {
-      this.lastOutOfCombatRegenMs = nowMs;
+    const livePlayer = this.combatState?.participants.find((p) => p.id === 'player') ?? null;
+    const currentHp = livePlayer?.hp ?? this.persistedPlayerHp;
+    const maxHp = livePlayer?.maxHp ?? this.persistedPlayerMaxHp;
+    if (currentHp <= 0 || currentHp >= maxHp) {
+      this.lastPlayerHpRegenMs = nowMs;
       return;
     }
 
-    if (this.lastOutOfCombatRegenMs <= 0) {
-      this.lastOutOfCombatRegenMs = nowMs;
+    if (this.lastPlayerHpRegenMs <= 0) {
+      this.lastPlayerHpRegenMs = nowMs;
       return;
     }
 
-    const ticks = Math.floor((nowMs - this.lastOutOfCombatRegenMs) / OUT_OF_COMBAT_HP_REGEN_INTERVAL_MS);
+    const ticks = Math.floor((nowMs - this.lastPlayerHpRegenMs) / PLAYER_HP_REGEN_INTERVAL_MS);
     if (ticks <= 0) return;
 
-    this.persistedPlayerHp = Math.min(this.persistedPlayerMaxHp, this.persistedPlayerHp + ticks);
-    this.lastOutOfCombatRegenMs += ticks * OUT_OF_COMBAT_HP_REGEN_INTERVAL_MS;
+    const nextHp = Math.min(maxHp, currentHp + ticks);
+    if (livePlayer && this.combatState) {
+      this.combatState = {
+        ...this.combatState,
+        participants: this.combatState.participants.map((p) =>
+          p.id === 'player' ? { ...p, hp: nextHp } : p,
+        ),
+      };
+    }
+    this.persistedPlayerHp = nextHp;
+    this.lastPlayerHpRegenMs += ticks * PLAYER_HP_REGEN_INTERVAL_MS;
   }
 
   private findEnemySystem(participantId: string): EnemySystem | null {
     return this.enemySystems.find((es) => es.getSpawnId() === participantId) ?? null;
+  }
+
+  private syncEnemyCombatHp(participantId: string): void {
+    const es = this.findEnemySystem(participantId);
+    const participant = this.combatState?.participants.find((p) => p.id === participantId);
+    if (es && participant) es.setCombatHp(participant.hp);
   }
 
   private handleForcedMovementVisual(pushed: {
@@ -865,6 +909,7 @@ export class TurnCombatSession {
     const label = outcome.effectKind === 'bleeding' ? 'Bleed' : 'Dot';
     const targetEs = this.findEnemySystem(outcome.targetId);
     if (targetEs) {
+      this.syncEnemyCombatHp(outcome.targetId);
       const pos = targetEs.getWorldPosition();
       if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.damage, delayMs, label, '#fb7185');
       if (outcome.killed) targetEs.recordDeath(this.scene.time.now);
@@ -934,6 +979,9 @@ function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
     hitCount: style.damageType === stats.damageType ? hitCount : 1,
     oncePerTurn: true,
     hitChance: Math.max(10, stats.accuracy + style.accuracyBonus),
+    staggerDamage: style.staggerDamage,
+    statusEffect: style.statusEffect,
+    forcedMovement: style.forcedMovement,
     cooldownTurns: 0,
   }));
 }
@@ -949,31 +997,58 @@ function getWeaponAttackStyles(archetype: PlayerDerivedStats['weaponArchetype'])
   accuracyBonus: number;
   damageBonus: number;
   rangeBonus: number;
+  staggerDamage: number;
+  statusEffect?: TurnAttack['statusEffect'];
+  forcedMovement?: TurnAttack['forcedMovement'];
 }> {
   switch (archetype) {
     case 'dagger':
       return [
-        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8, damageBonus: 0, rangeBonus: 0 },
-        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0 },
+        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8, damageBonus: 0, rangeBonus: 0, staggerDamage: 2 },
+        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0, staggerDamage: 2 },
       ];
     case 'spear':
       return [
-        { damageType: 'pierce', displayName: 'Stab', accuracyBonus: 5, damageBonus: 0, rangeBonus: 0 },
+        {
+          damageType: 'pierce',
+          displayName: 'Stab',
+          accuracyBonus: 5,
+          damageBonus: 0,
+          rangeBonus: 0,
+          staggerDamage: 4,
+          forcedMovement: { kind: 'push', distance: 1 },
+        },
       ];
     case 'axe':
       return [
-        { damageType: 'slash', displayName: 'Slash', accuracyBonus: 0,  damageBonus: 1, rangeBonus: 0 },
-        { damageType: 'crush', displayName: 'Crush', accuracyBonus: -6, damageBonus: 2, rangeBonus: 0 },
+        { damageType: 'slash', displayName: 'Slash', accuracyBonus: 0,  damageBonus: 1, rangeBonus: 0, staggerDamage: 4 },
+        {
+          damageType: 'crush',
+          displayName: 'Crush',
+          accuracyBonus: -6,
+          damageBonus: 2,
+          rangeBonus: 0,
+          staggerDamage: 5,
+          statusEffect: { kind: 'slowed', turns: 2, value: 2 },
+        },
       ];
     case 'hammer':
       return [
-        { damageType: 'crush', displayName: 'Crush', accuracyBonus: -4, damageBonus: 2, rangeBonus: 0 },
+        {
+          damageType: 'crush',
+          displayName: 'Crush',
+          accuracyBonus: -4,
+          damageBonus: 2,
+          rangeBonus: 0,
+          staggerDamage: 7,
+          forcedMovement: { kind: 'push', distance: 1 },
+        },
       ];
     case 'sword':
     default:
       return [
-        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0 },
-        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 3, damageBonus: 0, rangeBonus: 0 },
+        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0, staggerDamage: 3 },
+        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 3, damageBonus: 0, rangeBonus: 0, staggerDamage: 3 },
       ];
   }
 }

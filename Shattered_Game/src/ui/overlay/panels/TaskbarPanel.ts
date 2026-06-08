@@ -4,6 +4,7 @@ import type { PlayerInventorySnapshot } from '../../../player/PlayerInventorySta
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
+import type { MinimapSnapshot } from '../../UiTypes';
 import { UI_TOKENS, type TabId } from '../UITokens';
 import { EquipmentTabContent } from './EquipmentTabContent';
 import { InventoryTabContent } from './InventoryTabContent';
@@ -223,12 +224,13 @@ export class TaskbarPanel {
     activeTaskCount: number,
     skills: SkillSnapshot[],
     equipment: EquipmentSnapshot,
+    minimap: MinimapSnapshot | null = null,
   ): void {
     this.inventoryContent.update(inventory, currency);
     this.skillsContent.update(skills);
     this.journalContent.update(journalEntries, reputation, activeTaskCount);
     this.equipmentContent.update(equipment);
-    this.mapContent.update();
+    this.mapContent.update(minimap);
     this.settingsContent.update();
   }
 

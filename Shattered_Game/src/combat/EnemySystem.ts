@@ -114,6 +114,11 @@ export class EnemySystem {
     );
   }
 
+  setCombatHp(hp: number): void {
+    if (!this.record) return;
+    this.record.hp = Math.max(0, Math.min(this.record.maxHp, hp));
+  }
+
   setCombatTile(tileX: number, tileY: number, syncWorld = true): void {
     if (!this.record || !this.tilemap) return;
     this.record.tileX = tileX;

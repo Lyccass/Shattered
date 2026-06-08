@@ -171,7 +171,11 @@
   height: var(--minimap-size);
   border-radius: 50%;
   border: 3px solid var(--c-secondary);
-  background: #0d1a0d;
+  background:
+    linear-gradient(rgba(214, 196, 139, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214, 196, 139, 0.10) 1px, transparent 1px),
+    radial-gradient(circle at 50% 50%, #243a22 0 58%, #102015 100%);
+  background-size: 18px 18px, 18px 18px, 100% 100%;
   overflow: hidden;
   position: relative;
   box-shadow: 0 0 0 1px var(--c-secondary-dark), var(--shadow);
@@ -190,6 +194,14 @@
   pointer-events: none;
 }
 
+.minimap-map-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.88;
+}
+
 .minimap-player-dot {
   position: absolute;
   top: 50%;
@@ -200,6 +212,7 @@
   border-radius: 50%;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 5px var(--c-primary);
+  transition: left 120ms linear, top 120ms linear;
 }
 
 /* ── Zoom Buttons (right of ring) ───────────────────── */
@@ -267,5 +280,3 @@
   70%  { opacity: 1;    transform: translateY(-10px); }
   100% { opacity: 0;    transform: translateY(-22px); }
 }
-
-

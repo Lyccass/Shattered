@@ -17,6 +17,7 @@ export class CombatHud {
   private readonly lightAttackBtn: HTMLButtonElement;
   private readonly heavyAttackBtn: HTMLButtonElement;
   private readonly guardBtn: HTMLButtonElement;
+  private readonly cleanseBtn: HTMLButtonElement;
   private readonly endTurnBtn: HTMLButtonElement;
   private readonly roundLabel: HTMLElement;
 
@@ -25,6 +26,7 @@ export class CombatHud {
     private readonly onEndTurn: () => void,
     private readonly onAttackMode: (attackId?: string) => void,
     private readonly onGuard: () => void,
+    private readonly onCleanse: () => void,
   ) {
     // ── Initiative bar ────────────────────────────────────────────────────
     this.initBar = document.createElement('div');
@@ -89,6 +91,11 @@ export class CombatHud {
     this.guardBtn.textContent = 'Guard';
     this.guardBtn.addEventListener('click', () => this.onGuard());
 
+    this.cleanseBtn = document.createElement('button');
+    this.cleanseBtn.className = 'combat-btn secondary-btn cleanse-btn';
+    this.cleanseBtn.textContent = 'Cleanse';
+    this.cleanseBtn.addEventListener('click', () => this.onCleanse());
+
     this.endTurnBtn = document.createElement('button');
     this.endTurnBtn.className = 'combat-btn end-turn-btn';
     this.endTurnBtn.textContent = 'End Turn';
@@ -97,6 +104,7 @@ export class CombatHud {
     buttons.appendChild(this.lightAttackBtn);
     buttons.appendChild(this.heavyAttackBtn);
     buttons.appendChild(this.guardBtn);
+    buttons.appendChild(this.cleanseBtn);
     buttons.appendChild(this.endTurnBtn);
 
     // Round indicator
@@ -172,11 +180,25 @@ export class CombatHud {
     const heavyAttack = attacks[1] ?? null;
     const canMove   = isPlayerTurn && (player?.mpRemaining ?? 0) > 0;
     const canAct    = isPlayerTurn;
+    const secondaryRemaining = player?.secondaryActionRemaining ?? 0;
+    const hasCleanseTarget = (player?.statusEffects ?? []).some((effect) =>
+      effect.kind === 'bleeding' ||
+      effect.kind === 'damage_over_time' ||
+      effect.kind === 'slowed',
+    );
 
     this.configureAttackButton(this.lightAttackBtn, lightAttack, player?.apRemaining ?? 0, isPlayerTurn, combat.selectedAttackId);
     this.configureAttackButton(this.heavyAttackBtn, heavyAttack, player?.apRemaining ?? 0, isPlayerTurn, combat.selectedAttackId);
-    this.guardBtn.disabled = !isPlayerTurn || (player?.apRemaining ?? 0) <= 0;
-    this.guardBtn.title = this.guardBtn.disabled ? 'Needs Main Action' : 'Guard until your next turn';
+    this.guardBtn.disabled = !isPlayerTurn || secondaryRemaining <= 0;
+    this.guardBtn.title = this.guardBtn.disabled ? 'Needs Secondary Action' : 'Guard until your next turn (Secondary Action)';
+    this.cleanseBtn.disabled = !isPlayerTurn || secondaryRemaining <= 0 || !hasCleanseTarget;
+    this.cleanseBtn.title = !isPlayerTurn
+      ? "It's not your turn"
+      : secondaryRemaining <= 0
+        ? 'Needs Secondary Action'
+        : hasCleanseTarget
+          ? 'Remove one bleed, poison, or slow effect (Secondary Action)'
+          : 'No removable status effect';
     this.endTurnBtn.disabled = !canAct;
 
     // Tooltip cues

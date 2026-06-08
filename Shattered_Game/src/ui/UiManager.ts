@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import type { TurnCombatUiSnapshot } from '../combat/CombatUiTypes';
 import { formatSkillXpToastLines } from './UiFormatters';
 import { ToastSystem } from './ToastSystem';
-import type { UiHandledResult, UiStateSnapshot } from './UiTypes';
+import type { MinimapSnapshot, UiHandledResult, UiStateSnapshot } from './UiTypes';
 import { UIOverlayManager } from './overlay/UIOverlayManager';
 import type { ShopPopupCallbacks } from './overlay/ShopPopupContent';
 import type { ShopSnapshot } from '../trading/TraderTypes';
@@ -17,6 +17,7 @@ export interface UiManagerCallbacks {
   onCombatEndTurn: () => void;
   onCombatAttackMode: (attackId?: string) => void;
   onCombatGuard: () => void;
+  onCombatCleanse: () => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;
@@ -50,6 +51,7 @@ export class UiManager {
       onCombatEndTurn:         callbacks.onCombatEndTurn,
       onCombatAttackMode:      callbacks.onCombatAttackMode,
       onCombatGuard:           callbacks.onCombatGuard,
+      onCombatCleanse:         callbacks.onCombatCleanse,
       onSprintToggle:          callbacks.onSprintToggle,
       onInventoryItemUse:      callbacks.onInventoryItemUse,
       onInventoryItemDrop:     callbacks.onInventoryItemDrop,
@@ -75,11 +77,12 @@ export class UiManager {
     combat: TurnCombatUiSnapshot | null = null,
     controlMode: 'explore' | 'combat' = 'explore',
     combatStanceActive = false,
+    minimap: MinimapSnapshot | null = null,
   ): void {
     this.actionProgressPanel.update(state.actionProgress);
     this.toastSystem.update();
 
-    this.overlay.update(state, combat, controlMode, combatStanceActive);
+    this.overlay.update(state, combat, controlMode, combatStanceActive, minimap);
     this.overlay.tick();
   }
 

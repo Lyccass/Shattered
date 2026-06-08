@@ -90,6 +90,7 @@ export function applyAction(
     case 'move':    return applyMove(state, active, action.toTileX, action.toTileY, tileCtx);
     case 'attack':  return applyAttack(state, active, action.targetId, action.attackId, tileCtx);
     case 'guard':   return applyGuard(state, active);
+    case 'cleanse': return applyCleanse(state, active);
     case 'end_turn': return advanceTurn(state);
     case 'flee':    return applyFlee(state, active);
   }
@@ -415,6 +416,14 @@ function applyAttack(
 
   const nextHp = Math.max(0, target.hp - damage);
   const killed = hit && nextHp <= 0;
+  const staggerResult = hit && !killed
+    ? resolveStaggerHit(target, attack.staggerDamage ?? 0)
+    : { stagger: target.stagger ?? 0, statusApplied: undefined };
+  const appliedStatusEffects = [
+    ...target.statusEffects,
+    ...(statusApplied && !killed ? [statusApplied] : []),
+    ...(staggerResult.statusApplied ? [staggerResult.statusApplied] : []),
+  ];
 
   const nextCooldowns = {
     ...(actor.attackCooldowns ?? {}),
@@ -428,8 +437,9 @@ function applyAttack(
 
   next = updateParticipant(next, targetId, {
     hp: nextHp,
-    ...(statusApplied && !killed
-      ? { statusEffects: [...target.statusEffects, statusApplied] }
+    stagger: staggerResult.stagger,
+    ...(appliedStatusEffects.length !== target.statusEffects.length
+      ? { statusEffects: appliedStatusEffects }
       : {}),
   });
 
@@ -456,7 +466,7 @@ function applyAttack(
         damage,
         hit,
         killed,
-        statusApplied,
+        statusApplied: statusApplied ?? staggerResult.statusApplied,
         ...(pushed ? { pushed } : {}),
       },
       state: { ...next, phase: 'combat_ended', endReason: endCheck },
@@ -473,7 +483,7 @@ function applyAttack(
       damage,
       hit,
       killed,
-      statusApplied,
+      statusApplied: statusApplied ?? staggerResult.statusApplied,
       ...(pushed ? { pushed } : {}),
     },
     state: next,
@@ -546,9 +556,9 @@ function applyGuard(
   state: TurnCombatState,
   actor: TurnParticipant,
 ): { outcome: ActionOutcome; state: TurnCombatState } {
-  if (actor.apRemaining <= 0) {
+  if ((actor.secondaryActionRemaining ?? 0) <= 0) {
     return {
-      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No Main Action remaining.' },
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No Secondary Action remaining.' },
       state,
     };
   }
@@ -559,7 +569,7 @@ function applyGuard(
     value: 4,
   };
   const next = updateParticipant(state, actor.id, {
-    apRemaining: Math.max(0, actor.apRemaining - 1),
+    secondaryActionRemaining: Math.max(0, (actor.secondaryActionRemaining ?? 0) - 1),
     statusEffects: [
       ...actor.statusEffects.filter((effect) => effect.kind !== 'guarded'),
       statusApplied,
@@ -567,6 +577,37 @@ function applyGuard(
   });
 
   return { outcome: { kind: 'guarded', actorId: actor.id, statusApplied }, state: next };
+}
+
+function applyCleanse(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+): { outcome: ActionOutcome; state: TurnCombatState } {
+  if ((actor.secondaryActionRemaining ?? 0) <= 0) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No Secondary Action remaining.' },
+      state,
+    };
+  }
+
+  const removable = actor.statusEffects.find((effect) =>
+    effect.kind === 'bleeding' ||
+    effect.kind === 'damage_over_time' ||
+    effect.kind === 'slowed',
+  );
+  if (!removable) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No removable status effect.' },
+      state,
+    };
+  }
+
+  const next = updateParticipant(state, actor.id, {
+    secondaryActionRemaining: Math.max(0, (actor.secondaryActionRemaining ?? 0) - 1),
+    statusEffects: actor.statusEffects.filter((effect) => effect !== removable),
+  });
+
+  return { outcome: { kind: 'cleansed', actorId: actor.id, removedEffect: removable }, state: next };
 }
 
 function buildTelegraphTiles(
@@ -654,6 +695,27 @@ function getForcedMovementResult(
 
   if (toTile.x === fromTile.x && toTile.y === fromTile.y) return null;
   return { targetId: target.id, fromTile, toTile };
+}
+
+function resolveStaggerHit(
+  target: TurnParticipant,
+  staggerDamage: number,
+): { stagger: number; statusApplied?: StatusEffect } {
+  if (staggerDamage <= 0) return { stagger: target.stagger ?? 0 };
+
+  const poise = Math.max(0, target.defensePower);
+  const nextStagger = (target.stagger ?? 0) + Math.max(1, staggerDamage - poise);
+  const threshold = Math.max(1, target.staggerThreshold ?? 10);
+  if (nextStagger < threshold) return { stagger: nextStagger };
+
+  return {
+    stagger: 0,
+    statusApplied: {
+      kind: 'stunned',
+      turnsRemaining: 2,
+      value: 0,
+    },
+  };
 }
 
 function getTelegraphActorLandingResult(

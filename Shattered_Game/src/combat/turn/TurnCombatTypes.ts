@@ -75,6 +75,8 @@ export type TurnAttack = {
   /** If present, this attack marks ground now and resolves on the actor's next turn. */
   telegraph?: TurnTelegraphConfig;
   forcedMovement?: TurnForcedMovement;
+  /** Adds to target stagger on hit. Crossing target threshold applies stunned. */
+  staggerDamage?: number;
 };
 
 export type TurnParticipant = {
@@ -103,6 +105,8 @@ export type TurnParticipant = {
   attackRangeTiles: number;
   attacks?: TurnAttack[];
   attackCooldowns?: Record<string, number>;
+  stagger?: number;
+  staggerThreshold?: number;
   bleedMovementTiles?: number;
   /** Weapon archetype ID for player participants */
   weaponId?: string;
@@ -118,6 +122,7 @@ export type TurnAction =
   | { kind: 'move';    toTileX: number; toTileY: number }
   | { kind: 'attack';  targetId: string; attackId?: string }
   | { kind: 'guard' }
+  | { kind: 'cleanse' }
   | { kind: 'end_turn' }
   | { kind: 'flee' };
 
@@ -136,6 +141,7 @@ export type ActionOutcome =
   | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult }
   | TurnStatusTickOutcome
   | { kind: 'guarded';     actorId: string; statusApplied: StatusEffect }
+  | { kind: 'cleansed';    actorId: string; removedEffect: StatusEffect }
   | { kind: 'turn_ended';  actorId: string; nextParticipantId: string | null; statusTicks?: TurnStatusTickOutcome[] }
   | { kind: 'fled';        actorId: string }
   | { kind: 'combat_ended'; reason: CombatEndReason; statusTicks?: TurnStatusTickOutcome[] }

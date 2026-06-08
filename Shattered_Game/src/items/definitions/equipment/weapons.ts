@@ -13,11 +13,6 @@ export const STARTING_WEAPON_IDS: Record<string, number> = {
   copper_axe:      1,
   copper_hammer:   1,
   copper_spear:    1,
-  worn_shortsword: 1,
-  iron_shortsword: 1,
-  rusty_axe:       1,
-  stone_hammer:    1,
-  short_spear:     1,
 };
 
 export const WEAPON_ITEMS: ItemDefinition[] = [

@@ -190,7 +190,13 @@
   color: #facc15;
 }
 
-.combat-btn.guard-btn:hover {
+.combat-btn.secondary-btn {
+  border-color: #facc15;
+  color: #facc15;
+}
+
+.combat-btn.guard-btn:hover,
+.combat-btn.secondary-btn:hover {
   background: rgba(250, 204, 21, 0.16);
   border-color: #ffe071;
   color: #FFFCC3;

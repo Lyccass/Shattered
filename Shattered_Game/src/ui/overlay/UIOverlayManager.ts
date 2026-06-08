@@ -1,7 +1,7 @@
 import type { TurnCombatUiSnapshot } from '../../combat/CombatUiTypes';
 import type { SkillSnapshot } from '../../skills/SkillTypes';
 import type { UIOverlayCallbacks, TabId } from './UITokens';
-import type { UiStateSnapshot } from '../UiTypes';
+import type { MinimapSnapshot, UiStateSnapshot } from '../UiTypes';
 import { EnemyPanel } from './panels/EnemyPanel';
 import { MinimapPanel } from './panels/MinimapPanel';
 import { ChatPanel } from './panels/ChatPanel';
@@ -55,6 +55,7 @@ export class UIOverlayManager {
       callbacks.onCombatEndTurn,
       callbacks.onCombatAttackMode,
       callbacks.onCombatGuard,
+      callbacks.onCombatCleanse,
     );
     this.choiceMenuPopup = new ChoiceMenuPopup(
       this.overlay,
@@ -69,6 +70,7 @@ export class UIOverlayManager {
     combat: TurnCombatUiSnapshot | null,
     controlMode: 'explore' | 'combat',
     combatStanceActive = false,
+    minimap: MinimapSnapshot | null = null,
   ): void {
     this.choiceMenuPopup.update(state.choiceMenu);
     this.combatHud.update(combat);
@@ -79,6 +81,7 @@ export class UIOverlayManager {
       null,
       null,
     );
+    this.minimapPanel.updateMap(minimap);
     this.taskbarPanel.setCombatMode(
       controlMode === 'combat'
         ? 'engaged'
@@ -93,6 +96,7 @@ export class UIOverlayManager {
       state.activeTaskCount,
       state.skills,
       state.equipment,
+      minimap,
     );
 
     // Live-update the open skill detail popup

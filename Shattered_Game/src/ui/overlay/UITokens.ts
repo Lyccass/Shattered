@@ -64,6 +64,7 @@ export interface UIOverlayCallbacks {
   onCombatEndTurn: () => void;
   onCombatAttackMode: (attackId?: string) => void;
   onCombatGuard: () => void;
+  onCombatCleanse: () => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;

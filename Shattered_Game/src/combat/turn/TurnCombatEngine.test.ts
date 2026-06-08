@@ -35,6 +35,8 @@ function makePlayer(overrides: Partial<TurnParticipant> = {}): TurnParticipant {
     mpMax: 3,
     apRemaining: 1,
     mpRemaining: 3,
+    secondaryActionMax: 1,
+    secondaryActionRemaining: 1,
     initiative: 5,
     attackPower: 3,
     defensePower: 0,
@@ -57,6 +59,8 @@ function makeEnemy(id: string, overrides: Partial<TurnParticipant> = {}): TurnPa
     mpMax: 2,
     apRemaining: 1,
     mpRemaining: 2,
+    secondaryActionMax: 1,
+    secondaryActionRemaining: 1,
     initiative: 8,
     attackPower: 1,
     defensePower: 0,
@@ -343,7 +347,7 @@ describe('attack action', () => {
     expect(outcome).toMatchObject({ kind: 'attacked', hit: false, damage: 0 });
   });
 
-  it('guard spends the main action and reduces incoming hit chance', () => {
+  it('guard spends the secondary action and reduces incoming hit chance', () => {
     const player = makePlayer({ tileX: 10, tileY: 10, apRemaining: 1, defensePower: 0 });
     const enemy = makeEnemy('e1', {
       tileX: 11,
@@ -369,7 +373,8 @@ describe('attack action', () => {
 
     const { outcome, state: guardedState } = applyAction(state, { kind: 'guard' }, OPEN_CTX);
     expect(outcome).toMatchObject({ kind: 'guarded', actorId: 'player' });
-    expect(guardedState.participants.find((p) => p.id === 'player')?.apRemaining).toBe(0);
+    expect(guardedState.participants.find((p) => p.id === 'player')?.apRemaining).toBe(1);
+    expect(guardedState.participants.find((p) => p.id === 'player')?.secondaryActionRemaining).toBe(0);
 
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.65); // attack roll = 65, misses guarded 80 - 4*5 = 60
@@ -388,6 +393,34 @@ describe('attack action', () => {
       OPEN_CTX,
     );
     expect(attackOutcome).toMatchObject({ kind: 'attacked', hit: false, damage: 0 });
+  });
+
+  it('cleanse spends the secondary action and removes one harmful status', () => {
+    const player = makePlayer({
+      statusEffects: [
+        { kind: 'bleeding', turnsRemaining: 2, value: 2 },
+        { kind: 'guarded', turnsRemaining: 1, value: 4 },
+      ],
+    });
+    const enemy = makeEnemy('e1');
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(state, { kind: 'cleanse' }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({
+      kind: 'cleansed',
+      actorId: 'player',
+      removedEffect: { kind: 'bleeding' },
+    });
+    const cleansed = next.participants.find((p) => p.id === 'player')!;
+    expect(cleansed.secondaryActionRemaining).toBe(0);
+    expect(cleansed.statusEffects.map((effect) => effect.kind)).toEqual(['guarded']);
   });
 
   it('starts and ticks cooldowns per attack on the actor turn cycle', () => {
@@ -481,6 +514,54 @@ describe('attack action', () => {
 
     expect(outcome).toMatchObject({ kind: 'attacked', attackId: 'double_strike', damage: 2 });
     expect(next.participants.find((p) => p.id === 'e1')?.hp).toBe(8);
+  });
+
+  it('builds stagger on hit and stuns when the target threshold is reached', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'hammer_crush',
+        displayName: 'Crush',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        hitChance: 100,
+        staggerDamage: 10,
+      }],
+    });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      hp: 10,
+      staggerThreshold: 10,
+    });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1', attackId: 'hammer_crush' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({
+      kind: 'attacked',
+      statusApplied: { kind: 'stunned', turnsRemaining: 2 },
+    });
+    const staggered = next.participants.find((p) => p.id === 'e1')!;
+    expect(staggered.stagger).toBe(0);
+    expect(staggered.statusEffects.some((effect) => effect.kind === 'stunned')).toBe(true);
   });
 
   it('defaults to the first usable attack and spends that main action cost', () => {

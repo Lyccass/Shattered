@@ -19,7 +19,7 @@ import {
 import { PLAYER_CONFIG } from '../player/PlayerConfig';
 import { PlayerController } from '../player/PlayerController';
 import { UiManager } from '../ui/UiManager';
-import { emptyUiStateSnapshot } from '../ui/UiTypes';
+import { emptyUiStateSnapshot, type MinimapSnapshot } from '../ui/UiTypes';
 import type { LoadedMapRuntime } from '../world/maps/MapRuntime';
 import { getPublishedEditorMapId } from '../world/maps/MapDefinitions';
 import {
@@ -52,6 +52,7 @@ export class GameScene extends Phaser.Scene {
   private isCombatStance = false;
   private hasShutdown = false;
   private mapLoadSerial = 0;
+  private isRespawningAfterDeath = false;
   private readonly encounterPopulation = new WorldEncounterPopulationTracker();
 
   constructor() {
@@ -105,6 +106,7 @@ export class GameScene extends Phaser.Scene {
       onCombatEndTurn:        () => this.turnCombatSession?.tryPlayerEndTurn(),
       onCombatAttackMode:     (attackId) => this.turnCombatSession?.toggleAttackMode(attackId),
       onCombatGuard:          () => this.turnCombatSession?.tryPlayerGuard(),
+      onCombatCleanse:        () => this.turnCombatSession?.tryPlayerCleanse(),
       onSprintToggle:         () => this.tryToggleSprint(),
       onInventoryItemUse:     (itemId) => this.tryUseItem(itemId),
       onInventoryItemDrop:    (itemId) => this.tryDropItem(itemId),
@@ -166,6 +168,7 @@ export class GameScene extends Phaser.Scene {
       this.turnCombatSession?.getUiSnapshot() ?? null,
       isInCombat ? 'combat' : 'explore',
       this.isCombatStance,
+      this.buildMinimapSnapshot(),
     );
     this.updateTileHighlight();
     this.debugOverlaySystem?.update();
@@ -481,7 +484,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDied(): void {
+    if (this.isRespawningAfterDeath) return;
     if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
+    this.isRespawningAfterDeath = true;
 
     const deathRuntime = this.worldRuntimeCoordinator.getCurrentRuntime();
     const deathMapId = deathRuntime.definition.id;
@@ -513,17 +518,43 @@ export class GameScene extends Phaser.Scene {
     mapId: string;
     worldManifestUrl: string | null;
   }): Promise<void> {
-    this.playerController?.resetCombatVisual();
-    if (options.worldManifestUrl) {
-      await this.initializeWorldManifestRuntime(options.worldManifestUrl, 'default');
-    } else {
-      await this.initializeWorldRuntime(options.mapId, 'default');
+    try {
+      this.playerController?.resetCombatVisual();
+      if (options.worldManifestUrl) {
+        await this.initializeWorldManifestRuntime(options.worldManifestUrl, 'default');
+      } else {
+        await this.initializeWorldRuntime(options.mapId, 'default');
+      }
+
+      if (this.hasShutdown) return;
+
+      this.playerController?.resetCombatVisual();
+      this.turnCombatSession?.resetPlayerHp();
+    } catch (error) {
+      console.error('Failed to respawn player after death.', error);
+      this.uiManager?.showInfo('Respawn failed. Please reload if the world did not recover.');
+    } finally {
+      this.isRespawningAfterDeath = false;
     }
+  }
 
-    if (this.hasShutdown) return;
+  private buildMinimapSnapshot(): MinimapSnapshot | null {
+    if (!this.worldRuntimeCoordinator?.hasActiveRuntime()) return null;
+    const runtime = this.worldRuntimeCoordinator.getCurrentRuntime();
+    const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
+    const playerPos = this.playerController?.getFeetPoint();
+    if (!playerPos) return null;
 
-    this.playerController?.resetCombatVisual();
-    this.turnCombatSession?.resetPlayerHp();
+    const tile = isoTilemap.transform.worldToTile(playerPos.x, playerPos.y);
+    return {
+      mapId: runtime.definition.id,
+      mapName: runtime.definition.displayName,
+      playerTileX: tile.x,
+      playerTileY: tile.y,
+      mapWidth: runtime.definition.width,
+      mapHeight: runtime.definition.height,
+      terrain: runtime.definition.terrain,
+    };
   }
 
   private handleEnemyKilledForLoot(
