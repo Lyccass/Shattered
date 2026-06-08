@@ -62,18 +62,21 @@ export class MapTabContent {
     ctx.fillStyle = '#102015';
     ctx.fillRect(0, 0, width, height);
 
-    const tileW = width / Math.max(1, snapshot.mapWidth);
-    const tileH = height / Math.max(1, snapshot.mapHeight);
-    for (let y = 0; y < snapshot.mapHeight; y += 1) {
-      const row = snapshot.terrain[y];
-      for (let x = 0; x < snapshot.mapWidth; x += 1) {
-        ctx.fillStyle = getTerrainColor(row?.[x]);
-        ctx.fillRect(
-          Math.floor(x * tileW),
-          Math.floor(y * tileH),
-          Math.ceil(tileW),
-          Math.ceil(tileH),
-        );
+    // Streaming worlds have no static terrain data — skip the per-tile loop.
+    if (snapshot.terrain.length > 0) {
+      const tileW = width / Math.max(1, snapshot.mapWidth);
+      const tileH = height / Math.max(1, snapshot.mapHeight);
+      for (let y = 0; y < snapshot.mapHeight; y += 1) {
+        const row = snapshot.terrain[y];
+        for (let x = 0; x < snapshot.mapWidth; x += 1) {
+          ctx.fillStyle = getTerrainColor(row?.[x]);
+          ctx.fillRect(
+            Math.floor(x * tileW),
+            Math.floor(y * tileH),
+            Math.ceil(tileW),
+            Math.ceil(tileH),
+          );
+        }
       }
     }
 

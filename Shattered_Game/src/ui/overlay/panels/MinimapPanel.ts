@@ -111,6 +111,9 @@ export class MinimapPanel {
     ctx.fillStyle = '#102015';
     ctx.fillRect(0, 0, width, height);
 
+    // Streaming worlds have no static terrain data — skip the per-tile loop.
+    if (snapshot.terrain.length === 0) return;
+
     const tileW = width / Math.max(1, snapshot.mapWidth);
     const tileH = height / Math.max(1, snapshot.mapHeight);
     for (let y = 0; y < snapshot.mapHeight; y += 1) {
