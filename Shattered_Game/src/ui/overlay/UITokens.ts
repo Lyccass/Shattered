@@ -75,5 +75,6 @@ export interface UIOverlayCallbacks {
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
   onMinimapClick: () => void;
+  onMinimapZoom: (delta: number) => void;
   onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
 }

@@ -28,6 +28,7 @@ export interface UiManagerCallbacks {
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
   onMinimapClick: () => void;
+  onMinimapZoom: (delta: number) => void;
   onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
 }
 
@@ -64,6 +65,7 @@ export class UiManager {
       onChoiceMenuConfirm:     callbacks.onChoiceMenuConfirm,
       onChoiceMenuCancel:      callbacks.onChoiceMenuCancel,
       onMinimapClick:          callbacks.onMinimapClick,
+      onMinimapZoom:           callbacks.onMinimapZoom,
       onMapTileQuery:          callbacks.onMapTileQuery,
     });
 

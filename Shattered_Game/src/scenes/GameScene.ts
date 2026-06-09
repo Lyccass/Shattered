@@ -50,6 +50,7 @@ export class GameScene extends Phaser.Scene {
   private tileHighlight?: Phaser.GameObjects.Graphics;
   private isSprinting = false;
   private isCombatStance = false;
+  private minimapRadius = 12;
   private hasShutdown = false;
   private mapLoadSerial = 0;
   private isRespawningAfterDeath = false;
@@ -125,6 +126,9 @@ export class GameScene extends Phaser.Scene {
       onMinimapClick: () => {
         const snap = this.buildMinimapSnapshot();
         this.uiManager?.toggleMapWindow(snap?.playerTileX ?? 0, snap?.playerTileY ?? 0);
+      },
+      onMinimapZoom: (delta) => {
+        this.minimapRadius = Phaser.Math.Clamp(this.minimapRadius + delta, 6, 30);
       },
       onMapTileQuery: (tileX, tileY) => {
         const iso = this.worldRuntimeCoordinator?.getIsoTilemap();
@@ -559,7 +563,7 @@ export class GameScene extends Phaser.Scene {
 
     const tile = isoTilemap.transform.worldToTile(playerPos.x, playerPos.y);
 
-    const RADIUS = 12;
+    const RADIUS = this.minimapRadius;
     const diam = RADIUS * 2 + 1;
     const vpTiles = Array.from({ length: diam }, (_, row) => {
       const dy = row - RADIUS;

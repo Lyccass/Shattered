@@ -345,7 +345,8 @@
    ═══════════════════════════════════════════════════════ */
 
 .ui-popup--map {
-  width: 500px;
+  width: 860px;
+  max-width: calc(100vw - 32px);
 }
 
 .ui-popup--map .ui-popup-body {
@@ -388,6 +389,7 @@
 
 .map-window-canvas {
   display: block;
+  width: 100%;
   cursor: grab;
 }
 

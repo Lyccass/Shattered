@@ -2,9 +2,10 @@ import type { MinimapSnapshot } from '../UiTypes';
 
 export type MapTileQueryFn = (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
 
-const TILE_PX = 5;
-const CANVAS_W = 468;  // fills the default 500px popup with 16px body padding each side
-const CANVAS_H = 340;
+const TILE_PX   = 6;    // isometric half-width per tile (matches game tileWidth/2 = 32 proportionally)
+const TILE_PX_H = 3;    // isometric half-height per tile — 2:1 ratio matches game tileWidth:tileHeight (64:32)
+const CANVAS_W  = 860;
+const CANVAS_H  = 600;
 
 /** Canvas content for the World Map popup. No window chrome — PopupWindow provides that. */
 export class MapWindow {
@@ -71,7 +72,7 @@ export class MapWindow {
     }
     this.offCtx = this.offscreen.getContext('2d') as CanvasRenderingContext2D;
 
-    // Drag to pan
+    // Drag to pan — uses isometric inverse transform so dragging feels natural
     this.canvas.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       this.canvas.style.cursor = 'grabbing';
@@ -81,8 +82,13 @@ export class MapWindow {
 
     this.onMouseMove = (e: MouseEvent) => {
       if (!this.mapDrag) return;
-      const newCX = this.mapDrag.startCX + (this.mapDrag.startMouseX - e.clientX) / TILE_PX;
-      const newCY = this.mapDrag.startCY + (this.mapDrag.startMouseY - e.clientY) / TILE_PX;
+      // Invert isometric transform: screen delta → world delta
+      // screenX = (relX - relY) * TILE_PX  →  relX - relY = dsx / TILE_PX
+      // screenY = (relX + relY) * TILE_PX_H →  relX + relY = dsy / TILE_PX_H
+      const dsx = this.mapDrag.startMouseX - e.clientX;
+      const dsy = this.mapDrag.startMouseY - e.clientY;
+      const newCX = this.mapDrag.startCX + (dsx / TILE_PX + dsy / TILE_PX_H) / 2;
+      const newCY = this.mapDrag.startCY + (dsy / TILE_PX_H - dsx / TILE_PX) / 2;
       if (Math.abs(newCX - this.centerX) > 0.05 || Math.abs(newCY - this.centerY) > 0.05) {
         this.centerX = newCX;
         this.centerY = newCY;
@@ -128,6 +134,16 @@ export class MapWindow {
 
   // ── Private ────────────────────────────────────────────────────────────────
 
+  /** Convert a world tile coordinate to canvas pixel position (isometric). */
+  private toScreen(tileX: number, tileY: number): { x: number; y: number } {
+    const relX = tileX - this.centerX;
+    const relY = tileY - this.centerY;
+    return {
+      x: CANVAS_W / 2 + (relX - relY) * TILE_PX,
+      y: CANVAS_H / 2 + (relX + relY) * TILE_PX_H,
+    };
+  }
+
   private renderFrame(): void {
     if (this.terrainDirty) {
       this.renderTerrain();
@@ -139,25 +155,19 @@ export class MapWindow {
 
     ctx.drawImage(this.offscreen as CanvasImageSource, 0, 0);
 
-    const halfW = CANVAS_W / 2;
-    const halfH = CANVAS_H / 2;
-
     // Player dot
-    const px = halfW + (this.playerTileX - this.centerX) * TILE_PX;
-    const py = halfH + (this.playerTileY - this.centerY) * TILE_PX;
+    const { x: px, y: py } = this.toScreen(this.playerTileX, this.playerTileY);
     this.drawDot(ctx, px, py, 5, '#fde047', '#1a1a1a');
 
     // Entity dots from snapshot viewport (radius-limited)
     const vp = this.lastSnapshot?.viewport;
     if (vp) {
       for (const { dx, dy } of vp.npcs) {
-        const ex = halfW + (this.playerTileX + dx - this.centerX) * TILE_PX;
-        const ey = halfH + (this.playerTileY + dy - this.centerY) * TILE_PX;
+        const { x: ex, y: ey } = this.toScreen(this.playerTileX + dx, this.playerTileY + dy);
         if (this.inView(ex, ey)) this.drawDot(ctx, ex, ey, 3, '#38bdf8');
       }
       for (const { dx, dy } of vp.enemies) {
-        const ex = halfW + (this.playerTileX + dx - this.centerX) * TILE_PX;
-        const ey = halfH + (this.playerTileY + dy - this.centerY) * TILE_PX;
+        const { x: ex, y: ey } = this.toScreen(this.playerTileX + dx, this.playerTileY + dy);
         if (this.inView(ex, ey)) this.drawDot(ctx, ex, ey, 3, '#f87171');
       }
     }
@@ -168,30 +178,45 @@ export class MapWindow {
     ctx.fillStyle = '#0a1010';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    const cx0     = Math.round(this.centerX);
-    const cy0     = Math.round(this.centerY);
-    const originX = CANVAS_W / 2 + (cx0 - this.centerX) * TILE_PX;
-    const originY = CANVAS_H / 2 + (cy0 - this.centerY) * TILE_PX;
-    const halfCols = Math.ceil(CANVAS_W / TILE_PX / 2) + 1;
-    const halfRows = Math.ceil(CANVAS_H / TILE_PX / 2) + 1;
+    // Snap center to nearest integer tile; fractional offset shifts the origin
+    const cx0   = Math.round(this.centerX);
+    const cy0   = Math.round(this.centerY);
+    const fracX = cx0 - this.centerX;
+    const fracY = cy0 - this.centerY;
+    const originX = CANVAS_W / 2 + (fracX - fracY) * TILE_PX;
+    const originY = CANVAS_H / 2 + (fracX + fracY) * TILE_PX_H;
 
-    const buckets = new Map<string, Array<[number, number]>>();
-    for (let dy = -halfRows; dy <= halfRows; dy++) {
-      for (let dx = -halfCols; dx <= halfCols; dx++) {
+    // Conservative tile query radius to fill the canvas in isometric space
+    const halfR = Math.ceil((CANVAS_W / (2 * TILE_PX) + CANVAS_H / (2 * TILE_PX_H)) / 2) + 2;
+
+    const buckets = new Map<string, Path2D>();
+    for (let dy = -halfR; dy <= halfR; dy++) {
+      for (let dx = -halfR; dx <= halfR; dx++) {
         const info  = this.getTile(cx0 + dx, cy0 + dy);
         const color = info ? getMapColor(info.terrain, info.walkable) : '#0a1010';
         if (color === '#0a1010') continue;
-        const px = Math.round(originX + dx * TILE_PX);
-        const py = Math.round(originY + dy * TILE_PX);
-        let bucket = buckets.get(color);
-        if (!bucket) { bucket = []; buckets.set(color, bucket); }
-        bucket.push([px, py]);
+
+        const px = Math.round(originX + (dx - dy) * TILE_PX);
+        const py = Math.round(originY + (dx + dy) * TILE_PX_H);
+
+        // Clip tiles fully outside canvas
+        if (px + TILE_PX < 0 || px - TILE_PX > CANVAS_W || py + TILE_PX_H < 0 || py - TILE_PX_H > CANVAS_H) continue;
+
+        let path = buckets.get(color);
+        if (!path) { path = new Path2D(); buckets.set(color, path); }
+
+        // Isometric diamond — 2:1 ratio matches game tileWidth:tileHeight (64:32)
+        path.moveTo(px,           py - TILE_PX_H);
+        path.lineTo(px + TILE_PX, py);
+        path.lineTo(px,           py + TILE_PX_H);
+        path.lineTo(px - TILE_PX, py);
+        path.closePath();
       }
     }
 
-    for (const [color, positions] of buckets) {
+    for (const [color, path] of buckets) {
       ctx.fillStyle = color;
-      for (const [px, py] of positions) ctx.fillRect(px, py, TILE_PX, TILE_PX);
+      ctx.fill(path);
     }
   }
 

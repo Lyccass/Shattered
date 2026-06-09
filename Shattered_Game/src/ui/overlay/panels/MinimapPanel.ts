@@ -13,7 +13,11 @@ export class MinimapPanel {
   private readonly playerDot: HTMLElement;
   private lastRenderedMapKey = '';
 
-  constructor(overlay: HTMLElement, private readonly onMinimapClick: () => void) {
+  constructor(
+    overlay: HTMLElement,
+    private readonly onMinimapClick: () => void,
+    private readonly onMinimapZoom: (delta: number) => void,
+  ) {
     this.root = document.createElement('div');
     this.root.id = 'ui-minimap';
 
@@ -53,6 +57,11 @@ export class MinimapPanel {
     const ring = requireElement(this.root, '.minimap-ring');
     ring.style.cursor = 'pointer';
     ring.addEventListener('click', () => this.onMinimapClick());
+
+    // Zoom buttons
+    const [zoomInBtn, zoomOutBtn] = Array.from(this.root.querySelectorAll<HTMLButtonElement>('.minimap-zoom-btn'));
+    zoomInBtn?.addEventListener('click',  (e) => { e.stopPropagation(); this.onMinimapZoom(-1); });
+    zoomOutBtn?.addEventListener('click', (e) => { e.stopPropagation(); this.onMinimapZoom(+1); });
 
     this.setLocation('The Veil');
     this.renderEmptyMap();
@@ -121,8 +130,11 @@ export class MinimapPanel {
     // Scale so the 4 cardinal tiles (dx=R,dy=0) etc. project exactly to the
     // circle edge, while diagonal corners extend beyond and get CSS-clipped.
     // This guarantees the full circle is covered with no dark crescents.
+    // 2:1 ratio (sw:sh) matches game tileWidth:tileHeight (64:32).
+    // sh uses the original formula — guarantees the circle is fully covered at
+    // all angles including the 45° corners. sw is doubled for the 2:1 ratio.
     const s  = cw / (2 * Math.SQRT2 * vp.radius);
-    const sw = s;
+    const sw = 2 * s;
     const sh = s;
 
     ctx.clearRect(0, 0, cw, ch);

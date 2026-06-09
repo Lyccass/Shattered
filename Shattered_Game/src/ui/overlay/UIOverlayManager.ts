@@ -41,7 +41,7 @@ export class UIOverlayManager {
     this.overlay = document.getElementById('ui-overlay') as HTMLElement;
 
     this.enemyPanel      = new EnemyPanel(this.overlay);
-    this.minimapPanel    = new MinimapPanel(this.overlay, () => callbacks.onMinimapClick());
+    this.minimapPanel    = new MinimapPanel(this.overlay, () => callbacks.onMinimapClick(), (d) => callbacks.onMinimapZoom(d));
     this.mapContent      = new MapWindow(callbacks.onMapTileQuery);
     this.mapPopup        = new PopupWindow(this.overlay, 'World Map');
     this.mapPopup.addModifier('ui-popup--map');
