@@ -107,6 +107,7 @@ export class EditorHudController {
     tileMetaSection: HTMLElement;
     zoneSection: HTMLElement;
     npcSection: HTMLElement;
+    encounterSection: HTMLElement;
     npcDefinitionSelect: HTMLSelectElement;
     npcCount: HTMLElement;
     zoneTagLabel: HTMLElement;
@@ -164,7 +165,8 @@ export class EditorHudController {
       objectSection:  requireById('ed-object-section'),
       tileMetaSection: requireById('ed-tile-meta-section'),
       zoneSection:    requireById('ed-zone-section'),
-      npcSection:     requireById('ed-npc-section'),
+      npcSection:       requireById('ed-npc-section'),
+      encounterSection: requireById('ed-encounter-section'),
       npcDefinitionSelect: requireById<HTMLSelectElement>('ed-npc-definition-select'),
       npcCount:       requireById('ed-npc-count'),
       zoneTagLabel:   requireById('ed-zone-tag-label'),
@@ -304,6 +306,7 @@ export class EditorHudController {
     this.els.objectSection.classList.toggle('editor-hidden', !isObject);
     this.els.tileMetaSection.classList.toggle('editor-hidden', !(isWalkability || isElevation));
     this.els.zoneSection.classList.toggle('editor-hidden', !isZone);
+    this.els.encounterSection.classList.toggle('editor-hidden', !isEncounter);
     this.els.npcSection.classList.toggle('editor-hidden', !isNpc);
 
     // NPC mode
@@ -404,7 +407,7 @@ export class EditorHudController {
     this.els.objColorSwatch.classList.remove('editor-hidden');
     const ctx = this.els.objColorSwatch.getContext('2d');
 
-    if (ctx && color !== null) {
+    if (ctx && color != null) {
       const hex = `#${color.toString(16).padStart(6, '0')}`;
       const w = this.els.objColorSwatch.width;
       const h = this.els.objColorSwatch.height;

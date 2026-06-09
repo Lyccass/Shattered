@@ -33,6 +33,8 @@ export class EditorViewportController {
     private readonly scene: Phaser.Scene,
     private readonly options: EditorViewportControllerOptions,
   ) {
+    // enableCapture=false: don't call preventDefault on these keys so HTML
+    // input fields can still receive W/A/S/D and arrow key characters.
     this.panKeys = scene.input.keyboard?.addKeys({
       w: Phaser.Input.Keyboard.KeyCodes.W,
       a: Phaser.Input.Keyboard.KeyCodes.A,
@@ -42,7 +44,7 @@ export class EditorViewportController {
       left: Phaser.Input.Keyboard.KeyCodes.LEFT,
       down: Phaser.Input.Keyboard.KeyCodes.DOWN,
       right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
-    }) as PanKeys | undefined;
+    }, false) as PanKeys | undefined;
   }
 
   update(deltaMs: number): void {

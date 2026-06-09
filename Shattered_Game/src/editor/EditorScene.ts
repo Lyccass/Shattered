@@ -436,6 +436,10 @@ export class EditorScene extends Phaser.Scene {
       if (restored) {
         this.setStatus(`Restored ${this.map.displayName} from editor draft.`);
       }
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.setStatus(`Editor init failed: ${msg}`);
+      console.error('[EditorScene] init error', err);
     });
   }
 
