@@ -15,6 +15,9 @@ import {
   getActiveParticipant,
 } from './TurnCombatEngine';
 import { resolveEnemyTurnStep } from './TurnEnemyAi';
+import { getCompanionDefinition } from '../../companions/CompanionRegistry';
+import { CompanionVisualController } from '../../companions/CompanionVisualController';
+import type { CompanionSlot, EquippedCompanionSlots } from '../../companions/CompanionTypes';
 import type {
   ActionOutcome,
   CombatEndReason,
@@ -67,6 +70,8 @@ export class TurnCombatSession {
   /** Whether the player has activated "pick a target" attack mode. */
   private _isAttackMode = false;
   private selectedPlayerAttackId: string | null = null;
+  private equippedCompanions: EquippedCompanionSlots = {};
+  private companionVisuals: Map<string, CompanionVisualController> = new Map();
 
   private readonly previewRenderer: TurnActionPreviewRenderer;
   private readonly hitsplatRenderer: HitsplatRenderer;
@@ -133,6 +138,10 @@ export class TurnCombatSession {
     this.persistedPlayerMaxHp = maxHp;
   }
 
+  setEquippedCompanions(slots: EquippedCompanionSlots): void {
+    this.equippedCompanions = slots;
+  }
+
   onEnd(cb: (evt: CombatEndEvent) => void): void {
     this.onCombatEnd = cb;
   }
@@ -173,15 +182,18 @@ export class TurnCombatSession {
     // Update previews
     this.previewRenderer.update(this.combatState, this.buildTileCtx(), this._isAttackMode);
 
-    if (this.combatState.phase === 'player_turn' && this.isPlayerMovementAnimating()) {
+    const activeDuringPlayerPhase = this.combatState.phase === 'player_turn'
+      ? getActiveParticipant(this.combatState)
+      : null;
+    if (activeDuringPlayerPhase?.kind === 'player' && this.isPlayerMovementAnimating()) {
       return;
     }
 
-    // Auto-advance turn when player has exhausted all actions
+    // Auto-advance turn when the active unit (player or companion) has exhausted all actions
     if (this.combatState.phase === 'player_turn') {
       const active = getActiveParticipant(this.combatState);
       if (
-        active?.kind === 'player' &&
+        (active?.kind === 'player' || active?.kind === 'companion') &&
         active.apRemaining === 0 &&
         active.mpRemaining === 0 &&
         (active.secondaryActionRemaining ?? 0) === 0
@@ -320,7 +332,7 @@ export class TurnCombatSession {
   getMovementRangeTiles(): { x: number; y: number }[] {
     if (!this.combatState || this.combatState.phase !== 'player_turn') return [];
     const active = getActiveParticipant(this.combatState);
-    if (!active || active.kind !== 'player') return [];
+    if (!active || (active.kind !== 'player' && active.kind !== 'companion')) return [];
     return getReachableTiles(active, this.combatState, this.buildTileCtx());
   }
 
@@ -488,8 +500,98 @@ export class TurnCombatSession {
 
     if (enemyParticipants.length === 0) return;
 
-    this.combatState = createCombatState([playerParticipant, ...enemyParticipants]);
+    const companionParticipants = this.buildCompanionParticipants(
+      playerTileX, playerTileY, enemyParticipants,
+    );
+
+    this.combatState = createCombatState([
+      playerParticipant,
+      ...companionParticipants,
+      ...enemyParticipants,
+    ]);
+
+    // Spawn a sprite for each companion at their starting tile
+    for (const p of companionParticipants) {
+      if (!this.currentTilemap) continue;
+      const slotData = this.equippedCompanions[p.companionSlot!];
+      if (!slotData) continue;
+      const world = this.currentTilemap.getTileCenterWorld(p.tileX, p.tileY);
+      const vc = new CompanionVisualController(this.scene, slotData.definitionId);
+      vc.spawn(world.x, world.y);
+      vc.update(world.x, world.y, p.hp, p.maxHp, this.scene.time.now);
+      this.companionVisuals.set(p.id, vc);
+    }
+
     this.eventBus.emitSfx('combat_hit');
+  }
+
+  private buildCompanionParticipants(
+    playerTileX: number,
+    playerTileY: number,
+    enemyParticipants: TurnParticipant[],
+  ): TurnParticipant[] {
+    const occupied = new Set<string>(
+      enemyParticipants.map((p) => `${p.tileX},${p.tileY}`),
+    );
+    occupied.add(`${playerTileX},${playerTileY}`);
+
+    // Preferred spawn offsets per slot (beside and behind the player)
+    const SLOT_OFFSETS: [number, number][][] = [
+      [[-1, 0], [0, 1], [-1, 1], [1, 0], [-1, -1]],
+      [[1, 0], [0, 1], [1, 1], [-1, 0], [1, -1]],
+      [[0, 1], [-1, 1], [1, 1], [0, 2], [-1, 0]],
+    ];
+
+    const slotKeys: CompanionSlot[] = ['companion_1', 'companion_2', 'companion_3'];
+    const result: TurnParticipant[] = [];
+
+    for (let i = 0; i < slotKeys.length; i++) {
+      const slotKey = slotKeys[i];
+      const slotData = this.equippedCompanions[slotKey];
+      if (!slotData || slotData.durability <= 0) continue;
+
+      const def = getCompanionDefinition(slotData.definitionId);
+      if (!def) continue;
+
+      let spawnTile: { x: number; y: number } | null = null;
+      for (const [dx, dy] of SLOT_OFFSETS[i]) {
+        const tx = playerTileX + dx;
+        const ty = playerTileY + dy;
+        const key = `${tx},${ty}`;
+        if (!occupied.has(key)) {
+          spawnTile = { x: tx, y: ty };
+          occupied.add(key);
+          break;
+        }
+      }
+      if (!spawnTile) continue;
+
+      result.push({
+        id: slotKey,
+        kind: 'companion',
+        name: def.displayName,
+        tileX: spawnTile.x,
+        tileY: spawnTile.y,
+        hp: def.maxHp,
+        maxHp: def.maxHp,
+        apMax: def.apPerTurn,
+        mpMax: def.mpPerTurn,
+        apRemaining: def.apPerTurn,
+        mpRemaining: def.mpPerTurn,
+        initiative: def.initiative,
+        attackPower: def.attackPower,
+        defensePower: def.defensePower,
+        attackRangeTiles: def.attackRangeTiles,
+        attacks: def.attacks.map((a) => ({ ...a })),
+        attackCooldowns: {},
+        stagger: 0,
+        staggerThreshold: def.staggerThreshold,
+        companionSlot: slotKey,
+        statusEffects: [],
+      });
+    }
+
+    return result;
   }
 
   // ─── Private: action submission ───────────────────────────────────────────
@@ -531,6 +633,18 @@ export class TurnCombatSession {
               this.playerController?.setFacingFromTarget(attackerWorld.x, attackerWorld.y);
             }
           }
+        } else {
+          // Companion was hit
+          const companionVc = this.companionVisuals.get(outcome.targetId);
+          if (companionVc && this.currentTilemap) {
+            const p = this.combatState?.participants.find((pp) => pp.id === outcome.targetId);
+            if (p) {
+              const world = this.currentTilemap.getTileCenterWorld(p.tileX, p.tileY);
+              if (outcome.hit) companionVc.flashHit(this.scene.time.now);
+              this.hitsplatRenderer.show(world.x, world.y, outcome.damage);
+              companionVc.update(world.x, world.y, p.hp, p.maxHp, this.scene.time.now);
+            }
+          }
         }
 
         if (outcome.killed) {
@@ -544,6 +658,10 @@ export class TurnCombatSession {
               this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y);
             }
           }
+          // Hide companion sprite when it's killed
+          const killedVc = this.companionVisuals.get(outcome.targetId);
+          if (killedVc) killedVc.destroy();
+          this.companionVisuals.delete(outcome.targetId);
         }
         if (outcome.pushed) this.handleForcedMovementVisual(outcome.pushed);
         break;
@@ -603,11 +721,18 @@ export class TurnCombatSession {
           // playerController.update() always runs (see GameScene) so this resolves each frame.
           this.playerController.setClickMoveTarget(world.x, world.y);
         } else {
-          const es = this.findEnemySystem(outcome.actorId);
-          if (es && this.currentTilemap) {
-            es.setCombatTile(outcome.toTile.x, outcome.toTile.y, false);
-            this.queueEnemyMove(outcome.actorId, outcome.fromTile, outcome.path ?? [outcome.toTile]);
-            this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
+          const companionVc = this.companionVisuals.get(outcome.actorId);
+          if (companionVc && this.currentTilemap) {
+            const world = this.currentTilemap.getTileCenterWorld(outcome.toTile.x, outcome.toTile.y);
+            const p = this.combatState?.participants.find((pp) => pp.id === outcome.actorId);
+            companionVc.update(world.x, world.y, p?.hp ?? 0, p?.maxHp ?? 1, this.scene.time.now);
+          } else {
+            const es = this.findEnemySystem(outcome.actorId);
+            if (es && this.currentTilemap) {
+              es.setCombatTile(outcome.toTile.x, outcome.toTile.y, false);
+              this.queueEnemyMove(outcome.actorId, outcome.fromTile, outcome.path ?? [outcome.toTile]);
+              this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
+            }
           }
         }
         break;
@@ -761,6 +886,21 @@ export class TurnCombatSession {
       }
     }
 
+    // Drain companion durability: 1 per fight participated + flat penalty if knocked out
+    if (this.combatState) {
+      for (const p of this.combatState.participants) {
+        if (p.kind !== 'companion' || !p.companionSlot) continue;
+        const slotData = this.equippedCompanions[p.companionSlot];
+        if (!slotData) continue;
+        const knockedOut = p.hp <= 0;
+        const drain = 1 + (knockedOut ? 2 : 0); // 1 per fight, +2 if knocked out
+        slotData.durability = Math.max(0, slotData.durability - drain);
+      }
+    }
+
+    for (const vc of this.companionVisuals.values()) vc.destroy();
+    this.companionVisuals.clear();
+
     this.combatState   = null;
     this.animQueue     = [];
     this.blockedByAnim = false;
@@ -782,13 +922,12 @@ export class TurnCombatSession {
   // ─── Private: helpers ─────────────────────────────────────────────────────
 
   private canAcceptPlayerInput(): boolean {
-    return (
-      !!this.combatState &&
-      this.combatState.phase === 'player_turn' &&
-      !this.blockedByAnim &&
-      this.animQueue.length === 0 &&
-      !this.isPlayerMovementAnimating()
-    );
+    if (!this.combatState || this.combatState.phase !== 'player_turn') return false;
+    if (this.blockedByAnim || this.animQueue.length > 0) return false;
+    // Only wait for player walk animation during the player's own turn, not companion turns
+    const active = getActiveParticipant(this.combatState);
+    if (active?.kind === 'player' && this.isPlayerMovementAnimating()) return false;
+    return true;
   }
 
   private isPlayerMovementAnimating(): boolean {

@@ -56,6 +56,8 @@ export class UIOverlayManager {
       callbacks.onInventoryItemInspect,
       callbacks.onInventoryItemCombine,
       callbacks.onEquipmentUnequip,
+      callbacks.onCompanionEquip,
+      callbacks.onCompanionUnequip,
       (skill) => this.openSkillDetail(skill),
       () => this.toggleMapWindow(this.lastPlayerTileX, this.lastPlayerTileY),
     );
@@ -111,6 +113,7 @@ export class UIOverlayManager {
       state.activeTaskCount,
       state.skills,
       state.equipment,
+      state.companions,
     );
 
     // Live-update the open skill detail popup

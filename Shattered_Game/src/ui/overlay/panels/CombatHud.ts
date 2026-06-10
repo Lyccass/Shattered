@@ -148,8 +148,9 @@ export class CombatHud {
       const card = this.initBar.children[i] as HTMLElement;
       card.className = [
         'combat-init-card',
-        p.kind === 'player' ? 'is-player' : '',
-        p.id === activeId ? 'is-active' : '',
+        p.kind === 'player'    ? 'is-player'    : '',
+        p.kind === 'companion' ? 'is-companion'  : '',
+        p.id === activeId      ? 'is-active'     : '',
       ].filter(Boolean).join(' ');
 
       const nameEl = card.querySelector('.combat-init-name') as HTMLElement;
@@ -159,10 +160,16 @@ export class CombatHud {
 
     // ── Action bar ────────────────────────────────────────────────────────
     const isPlayerTurn = combat.phase === 'player_turn';
-    const player       = combat.player;
+    // Use the active unit's stats (may be a companion during their turn)
+    const player = combat.activeUnit ?? combat.player;
 
-    this.roundLabel.textContent = `Round ${combat.round}`;
+    const activeKind = combat.activeUnit?.kind;
+    const turnLabel = activeKind === 'companion'
+      ? `${combat.activeUnit?.name ?? 'Companion'}'s Turn — Round ${combat.round}`
+      : `Round ${combat.round}`;
+    this.roundLabel.textContent = turnLabel;
     this.actionBar.classList.toggle('enemy-turn', !isPlayerTurn);
+    this.actionBar.classList.toggle('companion-turn', isPlayerTurn && activeKind === 'companion');
 
     // AP pips
     if (player) {

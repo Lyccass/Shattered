@@ -70,9 +70,11 @@ export function getAttackableTargets(
   if (attacker.apRemaining <= 0) return [];
   if (attacker.hp <= 0) return [];
 
+  const attackerIsEnemy = attacker.kind === 'enemy';
   return state.participants.filter((p) => {
     if (p.id === attacker.id) return false;
-    if (p.kind === attacker.kind) return false; // don't attack own side
+    // player and companion are on the same side
+    if (attackerIsEnemy === (p.kind === 'enemy')) return false;
     if (p.hp <= 0) return false;
     return getUsableAttacks(attacker, p).length > 0;
   });

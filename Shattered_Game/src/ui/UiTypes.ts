@@ -2,6 +2,7 @@ import type { ActionProgressSnapshot } from '../actions/ActionProgressTypes';
 import type { ActiveEffectSnapshot } from '../effects/EffectTypes';
 import type { EquipmentSnapshot } from '../equipment/EquipmentTypes';
 import { emptyEquipmentSnapshot } from '../equipment/EquipmentTypes';
+import type { CompanionSnapshot } from '../companions/CompanionTypes';
 import type { ChoiceMenuStateSnapshot } from '../interactions/ChoiceMenuTypes';
 import type { ActiveInteraction, InteractionResult } from '../interactions/InteractionTypes';
 import type { PlacementPreviewState } from '../interactions/PlacementModeSystem';
@@ -25,6 +26,7 @@ export type UiStateSnapshot = {
   placementState: PlacementPreviewState | null;
   actionProgress: ActionProgressSnapshot | null;
   equipment: EquipmentSnapshot;
+  companions: CompanionSnapshot;
 };
 
 export type MinimapTileInfo = {
@@ -67,6 +69,7 @@ export function emptyUiStateSnapshot(): UiStateSnapshot {
     placementState: null,
     actionProgress: null,
     equipment: emptyEquipmentSnapshot(),
+    companions: {},
   };
 }
 

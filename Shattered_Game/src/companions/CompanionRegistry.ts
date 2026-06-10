@@ -1,0 +1,99 @@
+import type { CompanionDefinition } from './CompanionTypes';
+
+const DEFINITIONS: Record<string, CompanionDefinition> = {
+  wolf: {
+    id: 'wolf',
+    displayName: 'Wolf',
+    maxHp: 2,
+    attackPower: 1,
+    defensePower: 1,
+    attackRangeTiles: 2,
+    initiative: 7,
+    apPerTurn: 1,
+    mpPerTurn: 3,
+    staggerThreshold: 3,
+    attacks: [
+      {
+        id: 'jump',
+        displayName: 'Jump',
+        apCost: 1,
+        minRangeTiles: 1,
+        maxRangeTiles: 2,
+        damage: 2,
+        damageType: 'pierce',
+        hitChance: 70,
+      },
+      {
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'pierce',
+        hitChance: 85,
+      },
+    ],
+    maxDurability: 30,
+  },
+
+  bronze_golem: {
+    id: 'bronze_golem',
+    displayName: 'Bronze Golem',
+    maxHp: 30,
+    attackPower: 4,
+    defensePower: 6,
+    attackRangeTiles: 1,
+    initiative: 12,
+    apPerTurn: 1,
+    mpPerTurn: 2,
+    staggerThreshold: 14,
+    attacks: [
+      {
+        id: 'slam',
+        displayName: 'Slam',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 4,
+        damageType: 'crush',
+        hitChance: 70,
+        staggerDamage: 4,
+      },
+    ],
+    maxDurability: 20,
+  },
+
+  imp: {
+    id: 'imp',
+    displayName: 'Imp',
+    maxHp: 12,
+    attackPower: 3,
+    defensePower: 1,
+    attackRangeTiles: 2,
+    initiative: 5,
+    apPerTurn: 1,
+    mpPerTurn: 3,
+    staggerThreshold: 6,
+    attacks: [
+      {
+        id: 'claw',
+        displayName: 'Claw',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 2,
+        damage: 3,
+        damageType: 'slash',
+        hitChance: 80,
+        statusEffect: { kind: 'bleeding', turns: 2, value: 1 },
+      },
+    ],
+    maxDurability: 25,
+  },
+};
+
+export function getCompanionDefinition(id: string): CompanionDefinition | undefined {
+  return DEFINITIONS[id];
+}
+
+export const ALL_COMPANION_DEFINITIONS: CompanionDefinition[] = Object.values(DEFINITIONS);

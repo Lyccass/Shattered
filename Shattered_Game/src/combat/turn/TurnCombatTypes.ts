@@ -81,7 +81,7 @@ export type TurnAttack = {
 
 export type TurnParticipant = {
   id: string;
-  kind: 'player' | 'enemy';
+  kind: 'player' | 'enemy' | 'companion';
   name: string;
   tileX: number;
   tileY: number;
@@ -115,6 +115,8 @@ export type TurnParticipant = {
   spawnId?: string;
   areaId?: string;
   lootTableId?: string;
+  /** Which companion slot this participant occupies (companion kind only) */
+  companionSlot?: 'companion_1' | 'companion_2' | 'companion_3';
   statusEffects: StatusEffect[];
 };
 
@@ -172,7 +174,7 @@ export type TurnCombatState = {
 
 export type TurnParticipantUiSnapshot = {
   id: string;
-  kind: 'player' | 'enemy';
+  kind: 'player' | 'enemy' | 'companion';
   name: string;
   hp: number;
   maxHp: number;
@@ -202,6 +204,11 @@ export type TurnCombatUiSnapshot = {
   phase: TurnPhase;
   round: number;
   player: TurnParticipantUiSnapshot | null;
+  /**
+   * The participant currently acting (player or companion on player_turn, null on enemy_turn).
+   * Use this for the action bar — may differ from `player` during companion turns.
+   */
+  activeUnit: TurnParticipantUiSnapshot | null;
   /** Player HP always present (persists between combats). Null until first combat. */
   playerCurrentHp: number | null;
   playerMaxHp: number | null;

@@ -32,6 +32,8 @@ import { GroundItemSystem } from '../world/items/GroundItemSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
 import { WorldEncounterPopulationTracker } from '../combat/WorldEncounterPopulationTracker';
+import { PlayerCompanionState } from '../companions/PlayerCompanionState';
+import type { CompanionSlot } from '../companions/CompanionTypes';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
@@ -55,6 +57,7 @@ export class GameScene extends Phaser.Scene {
   private mapLoadSerial = 0;
   private isRespawningAfterDeath = false;
   private readonly encounterPopulation = new WorldEncounterPopulationTracker();
+  private readonly playerCompanionState = new PlayerCompanionState();
 
   constructor() {
     super('GameScene');
@@ -116,6 +119,14 @@ export class GameScene extends Phaser.Scene {
       onEquipmentUnequip:     (slot) => {
         const result = this.worldRuntimeCoordinator?.unequipSlot(slot as import('../equipment/EquipmentTypes').EquipmentSlot);
         if (result) this.uiManager?.handleResult(result);
+      },
+      onCompanionEquip: (slot, definitionId) => {
+        this.playerCompanionState.equip(slot as CompanionSlot, definitionId);
+        this.turnCombatSession?.setEquippedCompanions(this.playerCompanionState.getSlots());
+      },
+      onCompanionUnequip: (slot) => {
+        this.playerCompanionState.unequip(slot as CompanionSlot);
+        this.turnCombatSession?.setEquippedCompanions(this.playerCompanionState.getSlots());
       },
       onChoiceMenuSelect:     (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
       onChoiceMenuConfirm:    () => this.tryConfirmChoiceMenu(),
@@ -179,8 +190,9 @@ export class GameScene extends Phaser.Scene {
 
     this.worldRuntimeCoordinator?.getObjectOcclusionSystem()?.update(delta);
     const isInCombat = this.turnCombatSession?.isInCombat() ?? false;
+    const baseUiState = this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot();
     this.uiManager?.update(
-      this.worldRuntimeCoordinator?.getUiState() ?? emptyUiStateSnapshot(),
+      { ...baseUiState, companions: this.playerCompanionState.getSnapshot() },
       this.turnCombatSession?.getUiSnapshot() ?? null,
       isInCombat ? 'combat' : 'explore',
       this.isCombatStance,

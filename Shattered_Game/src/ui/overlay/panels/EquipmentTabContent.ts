@@ -1,7 +1,9 @@
 import type { EquipmentSnapshot, EquipmentSlot } from '../../../equipment/EquipmentTypes';
 import { emptyEquipmentSnapshot } from '../../../equipment/EquipmentTypes';
+import type { CompanionDefinition, CompanionSlot, CompanionSnapshot, CompanionSlotSnapshot } from '../../../companions/CompanionTypes';
+import { ALL_COMPANION_DEFINITIONS, getCompanionDefinition } from '../../../companions/CompanionRegistry';
 
-type EquipView = 'equipment' | 'stats';
+type EquipView = 'equipment' | 'stats' | 'companions';
 
 // Slot definitions matching the paperdoll layout in the screenshot
 const EQUIP_SLOTS: Array<{ key: EquipmentSlot; label: string }> = [
@@ -24,8 +26,15 @@ export class EquipmentTabContent {
   private readonly viewBtns = new Map<EquipView, HTMLElement>();
   private readonly contentArea: HTMLElement;
   private snapshot: EquipmentSnapshot = emptyEquipmentSnapshot();
+  private companionSnapshot: CompanionSnapshot = {};
+  private openPickerSlot: CompanionSlot | null = null;
+  private lastRenderKey = '';
 
-  constructor(private readonly onUnequip: (slot: string) => void = () => {}) {
+  constructor(
+    private readonly onUnequip: (slot: string) => void = () => {},
+    private readonly onCompanionEquip: (slot: string, definitionId: string) => void = () => {},
+    private readonly onCompanionUnequip: (slot: string) => void = () => {},
+  ) {
     this.el = document.createElement('div');
     this.el.className = 'equipment-tab';
 
@@ -33,8 +42,9 @@ export class EquipmentTabContent {
     toggleBar.className = 'equip-toggle-bar';
 
     const views: Array<{ id: EquipView; label: string }> = [
-      { id: 'equipment', label: 'Equipment' },
-      { id: 'stats',     label: 'Stats'     },
+      { id: 'equipment',  label: 'Equipment'  },
+      { id: 'stats',      label: 'Stats'      },
+      { id: 'companions', label: 'Companions' },
     ];
     for (const { id, label } of views) {
       const btn = document.createElement('button');
@@ -54,24 +64,32 @@ export class EquipmentTabContent {
     this.switchView('equipment');
   }
 
-  update(snapshot: EquipmentSnapshot): void {
+  update(snapshot: EquipmentSnapshot, companions: CompanionSnapshot = {}): void {
+    const key = JSON.stringify(snapshot.slots) + '|' + JSON.stringify(companions);
+    if (key === this.lastRenderKey) return;
+    this.lastRenderKey = key;
     this.snapshot = snapshot;
+    this.companionSnapshot = companions;
     this.contentArea.innerHTML = '';
-    this.contentArea.appendChild(
-      this.activeView === 'equipment'
-        ? this.buildEquipmentView()
-        : this.buildStatsView(),
-    );
+    this.contentArea.appendChild(this.buildActiveView());
+  }
+
+  private buildActiveView(): HTMLElement {
+    switch (this.activeView) {
+      case 'equipment':  return this.buildEquipmentView();
+      case 'stats':      return this.buildStatsView();
+      case 'companions': return this.buildCompanionsView();
+    }
   }
 
   private switchView(view: EquipView): void {
     this.viewBtns.get(this.activeView)?.classList.remove('equip-toggle-btn--active');
     this.activeView = view;
+    this.openPickerSlot = null;
+    this.lastRenderKey = '';
     this.viewBtns.get(view)?.classList.add('equip-toggle-btn--active');
     this.contentArea.innerHTML = '';
-    this.contentArea.appendChild(
-      view === 'equipment' ? this.buildEquipmentView() : this.buildStatsView(),
-    );
+    this.contentArea.appendChild(this.buildActiveView());
   }
 
   private buildEquipmentView(): HTMLElement {
@@ -135,6 +153,156 @@ export class EquipmentTabContent {
     ]);
 
     return wrap;
+  }
+
+  private buildCompanionsView(): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'companion-slots';
+
+    const grid = document.createElement('div');
+    grid.className = 'companion-grid';
+
+    const slotDefs: Array<{ key: CompanionSlot; label: string }> = [
+      { key: 'companion_1', label: 'I'   },
+      { key: 'companion_2', label: 'II'  },
+      { key: 'companion_3', label: 'III' },
+    ];
+
+    for (const { key, label } of slotDefs) {
+      const entry = this.companionSnapshot[key];
+      const cell = document.createElement('div');
+      cell.className = 'companion-slot' + (entry ? ' companion-slot--filled' : '');
+      if (this.openPickerSlot === key) cell.classList.add('is-selected');
+      cell.dataset.slot = key;
+
+      if (entry) {
+        const durFrac = entry.durability / entry.maxDurability;
+        const durBar = document.createElement('div');
+        durBar.className = 'companion-slot-durbar';
+        const durFill = document.createElement('div');
+        durFill.className = 'companion-slot-durbar-fill';
+        durFill.style.width = `${Math.round(durFrac * 100)}%`;
+        durFill.style.backgroundColor = durFrac > 0.5 ? '#22c55e' : durFrac > 0.25 ? '#f59e0b' : '#ef4444';
+        durBar.appendChild(durFill);
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'companion-slot-label';
+        nameEl.textContent = entry.displayName;
+
+        cell.appendChild(durBar);
+        cell.appendChild(nameEl);
+        cell.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          this.onCompanionUnequip(key);
+        });
+      } else {
+        const labelEl = document.createElement('span');
+        labelEl.className = 'companion-slot-label';
+        labelEl.textContent = label;
+        cell.appendChild(labelEl);
+      }
+
+      cell.addEventListener('click', () => {
+        this.openPickerSlot = this.openPickerSlot === key ? null : key;
+        this.lastRenderKey = '';
+        this.contentArea.innerHTML = '';
+        this.contentArea.appendChild(this.buildCompanionsView());
+      });
+
+      grid.appendChild(cell);
+    }
+
+    wrap.appendChild(grid);
+
+    if (this.openPickerSlot !== null) {
+      const entry = this.companionSnapshot[this.openPickerSlot];
+      if (entry) {
+        const def = getCompanionDefinition(entry.definitionId);
+        if (def) wrap.appendChild(this.buildCompanionStatCard(def, entry));
+      } else {
+        wrap.appendChild(this.buildCompanionPicker(this.openPickerSlot));
+      }
+    }
+
+    return wrap;
+  }
+
+  private buildCompanionStatCard(def: CompanionDefinition, entry: CompanionSlotSnapshot): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'companion-stat-card';
+
+    const statDefs: Array<[string, string]> = [
+      ['HP',      String(def.maxHp)],
+      ['Init',    String(def.initiative)],
+      ['Def',     String(def.defensePower)],
+      ['AP/turn', String(def.apPerTurn)],
+      ['MP/turn', String(def.mpPerTurn)],
+      ['Stagger', String(def.staggerThreshold)],
+    ];
+    const statGrid = document.createElement('div');
+    statGrid.className = 'companion-stat-grid';
+    for (const [lbl, val] of statDefs) {
+      const cell = document.createElement('div');
+      cell.className = 'companion-stat-cell';
+      cell.innerHTML = `<span class="companion-stat-val">${val}</span><span class="companion-stat-lbl">${lbl}</span>`;
+      statGrid.appendChild(cell);
+    }
+    card.appendChild(statGrid);
+
+    const attacksEl = document.createElement('div');
+    attacksEl.className = 'companion-stat-attacks';
+    for (const atk of def.attacks) {
+      const row = document.createElement('div');
+      row.className = 'companion-stat-attack';
+      const statusStr = atk.statusEffect ? ` · ${atk.statusEffect.kind} ${atk.statusEffect.turns}t` : '';
+      const staggerStr = atk.staggerDamage ? ` · ${atk.staggerDamage} stagger` : '';
+      const typeStr = atk.damageType ? ` ${atk.damageType}` : '';
+      const hitStr = atk.hitChance !== undefined ? `${atk.hitChance}%` : '80%';
+      row.innerHTML = `
+        <span class="companion-atk-name">${atk.displayName}</span>
+        <span class="companion-atk-detail">${atk.damage}${typeStr} dmg · range ${atk.maxRangeTiles} · ${hitStr} hit${staggerStr}${statusStr}</span>
+      `;
+      attacksEl.appendChild(row);
+    }
+    card.appendChild(attacksEl);
+
+    const durFrac = entry.durability / entry.maxDurability;
+    const durRow = document.createElement('div');
+    durRow.className = 'companion-stat-dur';
+    durRow.innerHTML = `
+      <span class="companion-stat-lbl">Durability</span>
+      <div class="companion-slot-durbar companion-stat-durbar">
+        <div class="companion-slot-durbar-fill" style="width:${Math.round(durFrac * 100)}%;background:${durFrac > 0.5 ? '#22c55e' : durFrac > 0.25 ? '#f59e0b' : '#ef4444'}"></div>
+      </div>
+      <span class="companion-stat-lbl">${entry.durability}/${entry.maxDurability}</span>
+    `;
+    card.appendChild(durRow);
+
+    return card;
+  }
+
+  private buildCompanionPicker(targetSlot: CompanionSlot): HTMLElement {
+    const pickerArea = document.createElement('div');
+    pickerArea.className = 'companion-picker-area';
+
+    for (const def of ALL_COMPANION_DEFINITIONS) {
+      const btn = document.createElement('button');
+      btn.className = 'companion-pick-btn';
+      const atk = def.attacks[0];
+      const atkSummary = atk
+        ? `${atk.damage} ${atk.damageType ?? ''} · range ${atk.maxRangeTiles}`
+        : '';
+      btn.innerHTML = `<span class="companion-pick-name">${def.displayName}</span><span class="companion-pick-sub">${def.maxHp} HP · ${atkSummary}</span>`;
+      btn.title = `Equip ${def.displayName}`;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.openPickerSlot = null;
+        this.onCompanionEquip(targetSlot, def.id);
+      });
+      pickerArea.appendChild(btn);
+    }
+
+    return pickerArea;
   }
 
   private appendGroup(

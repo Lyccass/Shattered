@@ -1,4 +1,5 @@
 import type { EquipmentSnapshot } from '../../../equipment/EquipmentTypes';
+import type { CompanionSnapshot } from '../../../companions/CompanionTypes';
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
@@ -53,6 +54,8 @@ export class TaskbarPanel {
     private readonly onInventoryItemInspect: (itemId: string) => void,
     private readonly onInventoryItemCombine: (sourceId: string, targetId: string) => void,
     private readonly onEquipmentUnequip: (slot: string) => void,
+    private readonly onCompanionEquip: (slot: string, definitionId: string) => void,
+    private readonly onCompanionUnequip: (slot: string) => void,
     private readonly onSkillOpen: (skill: SkillSnapshot) => void,
     private readonly onMapOpen: () => void,
   ) {
@@ -117,7 +120,11 @@ export class TaskbarPanel {
       onItemInspect: this.onInventoryItemInspect,
       onItemCombine: this.onInventoryItemCombine,
     });
-    this.equipmentContent = new EquipmentTabContent(this.onEquipmentUnequip);
+    this.equipmentContent = new EquipmentTabContent(
+      this.onEquipmentUnequip,
+      this.onCompanionEquip,
+      this.onCompanionUnequip,
+    );
     this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
     this.settingsContent  = new SettingsTabContent();
@@ -226,11 +233,12 @@ export class TaskbarPanel {
     activeTaskCount: number,
     skills: SkillSnapshot[],
     equipment: EquipmentSnapshot,
+    companions: CompanionSnapshot,
   ): void {
     this.inventoryContent.update(inventory, currency);
     this.skillsContent.update(skills);
     this.journalContent.update(journalEntries, reputation, activeTaskCount);
-    this.equipmentContent.update(equipment);
+    this.equipmentContent.update(equipment, companions);
     this.settingsContent.update();
   }
 

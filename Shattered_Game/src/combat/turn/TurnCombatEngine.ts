@@ -45,8 +45,9 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
 
   withRoll.sort((a, b) => a.initiative - b.initiative);
 
+  const firstKind = withRoll[0]?.kind;
   const firstPhase: TurnPhase =
-    withRoll[0]?.kind === 'player' ? 'player_turn' : 'enemy_turn';
+    firstKind === 'player' || firstKind === 'companion' ? 'player_turn' : 'enemy_turn';
 
   return {
     participants: withRoll,
@@ -148,7 +149,9 @@ export function advanceTurn(
   const nextParticipant = next.participants.find(
     (p) => p.id === next.turnOrderIds[nextIndex],
   );
-  next.phase = nextParticipant?.kind === 'player' ? 'player_turn' : 'enemy_turn';
+  const isPlayerControlled =
+    nextParticipant?.kind === 'player' || nextParticipant?.kind === 'companion';
+  next.phase = isPlayerControlled ? 'player_turn' : 'enemy_turn';
 
   return {
     outcome: {
@@ -176,6 +179,7 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
       phase: 'combat_ended',
       round: 0,
       player: null,
+      activeUnit: null,
       playerCurrentHp: null,
       playerMaxHp: null,
       isSprinting: false,
@@ -188,6 +192,7 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
 
   const activeId = state.turnOrderIds[state.activeIndex] ?? null;
   const player = state.participants.find((p) => p.kind === 'player') ?? null;
+  const activeParticipant = state.participants.find((p) => p.id === activeId) ?? null;
 
   const toUiSnap = (p: TurnParticipant): TurnParticipantUiSnapshot => {
     const attacks: TurnAttackUiSnapshot[] = (p.attacks ?? []).map((attack) => ({
@@ -218,11 +223,15 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
     };
   };
 
+  const isPlayerControlledTurn =
+    activeParticipant?.kind === 'player' || activeParticipant?.kind === 'companion';
+
   return {
     active: true,
     phase: state.phase,
     round: state.round,
     player: player ? toUiSnap(player) : null,
+    activeUnit: isPlayerControlledTurn && activeParticipant ? toUiSnap(activeParticipant) : null,
     playerCurrentHp: player?.hp ?? null,
     playerMaxHp: player?.maxHp ?? null,
     isSprinting: false,

@@ -45,6 +45,15 @@
   border-color: #f57a00;
 }
 
+.combat-init-card.is-companion {
+  border-color: #3a9e6e;
+}
+
+.combat-init-card.is-companion.is-active {
+  border-color: #f57a00;
+  box-shadow: 0 0 8px rgba(58, 158, 110, 0.5);
+}
+
 .combat-init-name {
   font-family: 'Asimovian', 'Palatino Linotype', serif;
   font-size: 9px;
@@ -228,4 +237,9 @@
   opacity: 0.45;
   pointer-events: none;
   cursor: not-allowed;
+}
+
+/* Companion turn — subtle green tint on round label */
+#ui-combat-actions.companion-turn .combat-round {
+  color: #3a9e6e;
 }

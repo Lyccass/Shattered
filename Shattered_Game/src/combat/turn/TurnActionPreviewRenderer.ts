@@ -56,7 +56,7 @@ export class TurnActionPreviewRenderer {
     if (!state || state.phase !== 'player_turn') return;
 
     const active = getActiveParticipant(state);
-    if (!active || active.kind !== 'player') return;
+    if (!active || (active.kind !== 'player' && active.kind !== 'companion')) return;
 
     if (!attackMode) {
       // Normal mode: show reachable movement tiles in blue

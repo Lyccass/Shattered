@@ -704,3 +704,203 @@
   transition: transform var(--tr);
 }
 .settings-toggle.on::after { transform: translateX(16px); background: var(--c-primary); }
+
+/* ── Companion slots ─────────────────────────────────────────────────────── */
+.companion-slots {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2);
+  gap: 6px;
+}
+
+.companion-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+}
+
+.companion-slot {
+  background: var(--c-slot-bg);
+  border: 1px solid var(--c-slot-border);
+  border-radius: var(--radius-sm);
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 6px 6px;
+  gap: 4px;
+  cursor: pointer;
+  transition: background var(--tr), border-color var(--tr);
+  position: relative;
+}
+.companion-slot::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed rgba(255, 255, 255, 0.07);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.companion-slot:hover {
+  background: var(--c-slot-hover);
+  border-color: #3a9e6e;
+}
+.companion-slot.is-selected {
+  border-color: #f57a00;
+}
+.companion-slot--filled {
+  border-color: #3a9e6e;
+}
+.companion-slot--filled:hover {
+  border-color: #66ffcc;
+}
+
+.companion-slot-label {
+  font-size: 8px;
+  color: var(--c-text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  line-height: 1.2;
+}
+.companion-slot--filled .companion-slot-label {
+  color: #66ffcc;
+  font-size: 9px;
+}
+
+.companion-slot-durbar {
+  width: calc(100% - 8px);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.companion-slot-durbar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.companion-picker-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 2px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.companion-pick-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 6px 10px;
+  font-family: var(--font);
+  background: rgba(58, 158, 110, 0.12);
+  border: 1px solid #3a9e6e;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: left;
+}
+.companion-pick-btn:hover { background: rgba(58, 158, 110, 0.28); }
+
+.companion-pick-name {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #66ffcc;
+}
+
+.companion-pick-sub {
+  font-size: 9px;
+  color: var(--c-text-muted);
+  letter-spacing: 0.03em;
+}
+
+/* ── Companion stat card ─────────────────────────────────────────────────── */
+.companion-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 2px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.companion-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+
+.companion-stat-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  padding: 5px 2px 4px;
+}
+
+.companion-stat-val {
+  font-size: 13px;
+  color: var(--c-primary);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.companion-stat-lbl {
+  font-size: 7px;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 3px;
+}
+
+.companion-stat-attacks {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.companion-stat-attack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  padding: 5px 8px;
+}
+
+.companion-atk-name {
+  font-size: 10px;
+  color: var(--c-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.companion-atk-detail {
+  font-size: 9px;
+  color: var(--c-text-muted);
+}
+
+.companion-stat-dur {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.companion-stat-durbar {
+  flex: 1;
+  height: 4px !important;
+  width: auto !important;
+}

@@ -33,6 +33,7 @@ export class UiStateAggregator {
       placementState: this.placementModeSystem.getState(),
       actionProgress: this.actionProgressSystem.getSnapshot(),
       equipment: this.playerSessionState.getEquipmentSnapshot(),
+      companions: {}, // overridden in GameScene with PlayerCompanionState.getSnapshot()
     };
   }
 }

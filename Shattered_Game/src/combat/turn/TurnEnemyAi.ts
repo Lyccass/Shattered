@@ -142,13 +142,13 @@ export function chooseEnemyAction(
     return { kind: 'end_turn' };
   }
 
-  // 3. Move toward the closest player tile
-  const player = state.participants.find((p) => p.kind === 'player' && p.hp > 0);
-  if (player && actor.mpRemaining > 0) {
+  // 3. Move toward the nearest non-enemy target (player or companion)
+  const moveTarget = pickMoveTarget(actor, state);
+  if (moveTarget && actor.mpRemaining > 0) {
     const approachTile = getBestApproachTile(
       actor,
-      player.tileX,
-      player.tileY,
+      moveTarget.tileX,
+      moveTarget.tileY,
       state,
       tileCtx,
     );
@@ -159,6 +159,21 @@ export function chooseEnemyAction(
 
   // 4. Nothing useful — end turn
   return { kind: 'end_turn' };
+}
+
+function pickMoveTarget(actor: TurnParticipant, state: TurnCombatState): TurnParticipant | null {
+  const threats = state.participants.filter(
+    (p) => (p.kind === 'player' || p.kind === 'companion') && p.hp > 0,
+  );
+  if (threats.length === 0) return null;
+  return threats.reduce<TurnParticipant>((best, p) => {
+    const distP = Math.abs(p.tileX - actor.tileX) + Math.abs(p.tileY - actor.tileY);
+    const distBest = Math.abs(best.tileX - actor.tileX) + Math.abs(best.tileY - actor.tileY);
+    if (distP < distBest) return p;
+    // prefer player at equal distance
+    if (distP === distBest && p.kind === 'player') return p;
+    return best;
+  }, threats[0]);
 }
 
 function chooseBestTargetAttack(

@@ -24,6 +24,8 @@ export interface UiManagerCallbacks {
   onInventoryItemInspect: (itemId: string) => void;
   onInventoryItemCombine: (sourceId: string, targetId: string) => void;
   onEquipmentUnequip: (slot: string) => void;
+  onCompanionEquip: (slot: string, definitionId: string) => void;
+  onCompanionUnequip: (slot: string) => void;
   onChoiceMenuSelect: (index: number) => void;
   onChoiceMenuConfirm: () => void;
   onChoiceMenuCancel: () => void;
@@ -61,6 +63,8 @@ export class UiManager {
       onInventoryItemInspect:  callbacks.onInventoryItemInspect,
       onInventoryItemCombine:  callbacks.onInventoryItemCombine,
       onEquipmentUnequip:      callbacks.onEquipmentUnequip,
+      onCompanionEquip:        callbacks.onCompanionEquip,
+      onCompanionUnequip:      callbacks.onCompanionUnequip,
       onChoiceMenuSelect:      callbacks.onChoiceMenuSelect,
       onChoiceMenuConfirm:     callbacks.onChoiceMenuConfirm,
       onChoiceMenuCancel:      callbacks.onChoiceMenuCancel,
