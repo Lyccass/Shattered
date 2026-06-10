@@ -565,6 +565,14 @@ export class WorldRuntimeCoordinator {
     this.playerSessionState.getCurrencyState().addCopper(250);
   }
 
+  grantItem(itemId: string, count = 1): void {
+    this.playerSessionState.getInventoryState().add(itemId, count);
+  }
+
+  consumeItem(itemId: string, count = 1): boolean {
+    return this.playerSessionState.getInventoryState().consume(itemId, count);
+  }
+
   setGroundItemCollector(fn: (id: string) => { itemId: string; count: number } | null): void {
     this.groundItemCollector = fn;
   }

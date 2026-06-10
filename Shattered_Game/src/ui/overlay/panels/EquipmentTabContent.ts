@@ -1,7 +1,7 @@
 import type { EquipmentSnapshot, EquipmentSlot } from '../../../equipment/EquipmentTypes';
 import { emptyEquipmentSnapshot } from '../../../equipment/EquipmentTypes';
 import type { CompanionDefinition, CompanionSlot, CompanionSnapshot, CompanionSlotSnapshot } from '../../../companions/CompanionTypes';
-import { ALL_COMPANION_DEFINITIONS, getCompanionDefinition } from '../../../companions/CompanionRegistry';
+import { getCompanionDefinition } from '../../../companions/CompanionRegistry';
 
 type EquipView = 'equipment' | 'stats' | 'companions';
 
@@ -32,7 +32,7 @@ export class EquipmentTabContent {
 
   constructor(
     private readonly onUnequip: (slot: string) => void = () => {},
-    private readonly onCompanionEquip: (slot: string, definitionId: string) => void = () => {},
+    _onCompanionEquip: (slot: string, definitionId: string) => void = () => {},
     private readonly onCompanionUnequip: (slot: string) => void = () => {},
   ) {
     this.el = document.createElement('div');
@@ -202,12 +202,14 @@ export class EquipmentTabContent {
         cell.appendChild(labelEl);
       }
 
-      cell.addEventListener('click', () => {
-        this.openPickerSlot = this.openPickerSlot === key ? null : key;
-        this.lastRenderKey = '';
-        this.contentArea.innerHTML = '';
-        this.contentArea.appendChild(this.buildCompanionsView());
-      });
+      if (entry) {
+        cell.addEventListener('click', () => {
+          this.openPickerSlot = this.openPickerSlot === key ? null : key;
+          this.lastRenderKey = '';
+          this.contentArea.innerHTML = '';
+          this.contentArea.appendChild(this.buildCompanionsView());
+        });
+      }
 
       grid.appendChild(cell);
     }
@@ -219,9 +221,15 @@ export class EquipmentTabContent {
       if (entry) {
         const def = getCompanionDefinition(entry.definitionId);
         if (def) wrap.appendChild(this.buildCompanionStatCard(def, entry));
-      } else {
-        wrap.appendChild(this.buildCompanionPicker(this.openPickerSlot));
       }
+    }
+
+    const hasAnyEmpty = slotDefs.some(({ key }) => !this.companionSnapshot[key]);
+    if (hasAnyEmpty) {
+      const hint = document.createElement('div');
+      hint.className = 'companion-slot-hint';
+      hint.textContent = 'Use a companion item from inventory to equip';
+      wrap.appendChild(hint);
     }
 
     return wrap;
@@ -281,29 +289,6 @@ export class EquipmentTabContent {
     return card;
   }
 
-  private buildCompanionPicker(targetSlot: CompanionSlot): HTMLElement {
-    const pickerArea = document.createElement('div');
-    pickerArea.className = 'companion-picker-area';
-
-    for (const def of ALL_COMPANION_DEFINITIONS) {
-      const btn = document.createElement('button');
-      btn.className = 'companion-pick-btn';
-      const atk = def.attacks[0];
-      const atkSummary = atk
-        ? `${atk.damage} ${atk.damageType ?? ''} · range ${atk.maxRangeTiles}`
-        : '';
-      btn.innerHTML = `<span class="companion-pick-name">${def.displayName}</span><span class="companion-pick-sub">${def.maxHp} HP · ${atkSummary}</span>`;
-      btn.title = `Equip ${def.displayName}`;
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.openPickerSlot = null;
-        this.onCompanionEquip(targetSlot, def.id);
-      });
-      pickerArea.appendChild(btn);
-    }
-
-    return pickerArea;
-  }
 
   private appendGroup(
     wrap: HTMLElement,

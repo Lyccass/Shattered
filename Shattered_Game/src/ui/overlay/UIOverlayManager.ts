@@ -60,6 +60,7 @@ export class UIOverlayManager {
       callbacks.onCompanionUnequip,
       (skill) => this.openSkillDetail(skill),
       () => this.toggleMapWindow(this.lastPlayerTileX, this.lastPlayerTileY),
+      callbacks.onClearSave,
     );
     this.xpDropPanel     = new XpDropPanel(this.overlay);
     this.combatHud       = new CombatHud(

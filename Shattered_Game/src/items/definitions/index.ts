@@ -10,6 +10,7 @@ import { TOOL_ITEMS } from './tools';
 import { WEAPON_ITEMS } from './equipment/weapons';
 import { ARMOR_ITEMS } from './equipment/armor';
 import { ACCESSORY_ITEMS } from './equipment/accessories';
+import { COMPANION_ITEMS } from './companions';
 
 const ALL_ITEMS = [
   ...MATERIAL_ITEMS,
@@ -18,6 +19,7 @@ const ALL_ITEMS = [
   ...WEAPON_ITEMS,
   ...ARMOR_ITEMS,
   ...ACCESSORY_ITEMS,
+  ...COMPANION_ITEMS,
 ];
 
 for (const def of ALL_ITEMS) {

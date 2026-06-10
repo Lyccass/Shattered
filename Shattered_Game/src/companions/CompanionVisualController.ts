@@ -7,15 +7,19 @@ import {
 
 const BAR = { width: 40, height: 4, offsetY: -52 };
 const HIT_FLASH_MS = 120;
+const MOVE_TWEEN_MS = 200;
 
 /**
  * Minimal companion sprite. Wolf reuses the wolf sheet with a green tint to
  * distinguish it from enemy wolves. Other companion types show a placeholder.
+ * HP bar is redrawn each frame so it tracks the sprite during movement tweens.
  */
 export class CompanionVisualController {
   private visual: Phaser.GameObjects.Sprite | Phaser.GameObjects.Rectangle | null = null;
   private hpBarGfx: Phaser.GameObjects.Graphics | null = null;
   private hitFlashUntilMs = 0;
+  private currentHp = 1;
+  private currentMaxHp = 1;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -29,7 +33,7 @@ export class CompanionVisualController {
       const sprite = this.scene.add.sprite(worldX, worldY, ENEMY_WOLF_IDLE_SHEET_KEY, 0);
       sprite.setOrigin(0.5, 0.68);
       sprite.setScale(2);
-      sprite.setTint(0x66ffcc); // green tint → friendly wolf
+      sprite.setTint(0x66ffcc);
       sprite.play(ENEMY_WOLF_IDLE_ANIMATION_KEY);
       this.visual = sprite;
     } else {
@@ -39,6 +43,7 @@ export class CompanionVisualController {
     }
 
     this.hpBarGfx = this.scene.add.graphics();
+    this.scene.events.on(Phaser.Scenes.Events.PRE_UPDATE, this.tick, this);
   }
 
   flashHit(nowMs: number): void {
@@ -48,27 +53,44 @@ export class CompanionVisualController {
   update(worldX: number, worldY: number, hp: number, maxHp: number, nowMs: number): void {
     if (!this.visual) return;
 
-    this.visual.setPosition(worldX, worldY);
+    this.currentHp = hp;
+    this.currentMaxHp = maxHp;
+
     this.visual.setDepth(getDynamicDepth(worldY, 8));
 
     if (this.visual instanceof Phaser.GameObjects.Sprite) {
-      if (nowMs < this.hitFlashUntilMs) {
-        this.visual.setTint(0xffffff);
-      } else {
-        this.visual.setTint(0x66ffcc);
-      }
+      this.visual.setTint(nowMs < this.hitFlashUntilMs ? 0xffffff : 0x66ffcc);
     }
 
-    this.drawHpBar(worldX, worldY, hp, maxHp);
-    this.hpBarGfx?.setDepth(getDynamicDepth(worldY, 16));
+    const dx = worldX - this.visual.x;
+    const dy = worldY - this.visual.y;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+      this.scene.tweens.killTweensOf(this.visual);
+      this.scene.tweens.add({
+        targets: this.visual,
+        x: worldX,
+        y: worldY,
+        duration: MOVE_TWEEN_MS,
+        ease: 'Linear',
+      });
+    } else {
+      this.visual.setPosition(worldX, worldY);
+    }
   }
 
   destroy(): void {
+    this.scene.events.off(Phaser.Scenes.Events.PRE_UPDATE, this.tick, this);
     this.visual?.destroy();
     this.visual = null;
     this.hpBarGfx?.destroy();
     this.hpBarGfx = null;
   }
+
+  private readonly tick = (): void => {
+    if (!this.visual || !this.hpBarGfx) return;
+    this.drawHpBar(this.visual.x, this.visual.y, this.currentHp, this.currentMaxHp);
+    this.hpBarGfx.setDepth(getDynamicDepth(this.visual.y, 16));
+  };
 
   private drawHpBar(worldX: number, worldY: number, hp: number, maxHp: number): void {
     const gfx = this.hpBarGfx;

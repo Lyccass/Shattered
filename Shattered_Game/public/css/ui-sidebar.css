@@ -705,6 +705,22 @@
 }
 .settings-toggle.on::after { transform: translateX(16px); background: var(--c-primary); }
 
+.settings-danger-btn {
+  margin-top: var(--sp-1);
+  width: 100%;
+  padding: 6px 0;
+  background: transparent;
+  border: 1px solid #a03030;
+  border-radius: 4px;
+  color: #e06060;
+  font-family: var(--font-primary);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.settings-danger-btn:hover { background: #a03030; color: #fff; }
+
 /* ── Companion slots ─────────────────────────────────────────────────────── */
 .companion-slots {
   display: flex;
@@ -810,6 +826,15 @@
   text-align: left;
 }
 .companion-pick-btn:hover { background: rgba(58, 158, 110, 0.28); }
+
+.companion-slot-hint {
+  font-size: 9px;
+  color: var(--c-text-muted);
+  text-align: center;
+  padding: 4px 0 2px;
+  letter-spacing: 0.04em;
+  font-style: italic;
+}
 
 .companion-pick-name {
   font-size: 10px;

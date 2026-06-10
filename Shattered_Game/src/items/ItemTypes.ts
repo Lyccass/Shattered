@@ -70,6 +70,7 @@ export type ItemDefinition = {
   consume?: ConsumeEffect;          // present → item has Eat / Drink / Use action
   readable?: ReadableContent;       // present → item has Read action
   toolFor?: string[];               // skill IDs this tool enables (knife → fletching)
+  companionId?: string;             // present → item is a companion; value = CompanionDefinition id
 
   // Placement (tool items placed in the world)
   placementRules?: PlacementRules;

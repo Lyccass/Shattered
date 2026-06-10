@@ -79,4 +79,5 @@ export interface UIOverlayCallbacks {
   onMinimapClick: () => void;
   onMinimapZoom: (delta: number) => void;
   onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
+  onClearSave: () => void;
 }

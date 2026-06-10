@@ -21,7 +21,7 @@ export function getInventoryItemMeta(itemId: string): InventoryItemMeta {
     ? 'consume'
     : def.placementObjectDefinitionId
       ? 'place'
-      : def.equipment
+      : (def.equipment || def.companionId)
         ? 'equip'
         : 'none';
 

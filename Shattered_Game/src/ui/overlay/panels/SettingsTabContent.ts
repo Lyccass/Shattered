@@ -1,7 +1,7 @@
 export class SettingsTabContent {
   readonly el: HTMLElement;
 
-  constructor() {
+  constructor(private readonly onClearSave: () => void = () => {}) {
     this.el = document.createElement('div');
     this.el.className = 'settings-tab';
 
@@ -38,13 +38,24 @@ export class SettingsTabContent {
           <div class="settings-toggle on" data-setting="clickmove"></div>
         </div>
       </div>
+      <div class="settings-group">
+        <div class="settings-group-label">Save</div>
+      </div>
     `;
 
     body.querySelectorAll<HTMLElement>('.settings-toggle').forEach((toggle) => {
-      toggle.addEventListener('click', () => {
-        toggle.classList.toggle('on');
-      });
+      toggle.addEventListener('click', () => toggle.classList.toggle('on'));
     });
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'settings-danger-btn';
+    clearBtn.textContent = 'Clear Save Data';
+    clearBtn.addEventListener('click', () => {
+      if (confirm('Delete all save data and restart? This cannot be undone.')) {
+        this.onClearSave();
+      }
+    });
+    body.querySelector('.settings-group:last-child')!.appendChild(clearBtn);
 
     this.el.appendChild(body);
   }

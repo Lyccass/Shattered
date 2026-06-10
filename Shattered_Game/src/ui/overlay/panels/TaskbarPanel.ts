@@ -58,6 +58,7 @@ export class TaskbarPanel {
     private readonly onCompanionUnequip: (slot: string) => void,
     private readonly onSkillOpen: (skill: SkillSnapshot) => void,
     private readonly onMapOpen: () => void,
+    private readonly onClearSave: () => void,
   ) {
     this.root = document.createElement('div');
     this.root.id = 'ui-sidebar';
@@ -127,7 +128,7 @@ export class TaskbarPanel {
     );
     this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
-    this.settingsContent  = new SettingsTabContent();
+    this.settingsContent  = new SettingsTabContent(this.onClearSave);
   }
 
   private createDivider(): HTMLElement {

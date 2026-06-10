@@ -32,6 +32,7 @@ export interface UiManagerCallbacks {
   onMinimapClick: () => void;
   onMinimapZoom: (delta: number) => void;
   onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
+  onClearSave: () => void;
 }
 
 const UNLOCK_REGISTRY = new SkillUnlockRegistry(SKILL_UNLOCKS);
@@ -71,6 +72,7 @@ export class UiManager {
       onMinimapClick:          callbacks.onMinimapClick,
       onMinimapZoom:           callbacks.onMinimapZoom,
       onMapTileQuery:          callbacks.onMapTileQuery,
+      onClearSave:             callbacks.onClearSave,
     });
 
     const displayObjects = this.getPhaserDisplayObjects();

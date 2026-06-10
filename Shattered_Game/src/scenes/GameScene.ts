@@ -31,6 +31,8 @@ import type { InteractionResult } from '../interactions/InteractionTypes';
 import { GroundItemSystem } from '../world/items/GroundItemSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
+import { STARTING_COMPANION_IDS } from '../items/definitions/companions';
+import { getItem } from '../items/ItemRegistry';
 import { WorldEncounterPopulationTracker } from '../combat/WorldEncounterPopulationTracker';
 import { PlayerCompanionState } from '../companions/PlayerCompanionState';
 import type { CompanionSlot } from '../companions/CompanionTypes';
@@ -125,6 +127,10 @@ export class GameScene extends Phaser.Scene {
         this.turnCombatSession?.setEquippedCompanions(this.playerCompanionState.getSlots());
       },
       onCompanionUnequip: (slot) => {
+        const slotData = this.playerCompanionState.getSlots()[slot as CompanionSlot];
+        if (slotData) {
+          this.worldRuntimeCoordinator?.grantItem(`companion_${slotData.definitionId}`, 1);
+        }
         this.playerCompanionState.unequip(slot as CompanionSlot);
         this.turnCombatSession?.setEquippedCompanions(this.playerCompanionState.getSlots());
       },
@@ -149,6 +155,7 @@ export class GameScene extends Phaser.Scene {
           walkable: iso.isTileWalkable(tileX, tileY),
         };
       },
+      onClearSave: () => this.saveController?.clearSavedGame(this.getSaveControllerContext()),
     });
     this.saveController = new GameSaveController(this);
     this.interactionController = new GameInteractionController(this, {
@@ -459,7 +466,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryUseItem(itemId: string): void {
-    if (!this.worldRuntimeCoordinator || !this.uiManager) {
+    if (!this.worldRuntimeCoordinator || !this.uiManager) return;
+
+    const def = getItem(itemId);
+    if (def?.companionId) {
+      const freeSlot = (['companion_1', 'companion_2', 'companion_3'] as CompanionSlot[])
+        .find((s) => !this.playerCompanionState.getSlots()[s]);
+      if (!freeSlot) {
+        this.uiManager.showInfo('All companion slots are full.');
+        return;
+      }
+      this.worldRuntimeCoordinator.consumeItem(itemId, 1);
+      this.playerCompanionState.equip(freeSlot, def.companionId);
+      this.turnCombatSession?.setEquippedCompanions(this.playerCompanionState.getSlots());
+      this.uiManager.showInfo(`${def.name} equipped as companion.`);
       return;
     }
 
@@ -687,7 +707,10 @@ export class GameScene extends Phaser.Scene {
     const hasSave = this.saveController?.hasSave() ?? false;
     this.saveController?.tryAutoLoadSave(this.getSaveControllerContext());
     if (!hasSave) {
-      this.worldRuntimeCoordinator?.seedStartingInventory(STARTING_WEAPON_IDS);
+      this.worldRuntimeCoordinator?.seedStartingInventory({
+        ...STARTING_WEAPON_IDS,
+        ...STARTING_COMPANION_IDS,
+      });
     }
   }
 
