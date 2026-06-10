@@ -192,7 +192,7 @@ export class MinimapPanel {
     ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(cx, cy, dotR * 1.4, 0, Math.PI * 2);
+    ctx.arc(cx, cy, dotR * 0.3, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }

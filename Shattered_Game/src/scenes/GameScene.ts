@@ -54,7 +54,7 @@ export class GameScene extends Phaser.Scene {
   private tileHighlight?: Phaser.GameObjects.Graphics;
   private isSprinting = false;
   private isCombatStance = false;
-  private minimapRadius = 12;
+  private minimapRadius = 18;
   private hasShutdown = false;
   private mapLoadSerial = 0;
   private isRespawningAfterDeath = false;
