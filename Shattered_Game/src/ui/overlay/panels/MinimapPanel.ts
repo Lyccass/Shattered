@@ -171,7 +171,7 @@ export class MinimapPanel {
     }
 
     // ── Entity dots ───────────────────────────────────────────────────────────
-    const dotR = Math.max(2, sw * 0.9);
+    const dotR = Math.max(2, sw * 0.6);
 
     ctx.fillStyle = '#38bdf8';
     for (const { dx, dy } of vp.npcs) {
@@ -192,7 +192,7 @@ export class MinimapPanel {
     ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.arc(cx, cy, dotR * 0.3, 0, Math.PI * 2);
+    ctx.arc(cx, cy, dotR * 0.9, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }

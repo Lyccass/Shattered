@@ -34,6 +34,11 @@ export type PlayerSaveState = {
   journal: TaskJournalSaveState;
   activeEffects: ActiveEffectSaveState[];
   equippedSlots?: Record<string, string>;
+  spellbookLoadout?: {
+    combatSpellIds?: Array<string | null>;
+    utilitySpellIds?: Array<string | null>;
+    devotionAbilityIds?: Array<string | null>;
+  };
 };
 
 export type PersonalIslandPlacedObjectSaveState = {

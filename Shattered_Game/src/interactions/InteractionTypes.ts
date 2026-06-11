@@ -21,6 +21,7 @@ export type InteractionType =
   | 'contract_board'
   | 'placed_object'
   | 'item_use'
+  | 'utility_spell'
   | 'generic_debug'
   | 'ground_item';
 

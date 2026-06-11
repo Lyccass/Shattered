@@ -1,6 +1,13 @@
 import type { SkillId } from './SkillTypes';
 
-export type UnlockKind = 'recipe' | 'resource_node' | 'tool' | 'passive';
+export type UnlockKind =
+  | 'recipe'
+  | 'resource_node'
+  | 'tool'
+  | 'passive'
+  | 'combat_spell'
+  | 'utility_spell'
+  | 'devotion_ability';
 
 export type SkillUnlockEntry = {
   skillId: SkillId;

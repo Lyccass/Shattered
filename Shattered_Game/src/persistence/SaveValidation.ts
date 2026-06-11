@@ -84,6 +84,11 @@ function validatePlayerSaveState(input: unknown): SaveValidationResult<PlayerSav
     : readStringRecord(record.value.equippedSlots, 'PlayerSaveState.equippedSlots');
   if (equippedSlots && !equippedSlots.ok) return equippedSlots;
 
+  const spellbookLoadout = record.value.spellbookLoadout === undefined
+    ? undefined
+    : validateSpellbookLoadout(record.value.spellbookLoadout);
+  if (spellbookLoadout && !spellbookLoadout.ok) return spellbookLoadout;
+
   return {
     ok: true,
     value: {
@@ -101,6 +106,21 @@ function validatePlayerSaveState(input: unknown): SaveValidationResult<PlayerSav
       journal: journal.value,
       activeEffects: activeEffects.value,
       ...(equippedSlots ? { equippedSlots: equippedSlots.value } : {}),
+      ...(spellbookLoadout ? { spellbookLoadout: spellbookLoadout.value } : {}),
+    },
+  };
+}
+
+function validateSpellbookLoadout(input: unknown): SaveValidationResult<NonNullable<PlayerSaveState['spellbookLoadout']>> {
+  const record = asRecord(input, 'PlayerSaveState.spellbookLoadout');
+  if (!record.ok) return record;
+
+  return {
+    ok: true,
+    value: {
+      combatSpellIds: readNullableStringArray(record.value.combatSpellIds),
+      utilitySpellIds: readNullableStringArray(record.value.utilitySpellIds),
+      devotionAbilityIds: readNullableStringArray(record.value.devotionAbilityIds),
     },
   };
 }
@@ -392,6 +412,11 @@ function readStringArray(value: unknown, label: string): SaveValidationResult<st
   }
 
   return { ok: true, value: [...value] };
+}
+
+function readNullableStringArray(value: unknown): Array<string | null> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.map((entry) => typeof entry === 'string' && entry.length > 0 ? entry : null);
 }
 
 function readNumberRecord(value: unknown, label: string): SaveValidationResult<Record<string, number>> {

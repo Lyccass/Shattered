@@ -1,4 +1,6 @@
 export type TurnDamageType = 'slash' | 'pierce' | 'crush';
+export type TurnAbilityKind = 'combat_spell' | 'devotion';
+export type TurnAbilityTarget = 'enemy' | 'self';
 
 export type StatusEffectKind =
   | 'stunned'
@@ -79,6 +81,28 @@ export type TurnAttack = {
   staggerDamage?: number;
 };
 
+export type TurnCombatAbility = {
+  id: string;
+  displayName: string;
+  kind: TurnAbilityKind;
+  target: TurnAbilityTarget;
+  apCost: number;
+  minRangeTiles?: number;
+  maxRangeTiles?: number;
+  damage?: number;
+  damageType?: TurnDamageType;
+  healAmount?: number;
+  magicCost?: number;
+  devotionCost?: number;
+  cooldownTurns?: number;
+  hitChance?: number;
+  statusEffect?: {
+    kind: StatusEffectKind;
+    turns: number;
+    value: number;
+  };
+};
+
 export type TurnParticipant = {
   id: string;
   kind: 'player' | 'enemy' | 'companion';
@@ -91,6 +115,10 @@ export type TurnParticipant = {
   mpMax: number;
   apRemaining: number;
   mpRemaining: number;
+  magicResourceMax?: number;
+  magicResourceRemaining?: number;
+  devotionResourceMax?: number;
+  devotionResourceRemaining?: number;
   secondaryActionMax?: number;
   secondaryActionRemaining?: number;
   /** Lower initiative acts first. Rolled once at combat start. */
@@ -105,6 +133,8 @@ export type TurnParticipant = {
   attackRangeTiles: number;
   attacks?: TurnAttack[];
   attackCooldowns?: Record<string, number>;
+  abilities?: TurnCombatAbility[];
+  abilityCooldowns?: Record<string, number>;
   stagger?: number;
   staggerThreshold?: number;
   bleedMovementTiles?: number;
@@ -121,10 +151,12 @@ export type TurnParticipant = {
 };
 
 export type TurnAction =
-  | { kind: 'move';    toTileX: number; toTileY: number }
-  | { kind: 'attack';  targetId: string; attackId?: string }
+  | { kind: 'move';         toTileX: number; toTileY: number }
+  | { kind: 'attack';       targetId: string; attackId?: string }
+  | { kind: 'use_ability';  abilityId: string; targetId?: string }
   | { kind: 'guard' }
   | { kind: 'cleanse' }
+  | { kind: 'consume_item'; itemId: string; healAmount: number }
   | { kind: 'end_turn' }
   | { kind: 'flee' };
 
@@ -139,11 +171,13 @@ export type TurnStatusTickOutcome = {
 export type ActionOutcome =
   | { kind: 'moved';       actorId: string; fromTile: { x: number; y: number }; toTile: { x: number; y: number }; path?: { x: number; y: number }[] }
   | { kind: 'attacked';    actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult }
+  | { kind: 'ability_used'; actorId: string; abilityId: string; abilityName: string; abilityKind: TurnAbilityKind; targetId: string; damage?: number; healAmount?: number; newHp?: number; hit?: boolean; killed?: boolean; statusApplied?: StatusEffect }
   | { kind: 'telegraph_prepared'; actorId: string; targetId: string; attackId: string; attackName: string; telegraphId: string; tiles: TurnTelegraphTile[] }
   | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult }
   | TurnStatusTickOutcome
-  | { kind: 'guarded';     actorId: string; statusApplied: StatusEffect }
-  | { kind: 'cleansed';    actorId: string; removedEffect: StatusEffect }
+  | { kind: 'guarded';      actorId: string; statusApplied: StatusEffect }
+  | { kind: 'cleansed';     actorId: string; removedEffect: StatusEffect }
+  | { kind: 'item_consumed'; actorId: string; itemId: string; healAmount: number; newHp: number }
   | { kind: 'turn_ended';  actorId: string; nextParticipantId: string | null; statusTicks?: TurnStatusTickOutcome[] }
   | { kind: 'fled';        actorId: string }
   | { kind: 'combat_ended'; reason: CombatEndReason; statusTicks?: TurnStatusTickOutcome[] }
@@ -187,6 +221,12 @@ export type TurnParticipantUiSnapshot = {
   statusEffects: StatusEffect[];
   attacks: TurnAttackUiSnapshot[];
   attackCooldowns: Record<string, number>;
+  magicResourceRemaining: number;
+  magicResourceMax: number;
+  devotionResourceRemaining: number;
+  devotionResourceMax: number;
+  abilities: TurnCombatAbilityUiSnapshot[];
+  abilityCooldowns: Record<string, number>;
   isActive: boolean;
 };
 
@@ -197,6 +237,19 @@ export type TurnAttackUiSnapshot = {
   minRangeTiles: number;
   maxRangeTiles: number;
   cooldownRemaining: number;
+};
+
+export type TurnCombatAbilityUiSnapshot = {
+  id: string;
+  displayName: string;
+  kind: TurnAbilityKind;
+  target: TurnAbilityTarget;
+  apCost: number;
+  minRangeTiles: number;
+  maxRangeTiles: number;
+  cooldownRemaining: number;
+  magicCost: number;
+  devotionCost: number;
 };
 
 export type TurnCombatUiSnapshot = {
@@ -216,6 +269,7 @@ export type TurnCombatUiSnapshot = {
   /** True while player is in "pick-a-target" attack mode. */
   isAttackMode: boolean;
   selectedAttackId: string | null;
+  selectedAbilityId: string | null;
   activeParticipantId: string | null;
   turnOrder: TurnParticipantUiSnapshot[];
 };

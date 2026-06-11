@@ -85,6 +85,7 @@ export type EquippedSlotEntry = {
 
 export type PlayerDerivedStats = {
   maxHp: number;
+  combatLevel: number;
   maxStamina: number;
   attack: number;
   accuracy: number;
@@ -120,6 +121,7 @@ export type EquipmentSnapshot = {
 export function emptyDerivedStats(): PlayerDerivedStats {
   return {
     maxHp: 10,
+    combatLevel: 1,
     maxStamina: 100,
     attack: 1,
     accuracy: 50,

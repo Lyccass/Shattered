@@ -23,6 +23,7 @@ import type {
   CombatEndReason,
   TurnAttack,
   TurnAction,
+  TurnCombatAbility,
   TurnCombatState,
   TurnCombatUiSnapshot,
   TurnParticipant,
@@ -50,6 +51,9 @@ const PLAYER_MAIN_ACTIONS_PER_TURN      = 1;
 const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
 const PLAYER_MOVE_POINTS_PER_TURN       = 5;
 const PLAYER_HP_REGEN_INTERVAL_MS       = 60_000;
+const AUTO_FLEE_DISTANCE = 8;
+const PLAYER_MAGIC_RESOURCE_MAX = 4;
+const PLAYER_DEVOTION_RESOURCE_MAX = 4;
 
 export class TurnCombatSession {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -65,16 +69,22 @@ export class TurnCombatSession {
   /** Persistent player HP across combats. Null until first combat entry. */
   private persistedPlayerHp: number | null = null;
   private persistedPlayerMaxHp: number | null = null;
+  private persistedMagicResource: number | null = null;
+  private persistedDevotionResource: number | null = null;
   private lastPlayerHpRegenMs = 0;
   private _isSprinting = false;
   /** Whether the player has activated "pick a target" attack mode. */
   private _isAttackMode = false;
   private selectedPlayerAttackId: string | null = null;
+  private selectedPlayerAbilityId: string | null = null;
+  private equippedTurnAbilities: TurnCombatAbility[] = [];
   private equippedCompanions: EquippedCompanionSlots = {};
   private companionVisuals: Map<string, CompanionVisualController> = new Map();
 
   private readonly previewRenderer: TurnActionPreviewRenderer;
   private readonly hitsplatRenderer: HitsplatRenderer;
+
+  private onConsumeItemCallback: ((itemId: string) => boolean) | null = null;
 
   // Callbacks
   private onCombatEnd?: (event: CombatEndEvent) => void;
@@ -129,6 +139,8 @@ export class TurnCombatSession {
     this.persistedPlayerMaxHp = stats.maxHp;
     if (this.persistedPlayerHp === null) this.persistedPlayerHp = stats.maxHp;
     else this.persistedPlayerHp = Math.min(this.persistedPlayerHp, stats.maxHp);
+    if (this.persistedMagicResource === null) this.persistedMagicResource = PLAYER_MAGIC_RESOURCE_MAX;
+    if (this.persistedDevotionResource === null) this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
   }
 
   /** Call after the player respawns so HP is reset to full. */
@@ -136,10 +148,16 @@ export class TurnCombatSession {
     const maxHp = this.derivedStats?.maxHp ?? null;
     this.persistedPlayerHp = maxHp;
     this.persistedPlayerMaxHp = maxHp;
+    this.persistedMagicResource = PLAYER_MAGIC_RESOURCE_MAX;
+    this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
   }
 
   setEquippedCompanions(slots: EquippedCompanionSlots): void {
     this.equippedCompanions = slots;
+  }
+
+  setEquippedTurnAbilities(abilities: TurnCombatAbility[]): void {
+    this.equippedTurnAbilities = abilities.map((ability) => ({ ...ability }));
   }
 
   onEnd(cb: (evt: CombatEndEvent) => void): void {
@@ -154,6 +172,16 @@ export class TurnCombatSession {
     cb: (spawnId: string, areaId: string | undefined, lootTableId: string | undefined, worldX: number, worldY: number) => void,
   ): void {
     this.onEnemyKilledForLoot = cb;
+  }
+
+  setConsumeCallback(cb: (itemId: string) => boolean): void {
+    this.onConsumeItemCallback = cb;
+  }
+
+  /** Restore HP outside of combat (eating/drinking in explore mode). */
+  applyHpHeal(amount: number): void {
+    if (this.persistedPlayerHp === null || this.persistedPlayerMaxHp === null) return;
+    this.persistedPlayerHp = Math.min(this.persistedPlayerMaxHp, this.persistedPlayerHp + amount);
   }
 
   // ─── Per-frame update ─────────────────────────────────────────────────────
@@ -172,6 +200,10 @@ export class TurnCombatSession {
       return;
     }
 
+    // Update previews every frame — must reflect attack-mode selection immediately,
+    // even while the anim queue is draining (e.g. post-enemy-turn delay).
+    this.previewRenderer.update(this.combatState, this.buildTileCtx(), this._isAttackMode);
+
     // Process animation queue first — block all logic until animations settle
     if (this.animQueue.length > 0) {
       this.processAnimQueue(nowMs);
@@ -179,14 +211,26 @@ export class TurnCombatSession {
     }
     this.blockedByAnim = false;
 
-    // Update previews
-    this.previewRenderer.update(this.combatState, this.buildTileCtx(), this._isAttackMode);
-
     const activeDuringPlayerPhase = this.combatState.phase === 'player_turn'
       ? getActiveParticipant(this.combatState)
       : null;
     if (activeDuringPlayerPhase?.kind === 'player' && this.isPlayerMovementAnimating()) {
       return;
+    }
+
+    // Auto-flee when all enemies are far enough away
+    if (this.combatState.phase === 'player_turn' && this.animQueue.length === 0 && !this.blockedByAnim) {
+      const playerP = this.combatState.participants.find((p) => p.id === 'player');
+      const livingEnemies = this.combatState.participants.filter((p) => p.kind === 'enemy' && p.hp > 0);
+      if (playerP && livingEnemies.length > 0) {
+        const allFar = livingEnemies.every(
+          (e) => Math.max(Math.abs(e.tileX - playerP.tileX), Math.abs(e.tileY - playerP.tileY)) >= AUTO_FLEE_DISTANCE,
+        );
+        if (allFar) {
+          this.submitPlayerAction({ kind: 'flee' });
+          return;
+        }
+      }
     }
 
     // Auto-advance turn when the active unit (player or companion) has exhausted all actions
@@ -226,6 +270,7 @@ export class TurnCombatSession {
     if (!this.canAcceptPlayerInput()) return null;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
     return this.submitPlayerAction({ kind: 'attack', targetId, attackId });
   }
 
@@ -233,6 +278,7 @@ export class TurnCombatSession {
     if (!this.canAcceptPlayerInput()) return;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
     this.submitPlayerAction({ kind: 'end_turn' });
   }
 
@@ -240,6 +286,7 @@ export class TurnCombatSession {
     if (!this.canAcceptPlayerInput()) return null;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
     return this.submitPlayerAction({ kind: 'flee' });
   }
 
@@ -247,6 +294,7 @@ export class TurnCombatSession {
     if (!this.canAcceptPlayerInput()) return null;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
     return this.submitPlayerAction({ kind: 'guard' });
   }
 
@@ -254,26 +302,57 @@ export class TurnCombatSession {
     if (!this.canAcceptPlayerInput()) return null;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
     return this.submitPlayerAction({ kind: 'cleanse' });
   }
 
-  /** Toggle the "pick-a-target" attack cursor on/off. */
+  tryPlayerConsumeItem(itemId: string, healAmount: number): ActionOutcome | null {
+    if (!this.canAcceptPlayerInput()) return null;
+    const consumed = this.onConsumeItemCallback?.(itemId) ?? false;
+    if (!consumed) return null;
+    return this.submitPlayerAction({ kind: 'consume_item', itemId, healAmount });
+  }
+
+  /** Select which attack to use next. Clicking the same button again keeps it selected. */
   toggleAttackMode(attackId?: string): void {
-    if (!this.isPlayerTurn() || this.isAnimating()) return;
-    if (this._isAttackMode && this.selectedPlayerAttackId === (attackId ?? null)) {
+    if (!this.canAcceptPlayerInput()) return;
+    this._isAttackMode = true;
+    this.selectedPlayerAttackId = attackId ?? null;
+    this.selectedPlayerAbilityId = null;
+  }
+
+  selectMoveMode(): void {
+    if (!this.canAcceptPlayerInput()) return;
+    this._isAttackMode = false;
+    this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
+  }
+
+  activateAbility(abilityId: string): ActionOutcome | null {
+    if (!this.canAcceptPlayerInput() || !this.combatState) return null;
+
+    const active = getActiveParticipant(this.combatState);
+    const ability = active?.abilities?.find((entry) => entry.id === abilityId);
+    if (!active || !ability) return null;
+
+    this.selectedPlayerAttackId = null;
+
+    if (ability.target === 'self') {
       this._isAttackMode = false;
-      this.selectedPlayerAttackId = null;
-      return;
+      this.selectedPlayerAbilityId = null;
+      return this.submitPlayerAction({ kind: 'use_ability', abilityId });
     }
 
     this._isAttackMode = true;
-    this.selectedPlayerAttackId = attackId ?? null;
+    this.selectedPlayerAbilityId = abilityId;
+    return null;
   }
 
   /**
-   * Called from pointer interaction.
-   * - Attack mode ON: click an enemy to attack; click elsewhere cancels mode.
-   * - Attack mode OFF: clicking an enemy auto-attacks; clicking empty tile moves.
+   * Click a tile in combat.
+   * Clicking an enemy always resolves the currently selected attack (or the default).
+   * If out of range, auto-moves toward the enemy instead.
+   * Clicking an empty tile moves the player.
    */
   handleTileClick(tileX: number, tileY: number): ActionOutcome | null {
     if (!this.canAcceptPlayerInput() || !this.combatState) return null;
@@ -282,21 +361,35 @@ export class TurnCombatSession {
       (p) => p.kind === 'enemy' && p.hp > 0 && p.tileX === tileX && p.tileY === tileY,
     );
 
-    if (this._isAttackMode) {
-      // In attack mode: any click resolves it
-      this._isAttackMode = false;
-      const attackId = this.selectedPlayerAttackId ?? undefined;
-      this.selectedPlayerAttackId = null;
-      if (targetParticipant) return this.tryPlayerAttack(targetParticipant.id, attackId);
-      return null; // cancelled by clicking empty tile
-    }
-
-    // Normal mode: attack if in range, otherwise move toward enemy
     if (targetParticipant) {
-      const attackResult = this.tryPlayerAttack(targetParticipant.id, undefined);
-      if (attackResult?.kind !== 'invalid') return attackResult;
+      const savedMode = this._isAttackMode;
+      const savedId   = this.selectedPlayerAttackId;
+      const savedAbilityId = this.selectedPlayerAbilityId;
+      if (savedMode && savedAbilityId) {
+        const abilityResult = this.submitPlayerAction({
+          kind: 'use_ability',
+          abilityId: savedAbilityId,
+          targetId: targetParticipant.id,
+        });
+        if (abilityResult?.kind !== 'invalid') {
+          this._isAttackMode = false;
+          this.selectedPlayerAbilityId = null;
+          return abilityResult;
+        }
+        this._isAttackMode = savedMode;
+        this.selectedPlayerAbilityId = savedAbilityId;
+        return abilityResult;
+      }
 
-      // Out of attack range — move toward the enemy as far as possible
+      const attackId  = savedMode ? (savedId ?? undefined) : undefined;
+      const attackResult = this.tryPlayerAttack(targetParticipant.id, attackId);
+      if (attackResult?.kind !== 'invalid') {
+        return attackResult;
+      }
+      // Attack invalid (out of range / on cooldown) — restore selection and move closer
+      this._isAttackMode = savedMode;
+      this.selectedPlayerAttackId = savedId;
+      this.selectedPlayerAbilityId = savedAbilityId;
       const active = getActiveParticipant(this.combatState);
       if (active && active.mpRemaining > 0) {
         const approach = getBestApproachTile(
@@ -307,6 +400,9 @@ export class TurnCombatSession {
       }
       return attackResult;
     }
+
+    // Empty tile: just move. Attack selection persists so the player can position
+    // then click the enemy without re-selecting the attack.
     return this.tryPlayerMove(tileX, tileY);
   }
 
@@ -326,6 +422,7 @@ export class TurnCombatSession {
       isSprinting: this._isSprinting,
       isAttackMode: this._isAttackMode,
       selectedAttackId: this.selectedPlayerAttackId,
+      selectedAbilityId: this.selectedPlayerAbilityId,
     };
   }
 
@@ -409,7 +506,10 @@ export class TurnCombatSession {
     const maxHp = this.derivedStats.maxHp;
     this.persistedPlayerMaxHp = maxHp;
     if (this.persistedPlayerHp === null) this.persistedPlayerHp = maxHp;
+    if (this.persistedMagicResource === null) this.persistedMagicResource = PLAYER_MAGIC_RESOURCE_MAX;
+    if (this.persistedDevotionResource === null) this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
     const playerAttacks = buildPlayerTurnAttacks(this.derivedStats);
+    const playerAbilities = this.equippedTurnAbilities.map((ability) => ({ ...ability }));
 
     const playerParticipant: TurnParticipant = {
       id:              'player',
@@ -425,6 +525,10 @@ export class TurnCombatSession {
       secondaryActionMax: PLAYER_SECONDARY_ACTIONS_PER_TURN,
       secondaryActionRemaining: PLAYER_SECONDARY_ACTIONS_PER_TURN,
       mpRemaining:     PLAYER_MOVE_POINTS_PER_TURN,
+      magicResourceMax: PLAYER_MAGIC_RESOURCE_MAX,
+      magicResourceRemaining: this.persistedMagicResource ?? PLAYER_MAGIC_RESOURCE_MAX,
+      devotionResourceMax: PLAYER_DEVOTION_RESOURCE_MAX,
+      devotionResourceRemaining: this.persistedDevotionResource ?? PLAYER_DEVOTION_RESOURCE_MAX,
       initiative:      5,
       attackPower:     this.derivedStats.attack,
       hitChance:       this.derivedStats.accuracy,
@@ -435,6 +539,8 @@ export class TurnCombatSession {
       attackRangeTiles: Math.max(...playerAttacks.map((attack) => attack.maxRangeTiles)),
       attacks:         playerAttacks,
       attackCooldowns: {},
+      abilities:       playerAbilities,
+      abilityCooldowns: {},
       stagger:         0,
       staggerThreshold: Math.max(10, Math.ceil(this.derivedStats.staggerThreshold / 10)),
       weaponId:        this.derivedStats.weaponArchetype,
@@ -460,6 +566,10 @@ export class TurnCombatSession {
           mpMax:           def.mpPerTurn,
           apRemaining:     def.apPerTurn,
           mpRemaining:     def.mpPerTurn,
+          magicResourceMax: 0,
+          magicResourceRemaining: 0,
+          devotionResourceMax: 0,
+          devotionResourceRemaining: 0,
           initiative:      def.initiative,
           attackPower:     def.attacks[0]?.damage ?? 1,
           hitChance:       def.attacks[0]?.hitChance,
@@ -578,6 +688,10 @@ export class TurnCombatSession {
         mpMax: def.mpPerTurn,
         apRemaining: def.apPerTurn,
         mpRemaining: def.mpPerTurn,
+        magicResourceMax: 0,
+        magicResourceRemaining: 0,
+        devotionResourceMax: 0,
+        devotionResourceRemaining: 0,
         initiative: def.initiative,
         attackPower: def.attackPower,
         defensePower: def.defensePower,
@@ -664,6 +778,57 @@ export class TurnCombatSession {
           this.companionVisuals.delete(outcome.targetId);
         }
         if (outcome.pushed) this.handleForcedMovementVisual(outcome.pushed);
+        break;
+      }
+
+      case 'ability_used': {
+        const targetEs = this.findEnemySystem(outcome.targetId);
+        if (targetEs) {
+          this.syncEnemyCombatHp(outcome.targetId);
+          const pos = targetEs.getWorldPosition();
+          if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.damage ?? 0);
+          if (outcome.hit) targetEs.flashHit(this.scene.time.now);
+        } else if (outcome.targetId === 'player') {
+          const feet = this.playerController?.getFeetPoint();
+          if (feet) {
+            if ((outcome.healAmount ?? 0) > 0) {
+              this.hitsplatRenderer.show(feet.x, feet.y, outcome.healAmount ?? 0, 0, '+HP', '#86efac');
+            } else if (outcome.statusApplied) {
+              this.hitsplatRenderer.show(feet.x, feet.y, 0, 0, outcome.abilityName, '#a0c4ff');
+            }
+          }
+        } else {
+          const companionVc = this.companionVisuals.get(outcome.targetId);
+          const p = this.combatState?.participants.find((pp) => pp.id === outcome.targetId);
+          if (companionVc && p && this.currentTilemap) {
+            const world = this.currentTilemap.getTileCenterWorld(p.tileX, p.tileY);
+            companionVc.update(world.x, world.y, p.hp, p.maxHp, this.scene.time.now);
+          }
+        }
+
+        if (outcome.killed) {
+          const es = this.findEnemySystem(outcome.targetId);
+          if (es) {
+            const pos  = es.getWorldPosition();
+            const def  = es.getDefinition();
+            const spawnId = es.getSpawnId();
+            es.recordDeath(this.scene.time.now);
+            if (spawnId && pos && def) {
+              this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y);
+            }
+          }
+        }
+        if (outcome.actorId === 'player') {
+          const xpAmount = Math.max(
+            4,
+            ((outcome.damage ?? 0) + (outcome.healAmount ?? 0)) * 4,
+          );
+          if (outcome.abilityKind === 'combat_spell') {
+            this.onCombatXp?.({ magic: xpAmount });
+          } else {
+            this.onCombatXp?.({ devotion: xpAmount });
+          }
+        }
         break;
       }
 
@@ -757,6 +922,16 @@ export class TurnCombatSession {
         if (outcome.actorId === 'player') {
           const feet = this.playerController?.getFeetPoint();
           if (feet) this.hitsplatRenderer.show(feet.x, feet.y, 0, 0, 'Cleanse', '#a7f3d0');
+        }
+        break;
+
+      case 'item_consumed':
+        if (outcome.actorId === 'player' && outcome.healAmount > 0) {
+          const feet = this.playerController?.getFeetPoint();
+          if (feet) this.hitsplatRenderer.show(feet.x, feet.y, outcome.healAmount, 0, '+HP', '#86efac');
+          if (this.combatState) {
+            this.persistedPlayerHp = outcome.newHp;
+          }
         }
         break;
 
@@ -877,6 +1052,8 @@ export class TurnCombatSession {
     const playerP = this.combatState?.participants.find((p) => p.id === 'player');
     if (playerP) {
       this.persistedPlayerHp = reason === 'player_died' ? 0 : playerP.hp;
+      this.persistedMagicResource = playerP.magicResourceRemaining ?? this.persistedMagicResource;
+      this.persistedDevotionResource = playerP.devotionResourceRemaining ?? this.persistedDevotionResource;
     }
 
     for (const es of this.enemySystems) {
@@ -906,6 +1083,7 @@ export class TurnCombatSession {
     this.blockedByAnim = false;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
     this.previewRenderer.clear();
     this.onCombatEnd?.({ reason, killedSpawnIds: killedIds.filter(Boolean) });
   }
@@ -917,6 +1095,7 @@ export class TurnCombatSession {
     this.blockedByAnim = false;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
+    this.selectedPlayerAbilityId = null;
   }
 
   // ─── Private: helpers ─────────────────────────────────────────────────────
@@ -972,7 +1151,10 @@ export class TurnCombatSession {
   private syncEnemyCombatHp(participantId: string): void {
     const es = this.findEnemySystem(participantId);
     const participant = this.combatState?.participants.find((p) => p.id === participantId);
-    if (es && participant) es.setCombatHp(participant.hp);
+    if (!es || !participant) return;
+    es.setCombatHp(participant.hp);
+    const pos = es.getWorldPosition();
+    if (pos) es.applyVisualUpdate(pos.x, pos.y, false, participant.hp, 'idle', this.scene.time.now);
   }
 
   private handleForcedMovementVisual(pushed: {
@@ -1113,9 +1295,9 @@ function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
   const minRangeTiles = getPlayerMinRangeTiles(stats);
   const maxRangeTiles = Math.max(minRangeTiles, Math.max(1, Math.ceil(stats.reachTiles)));
   const hitCount = stats.attackShape.kind === 'thrust' && stats.attackShape.doubleHit ? 2 : 1;
-  const styles = getWeaponAttackStyles(stats.weaponArchetype);
+  const style = getWeaponPrimaryStyle(stats.weaponArchetype);
 
-  return styles.map((style) => ({
+  const basicAttack: TurnAttack = {
     id: `${stats.weaponArchetype}_${style.damageType}`,
     displayName: style.displayName,
     apCost: 1,
@@ -1123,14 +1305,29 @@ function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
     maxRangeTiles: maxRangeTiles + style.rangeBonus,
     damage: Math.max(1, stats.attack + style.damageBonus),
     damageType: style.damageType,
-    hitCount: style.damageType === stats.damageType ? hitCount : 1,
+    hitCount: hitCount,
     oncePerTurn: true,
     hitChance: Math.max(10, stats.accuracy + style.accuracyBonus),
     staggerDamage: style.staggerDamage,
     statusEffect: style.statusEffect,
     forcedMovement: style.forcedMovement,
     cooldownTurns: 0,
-  }));
+  };
+
+  const heavyHit: TurnAttack = {
+    id: `${stats.weaponArchetype}_special`,
+    displayName: 'Heavy Hit',
+    apCost: 1,
+    minRangeTiles,
+    maxRangeTiles,
+    damage: Math.max(2, Math.round(stats.attack * 2)),
+    damageType: style.damageType,
+    hitChance: Math.max(10, stats.accuracy - 15),
+    staggerDamage: (style.staggerDamage ?? 0) + 4,
+    cooldownTurns: 1,
+  };
+
+  return [basicAttack, heavyHit];
 }
 
 function getPlayerMinRangeTiles(stats: PlayerDerivedStats): number {
@@ -1138,7 +1335,7 @@ function getPlayerMinRangeTiles(stats: PlayerDerivedStats): number {
   return Math.max(0, Math.ceil(stats.attackShape.minRangeTiles ?? 0));
 }
 
-function getWeaponAttackStyles(archetype: PlayerDerivedStats['weaponArchetype']): Array<{
+type WeaponStyle = {
   damageType: TurnDamageType;
   displayName: string;
   accuracyBonus: number;
@@ -1147,55 +1344,20 @@ function getWeaponAttackStyles(archetype: PlayerDerivedStats['weaponArchetype'])
   staggerDamage: number;
   statusEffect?: TurnAttack['statusEffect'];
   forcedMovement?: TurnAttack['forcedMovement'];
-}> {
+};
+
+function getWeaponPrimaryStyle(archetype: PlayerDerivedStats['weaponArchetype']): WeaponStyle {
   switch (archetype) {
     case 'dagger':
-      return [
-        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8, damageBonus: 0, rangeBonus: 0, staggerDamage: 2 },
-        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0, staggerDamage: 2 },
-      ];
+      return { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8,  damageBonus: 0, rangeBonus: 0, staggerDamage: 2 };
     case 'spear':
-      return [
-        {
-          damageType: 'pierce',
-          displayName: 'Stab',
-          accuracyBonus: 5,
-          damageBonus: 0,
-          rangeBonus: 0,
-          staggerDamage: 4,
-          forcedMovement: { kind: 'push', distance: 1 },
-        },
-      ];
+      return { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 5,  damageBonus: 0, rangeBonus: 0, staggerDamage: 4, forcedMovement: { kind: 'push', distance: 1 } };
     case 'axe':
-      return [
-        { damageType: 'slash', displayName: 'Slash', accuracyBonus: 0,  damageBonus: 1, rangeBonus: 0, staggerDamage: 4 },
-        {
-          damageType: 'crush',
-          displayName: 'Crush',
-          accuracyBonus: -6,
-          damageBonus: 2,
-          rangeBonus: 0,
-          staggerDamage: 5,
-          statusEffect: { kind: 'slowed', turns: 2, value: 2 },
-        },
-      ];
+      return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 1, rangeBonus: 0, staggerDamage: 4 };
     case 'hammer':
-      return [
-        {
-          damageType: 'crush',
-          displayName: 'Crush',
-          accuracyBonus: -4,
-          damageBonus: 2,
-          rangeBonus: 0,
-          staggerDamage: 7,
-          forcedMovement: { kind: 'push', distance: 1 },
-        },
-      ];
+      return { damageType: 'crush',  displayName: 'Crush', accuracyBonus: -4, damageBonus: 2, rangeBonus: 0, staggerDamage: 7, forcedMovement: { kind: 'push', distance: 1 } };
     case 'sword':
     default:
-      return [
-        { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0, damageBonus: 0, rangeBonus: 0, staggerDamage: 3 },
-        { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 3, damageBonus: 0, rangeBonus: 0, staggerDamage: 3 },
-      ];
+      return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0, staggerDamage: 3 };
   }
 }

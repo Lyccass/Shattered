@@ -11,19 +11,22 @@ import type { PlayerInventorySnapshot } from '../player/PlayerInventoryState';
 import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import { SKILL_UNLOCKS } from '../skills/SkillUnlockData';
 import { SkillUnlockRegistry } from '../skills/SkillUnlockRegistry';
+import type { AbilitySlotType } from '../combat/abilities/CombatAbilityDefinitions';
 
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
   onCombatEndTurn: () => void;
+  onCombatMoveMode: () => void;
   onCombatAttackMode: (attackId?: string) => void;
-  onCombatGuard: () => void;
-  onCombatCleanse: () => void;
+  onCombatAbility: (abilityId: string) => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;
   onInventoryItemInspect: (itemId: string) => void;
   onInventoryItemCombine: (sourceId: string, targetId: string) => void;
   onEquipmentUnequip: (slot: string) => void;
+  onSpellbookEquip: (slotType: AbilitySlotType, slotIndex: number, abilityId: string | null) => void;
+  onUtilitySpellUse: (abilityId: string) => void;
   onCompanionEquip: (slot: string, definitionId: string) => void;
   onCompanionUnequip: (slot: string) => void;
   onChoiceMenuSelect: (index: number) => void;
@@ -55,15 +58,17 @@ export class UiManager {
     this.overlay = new UIOverlayManager({
       onCombatToggle:          callbacks.onCombatToggle,
       onCombatEndTurn:         callbacks.onCombatEndTurn,
+      onCombatMoveMode:        callbacks.onCombatMoveMode,
       onCombatAttackMode:      callbacks.onCombatAttackMode,
-      onCombatGuard:           callbacks.onCombatGuard,
-      onCombatCleanse:         callbacks.onCombatCleanse,
+      onCombatAbility:         callbacks.onCombatAbility,
       onSprintToggle:          callbacks.onSprintToggle,
       onInventoryItemUse:      callbacks.onInventoryItemUse,
       onInventoryItemDrop:     callbacks.onInventoryItemDrop,
       onInventoryItemInspect:  callbacks.onInventoryItemInspect,
       onInventoryItemCombine:  callbacks.onInventoryItemCombine,
       onEquipmentUnequip:      callbacks.onEquipmentUnequip,
+      onSpellbookEquip:        callbacks.onSpellbookEquip,
+      onUtilitySpellUse:       callbacks.onUtilitySpellUse,
       onCompanionEquip:        callbacks.onCompanionEquip,
       onCompanionUnequip:      callbacks.onCompanionUnequip,
       onChoiceMenuSelect:      callbacks.onChoiceMenuSelect,

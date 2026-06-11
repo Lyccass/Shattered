@@ -1,4 +1,6 @@
 
+import type { AbilitySlotType } from '../../combat/abilities/CombatAbilityDefinitions';
+
 /**
  * Design tokens mirrored from public/ui.css :root block.
  * Update both files together when changing the theme.
@@ -35,6 +37,8 @@ export const UI_TOKENS = {
     combatOn:   '/assets/Game_icons_test/combat_active.svg',
     combatOff:  '/assets/Game_icons_test/combat_inactive.svg',
     skills:     '/assets/Game_icons_test/Skills.svg',
+    magic:      '/assets/Game_icons_test/Magic.svg',
+    devotion:   '/assets/Game_icons_test/Devotion.svg',
     sprint:     '/assets/Game_icons_test/Run.svg',
   },
   sizes: {
@@ -50,7 +54,7 @@ export const UI_TOKENS = {
   },
 } as const;
 
-export type TabId = 'equipment' | 'inventory' | 'skills' | 'journal' | 'map' | 'settings';
+export type TabId = 'equipment' | 'inventory' | 'magic' | 'devotion' | 'skills' | 'journal' | 'map' | 'settings';
 export type ChatChannel = 'all' | 'game' | 'combat' | 'system';
 
 export interface ChatMessage {
@@ -62,15 +66,17 @@ export interface ChatMessage {
 export interface UIOverlayCallbacks {
   onCombatToggle: () => void;
   onCombatEndTurn: () => void;
+  onCombatMoveMode: () => void;
   onCombatAttackMode: (attackId?: string) => void;
-  onCombatGuard: () => void;
-  onCombatCleanse: () => void;
+  onCombatAbility: (abilityId: string) => void;
   onSprintToggle: () => void;
   onInventoryItemUse: (itemId: string) => void;
   onInventoryItemDrop: (itemId: string) => void;
   onInventoryItemInspect: (itemId: string) => void;
   onInventoryItemCombine: (sourceId: string, targetId: string) => void;
   onEquipmentUnequip: (slot: string) => void;
+  onSpellbookEquip: (slotType: AbilitySlotType, slotIndex: number, abilityId: string | null) => void;
+  onUtilitySpellUse: (abilityId: string) => void;
   onCompanionEquip: (slot: string, definitionId: string) => void;
   onCompanionUnequip: (slot: string) => void;
   onChoiceMenuSelect: (index: number) => void;

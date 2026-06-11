@@ -54,7 +54,9 @@ export function xpThresholdForLevel(level: number): number {
 
 const SKILL_DISPLAY_NAMES: Record<SkillId, string> = {
   melee:        'Melee',
-  defence:      'Defence',
+  ranged:       'Ranged',
+  magic:        'Magic',
+  devotion:     'Devotion',
   metalworking: 'Metalworking',
   woodworking:  'Woodworking',
   alchemy:      'Alchemy',
@@ -65,7 +67,9 @@ export class SkillProgressionSystem {
   // Add new SkillId entries here when expanding the skill set.
   private readonly xpBySkill: Record<SkillId, number> = {
     melee:        0,
-    defence:      0,
+    ranged:       0,
+    magic:        0,
+    devotion:     0,
     metalworking: 0,
     woodworking:  0,
     alchemy:      0,

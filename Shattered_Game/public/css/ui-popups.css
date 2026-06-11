@@ -229,7 +229,6 @@
   border-bottom-color: var(--c-secondary) !important;
   background: rgba(97, 60, 24, 0.22);
 }
-.skd-tab--empty,
 .skd-tab:disabled {
   opacity: 0.28;
   cursor: not-allowed;

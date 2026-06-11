@@ -6,6 +6,8 @@ import type {
   TurnAttack,
   TurnAttackUiSnapshot,
   TurnAction,
+  TurnCombatAbility,
+  TurnCombatAbilityUiSnapshot,
   TurnCombatState,
   TurnCombatUiSnapshot,
   TurnForcedMovement,
@@ -16,6 +18,7 @@ import type {
   TurnPhase,
 } from './TurnCombatTypes';
 import {
+  chebyshevDist,
   getMovePath,
   getUsableAttacks,
   isValidAttack,
@@ -39,7 +42,9 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
     ...p,
     statusEffects: [...p.statusEffects],
     attacks: cloneAttacks(p.attacks),
+    abilities: cloneAbilities(p.abilities),
     attackCooldowns: { ...(p.attackCooldowns ?? {}) },
+    abilityCooldowns: { ...(p.abilityCooldowns ?? {}) },
     initiative: p.initiative + Math.floor(Math.random() * 6) + 1,
   }));
 
@@ -90,10 +95,12 @@ export function applyAction(
   switch (action.kind) {
     case 'move':    return applyMove(state, active, action.toTileX, action.toTileY, tileCtx);
     case 'attack':  return applyAttack(state, active, action.targetId, action.attackId, tileCtx);
-    case 'guard':   return applyGuard(state, active);
-    case 'cleanse': return applyCleanse(state, active);
-    case 'end_turn': return advanceTurn(state);
-    case 'flee':    return applyFlee(state, active);
+    case 'use_ability': return applyAbility(state, active, action.abilityId, action.targetId);
+    case 'guard':        return applyGuard(state, active);
+    case 'cleanse':      return applyCleanse(state, active);
+    case 'consume_item': return applyConsumeItem(state, active, action.itemId, action.healAmount);
+    case 'end_turn':     return advanceTurn(state);
+    case 'flee':         return applyFlee(state, active);
   }
 }
 
@@ -185,6 +192,7 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
       isSprinting: false,
       isAttackMode: false,
       selectedAttackId: null,
+      selectedAbilityId: null,
       activeParticipantId: null,
       turnOrder: [],
     };
@@ -203,6 +211,18 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
       maxRangeTiles: attack.maxRangeTiles,
       cooldownRemaining: p.attackCooldowns?.[attack.id] ?? 0,
     }));
+    const abilities: TurnCombatAbilityUiSnapshot[] = (p.abilities ?? []).map((ability) => ({
+      id: ability.id,
+      displayName: ability.displayName,
+      kind: ability.kind,
+      target: ability.target,
+      apCost: ability.apCost,
+      minRangeTiles: ability.minRangeTiles ?? 0,
+      maxRangeTiles: ability.maxRangeTiles ?? 0,
+      cooldownRemaining: p.abilityCooldowns?.[ability.id] ?? 0,
+      magicCost: ability.magicCost ?? 0,
+      devotionCost: ability.devotionCost ?? 0,
+    }));
 
     return {
       id: p.id,
@@ -219,6 +239,12 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
       statusEffects: p.statusEffects,
       attacks,
       attackCooldowns: { ...(p.attackCooldowns ?? {}) },
+      magicResourceRemaining: p.magicResourceRemaining ?? 0,
+      magicResourceMax: p.magicResourceMax ?? 0,
+      devotionResourceRemaining: p.devotionResourceRemaining ?? 0,
+      devotionResourceMax: p.devotionResourceMax ?? 0,
+      abilities,
+      abilityCooldowns: { ...(p.abilityCooldowns ?? {}) },
       isActive: p.id === activeId,
     };
   };
@@ -237,6 +263,7 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
     isSprinting: false,
     isAttackMode: false,
     selectedAttackId: null,
+    selectedAbilityId: null,
     activeParticipantId: activeId,
     turnOrder: state.participants.map(toUiSnap),
   };
@@ -499,6 +526,146 @@ function applyAttack(
   };
 }
 
+function applyAbility(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+  abilityId: string,
+  targetId: string | undefined,
+): { outcome: ActionOutcome; state: TurnCombatState } {
+  const ability = actor.abilities?.find((entry) => entry.id === abilityId);
+  if (!ability) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'Ability not available.' },
+      state,
+    };
+  }
+
+  const target = ability.target === 'self'
+    ? actor
+    : state.participants.find((participant) => participant.id === targetId);
+
+  if (!target) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'Ability needs a target.' },
+      state,
+    };
+  }
+
+  const invalidReason = getAbilityInvalidReason(actor, target, ability);
+  if (invalidReason) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: invalidReason },
+      state,
+    };
+  }
+
+  const statusApplied = ability.statusEffect
+    ? {
+        kind: ability.statusEffect.kind,
+        turnsRemaining: ability.statusEffect.turns,
+        value: ability.statusEffect.value,
+      }
+    : undefined;
+  const cooldownPatch = ability.cooldownTurns && ability.cooldownTurns > 0
+    ? { [ability.id]: ability.cooldownTurns + 1 }
+    : {};
+
+  let next = updateParticipant(state, actor.id, {
+    apRemaining: Math.max(0, actor.apRemaining - ability.apCost),
+    magicResourceRemaining: Math.max(0, (actor.magicResourceRemaining ?? 0) - (ability.magicCost ?? 0)),
+    devotionResourceRemaining: Math.max(0, (actor.devotionResourceRemaining ?? 0) - (ability.devotionCost ?? 0)),
+    abilityCooldowns: {
+      ...(actor.abilityCooldowns ?? {}),
+      ...cooldownPatch,
+    },
+  });
+
+  if (ability.damage && ability.damage > 0) {
+    const armourRating = getTargetArmourRating(target, ability.damageType);
+    const hitChance = Math.max(10, (ability.hitChance ?? actor.hitChance ?? 85) - armourRating * 5);
+    const hit = Math.random() * 100 < hitChance;
+    const damage = hit ? rollDamage(ability.damage) : 0;
+    const nextHp = Math.max(0, target.hp - damage);
+    const killed = hit && nextHp <= 0;
+
+    next = updateParticipant(next, target.id, {
+      hp: nextHp,
+      ...(statusApplied && hit && !killed
+        ? { statusEffects: [...target.statusEffects, statusApplied] }
+        : {}),
+    });
+
+    const endCheck = checkCombatEnd(next);
+    return {
+      outcome: {
+        kind: 'ability_used',
+        actorId: actor.id,
+        abilityId: ability.id,
+        abilityName: ability.displayName,
+        abilityKind: ability.kind,
+        targetId: target.id,
+        damage,
+        hit,
+        killed,
+        ...(statusApplied && hit && !killed ? { statusApplied } : {}),
+      },
+      state: endCheck ? { ...next, phase: 'combat_ended', endReason: endCheck } : next,
+    };
+  }
+
+  const healAmount = Math.max(0, ability.healAmount ?? 0);
+  const newHp = healAmount > 0 ? Math.min(target.maxHp, target.hp + healAmount) : target.hp;
+  next = updateParticipant(next, target.id, {
+    hp: newHp,
+    ...(statusApplied
+      ? {
+          statusEffects: [
+            ...target.statusEffects.filter((effect) => effect.kind !== statusApplied.kind),
+            statusApplied,
+          ],
+        }
+      : {}),
+  });
+
+  return {
+    outcome: {
+      kind: 'ability_used',
+      actorId: actor.id,
+      abilityId: ability.id,
+      abilityName: ability.displayName,
+      abilityKind: ability.kind,
+      targetId: target.id,
+      ...(healAmount > 0 ? { healAmount, newHp } : {}),
+      ...(statusApplied ? { statusApplied } : {}),
+    },
+    state: next,
+  };
+}
+
+function getAbilityInvalidReason(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  ability: TurnCombatAbility,
+): string | null {
+  if (actor.apRemaining < ability.apCost) return 'Needs Main Action.';
+  if ((actor.abilityCooldowns?.[ability.id] ?? 0) > 0) return 'Ability is on cooldown.';
+  if ((actor.magicResourceRemaining ?? 0) < (ability.magicCost ?? 0)) return 'Not enough Magic resource.';
+  if ((actor.devotionResourceRemaining ?? 0) < (ability.devotionCost ?? 0)) return 'Not enough Devotion resource.';
+  if (target.hp <= 0) return 'Target is already defeated.';
+
+  if (ability.target === 'enemy') {
+    if (actor.kind === target.kind || (actor.kind !== 'enemy' && target.kind !== 'enemy')) {
+      return 'Invalid target.';
+    }
+    const dist = chebyshevDist(actor.tileX, actor.tileY, target.tileX, target.tileY);
+    if (dist < (ability.minRangeTiles ?? 0) || dist > (ability.maxRangeTiles ?? 1)) {
+      return 'Target is out of range.';
+    }
+  }
+
+  return null;
+}
+
 function prepareTelegraphedAttack(
   state: TurnCombatState,
   actor: TurnParticipant,
@@ -579,6 +746,7 @@ function applyGuard(
   };
   const next = updateParticipant(state, actor.id, {
     secondaryActionRemaining: Math.max(0, (actor.secondaryActionRemaining ?? 0) - 1),
+    attackCooldowns: { ...(actor.attackCooldowns ?? {}), guard: 2 },
     statusEffects: [
       ...actor.statusEffects.filter((effect) => effect.kind !== 'guarded'),
       statusApplied,
@@ -617,6 +785,31 @@ function applyCleanse(
   });
 
   return { outcome: { kind: 'cleansed', actorId: actor.id, removedEffect: removable }, state: next };
+}
+
+function applyConsumeItem(
+  state: TurnCombatState,
+  actor: TurnParticipant,
+  itemId: string,
+  healAmount: number,
+): { outcome: ActionOutcome; state: TurnCombatState } {
+  if ((actor.secondaryActionRemaining ?? 0) <= 0) {
+    return {
+      outcome: { kind: 'invalid', actorId: actor.id, reason: 'No Secondary Action remaining.' },
+      state,
+    };
+  }
+
+  const newHp = Math.min(actor.maxHp, actor.hp + healAmount);
+  const next = updateParticipant(state, actor.id, {
+    hp: newHp,
+    secondaryActionRemaining: Math.max(0, (actor.secondaryActionRemaining ?? 0) - 1),
+  });
+
+  return {
+    outcome: { kind: 'item_consumed', actorId: actor.id, itemId, healAmount, newHp },
+    state: next,
+  };
 }
 
 function buildTelegraphTiles(
@@ -838,6 +1031,7 @@ function restoreResources(state: TurnCombatState, participantId: string): TurnCo
     secondaryActionRemaining: p.secondaryActionMax ?? 0,
     mpRemaining: Math.max(0, p.mpMax - slowedReduction),
     attackCooldowns: tickAttackCooldowns(p.attackCooldowns),
+    abilityCooldowns: tickCooldowns(p.abilityCooldowns),
   });
 }
 
@@ -894,13 +1088,17 @@ function getTargetArmourRating(
   })();
 
   const guardBonus = target.statusEffects
-    .filter((effect) => effect.kind === 'guarded')
+    .filter((effect) => effect.kind === 'guarded' || effect.kind === 'fortified')
     .reduce((sum, effect) => sum + effect.value, 0);
 
   return typedDefence + guardBonus;
 }
 
 function tickAttackCooldowns(cooldowns: Record<string, number> | undefined): Record<string, number> {
+  return tickCooldowns(cooldowns);
+}
+
+function tickCooldowns(cooldowns: Record<string, number> | undefined): Record<string, number> {
   if (!cooldowns) return {};
 
   const next: Record<string, number> = {};
@@ -951,6 +1149,9 @@ function updateParticipant(
   id: string,
   patch: Partial<TurnParticipant>,
 ): TurnCombatState {
+  if (id === 'player' && patch.apRemaining !== undefined && patch.apRemaining < 0) {
+    console.error('[COMBAT] BUG: apRemaining going negative!', patch.apRemaining, new Error().stack);
+  }
   return {
     ...state,
     participants: state.participants.map((p) =>
@@ -974,7 +1175,9 @@ function cloneState(state: TurnCombatState): TurnCombatState {
       ...p,
       statusEffects: [...p.statusEffects],
       attacks: cloneAttacks(p.attacks),
+      abilities: cloneAbilities(p.abilities),
       attackCooldowns: { ...(p.attackCooldowns ?? {}) },
+      abilityCooldowns: { ...(p.abilityCooldowns ?? {}) },
     })),
   };
 }
@@ -985,5 +1188,12 @@ function cloneAttacks(attacks: TurnAttack[] | undefined): TurnAttack[] | undefin
     statusEffect: attack.statusEffect ? { ...attack.statusEffect } : undefined,
     telegraph: attack.telegraph ? { ...attack.telegraph } : undefined,
     forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
+  }));
+}
+
+function cloneAbilities(abilities: TurnCombatAbility[] | undefined): TurnCombatAbility[] | undefined {
+  return abilities?.map((ability) => ({
+    ...ability,
+    statusEffect: ability.statusEffect ? { ...ability.statusEffect } : undefined,
   }));
 }

@@ -99,21 +99,9 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;   /* buttons fill full column width */
-  padding: var(--sp-1) 0;
-  gap: 4px;
+  padding: 6px 0;
+  gap: 5px;
   flex-shrink: 0;
-}
-
-/* Spacer pushes Settings to the bottom */
-.taskbar-spacer { flex: 1; }
-
-/* Visual divider between taskbar button groups */
-.taskbar-divider {
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--c-secondary), transparent);
-  margin: 3px 8px;
-  flex-shrink: 0;
-  opacity: 0.55;
 }
 
 .taskbar-btn {
@@ -142,8 +130,8 @@
 /* CSS-mask technique: fixed square icon, centered in button */
 .taskbar-icon {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
   -webkit-mask: var(--icon-url) center / contain no-repeat;
           mask: var(--icon-url) center / contain no-repeat;
@@ -498,6 +486,150 @@
   font-size: var(--fs-xs);
   color: var(--c-primary);
   letter-spacing: 0.04em;
+}
+
+/* ── Magic / Devotion books ── */
+.magic-book-tab,
+.devotion-book-tab {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.spellbook-page {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 9px;
+  background:
+    linear-gradient(180deg, rgba(18, 29, 13, 0.90), rgba(9, 13, 7, 0.94)),
+    repeating-linear-gradient(45deg, rgba(255, 252, 195, 0.025) 0 2px, transparent 2px 8px);
+  box-shadow: inset 0 0 0 1px rgba(97, 60, 24, 0.36);
+}
+
+.spellbook-page--magic {
+  background:
+    linear-gradient(180deg, rgba(18, 29, 32, 0.90), rgba(12, 15, 14, 0.94)),
+    repeating-linear-gradient(45deg, rgba(160, 196, 255, 0.025) 0 2px, transparent 2px 8px);
+}
+
+.spellbook-page--devotion {
+  background:
+    linear-gradient(180deg, rgba(28, 33, 13, 0.90), rgba(13, 16, 9, 0.94)),
+    repeating-linear-gradient(45deg, rgba(210, 232, 140, 0.025) 0 2px, transparent 2px 8px);
+}
+
+.spellbook-title {
+  flex-shrink: 0;
+  color: var(--c-primary);
+  font-size: var(--fs-lg);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.spellbook-grid-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.spellbook-grid-section {
+  flex-shrink: 0;
+}
+
+.spellbook-book-label {
+  color: var(--c-text-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.spellbook-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+
+.spellbook-icon-btn {
+  display: grid;
+  min-width: 0;
+  height: 50px;
+  grid-template-rows: 22px 12px 8px;
+  align-items: center;
+  justify-items: center;
+  border: 1px solid rgba(70, 109, 147, 0.72);
+  border-radius: var(--radius-sm);
+  background: rgba(4, 5, 7, 0.76);
+  color: #a0c4ff;
+  cursor: pointer;
+  font-family: var(--font);
+  letter-spacing: 0;
+  padding: 3px 2px 2px;
+  transition: background var(--tr), border-color var(--tr), color var(--tr), transform var(--tr);
+}
+
+.spellbook-icon-btn:hover:not(:disabled) {
+  border-color: var(--c-primary-dim);
+  background: rgba(255, 252, 195, 0.08);
+  color: var(--c-text);
+}
+
+.spellbook-icon-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.spellbook-icon-btn.is-equipped {
+  border-color: var(--c-icon-active);
+  background: rgba(229, 146, 220, 0.12);
+  color: var(--c-primary);
+}
+
+.spellbook-icon-btn.is-locked,
+.spellbook-icon-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.devotion-icon-btn {
+  border-color: rgba(111, 132, 61, 0.78);
+  color: #d2e88c;
+}
+
+.spellbook-rune-icon {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 252, 195, 0.08);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.spellbook-rune-name {
+  width: 100%;
+  overflow: hidden;
+  font-size: 8px;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spellbook-rune-meta {
+  width: 100%;
+  overflow: hidden;
+  color: var(--c-text-muted);
+  font-size: 8px;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 

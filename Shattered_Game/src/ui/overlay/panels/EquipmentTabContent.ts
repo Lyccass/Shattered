@@ -64,7 +64,10 @@ export class EquipmentTabContent {
     this.switchView('equipment');
   }
 
-  update(snapshot: EquipmentSnapshot, companions: CompanionSnapshot = {}): void {
+  update(
+    snapshot: EquipmentSnapshot,
+    companions: CompanionSnapshot = {},
+  ): void {
     const key = JSON.stringify(snapshot.slots) + '|' + JSON.stringify(companions);
     if (key === this.lastRenderKey) return;
     this.lastRenderKey = key;
@@ -146,7 +149,8 @@ export class EquipmentTabContent {
     ]);
 
     this.appendGroup(wrap, 'Body', [
-      ['Max HP',       String(s.maxHp),                                       'Health pool. Scales with your Defence level.'],
+      ['Max HP',       String(s.maxHp),                                       'Health pool from hidden combat level. Capped at 100; no gear HP.'],
+      ['Combat Lvl',   String(s.combatLevel),                                 'Hidden combat level from Melee, Ranged, Magic, and Devotion.'],
       ['Max Stamina',  String(s.maxStamina),                                  'Stamina pool for attacking, sprinting, and dodging.'],
       ['Carry Weight', `${s.carryWeight} / ${s.maxCarryWeight} kg`,           'Total equipment weight vs. your carry cap. Exceeding it reduces stamina regen.'],
       ['Stam. Regen',  formatRegenMultiplier(s.staminaRegenMultiplier),       'Stamina regeneration rate. Penalised when over your carry weight cap.'],

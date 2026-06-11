@@ -1,120 +1,118 @@
 import type { TurnCombatUiSnapshot } from '../../../combat/CombatUiTypes';
 
-/**
- * BG3-style combat HUD.
- * - Initiative bar (top centre): one card per participant, active card raised.
- * - Action bar (bottom centre): AP/MP pip tracks + Attack + End Turn buttons.
- *
- * Mounted into #ui-overlay. Styled by /public/css/ui-combat.css.
- */
+type HudAttack = {
+  id: string;
+  displayName: string;
+  apCost: number;
+  cooldownRemaining: number;
+  maxRangeTiles: number;
+};
+
+type HudAbility = {
+  id: string;
+  displayName: string;
+  kind: 'combat_spell' | 'devotion';
+  target: 'enemy' | 'self';
+  apCost: number;
+  cooldownRemaining: number;
+  magicCost: number;
+  devotionCost: number;
+  maxRangeTiles: number;
+};
+
 export class CombatHud {
   private readonly initBar: HTMLElement;
   private readonly actionBar: HTMLElement;
-
   private readonly apPipsEl: HTMLElement;
+  private readonly movePipsEl: HTMLElement;
   private readonly secondaryPipsEl: HTMLElement;
-  private readonly mpPipsEl: HTMLElement;
-  private readonly lightAttackBtn: HTMLButtonElement;
-  private readonly heavyAttackBtn: HTMLButtonElement;
-  private readonly guardBtn: HTMLButtonElement;
-  private readonly cleanseBtn: HTMLButtonElement;
+  private readonly magicPipsEl: HTMLElement;
+  private readonly devotionPipsEl: HTMLElement;
+  private readonly magicGroup: HTMLElement;
+  private readonly devotionGroup: HTMLElement;
+  private readonly moveBtn: HTMLButtonElement;
+  private readonly attackBtn: HTMLButtonElement;
+  private readonly specialBtn: HTMLButtonElement;
+  private readonly spellBtns: HTMLButtonElement[];
+  private readonly devotionBtns: HTMLButtonElement[];
   private readonly endTurnBtn: HTMLButtonElement;
   private readonly roundLabel: HTMLElement;
+  private readonly actorLabel: HTMLElement;
+  private readonly actionHint: HTMLElement;
 
   constructor(
     container: HTMLElement,
     private readonly onEndTurn: () => void,
+    private readonly onMoveMode: () => void,
     private readonly onAttackMode: (attackId?: string) => void,
-    private readonly onGuard: () => void,
-    private readonly onCleanse: () => void,
+    private readonly onAbility: (abilityId: string) => void,
   ) {
-    // ── Initiative bar ────────────────────────────────────────────────────
     this.initBar = document.createElement('div');
     this.initBar.id = 'ui-combat-init';
 
-    // ── Action bar ────────────────────────────────────────────────────────
     this.actionBar = document.createElement('div');
     this.actionBar.id = 'ui-combat-actions';
+    this.actionBar.addEventListener('pointerdown', stopOverlayInput);
+    this.actionBar.addEventListener('mousedown', stopOverlayInput);
+    this.actionBar.addEventListener('click', stopOverlayInput);
 
-    // Resources row (AP + MP pips)
+    const header = document.createElement('div');
+    header.className = 'combat-action-header';
+    this.roundLabel = document.createElement('div');
+    this.roundLabel.className = 'combat-round';
+    this.actorLabel = document.createElement('div');
+    this.actorLabel.className = 'combat-actor';
+    header.appendChild(this.roundLabel);
+    header.appendChild(this.actorLabel);
+
+    const body = document.createElement('div');
+    body.className = 'combat-action-body';
+
     const resources = document.createElement('div');
     resources.className = 'combat-resources';
 
-    const apGroup = document.createElement('div');
-    apGroup.className = 'combat-pips';
-    const apLabel = document.createElement('span');
-    apLabel.className = 'combat-pip-label';
-    apLabel.textContent = 'Main';
     this.apPipsEl = document.createElement('div');
-    this.apPipsEl.className = 'combat-pips';
-    apGroup.appendChild(apLabel);
-    apGroup.appendChild(this.apPipsEl);
-
-    const secondaryGroup = document.createElement('div');
-    secondaryGroup.className = 'combat-pips';
-    const secondaryLabel = document.createElement('span');
-    secondaryLabel.className = 'combat-pip-label';
-    secondaryLabel.textContent = 'Sec';
+    this.movePipsEl = document.createElement('div');
     this.secondaryPipsEl = document.createElement('div');
-    this.secondaryPipsEl.className = 'combat-pips';
-    secondaryGroup.appendChild(secondaryLabel);
-    secondaryGroup.appendChild(this.secondaryPipsEl);
+    this.magicPipsEl = document.createElement('div');
+    this.devotionPipsEl = document.createElement('div');
 
-    const mpGroup = document.createElement('div');
-    mpGroup.className = 'combat-pips';
-    const mpLabel = document.createElement('span');
-    mpLabel.className = 'combat-pip-label';
-    mpLabel.textContent = 'MP';
-    this.mpPipsEl = document.createElement('div');
-    this.mpPipsEl.className = 'combat-pips';
-    mpGroup.appendChild(mpLabel);
-    mpGroup.appendChild(this.mpPipsEl);
+    resources.appendChild(this.makeResourceGroup('Main', this.apPipsEl));
+    resources.appendChild(this.makeResourceGroup('Move', this.movePipsEl));
+    resources.appendChild(this.makeResourceGroup('Sec', this.secondaryPipsEl));
+    this.magicGroup = this.makeResourceGroup('Magic', this.magicPipsEl);
+    this.devotionGroup = this.makeResourceGroup('Devotion', this.devotionPipsEl);
+    resources.appendChild(this.magicGroup);
+    resources.appendChild(this.devotionGroup);
 
-    resources.appendChild(apGroup);
-    resources.appendChild(secondaryGroup);
-    resources.appendChild(mpGroup);
+    const actionGrid = document.createElement('div');
+    actionGrid.className = 'combat-action-grid';
 
-    // Buttons row
-    const buttons = document.createElement('div');
-    buttons.className = 'combat-buttons';
+    this.moveBtn = this.makeActionButton('move');
+    this.attackBtn = this.makeActionButton('weapon');
+    this.specialBtn = this.makeActionButton('special');
+    this.spellBtns = [this.makeActionButton('spell'), this.makeActionButton('spell')];
+    this.devotionBtns = [this.makeActionButton('devotion'), this.makeActionButton('devotion')];
+    this.endTurnBtn = this.makeActionButton('end');
+    this.bindButton(this.moveBtn, () => this.onMoveMode());
+    this.bindButton(this.endTurnBtn, () => this.onEndTurn());
 
-    this.lightAttackBtn = document.createElement('button');
-    this.lightAttackBtn.className = 'combat-btn attack-btn light-attack-btn';
-    this.lightAttackBtn.textContent = 'Light';
+    actionGrid.appendChild(this.moveBtn);
+    actionGrid.appendChild(this.attackBtn);
+    actionGrid.appendChild(this.specialBtn);
+    this.spellBtns.forEach((btn) => actionGrid.appendChild(btn));
+    this.devotionBtns.forEach((btn) => actionGrid.appendChild(btn));
+    actionGrid.appendChild(this.endTurnBtn);
 
-    this.heavyAttackBtn = document.createElement('button');
-    this.heavyAttackBtn.className = 'combat-btn attack-btn heavy-attack-btn';
-    this.heavyAttackBtn.textContent = 'Style';
+    body.appendChild(resources);
+    body.appendChild(actionGrid);
 
-    this.guardBtn = document.createElement('button');
-    this.guardBtn.className = 'combat-btn guard-btn';
-    this.guardBtn.textContent = 'Guard';
-    this.guardBtn.addEventListener('click', () => this.onGuard());
+    this.actionHint = document.createElement('div');
+    this.actionHint.className = 'combat-action-hint';
 
-    this.cleanseBtn = document.createElement('button');
-    this.cleanseBtn.className = 'combat-btn secondary-btn cleanse-btn';
-    this.cleanseBtn.textContent = 'Cleanse';
-    this.cleanseBtn.addEventListener('click', () => this.onCleanse());
-
-    this.endTurnBtn = document.createElement('button');
-    this.endTurnBtn.className = 'combat-btn end-turn-btn';
-    this.endTurnBtn.textContent = 'End Turn';
-    this.endTurnBtn.addEventListener('click', () => this.onEndTurn());
-
-    buttons.appendChild(this.lightAttackBtn);
-    buttons.appendChild(this.heavyAttackBtn);
-    buttons.appendChild(this.guardBtn);
-    buttons.appendChild(this.cleanseBtn);
-    buttons.appendChild(this.endTurnBtn);
-
-    // Round indicator
-    this.roundLabel = document.createElement('div');
-    this.roundLabel.className = 'combat-round';
-    this.roundLabel.textContent = '';
-
-    this.actionBar.appendChild(this.roundLabel);
-    this.actionBar.appendChild(resources);
-    this.actionBar.appendChild(buttons);
+    this.actionBar.appendChild(header);
+    this.actionBar.appendChild(body);
+    this.actionBar.appendChild(this.actionHint);
 
     container.appendChild(this.initBar);
     container.appendChild(this.actionBar);
@@ -130,88 +128,67 @@ export class CombatHud {
     this.initBar.classList.add('active');
     this.actionBar.classList.add('active');
 
-    // ── Initiative bar ────────────────────────────────────────────────────
-    const activeId     = combat.activeParticipantId;
-    const participants = combat.turnOrder;
+    this.updateInitiative(combat);
 
-    // Reconcile DOM cards: reuse existing, add or remove as needed
-    const neededCount = participants.length;
+    const activeUnit = combat.activeUnit;
+    const actor = activeUnit ?? combat.player;
+    const canAct = combat.phase === 'player_turn' && !!activeUnit;
+    const activeKind = activeUnit?.kind;
 
-    while (this.initBar.children.length > neededCount) {
-      this.initBar.lastElementChild?.remove();
-    }
-    while (this.initBar.children.length < neededCount) {
-      this.initBar.appendChild(this.makeInitCard());
-    }
+    this.roundLabel.textContent = `Round ${combat.round}`;
+    this.actorLabel.textContent = activeUnit
+      ? activeKind === 'companion'
+        ? activeUnit.name
+        : 'Your turn'
+      : 'Enemy turn';
+    this.actionBar.classList.toggle('enemy-turn', !canAct);
+    this.actionBar.classList.toggle('companion-turn', canAct && activeKind === 'companion');
 
-    participants.forEach((p, i) => {
-      const card = this.initBar.children[i] as HTMLElement;
-      card.className = [
-        'combat-init-card',
-        p.kind === 'player'    ? 'is-player'    : '',
-        p.kind === 'companion' ? 'is-companion'  : '',
-        p.id === activeId      ? 'is-active'     : '',
-      ].filter(Boolean).join(' ');
-
-      const nameEl = card.querySelector('.combat-init-name') as HTMLElement;
-
-      if (nameEl) nameEl.textContent = p.name;
-    });
-
-    // ── Action bar ────────────────────────────────────────────────────────
-    const isPlayerTurn = combat.phase === 'player_turn';
-    // Use the active unit's stats (may be a companion during their turn)
-    const player = combat.activeUnit ?? combat.player;
-
-    const activeKind = combat.activeUnit?.kind;
-    const turnLabel = activeKind === 'companion'
-      ? `${combat.activeUnit?.name ?? 'Companion'}'s Turn — Round ${combat.round}`
-      : `Round ${combat.round}`;
-    this.roundLabel.textContent = turnLabel;
-    this.actionBar.classList.toggle('enemy-turn', !isPlayerTurn);
-    this.actionBar.classList.toggle('companion-turn', isPlayerTurn && activeKind === 'companion');
-
-    // AP pips
-    if (player) {
-      this.buildPips(this.apPipsEl, player.apMax, player.apRemaining, 'ap-pip');
-      this.buildPips(this.secondaryPipsEl, player.secondaryActionMax, player.secondaryActionRemaining, 'secondary-pip');
-      this.buildPips(this.mpPipsEl, player.mpMax, player.mpRemaining, 'mp-pip');
-    } else {
-      this.apPipsEl.innerHTML = '';
-      this.secondaryPipsEl.innerHTML = '';
-      this.mpPipsEl.innerHTML = '';
+    if (actor) {
+      this.buildPips(this.apPipsEl, actor.apMax, actor.apRemaining, 'ap-pip');
+      this.buildPips(this.movePipsEl, actor.mpMax, actor.mpRemaining, 'move-pip');
+      this.buildPips(this.secondaryPipsEl, actor.secondaryActionMax, actor.secondaryActionRemaining, 'secondary-pip');
+      this.buildPips(this.magicPipsEl, actor.magicResourceMax, actor.magicResourceRemaining, 'magic-pip');
+      this.buildPips(this.devotionPipsEl, actor.devotionResourceMax, actor.devotionResourceRemaining, 'devotion-pip');
+      this.magicGroup.classList.toggle('is-hidden', actor.magicResourceMax <= 0);
+      this.devotionGroup.classList.toggle('is-hidden', actor.devotionResourceMax <= 0);
     }
 
-    const attacks = player?.attacks ?? [];
-    const lightAttack = attacks[0] ?? null;
-    const heavyAttack = attacks[1] ?? null;
-    const canMove   = isPlayerTurn && (player?.mpRemaining ?? 0) > 0;
-    const canAct    = isPlayerTurn;
-    const secondaryRemaining = player?.secondaryActionRemaining ?? 0;
-    const hasCleanseTarget = (player?.statusEffects ?? []).some((effect) =>
-      effect.kind === 'bleeding' ||
-      effect.kind === 'damage_over_time' ||
-      effect.kind === 'slowed',
+    this.moveBtn.textContent = 'Move';
+    this.moveBtn.disabled = !canAct || (actor?.mpRemaining ?? 0) <= 0;
+    this.moveBtn.classList.toggle('is-selected', canAct && !combat.isAttackMode);
+    this.moveBtn.title = this.moveBtn.disabled ? 'No movement points available' : 'Move: click a tile';
+
+    const attacks = actor?.attacks ?? [];
+    this.configureAttackButton(
+      this.attackBtn,
+      attacks[0] ?? null,
+      actor?.apRemaining ?? 0,
+      canAct,
+      combat.selectedAttackId,
+    );
+    this.configureAttackButton(
+      this.specialBtn,
+      attacks[1] ?? null,
+      actor?.apRemaining ?? 0,
+      canAct,
+      combat.selectedAttackId,
     );
 
-    this.configureAttackButton(this.lightAttackBtn, lightAttack, player?.apRemaining ?? 0, isPlayerTurn, combat.selectedAttackId);
-    this.configureAttackButton(this.heavyAttackBtn, heavyAttack, player?.apRemaining ?? 0, isPlayerTurn, combat.selectedAttackId);
-    this.guardBtn.disabled = !isPlayerTurn || secondaryRemaining <= 0;
-    this.guardBtn.title = this.guardBtn.disabled ? 'Needs Secondary Action' : 'Guard until your next turn (Secondary Action)';
-    this.cleanseBtn.disabled = !isPlayerTurn || secondaryRemaining <= 0 || !hasCleanseTarget;
-    this.cleanseBtn.title = !isPlayerTurn
-      ? "It's not your turn"
-      : secondaryRemaining <= 0
-        ? 'Needs Secondary Action'
-        : hasCleanseTarget
-          ? 'Remove one bleed, poison, or slow effect (Secondary Action)'
-          : 'No removable status effect';
+    const spells = (actor?.abilities ?? []).filter((ability) => ability.kind === 'combat_spell');
+    const devotions = (actor?.abilities ?? []).filter((ability) => ability.kind === 'devotion');
+    this.spellBtns.forEach((btn, index) => {
+      this.configureAbilityButton(btn, spells[index] ?? null, actor, canAct, combat.selectedAbilityId);
+    });
+    this.devotionBtns.forEach((btn, index) => {
+      this.configureAbilityButton(btn, devotions[index] ?? null, actor, canAct, combat.selectedAbilityId);
+    });
+
+    this.endTurnBtn.textContent = 'End Turn';
     this.endTurnBtn.disabled = !canAct;
+    this.endTurnBtn.title = canAct ? 'End your turn (Space)' : "It's not your turn";
 
-    // Tooltip cues
-    this.endTurnBtn.title = canAct     ? 'End your turn (Space)' : "It's not your turn";
-
-    void canMove; // no explicit move button — clicking a tile moves
+    this.updateHint(combat, attacks, [...spells, ...devotions]);
   }
 
   destroy(): void {
@@ -219,21 +196,69 @@ export class CombatHud {
     this.actionBar.remove();
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  private updateInitiative(combat: TurnCombatUiSnapshot): void {
+    const activeId = combat.activeParticipantId;
+    const participants = combat.turnOrder;
+
+    while (this.initBar.children.length > participants.length) {
+      this.initBar.lastElementChild?.remove();
+    }
+    while (this.initBar.children.length < participants.length) {
+      this.initBar.appendChild(this.makeInitCard());
+    }
+
+    participants.forEach((p, i) => {
+      const card = this.initBar.children[i] as HTMLElement;
+      card.className = [
+        'combat-init-card',
+        p.kind === 'player' ? 'is-player' : '',
+        p.kind === 'companion' ? 'is-companion' : '',
+        p.id === activeId ? 'is-active' : '',
+      ].filter(Boolean).join(' ');
+
+      const nameEl = card.querySelector('.combat-init-name') as HTMLElement;
+      if (nameEl) nameEl.textContent = p.name;
+    });
+  }
 
   private makeInitCard(): HTMLElement {
     const card = document.createElement('div');
     card.className = 'combat-init-card';
-
     const name = document.createElement('div');
     name.className = 'combat-init-name';
-
     card.appendChild(name);
     return card;
   }
 
+  private makeResourceGroup(label: string, pipEl: HTMLElement): HTMLElement {
+    const group = document.createElement('div');
+    group.className = 'combat-resource-group';
+    const labelEl = document.createElement('span');
+    labelEl.className = 'combat-pip-label';
+    labelEl.textContent = label;
+    pipEl.className = 'combat-pips';
+    group.appendChild(labelEl);
+    group.appendChild(pipEl);
+    return group;
+  }
+
+  private makeActionButton(kind: string): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.className = `combat-btn combat-btn--${kind}`;
+    button.type = 'button';
+    return button;
+  }
+
+  private bindButton(button: HTMLButtonElement, handler: () => void): void {
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!button.disabled) handler();
+    });
+    button.addEventListener('click', stopOverlayInput);
+  }
+
   private buildPips(container: HTMLElement, max: number, remaining: number, cls: string): void {
-    // Reconcile pip count
     while (container.children.length > max) container.lastElementChild?.remove();
     while (container.children.length < max) {
       const pip = document.createElement('div');
@@ -247,31 +272,113 @@ export class CombatHud {
 
   private configureAttackButton(
     button: HTMLButtonElement,
-    attack: { id: string; displayName: string; apCost: number; cooldownRemaining: number } | null,
+    attack: HudAttack | null,
     apRemaining: number,
-    isPlayerTurn: boolean,
+    canAct: boolean,
     selectedAttackId: string | null,
   ): void {
-    button.onclick = null;
-
     if (!attack) {
-      button.textContent = 'Attack';
-      button.disabled = true;
-      button.classList.remove('active');
-      button.title = 'No attack available';
+      this.setUnavailable(button, 'Empty', 'No weapon action available');
       return;
     }
 
-    button.textContent = `${attack.displayName}`;
-    const lacksAp = apRemaining < attack.apCost;
+    this.bindButtonOnce(button, () => this.onAttackMode(attack.id));
     const coolingDown = attack.cooldownRemaining > 0;
-    button.disabled = !isPlayerTurn || lacksAp || coolingDown;
-    button.classList.toggle('active', selectedAttackId === attack.id);
+    const lacksAp = apRemaining < attack.apCost;
+    button.textContent = coolingDown ? `${attack.displayName} ${attack.cooldownRemaining}` : attack.displayName;
+    button.disabled = !canAct || lacksAp || coolingDown;
+    button.classList.toggle('is-selected', selectedAttackId === attack.id);
     button.title = coolingDown
-      ? `${attack.displayName} cooling down: ${attack.cooldownRemaining} turn(s)`
+      ? `${attack.displayName} cooldown: ${attack.cooldownRemaining} turn(s)`
       : lacksAp
         ? 'Needs Main Action'
-        : `Pick a target for ${attack.displayName} (Main Action)`;
-    button.onclick = () => this.onAttackMode(attack.id);
+        : `Pick a target for ${attack.displayName}`;
   }
+
+  private configureAbilityButton(
+    button: HTMLButtonElement,
+    ability: HudAbility | null,
+    actor: TurnCombatUiSnapshot['activeUnit'] | TurnCombatUiSnapshot['player'],
+    canAct: boolean,
+    selectedAbilityId: string | null,
+  ): void {
+    if (!ability || !actor) {
+      this.setUnavailable(button, 'Empty', 'No ability slotted');
+      return;
+    }
+
+    this.bindButtonOnce(button, () => this.onAbility(ability.id));
+    const coolingDown = ability.cooldownRemaining > 0;
+    const lacksAp = actor.apRemaining < ability.apCost;
+    const lacksMagic = actor.magicResourceRemaining < ability.magicCost;
+    const lacksDevotion = actor.devotionResourceRemaining < ability.devotionCost;
+    button.textContent = coolingDown ? `${ability.displayName} ${ability.cooldownRemaining}` : ability.displayName;
+    button.disabled = !canAct || lacksAp || lacksMagic || lacksDevotion || coolingDown;
+    button.classList.toggle('is-selected', selectedAbilityId === ability.id);
+    button.title = coolingDown
+      ? `${ability.displayName} cooldown: ${ability.cooldownRemaining} turn(s)`
+      : lacksAp
+        ? 'Needs Main Action'
+        : lacksMagic
+          ? 'Needs Magic resource'
+          : lacksDevotion
+            ? 'Needs Devotion resource'
+            : ability.target === 'enemy'
+              ? `Pick a target for ${ability.displayName}`
+              : `Use ${ability.displayName}`;
+  }
+
+  private bindButtonOnce(button: HTMLButtonElement, handler: () => void): void {
+    const oldHandler = (button as HTMLButtonElement & { _combatHandler?: () => void })._combatHandler;
+    if (oldHandler === handler) return;
+    (button as HTMLButtonElement & { _combatHandler?: () => void })._combatHandler = handler;
+    button.onpointerdown = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!button.disabled) handler();
+    };
+    button.onclick = stopOverlayInput;
+  }
+
+  private setUnavailable(button: HTMLButtonElement, label: string, title: string): void {
+    button.textContent = label;
+    button.disabled = true;
+    button.title = title;
+    button.classList.remove('is-selected');
+    button.onpointerdown = null;
+    button.onclick = stopOverlayInput;
+  }
+
+  private updateHint(
+    combat: TurnCombatUiSnapshot,
+    attacks: HudAttack[],
+    abilities: HudAbility[],
+  ): void {
+    if (!combat.isAttackMode) {
+      this.actionHint.textContent = 'Move: click a highlighted tile';
+      return;
+    }
+
+    if (combat.selectedAbilityId) {
+      const selected = abilities.find((ability) => ability.id === combat.selectedAbilityId);
+      this.actionHint.textContent = selected
+        ? `${selected.displayName}: click an enemy in range ${selected.maxRangeTiles}`
+        : 'Click an enemy target';
+      return;
+    }
+
+    if (combat.selectedAttackId) {
+      const selected = attacks.find((attack) => attack.id === combat.selectedAttackId);
+      this.actionHint.textContent = selected
+        ? `${selected.displayName}: click an enemy in range ${selected.maxRangeTiles}`
+        : 'Click an enemy target';
+      return;
+    }
+
+    this.actionHint.textContent = 'Click an enemy target';
+  }
+}
+
+function stopOverlayInput(event: Event): void {
+  event.stopPropagation();
 }

@@ -34,6 +34,7 @@ export class UiStateAggregator {
       actionProgress: this.actionProgressSystem.getSnapshot(),
       equipment: this.playerSessionState.getEquipmentSnapshot(),
       companions: {}, // overridden in GameScene with PlayerCompanionState.getSnapshot()
+      spellbook: this.playerSessionState.getSpellbookSnapshot(),
     };
   }
 }

@@ -216,5 +216,5 @@ export class WorldInteractionTargetCoordinator {
 function isWorldTargetInteractionType(
   interactionType: InteractionResult['interactionType'],
 ): interactionType is InteractionTargetType {
-  return interactionType !== 'item_use';
+  return interactionType !== 'item_use' && interactionType !== 'utility_spell';
 }

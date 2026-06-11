@@ -9,6 +9,7 @@ import type { PlacementPreviewState } from '../interactions/PlacementModeSystem'
 import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import { PlayerInventoryState, type PlayerInventorySnapshot } from '../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
+import { emptySpellbookSnapshot, type SpellbookSnapshot } from '../player/PlayerSpellbookState';
 import type { SkillId, SkillSnapshot } from '../skills/SkillTypes';
 import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
 import type { TerrainFamily } from '../shared/map/TerrainTypes';
@@ -27,6 +28,7 @@ export type UiStateSnapshot = {
   actionProgress: ActionProgressSnapshot | null;
   equipment: EquipmentSnapshot;
   companions: CompanionSnapshot;
+  spellbook: SpellbookSnapshot;
 };
 
 export type MinimapTileInfo = {
@@ -70,6 +72,7 @@ export function emptyUiStateSnapshot(): UiStateSnapshot {
     actionProgress: null,
     equipment: emptyEquipmentSnapshot(),
     companions: {},
+    spellbook: emptySpellbookSnapshot(),
   };
 }
 

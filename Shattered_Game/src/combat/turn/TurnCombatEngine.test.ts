@@ -1053,6 +1053,85 @@ describe('buildUiSnapshot', () => {
   });
 });
 
+// ─── combat abilities ─────────────────────────────────────────────────────
+
+describe('combat abilities', () => {
+  it('spends Magic resource and starts cooldown for targeted spells', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      magicResourceMax: 2,
+      magicResourceRemaining: 2,
+      abilities: [{
+        id: 'spell_spark',
+        displayName: 'Spark',
+        kind: 'combat_spell',
+        target: 'enemy',
+        apCost: 1,
+        magicCost: 1,
+        minRangeTiles: 1,
+        maxRangeTiles: 4,
+        damage: 2,
+        hitChance: 100,
+        cooldownTurns: 2,
+      }],
+    });
+    const enemy = makeEnemy('e1', { tileX: 12, tileY: 10, hp: 5 });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'use_ability', abilityId: 'spell_spark', targetId: 'e1' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'ability_used', abilityId: 'spell_spark', targetId: 'e1' });
+    const p = next.participants.find((participant) => participant.id === 'player')!;
+    expect(p.apRemaining).toBe(0);
+    expect(p.magicResourceRemaining).toBe(1);
+    expect(p.abilityCooldowns?.spell_spark).toBe(3);
+  });
+
+  it('rejects abilities when their expedition resource is empty', () => {
+    const player = makePlayer({
+      magicResourceMax: 2,
+      magicResourceRemaining: 0,
+      abilities: [{
+        id: 'spell_spark',
+        displayName: 'Spark',
+        kind: 'combat_spell',
+        target: 'enemy',
+        apCost: 1,
+        magicCost: 1,
+        maxRangeTiles: 4,
+        damage: 2,
+      }],
+    });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10 });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome } = applyAction(
+      state,
+      { kind: 'use_ability', abilityId: 'spell_spark', targetId: 'e1' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'invalid', reason: 'Not enough Magic resource.' });
+  });
+});
+
 // ─── enemy AI ─────────────────────────────────────────────────────────────
 
 describe('enemy AI', () => {

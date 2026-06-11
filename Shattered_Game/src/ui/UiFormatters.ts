@@ -13,7 +13,9 @@ import type { TaskJournalEntry } from '../tasks/TaskJournalTypes';
 
 const SKILL_SHORT_NAMES: Record<SkillId, string> = {
   melee:        'Melee',
-  defence:      'Defence',
+  ranged:       'Ranged',
+  magic:        'Magic',
+  devotion:     'Devotion',
   metalworking: 'Metalworking',
   woodworking:  'Woodworking',
   alchemy:      'Alchemy',

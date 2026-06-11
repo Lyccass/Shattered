@@ -36,7 +36,9 @@ import { PlacedStructureSystem } from '../../interactions/PlacedStructureSystem'
 import { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import type { EquipmentSlot } from '../../equipment/EquipmentTypes';
+import { getAbilityDefinition, type AbilitySlotType } from '../../combat/abilities/CombatAbilityDefinitions';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
+import type { PlayerFacingDirection } from '../../player/PlayerFacing';
 import type { LevelUpEvent, SkillSnapshot, SkillXpDelta } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
 import type { UiStateSnapshot } from '../../ui/UiTypes';
@@ -120,6 +122,7 @@ export class WorldRuntimeCoordinator {
   private activeInteractionTiles: Array<{ x: number; y: number }> | null = null;
   private destroyed = false;
   private groundItemCollector: ((id: string) => { itemId: string; count: number } | null) | null = null;
+  private homewardMark: { mapId: string; tileX: number; tileY: number } | null = null;
 
   private readonly actionFactory: InteractionActionFactory;
   private readonly uiAggregator: UiStateAggregator;
@@ -686,6 +689,62 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getEquipmentSnapshot();
   }
 
+  getEquippedTurnAbilities() {
+    return this.playerSessionState.getEquippedTurnAbilities();
+  }
+
+  equipSpellbookAbility(slotType: AbilitySlotType, slotIndex: number, abilityId: string | null): boolean {
+    return this.playerSessionState.equipSpellbookAbility(slotType, slotIndex, abilityId);
+  }
+
+  useUtilitySpell(abilityId: string): InteractionResult {
+    const ability = getAbilityDefinition(abilityId);
+    if (!ability || ability.slotType !== 'utility_spell') {
+      return {
+        ok: false,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: 'That is not a utility spell.',
+        toastKind: 'error',
+      };
+    }
+
+    const isEquipped = this.playerSessionState.getSpellbookSnapshot()
+      .utilitySlots.some((slot) => slot.abilityId === abilityId);
+    if (!isEquipped) {
+      return {
+        ok: false,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: `${ability.displayName} is not prepared.`,
+        toastKind: 'error',
+      };
+    }
+
+    switch (abilityId) {
+      case 'utility_homeward_mark':
+        return this.useHomewardMark(abilityId);
+      case 'utility_waystep':
+        return this.useWaystep(abilityId);
+      case 'utility_camp_recall':
+        return {
+          ok: false,
+          interactionType: 'utility_spell',
+          targetId: abilityId,
+          message: 'No camp recall point is prepared yet.',
+          toastKind: 'error',
+        };
+      default:
+        return {
+          ok: false,
+          interactionType: 'utility_spell',
+          targetId: abilityId,
+          message: `${ability.displayName} has no effect yet.`,
+          toastKind: 'error',
+        };
+    }
+  }
+
   getCurrentMapId(): string {
     return this.mapLoader.getCurrentMapId();
   }
@@ -1045,6 +1104,104 @@ export class WorldRuntimeCoordinator {
     this.recenterCameraOnPlayer();
   }
 
+  private useHomewardMark(abilityId: string): InteractionResult {
+    if (!this.bindings || !this.currentRuntime) {
+      return {
+        ok: false,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: 'Magic is unavailable right now.',
+        toastKind: 'error',
+      };
+    }
+
+    const currentTile = this.bindings.playerController.getFeetTile();
+    const currentMapId = this.currentRuntime.definition.id;
+
+    if (!this.homewardMark) {
+      this.homewardMark = { mapId: currentMapId, tileX: currentTile.x, tileY: currentTile.y };
+      return {
+        ok: true,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: 'Homeward Mark set.',
+        toastKind: 'success',
+      };
+    }
+
+    if (this.homewardMark.mapId !== currentMapId) {
+      return {
+        ok: false,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: 'Your Homeward Mark is on another map.',
+        toastKind: 'error',
+      };
+    }
+
+    if (!this.isRestorablePlayerTile(this.homewardMark)) {
+      this.homewardMark = { mapId: currentMapId, tileX: currentTile.x, tileY: currentTile.y };
+      return {
+        ok: true,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: 'Old mark was blocked. Homeward Mark reset here.',
+        toastKind: 'success',
+      };
+    }
+
+    this.setPlayerToTile(this.homewardMark);
+    return {
+      ok: true,
+      interactionType: 'utility_spell',
+      targetId: abilityId,
+      message: 'Returned to your Homeward Mark.',
+      toastKind: 'success',
+    };
+  }
+
+  private useWaystep(abilityId: string): InteractionResult {
+    if (!this.bindings || !this.currentRuntime) {
+      return {
+        ok: false,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: 'Magic is unavailable right now.',
+        toastKind: 'error',
+      };
+    }
+
+    const origin = this.bindings.playerController.getFeetTile();
+    const facing = this.bindings.playerController.getFacingDirection();
+    const delta = facingToTileDelta(facing);
+    const maxTiles = 2;
+
+    for (let distance = maxTiles; distance >= 1; distance -= 1) {
+      const target = {
+        tileX: origin.x + delta.x * distance,
+        tileY: origin.y + delta.y * distance,
+      };
+      if (this.isRestorablePlayerTile(target)) {
+        this.setPlayerToTile(target);
+        return {
+          ok: true,
+          interactionType: 'utility_spell',
+          targetId: abilityId,
+          message: `Waystepped ${distance} tile${distance === 1 ? '' : 's'}.`,
+          toastKind: 'success',
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      interactionType: 'utility_spell',
+      targetId: abilityId,
+      message: 'No clear tile ahead for Waystep.',
+      toastKind: 'error',
+    };
+  }
+
   private recenterCameraOnPlayer(): void {
     if (!this.bindings) {
       return;
@@ -1058,5 +1215,14 @@ export class WorldRuntimeCoordinator {
     if (rawEnv !== null && typeof rawEnv === 'object' && !Array.isArray(rawEnv)) {
       this.worldEnv.setInitial(rawEnv as Record<string, unknown>);
     }
+  }
+}
+
+function facingToTileDelta(facing: PlayerFacingDirection): { x: number; y: number } {
+  switch (facing) {
+    case 'up': return { x: 0, y: -1 };
+    case 'down': return { x: 0, y: 1 };
+    case 'left': return { x: -1, y: 0 };
+    case 'right': return { x: 1, y: 0 };
   }
 }

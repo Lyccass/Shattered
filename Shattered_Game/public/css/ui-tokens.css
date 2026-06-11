@@ -73,14 +73,13 @@
 
   /* ── Dimensions ───────────────────────────────────── */
   /*
-    Panel height and icon bar height must match.
-    Icon bar total = 8 × --icon-btn-h + 8 × 4px (gaps) + 8px (padding)
-    = 8×52 + 32 + 8 = 456px + spacer → set taskbar height to --panel-h
+    Panel height and icon bar height must match. Keep taskbar buttons compact
+    enough for combat controls, core tabs, Magic, Devotion, and Settings.
   */
   --panel-w:     245px;
   --panel-h:     480px;   /* = taskbar column height */
   --icon-col-w:  62px;
-  --icon-btn-h:  52px;
+  --icon-btn-h:  38px;
   --slot-size:   55px;
   --minimap-size:185px;
   --orb-size:    36px;
@@ -96,5 +95,4 @@
   --shadow:       0 4px 24px rgba(0,0,0,0.75), 0 1px 4px rgba(0,0,0,0.5);
   --tr:           80ms ease;
 }
-
 

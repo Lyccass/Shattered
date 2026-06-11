@@ -46,7 +46,7 @@ export const CONTRACT_DEFINITIONS: ContractDefinition[] = [
       harborReputation: 3,
       xpRewards: {
         melee: 40,
-        defence: 20,
+        devotion: 20,
       },
     },
     repeatable: false,

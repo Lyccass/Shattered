@@ -3,12 +3,16 @@ import type { CompanionSnapshot } from '../../../companions/CompanionTypes';
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
+import type { SpellbookSnapshot } from '../../../player/PlayerSpellbookState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
+import type { AbilitySlotType } from '../../../combat/abilities/CombatAbilityDefinitions';
 import { UI_TOKENS, type TabId } from '../UITokens';
 import { EquipmentTabContent } from './EquipmentTabContent';
+import { DevotionTabContent } from './DevotionTabContent';
 import { InventoryTabContent } from './InventoryTabContent';
 import { JournalTabContent } from './JournalTabContent';
+import { MagicTabContent } from './MagicTabContent';
 import { SettingsTabContent } from './SettingsTabContent';
 import { SkillsTabContent } from './SkillsTabContent';
 
@@ -21,6 +25,8 @@ interface TabDef {
 const TABS_TOP: TabDef[] = [
   { id: 'equipment', label: 'Equipment', iconUrl: UI_TOKENS.icons.equipment },
   { id: 'inventory', label: 'Inventory', iconUrl: UI_TOKENS.icons.inventory },
+  { id: 'magic',     label: 'Magic',     iconUrl: UI_TOKENS.icons.magic },
+  { id: 'devotion',  label: 'Devotion',  iconUrl: UI_TOKENS.icons.devotion },
   { id: 'skills',    label: 'Skills',    iconUrl: UI_TOKENS.icons.skills },
   { id: 'journal',   label: 'Journal',   iconUrl: UI_TOKENS.icons.journal },
   { id: 'map',       label: 'Map',       iconUrl: UI_TOKENS.icons.map },
@@ -41,6 +47,8 @@ export class TaskbarPanel {
 
   private readonly inventoryContent: InventoryTabContent;
   private readonly equipmentContent: EquipmentTabContent;
+  private readonly magicContent: MagicTabContent;
+  private readonly devotionContent: DevotionTabContent;
   private readonly skillsContent: SkillsTabContent;
   private readonly journalContent: JournalTabContent;
   private readonly settingsContent: SettingsTabContent;
@@ -54,6 +62,8 @@ export class TaskbarPanel {
     private readonly onInventoryItemInspect: (itemId: string) => void,
     private readonly onInventoryItemCombine: (sourceId: string, targetId: string) => void,
     private readonly onEquipmentUnequip: (slot: string) => void,
+    private readonly onSpellbookEquip: (slotType: AbilitySlotType, slotIndex: number, abilityId: string | null) => void,
+    private readonly onUtilitySpellUse: (abilityId: string) => void,
     private readonly onCompanionEquip: (slot: string, definitionId: string) => void,
     private readonly onCompanionUnequip: (slot: string) => void,
     private readonly onSkillOpen: (skill: SkillSnapshot) => void,
@@ -82,24 +92,14 @@ export class TaskbarPanel {
     this.sprintBtn.addEventListener('click', () => { this.onSprintToggle(); });
     taskbar.appendChild(this.sprintBtn);
 
-    // Divider: combat controls / panel tabs
-    taskbar.appendChild(this.createDivider());
-
-    // Main tab buttons — insert dividers to isolate the skills tab
+    // Main tab buttons
     TABS_TOP.forEach(({ id, label, iconUrl }) => {
-      if (id === 'skills') taskbar.appendChild(this.createDivider());
       const btn = this.createIconBtn(label, iconUrl);
       btn.dataset.tab = id;
       btn.addEventListener('click', () => this.handleTabClick(id));
       this.tabButtons.set(id, btn);
       taskbar.appendChild(btn);
-      if (id === 'skills') taskbar.appendChild(this.createDivider());
     });
-
-    // Spacer pushes Settings to the bottom
-    const spacer = document.createElement('div');
-    spacer.className = 'taskbar-spacer';
-    taskbar.appendChild(spacer);
 
     // Settings LAST (bottom)
     TABS_BOTTOM.forEach(({ id, label, iconUrl }) => {
@@ -126,15 +126,11 @@ export class TaskbarPanel {
       this.onCompanionEquip,
       this.onCompanionUnequip,
     );
+    this.magicContent     = new MagicTabContent(this.onSpellbookEquip, this.onUtilitySpellUse);
+    this.devotionContent  = new DevotionTabContent(this.onSpellbookEquip);
     this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
     this.settingsContent  = new SettingsTabContent(this.onClearSave);
-  }
-
-  private createDivider(): HTMLElement {
-    const el = document.createElement('div');
-    el.className = 'taskbar-divider';
-    return el;
   }
 
   private createIconBtn(label: string, iconUrl: string): HTMLElement {
@@ -185,6 +181,8 @@ export class TaskbarPanel {
     switch (tabId) {
       case 'inventory':  return this.inventoryContent.el;
       case 'equipment':  return this.equipmentContent.el;
+      case 'magic':      return this.magicContent.el;
+      case 'devotion':   return this.devotionContent.el;
       case 'skills':     return this.skillsContent.el;
       case 'journal':    return this.journalContent.el;
       case 'settings':   return this.settingsContent.el;
@@ -235,11 +233,14 @@ export class TaskbarPanel {
     skills: SkillSnapshot[],
     equipment: EquipmentSnapshot,
     companions: CompanionSnapshot,
+    spellbook: SpellbookSnapshot,
   ): void {
     this.inventoryContent.update(inventory, currency);
     this.skillsContent.update(skills);
     this.journalContent.update(journalEntries, reputation, activeTaskCount);
     this.equipmentContent.update(equipment, companions);
+    this.magicContent.update(spellbook);
+    this.devotionContent.update(spellbook);
     this.settingsContent.update();
   }
 

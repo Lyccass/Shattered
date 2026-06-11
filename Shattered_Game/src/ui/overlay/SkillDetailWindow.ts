@@ -15,13 +15,16 @@ const TABS: TabDef[] = [
   { id: 'recipe',        label: 'Recipes'    },
   { id: 'resource_node', label: 'Resources'  },
   { id: 'tool',          label: 'Equipment'  },
+  { id: 'combat_spell',  label: 'Combat'     },
+  { id: 'utility_spell', label: 'Utility'    },
+  { id: 'devotion_ability', label: 'Devotion' },
   { id: 'passive',       label: 'Activities' },
 ];
 
 export class SkillDetailWindow {
   readonly el: HTMLElement;
 
-  private activeTab: UnlockKind = 'recipe';
+  private activeTab: UnlockKind | null = null;
   private readonly tabBtns = new Map<UnlockKind, HTMLElement>();
   private readonly bodyEl: HTMLElement;
 
@@ -43,13 +46,14 @@ export class SkillDetailWindow {
     this.totalEl      = progress.total;
     this.pipEls       = progress.pips;
     this.el.appendChild(progress.el);
-    this.el.appendChild(this.buildTabBar());
+    const tabBar = this.buildTabBar();
+    if (tabBar) this.el.appendChild(tabBar);
 
     this.bodyEl = document.createElement('div');
     this.bodyEl.className = 'skd-body';
     this.el.appendChild(this.bodyEl);
 
-    this.renderTab('recipe');
+    this.renderTab(this.getDefaultTab());
   }
 
   // ── Live update ─────────────────────────────────────────────────────────────
@@ -146,16 +150,17 @@ export class SkillDetailWindow {
 
   // ── Tab bar ─────────────────────────────────────────────────────────────────
 
-  private buildTabBar(): HTMLElement {
+  private buildTabBar(): HTMLElement | null {
+    const availableTabs = this.getAvailableTabs();
+    if (availableTabs.length === 0) return null;
+
     const bar = document.createElement('div');
     bar.className = 'skd-tabbar';
 
-    for (const tab of TABS) {
-      const all = REGISTRY.getAllForSkill(this.skill.id).filter((e) => e.kind === tab.id);
+    for (const tab of availableTabs) {
       const btn = document.createElement('button');
-      btn.className = `skd-tab${all.length === 0 ? ' skd-tab--empty' : ''}`;
+      btn.className = 'skd-tab';
       btn.textContent = tab.label;
-      btn.disabled = all.length === 0;
       btn.addEventListener('click', () => this.renderTab(tab.id));
       this.tabBtns.set(tab.id, btn);
       bar.appendChild(btn);
@@ -166,14 +171,16 @@ export class SkillDetailWindow {
 
   // ── Tab content ─────────────────────────────────────────────────────────────
 
-  private renderTab(kind: UnlockKind): void {
-    this.tabBtns.get(this.activeTab)?.classList.remove('skd-tab--active');
+  private renderTab(kind: UnlockKind | null): void {
+    if (this.activeTab) this.tabBtns.get(this.activeTab)?.classList.remove('skd-tab--active');
     this.activeTab = kind;
-    this.tabBtns.get(kind)?.classList.add('skd-tab--active');
+    if (kind) this.tabBtns.get(kind)?.classList.add('skd-tab--active');
 
     this.bodyEl.innerHTML = '';
 
-    const all = REGISTRY.getAllForSkill(this.skill.id).filter((e) => e.kind === kind);
+    const all = kind
+      ? REGISTRY.getAllForSkill(this.skill.id).filter((e) => e.kind === kind)
+      : [];
 
     if (all.length === 0) {
       const empty = document.createElement('div');
@@ -188,6 +195,15 @@ export class SkillDetailWindow {
 
     if (unlocked.length > 0) this.bodyEl.appendChild(this.buildSection('Unlocked', unlocked, true));
     if (upcoming.length  > 0) this.bodyEl.appendChild(this.buildSection('Up Next',  upcoming,  false));
+  }
+
+  private getDefaultTab(): UnlockKind | null {
+    return this.getAvailableTabs()[0]?.id ?? null;
+  }
+
+  private getAvailableTabs(): TabDef[] {
+    const entries = REGISTRY.getAllForSkill(this.skill.id);
+    return TABS.filter((tab) => entries.some((entry) => entry.kind === tab.id));
   }
 
   private buildSection(title: string, entries: SkillUnlockEntry[], done: boolean): HTMLElement {

@@ -1,7 +1,8 @@
 import type { EquippedSlots, PlayerDerivedStats, WeaponArchetype, WeaponAttackShape } from './EquipmentTypes';
 import type { EquipmentRegistry } from './EquipmentRegistry';
 
-const BASE_MAX_HP = 10;
+const MIN_MAX_HP = 10;
+const HARD_MAX_HP = 100;
 const BASE_MAX_STAMINA = 100;
 const BASE_ATTACK = 1;
 const BASE_ACCURACY = 50;
@@ -27,7 +28,9 @@ function getArchetypeTimings(archetype: WeaponArchetype): { windupMs: number; ac
 
 export type SkillLevels = {
   melee: number;
-  defence: number;
+  ranged: number;
+  magic: number;
+  devotion: number;
 };
 
 export function computeDerivedStats(
@@ -36,13 +39,22 @@ export function computeDerivedStats(
   skills: SkillLevels,
 ): PlayerDerivedStats {
   const meleeLevel = Math.max(0, Math.min(100, skills.melee));
-  const defenceLevel = Math.max(0, Math.min(100, skills.defence));
+  const rangedLevel = Math.max(0, Math.min(100, skills.ranged));
+  const magicLevel = Math.max(0, Math.min(100, skills.magic));
+  const devotionLevel = Math.max(0, Math.min(100, skills.devotion));
+  const combatLevel = Math.max(
+    1,
+    Math.floor((meleeLevel + rangedLevel + magicLevel + devotionLevel) / 4),
+  );
 
   // Skill-driven base values
-  const maxHp = BASE_MAX_HP + Math.floor((defenceLevel / 100) * 90);
-  const maxCarryWeight = BASE_MAX_CARRY_WEIGHT + Math.floor(defenceLevel * 0.3);
-  const skillDodge = Math.floor(defenceLevel * 0.2);
-  const staggerThreshold = BASE_STAGGER_THRESHOLD + Math.floor(defenceLevel * 0.5);
+  const maxHp = Math.min(
+    HARD_MAX_HP,
+    MIN_MAX_HP + Math.floor(((combatLevel - 1) / 99) * (HARD_MAX_HP - MIN_MAX_HP)),
+  );
+  const maxCarryWeight = BASE_MAX_CARRY_WEIGHT + Math.floor(combatLevel * 0.3);
+  const skillDodge = Math.floor(combatLevel * 0.2);
+  const staggerThreshold = BASE_STAGGER_THRESHOLD + Math.floor(combatLevel * 0.5);
 
   // Weapon from main_hand slot
   const mainHandDef = slots.main_hand ? registry.get(slots.main_hand) : undefined;
@@ -101,6 +113,7 @@ export function computeDerivedStats(
 
   return {
     maxHp,
+    combatLevel,
     maxStamina: BASE_MAX_STAMINA,
     attack,
     accuracy,

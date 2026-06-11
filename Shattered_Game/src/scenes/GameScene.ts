@@ -84,6 +84,10 @@ export class GameScene extends Phaser.Scene {
     this.turnCombatSession.onEnd((evt) => {
       if (evt.reason === 'player_died') {
         this.handlePlayerDied();
+      } else if (evt.reason === 'player_fled') {
+        this.uiManager?.pushMessage('You escaped.', 'game');
+      } else if (evt.reason === 'victory') {
+        this.uiManager?.pushMessage('Victory!', 'reward');
       }
     });
     this.turnCombatSession.onXp((delta) =>
@@ -93,6 +97,9 @@ export class GameScene extends Phaser.Scene {
       (spawnId, areaId, definitionId, worldX, worldY) =>
         this.handleEnemyKilledForLoot(spawnId, areaId, definitionId, worldX, worldY),
     );
+    this.turnCombatSession.setConsumeCallback((itemId) => {
+      return this.worldRuntimeCoordinator?.consumeItem(itemId, 1) ?? false;
+    });
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.worldRuntimeCoordinator.setGroundItemCollector(
@@ -110,9 +117,9 @@ export class GameScene extends Phaser.Scene {
     this.uiManager = new UiManager(this, {
       onCombatToggle:         () => this.toggleCombatStance(),
       onCombatEndTurn:        () => this.turnCombatSession?.tryPlayerEndTurn(),
+      onCombatMoveMode:       () => this.turnCombatSession?.selectMoveMode(),
       onCombatAttackMode:     (attackId) => this.turnCombatSession?.toggleAttackMode(attackId),
-      onCombatGuard:          () => this.turnCombatSession?.tryPlayerGuard(),
-      onCombatCleanse:        () => this.turnCombatSession?.tryPlayerCleanse(),
+      onCombatAbility:        (abilityId) => this.turnCombatSession?.activateAbility(abilityId),
       onSprintToggle:         () => this.tryToggleSprint(),
       onInventoryItemUse:     (itemId) => this.tryUseItem(itemId),
       onInventoryItemDrop:    (itemId) => this.tryDropItem(itemId),
@@ -121,6 +128,14 @@ export class GameScene extends Phaser.Scene {
       onEquipmentUnequip:     (slot) => {
         const result = this.worldRuntimeCoordinator?.unequipSlot(slot as import('../equipment/EquipmentTypes').EquipmentSlot);
         if (result) this.uiManager?.handleResult(result);
+      },
+      onSpellbookEquip: (slotType, slotIndex, abilityId) => {
+        const ok = this.worldRuntimeCoordinator?.equipSpellbookAbility(slotType, slotIndex, abilityId) ?? false;
+        this.uiManager?.showInfo(ok ? 'Spellbook updated.' : 'That ability is not unlocked.');
+      },
+      onUtilitySpellUse: (abilityId) => {
+        const result = this.worldRuntimeCoordinator?.useUtilitySpell(abilityId);
+        if (result) this.handleGameplayResult(result, { allowAutosave: true });
       },
       onCompanionEquip: (slot, definitionId) => {
         this.playerCompanionState.equip(slot as CompanionSlot, definitionId);
@@ -187,6 +202,9 @@ export class GameScene extends Phaser.Scene {
     if (this.turnCombatSession && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
       const derived = this.worldRuntimeCoordinator.getDerivedStats();
       this.turnCombatSession.setDerivedStats(derived);
+      this.turnCombatSession.setEquippedTurnAbilities(
+        this.worldRuntimeCoordinator.getEquippedTurnAbilities(),
+      );
     }
 
     this.turnCombatSession?.update(this.time.now);
@@ -276,7 +294,10 @@ export class GameScene extends Phaser.Scene {
         if (this.turnCombatSession?.isInCombat()) {
           if (tilemap) {
             const tile = tilemap.transform.worldToTile(worldX, worldY);
-            this.turnCombatSession.handleTileClick(tile.x, tile.y);
+            const outcome = this.turnCombatSession.handleTileClick(tile.x, tile.y);
+            if (outcome?.kind === 'invalid') {
+              this.uiManager?.pushMessage(outcome.reason, 'error');
+            }
           }
           return;
         }
@@ -469,6 +490,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.worldRuntimeCoordinator || !this.uiManager) return;
 
     const def = getItem(itemId);
+
     if (def?.companionId) {
       const freeSlot = (['companion_1', 'companion_2', 'companion_3'] as CompanionSlot[])
         .find((s) => !this.playerCompanionState.getSlots()[s]);
@@ -483,7 +505,27 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // In combat: consumable items cost a Secondary Action instead of normal use
+    if (this.turnCombatSession?.isInCombat() && def?.consume?.hpRestore) {
+      const outcome = this.turnCombatSession.tryPlayerConsumeItem(itemId, def.consume.hpRestore);
+      if (!outcome) return;
+      if (outcome.kind === 'item_consumed') {
+        this.uiManager.pushMessage(`You eat the ${def.name}. (+${def.consume.hpRestore} HP)`, 'game');
+      } else if (outcome.kind === 'invalid') {
+        this.uiManager.pushMessage(outcome.reason, 'error');
+      }
+      return;
+    }
+
     const result = this.worldRuntimeCoordinator.useItem(itemId);
+    if (result.ok && def?.consume?.hpRestore) {
+      this.turnCombatSession?.applyHpHeal(def.consume.hpRestore);
+      this.handleGameplayResult({
+        ...result,
+        message: `You eat the ${def.name}. (+${def.consume.hpRestore} HP)`,
+      }, { allowAutosave: false });
+      return;
+    }
     this.handleGameplayResult(result, { allowAutosave: false });
   }
 
@@ -710,6 +752,8 @@ export class GameScene extends Phaser.Scene {
       this.worldRuntimeCoordinator?.seedStartingInventory({
         ...STARTING_WEAPON_IDS,
         ...STARTING_COMPANION_IDS,
+        bread: 3,
+        health_potion: 1,
       });
     }
   }

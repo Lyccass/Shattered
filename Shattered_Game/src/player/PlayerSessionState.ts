@@ -8,9 +8,12 @@ import { PlayerCurrencyState, type CurrencySnapshot } from './PlayerCurrencyStat
 import { PlayerEquipmentState } from './PlayerEquipmentState';
 import { PlayerInventoryState, type PlayerInventorySnapshot } from './PlayerInventoryState';
 import { PlayerReputationState, type ReputationSnapshot } from './PlayerReputationState';
+import { PlayerSpellbookState, type SpellbookSnapshot } from './PlayerSpellbookState';
 import { SkillProgressionSystem } from '../skills/SkillProgressionSystem';
-import type { SkillSnapshot } from '../skills/SkillTypes';
+import type { SkillId, SkillSnapshot } from '../skills/SkillTypes';
 import { TaskJournalState } from '../tasks/TaskJournalState';
+import type { TurnCombatAbility } from '../combat/turn/TurnCombatTypes';
+import type { AbilitySlotType } from '../combat/abilities/CombatAbilityDefinitions';
 
 export class PlayerSessionState {
   private readonly inventoryState = new PlayerInventoryState();
@@ -22,6 +25,7 @@ export class PlayerSessionState {
     new EffectRegistry(EFFECT_DEFINITIONS),
   );
   private readonly equipmentState = new PlayerEquipmentState();
+  private readonly spellbookState = new PlayerSpellbookState();
 
   getInventoryState(): PlayerInventoryState {
     return this.inventoryState;
@@ -53,6 +57,18 @@ export class PlayerSessionState {
 
   getSkillSnapshots(): SkillSnapshot[] {
     return this.skillProgressionSystem.getAllSkills();
+  }
+
+  getSpellbookSnapshot(): SpellbookSnapshot {
+    return this.spellbookState.getSnapshot((skillId) => this.getSkillLevel(skillId));
+  }
+
+  getEquippedTurnAbilities(): TurnCombatAbility[] {
+    return this.spellbookState.getEquippedTurnAbilities((skillId) => this.getSkillLevel(skillId));
+  }
+
+  equipSpellbookAbility(slotType: AbilitySlotType, slotIndex: number, abilityId: string | null): boolean {
+    return this.spellbookState.equip(slotType, slotIndex, abilityId, (skillId) => this.getSkillLevel(skillId));
   }
 
   getTaskJournalState(): TaskJournalState {
@@ -94,15 +110,23 @@ export class PlayerSessionState {
   getDerivedStats(): PlayerDerivedStats {
     return this.equipmentState.getDerivedStats({
       melee: this.skillProgressionSystem.getLevel('melee'),
-      defence: this.skillProgressionSystem.getLevel('defence'),
+      ranged: this.skillProgressionSystem.getLevel('ranged'),
+      magic: this.skillProgressionSystem.getLevel('magic'),
+      devotion: this.skillProgressionSystem.getLevel('devotion'),
     });
   }
 
   getEquipmentSnapshot(): EquipmentSnapshot {
     return this.equipmentState.getSnapshot({
       melee: this.skillProgressionSystem.getLevel('melee'),
-      defence: this.skillProgressionSystem.getLevel('defence'),
+      ranged: this.skillProgressionSystem.getLevel('ranged'),
+      magic: this.skillProgressionSystem.getLevel('magic'),
+      devotion: this.skillProgressionSystem.getLevel('devotion'),
     });
+  }
+
+  private getSkillLevel(skillId: SkillId): number {
+    return this.skillProgressionSystem.getLevel(skillId);
   }
 
   getActiveEffects(nowMs: number): ActiveEffectSnapshot[] {
@@ -141,6 +165,7 @@ export class PlayerSessionState {
       journal: this.taskJournalState.createSaveSnapshot(),
       activeEffects: this.effectSystem.createSaveSnapshot(nowMs),
       equippedSlots: this.equipmentState.createSaveSnapshot(),
+      spellbookLoadout: this.spellbookState.createSaveSnapshot(),
     };
   }
 
@@ -157,5 +182,6 @@ export class PlayerSessionState {
     if (snapshot.equippedSlots) {
       this.equipmentState.restoreSaveSnapshot(snapshot.equippedSlots);
     }
+    this.spellbookState.restoreSaveSnapshot(snapshot.spellbookLoadout);
   }
 }

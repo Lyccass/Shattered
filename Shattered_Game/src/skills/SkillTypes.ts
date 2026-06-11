@@ -1,12 +1,14 @@
 // Modular skill list — add new skills here and in SkillProgressionSystem.INITIAL_XP
 export type SkillId =
   | 'melee'
-  | 'defence'
+  | 'ranged'
+  | 'magic'
+  | 'devotion'
   | 'metalworking'
   | 'woodworking'
   | 'alchemy'
   | 'trade';
-// Future additions: 'survival' | 'magic' | 'ranged' | 'fishing' | 'cooking' | ...
+// Future additions: 'survival' | 'fishing' | 'cooking' | ...
 
 export type SkillXpDelta = Partial<Record<SkillId, number>>;
 

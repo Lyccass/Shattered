@@ -39,6 +39,11 @@ export class UIOverlayManager {
   constructor(callbacks: UIOverlayCallbacks) {
     // Locate or create the overlay div (created in index.html)
     this.overlay = document.getElementById('ui-overlay') as HTMLElement;
+    // Phaser registers a window-level mousedown listener. Stopping propagation here
+    // prevents any click on the HTML overlay from being processed as a game-world tile click.
+    const stopProp = (e: Event) => e.stopPropagation();
+    this.overlay.addEventListener('mousedown', stopProp);
+    this.overlay.addEventListener('pointerdown', stopProp);
 
     this.enemyPanel      = new EnemyPanel(this.overlay);
     this.minimapPanel    = new MinimapPanel(this.overlay, () => callbacks.onMinimapClick(), (d) => callbacks.onMinimapZoom(d));
@@ -56,6 +61,8 @@ export class UIOverlayManager {
       callbacks.onInventoryItemInspect,
       callbacks.onInventoryItemCombine,
       callbacks.onEquipmentUnequip,
+      callbacks.onSpellbookEquip,
+      callbacks.onUtilitySpellUse,
       callbacks.onCompanionEquip,
       callbacks.onCompanionUnequip,
       (skill) => this.openSkillDetail(skill),
@@ -66,9 +73,9 @@ export class UIOverlayManager {
     this.combatHud       = new CombatHud(
       this.overlay,
       callbacks.onCombatEndTurn,
+      callbacks.onCombatMoveMode,
       callbacks.onCombatAttackMode,
-      callbacks.onCombatGuard,
-      callbacks.onCombatCleanse,
+      callbacks.onCombatAbility,
     );
     this.choiceMenuPopup = new ChoiceMenuPopup(
       this.overlay,
@@ -115,6 +122,7 @@ export class UIOverlayManager {
       state.skills,
       state.equipment,
       state.companions,
+      state.spellbook,
     );
 
     // Live-update the open skill detail popup
