@@ -801,6 +801,10 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getSkillSnapshots();
   }
 
+  getSkillLevel(skillId: SkillId): number {
+    return this.playerSessionState.getSkillLevel(skillId);
+  }
+
   addCombatXp(delta: SkillXpDelta): LevelUpEvent[] {
     return this.playerSessionState.getSkillProgressionSystem().addXpDelta(delta);
   }

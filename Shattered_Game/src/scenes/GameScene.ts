@@ -211,6 +211,10 @@ export class GameScene extends Phaser.Scene {
     if (this.turnCombatSession && this.worldRuntimeCoordinator?.hasActiveRuntime()) {
       const derived = this.worldRuntimeCoordinator.getDerivedStats();
       this.turnCombatSession.setDerivedStats(derived);
+      this.turnCombatSession.setCombatSkillLevels({
+        magic: this.worldRuntimeCoordinator.getSkillLevel('magic'),
+        devotion: this.worldRuntimeCoordinator.getSkillLevel('devotion'),
+      });
       this.turnCombatSession.setEquippedTurnAbilities(
         this.worldRuntimeCoordinator.getEquippedTurnAbilities(),
       );

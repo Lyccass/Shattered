@@ -7,6 +7,7 @@ import type { PlayerController } from '../../player/PlayerController';
 import type { PlayerFacingDirection } from '../../player/PlayerFacing';
 import type { GameEventBus } from '../../events/GameEventBus';
 import type { SkillXpDelta, LevelUpEvent } from '../../skills/SkillTypes';
+import { levelToRankStage } from '../../skills/SkillTypes';
 import type { PlayerDerivedStats } from '../../equipment/EquipmentTypes';
 import { TurnActionPreviewRenderer } from './TurnActionPreviewRenderer';
 import {
@@ -55,8 +56,8 @@ const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
 const PLAYER_MOVE_POINTS_PER_TURN       = 5;
 const PLAYER_HP_REGEN_INTERVAL_MS       = 60_000;
 const AUTO_FLEE_DISTANCE = 8;
-const PLAYER_MAGIC_RESOURCE_MAX = 4;
-const PLAYER_DEVOTION_RESOURCE_MAX = 4;
+const PLAYER_BASE_MAGIC_RESOURCE_MAX = 4;
+const PLAYER_BASE_DEVOTION_RESOURCE_MAX = 4;
 
 export class TurnCombatSession {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -76,6 +77,8 @@ export class TurnCombatSession {
   private persistedPlayerMaxHp: number | null = null;
   private persistedMagicResource: number | null = null;
   private persistedDevotionResource: number | null = null;
+  private magicResourceMax = PLAYER_BASE_MAGIC_RESOURCE_MAX;
+  private devotionResourceMax = PLAYER_BASE_DEVOTION_RESOURCE_MAX;
   private lastPlayerHpRegenMs = 0;
   private _isSprinting = false;
   /** Whether the player has activated "pick a target" attack mode. */
@@ -145,8 +148,19 @@ export class TurnCombatSession {
     this.persistedPlayerMaxHp = stats.maxHp;
     if (this.persistedPlayerHp === null) this.persistedPlayerHp = stats.maxHp;
     else this.persistedPlayerHp = Math.min(this.persistedPlayerHp, stats.maxHp);
-    if (this.persistedMagicResource === null) this.persistedMagicResource = PLAYER_MAGIC_RESOURCE_MAX;
-    if (this.persistedDevotionResource === null) this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
+    if (this.persistedMagicResource === null) this.persistedMagicResource = this.magicResourceMax;
+    else this.persistedMagicResource = Math.min(this.persistedMagicResource, this.magicResourceMax);
+    if (this.persistedDevotionResource === null) this.persistedDevotionResource = this.devotionResourceMax;
+    else this.persistedDevotionResource = Math.min(this.persistedDevotionResource, this.devotionResourceMax);
+  }
+
+  setCombatSkillLevels(levels: { magic: number; devotion: number }): void {
+    this.magicResourceMax = getPersistentResourceMax(levels.magic, PLAYER_BASE_MAGIC_RESOURCE_MAX);
+    this.devotionResourceMax = getPersistentResourceMax(levels.devotion, PLAYER_BASE_DEVOTION_RESOURCE_MAX);
+    if (this.persistedMagicResource === null) this.persistedMagicResource = this.magicResourceMax;
+    else this.persistedMagicResource = Math.min(this.persistedMagicResource, this.magicResourceMax);
+    if (this.persistedDevotionResource === null) this.persistedDevotionResource = this.devotionResourceMax;
+    else this.persistedDevotionResource = Math.min(this.persistedDevotionResource, this.devotionResourceMax);
   }
 
   /** Call after the player respawns so HP is reset to full. */
@@ -154,8 +168,8 @@ export class TurnCombatSession {
     const maxHp = this.derivedStats?.maxHp ?? null;
     this.persistedPlayerHp = maxHp;
     this.persistedPlayerMaxHp = maxHp;
-    this.persistedMagicResource = PLAYER_MAGIC_RESOURCE_MAX;
-    this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
+    this.persistedMagicResource = this.magicResourceMax;
+    this.persistedDevotionResource = this.devotionResourceMax;
   }
 
   setEquippedCompanions(slots: EquippedCompanionSlots): void {
@@ -487,9 +501,9 @@ export class TurnCombatSession {
       playerCurrentHp: liveHp ?? this.persistedPlayerHp,
       playerMaxHp: this.persistedPlayerMaxHp ?? this.derivedStats?.maxHp ?? null,
       playerMagicResourceCurrent: base.playerMagicResourceCurrent ?? this.persistedMagicResource,
-      playerMagicResourceMax: base.playerMagicResourceMax ?? PLAYER_MAGIC_RESOURCE_MAX,
+      playerMagicResourceMax: base.playerMagicResourceMax ?? this.magicResourceMax,
       playerDevotionResourceCurrent: base.playerDevotionResourceCurrent ?? this.persistedDevotionResource,
-      playerDevotionResourceMax: base.playerDevotionResourceMax ?? PLAYER_DEVOTION_RESOURCE_MAX,
+      playerDevotionResourceMax: base.playerDevotionResourceMax ?? this.devotionResourceMax,
       isSprinting: this._isSprinting,
       isAttackMode: this._isAttackMode,
       selectedAttackId: this.selectedPlayerAttackId,
@@ -577,8 +591,8 @@ export class TurnCombatSession {
     const maxHp = this.derivedStats.maxHp;
     this.persistedPlayerMaxHp = maxHp;
     if (this.persistedPlayerHp === null) this.persistedPlayerHp = maxHp;
-    if (this.persistedMagicResource === null) this.persistedMagicResource = PLAYER_MAGIC_RESOURCE_MAX;
-    if (this.persistedDevotionResource === null) this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
+    if (this.persistedMagicResource === null) this.persistedMagicResource = this.magicResourceMax;
+    if (this.persistedDevotionResource === null) this.persistedDevotionResource = this.devotionResourceMax;
     const playerAttacks = buildPlayerTurnAttacks(this.derivedStats);
     const playerAbilities = this.equippedTurnAbilities.map((ability) => ({ ...ability }));
     const playerFacing = playerFacingToTurnVector(
@@ -601,10 +615,10 @@ export class TurnCombatSession {
       secondaryActionMax: PLAYER_SECONDARY_ACTIONS_PER_TURN,
       secondaryActionRemaining: PLAYER_SECONDARY_ACTIONS_PER_TURN,
       mpRemaining:     PLAYER_MOVE_POINTS_PER_TURN,
-      magicResourceMax: PLAYER_MAGIC_RESOURCE_MAX,
-      magicResourceRemaining: this.persistedMagicResource ?? PLAYER_MAGIC_RESOURCE_MAX,
-      devotionResourceMax: PLAYER_DEVOTION_RESOURCE_MAX,
-      devotionResourceRemaining: this.persistedDevotionResource ?? PLAYER_DEVOTION_RESOURCE_MAX,
+      magicResourceMax: this.magicResourceMax,
+      magicResourceRemaining: this.persistedMagicResource ?? this.magicResourceMax,
+      devotionResourceMax: this.devotionResourceMax,
+      devotionResourceRemaining: this.persistedDevotionResource ?? this.devotionResourceMax,
       reactionRemaining: 1,
       initiative:      5,
       attackPower:     this.derivedStats.attack,
@@ -1620,4 +1634,9 @@ function formatHitContext(hitChance: number | undefined, positionalModifier: num
     parts.push(`${positionalModifier > 0 ? '+' : ''}${positionalModifier} position`);
   }
   return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
+
+function getPersistentResourceMax(skillLevel: number, baseMax: number): number {
+  const rank = levelToRankStage(skillLevel).rank;
+  return baseMax + Math.max(0, rank - 1);
 }

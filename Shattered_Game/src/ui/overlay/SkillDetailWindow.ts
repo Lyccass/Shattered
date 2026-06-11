@@ -206,7 +206,16 @@ export class SkillDetailWindow {
   }
 
   private buildSkillOverview(): HTMLElement | null {
-    if (this.skill.id !== 'melee' && this.skill.id !== 'ranged') return null;
+    if (
+      this.skill.id !== 'melee' &&
+      this.skill.id !== 'ranged' &&
+      this.skill.id !== 'magic' &&
+      this.skill.id !== 'devotion'
+    ) return null;
+
+    if (this.skill.id === 'magic' || this.skill.id === 'devotion') {
+      return this.buildResourceOverview();
+    }
 
     const rankDamageBonus = Math.max(0, this.skill.rank - 1);
     const nextRankLevel = this.skill.rank < 10 ? rankStageToLevel(this.skill.rank + 1, 1) : null;
@@ -245,6 +254,44 @@ export class SkillDetailWindow {
     return section;
   }
 
+  private buildResourceOverview(): HTMLElement {
+    const nextRankLevel = this.skill.rank < 10 ? rankStageToLevel(this.skill.rank + 1, 1) : null;
+    const resourceName = this.skill.id === 'magic' ? 'Magic' : 'Devotion';
+    const restoreText = this.skill.id === 'magic'
+      ? 'Spent by combat spells and restored by resting, cities, shrines, camps, rare events, or rare items.'
+      : 'Spent by devotion abilities and restored by resting, cities, shrines, camps, rare events, or rare items.';
+    const section = document.createElement('div');
+    section.className = 'skd-section';
+
+    const hd = document.createElement('div');
+    hd.className = 'skd-section-hd skd-section-hd--done';
+    hd.textContent = `${resourceName} Resource`;
+    section.appendChild(hd);
+
+    section.appendChild(this.buildInfoRow(
+      'Current Resource Max',
+      `${getPersistentResourceMaxForRank(this.skill.rank)} ${resourceName}`,
+      `Rank ${this.skill.rank} lets you spend more ${resourceName.toLowerCase()} before returning to rest.`,
+      true,
+    ));
+    section.appendChild(this.buildInfoRow(
+      'Restoration',
+      'Persistent',
+      restoreText,
+      true,
+    ));
+    section.appendChild(this.buildInfoRow(
+      'Next Rank',
+      nextRankLevel
+        ? `Lv.${nextRankLevel}: +1 ${resourceName}`
+        : 'Max rank reached',
+      `Each rank-up increases ${resourceName.toLowerCase()} resource by 1.`,
+      nextRankLevel === null || this.skill.level >= nextRankLevel,
+    ));
+
+    return section;
+  }
+
   private buildInfoRow(
     name: string,
     value: string,
@@ -271,7 +318,12 @@ export class SkillDetailWindow {
     const entries = REGISTRY.getAllForSkill(this.skill.id);
     return TABS.filter((tab) =>
       entries.some((entry) => entry.kind === tab.id) ||
-      (tab.id === 'misc' && (this.skill.id === 'melee' || this.skill.id === 'ranged')),
+      (tab.id === 'misc' && (
+        this.skill.id === 'melee' ||
+        this.skill.id === 'ranged' ||
+        this.skill.id === 'magic' ||
+        this.skill.id === 'devotion'
+      )),
     );
   }
 
@@ -304,4 +356,8 @@ export class SkillDetailWindow {
 
 function fmt(n: number): string {
   return n.toLocaleString();
+}
+
+function getPersistentResourceMaxForRank(rank: number): number {
+  return 4 + Math.max(0, rank - 1);
 }
