@@ -26,10 +26,6 @@ export class CombatHud {
   private readonly apPipsEl: HTMLElement;
   private readonly movePipsEl: HTMLElement;
   private readonly secondaryPipsEl: HTMLElement;
-  private readonly magicPipsEl: HTMLElement;
-  private readonly devotionPipsEl: HTMLElement;
-  private readonly magicGroup: HTMLElement;
-  private readonly devotionGroup: HTMLElement;
   private readonly moveBtn: HTMLButtonElement;
   private readonly attackBtn: HTMLButtonElement;
   private readonly specialBtn: HTMLButtonElement;
@@ -74,16 +70,10 @@ export class CombatHud {
     this.apPipsEl = document.createElement('div');
     this.movePipsEl = document.createElement('div');
     this.secondaryPipsEl = document.createElement('div');
-    this.magicPipsEl = document.createElement('div');
-    this.devotionPipsEl = document.createElement('div');
 
     resources.appendChild(this.makeResourceGroup('Main', this.apPipsEl));
     resources.appendChild(this.makeResourceGroup('Move', this.movePipsEl));
     resources.appendChild(this.makeResourceGroup('Sec', this.secondaryPipsEl));
-    this.magicGroup = this.makeResourceGroup('Magic', this.magicPipsEl);
-    this.devotionGroup = this.makeResourceGroup('Devotion', this.devotionPipsEl);
-    resources.appendChild(this.magicGroup);
-    resources.appendChild(this.devotionGroup);
 
     const actionGrid = document.createElement('div');
     actionGrid.className = 'combat-action-grid';
@@ -148,10 +138,6 @@ export class CombatHud {
       this.buildPips(this.apPipsEl, actor.apMax, actor.apRemaining, 'ap-pip');
       this.buildPips(this.movePipsEl, actor.mpMax, actor.mpRemaining, 'move-pip');
       this.buildPips(this.secondaryPipsEl, actor.secondaryActionMax, actor.secondaryActionRemaining, 'secondary-pip');
-      this.buildPips(this.magicPipsEl, actor.magicResourceMax, actor.magicResourceRemaining, 'magic-pip');
-      this.buildPips(this.devotionPipsEl, actor.devotionResourceMax, actor.devotionResourceRemaining, 'devotion-pip');
-      this.magicGroup.classList.toggle('is-hidden', actor.magicResourceMax <= 0);
-      this.devotionGroup.classList.toggle('is-hidden', actor.devotionResourceMax <= 0);
     }
 
     this.moveBtn.textContent = 'Move';
@@ -212,6 +198,7 @@ export class CombatHud {
       card.className = [
         'combat-init-card',
         p.kind === 'player' ? 'is-player' : '',
+        p.kind === 'enemy' ? 'is-enemy' : '',
         p.kind === 'companion' ? 'is-companion' : '',
         p.id === activeId ? 'is-active' : '',
       ].filter(Boolean).join(' ');

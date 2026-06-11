@@ -100,6 +100,10 @@ export class UIOverlayManager {
       combat?.playerMaxHp     ?? null,
       null,
       null,
+      combat?.playerMagicResourceCurrent ?? null,
+      combat?.playerMagicResourceMax ?? null,
+      combat?.playerDevotionResourceCurrent ?? null,
+      combat?.playerDevotionResourceMax ?? null,
     );
     this.minimapPanel.updateMap(minimap);
     if (this.mapPopup.isOpen()) this.mapContent.update(minimap);

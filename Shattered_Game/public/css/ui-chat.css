@@ -8,9 +8,14 @@
   bottom: 0;
   left: 0;
   width: var(--chat-w);
+  max-width: calc(100vw - 32px);
   display: flex;
   flex-direction: column;
   pointer-events: auto;
+}
+
+#ui-chat.is-collapsed {
+  width: auto;
 }
 
 /* ── Message log ────────────────────────────────────── */
@@ -28,6 +33,10 @@
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: var(--c-secondary) transparent;
+}
+
+#ui-chat.is-collapsed .chat-log {
+  display: none;
 }
 
 .chat-log::-webkit-scrollbar       { width: 4px; }
@@ -74,6 +83,26 @@
   pointer-events: auto;
 }
 
+.chat-toggle {
+  padding: 0 var(--sp-2);
+  height: 100%;
+  min-width: 48px;
+  background: var(--c-surface-alt);
+  border: none;
+  border-right: 1px solid var(--c-secondary-dark);
+  color: var(--c-primary);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: var(--fs-xs);
+  letter-spacing: 0;
+  pointer-events: auto;
+}
+
+.chat-toggle:hover {
+  color: var(--c-text);
+  background: var(--c-slot-hover);
+}
+
 .chat-tab:hover     { color: var(--c-text); background: var(--c-slot-hover); }
 .chat-tab.is-active { color: var(--c-primary); background: var(--c-surface-alt); }
 
@@ -84,4 +113,3 @@
   color: var(--c-text-error);
 }
 .chat-tab--report:hover { color: #ff6666; }
-

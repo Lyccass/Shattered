@@ -9,6 +9,7 @@ export class EnemyPanel {
   private readonly tierEl: HTMLElement;
   private readonly hpFill: HTMLElement;
   private readonly hpText: HTMLElement;
+  private readonly turnOrderEl: HTMLElement;
 
   constructor(overlay: HTMLElement) {
     this.root = document.createElement('div');
@@ -25,6 +26,7 @@ export class EnemyPanel {
           <div class="enemy-hp-fill"></div>
         </div>
         <div class="enemy-hp-text"></div>
+        <div class="enemy-turn-order"></div>
       </div>
     `;
 
@@ -32,14 +34,18 @@ export class EnemyPanel {
     this.tierEl = requireElement(this.root, '.enemy-tier');
     this.hpFill = requireElement(this.root, '.enemy-hp-fill');
     this.hpText = requireElement(this.root, '.enemy-hp-text');
+    this.turnOrderEl = requireElement(this.root, '.enemy-turn-order');
 
     overlay.appendChild(this.root);
   }
 
   update(combat: TurnCombatUiSnapshot | null): void {
-    const enemy = combat?.active
-      ? (combat.turnOrder.find((p) => p.kind === 'enemy') ?? null)
-      : null;
+    if (!combat?.active) {
+      this.root.classList.add('ui-hidden');
+      return;
+    }
+
+    const enemy = combat.turnOrder.find((p) => p.kind === 'enemy') ?? null;
 
     if (!enemy) {
       this.root.classList.add('ui-hidden');
@@ -57,9 +63,30 @@ export class EnemyPanel {
     this.hpFill.style.width = `${ratio * 100}%`;
     this.hpFill.classList.toggle('is-low', ratio <= LOW_HP_THRESHOLD);
     this.hpText.textContent = `${enemy.hp} / ${enemy.maxHp}`;
+    this.renderTurnOrder(combat);
   }
 
   destroy(): void {
     this.root.remove();
+  }
+
+  private renderTurnOrder(combat: TurnCombatUiSnapshot): void {
+    const activeId = combat.activeParticipantId;
+    this.turnOrderEl.innerHTML = '';
+
+    for (const participant of combat.turnOrder) {
+      const chip = document.createElement('div');
+      chip.className = [
+        'enemy-turn-chip',
+        participant.kind === 'player' ? 'is-player' : '',
+        participant.kind === 'companion' ? 'is-companion' : '',
+        participant.kind === 'enemy' ? 'is-enemy' : '',
+        participant.id === activeId ? 'is-active' : '',
+      ].filter(Boolean).join(' ');
+      chip.textContent = participant.kind === 'player'
+        ? 'You'
+        : participant.name;
+      this.turnOrderEl.appendChild(chip);
+    }
   }
 }

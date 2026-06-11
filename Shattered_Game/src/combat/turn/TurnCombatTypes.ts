@@ -265,6 +265,10 @@ export type TurnCombatUiSnapshot = {
   /** Player HP always present (persists between combats). Null until first combat. */
   playerCurrentHp: number | null;
   playerMaxHp: number | null;
+  playerMagicResourceCurrent: number | null;
+  playerMagicResourceMax: number | null;
+  playerDevotionResourceCurrent: number | null;
+  playerDevotionResourceMax: number | null;
   isSprinting: boolean;
   /** True while player is in "pick-a-target" attack mode. */
   isAttackMode: boolean;

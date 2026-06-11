@@ -12,10 +12,12 @@ export class ChatPanel {
   constructor(overlay: HTMLElement) {
     this.root = document.createElement('div');
     this.root.id = 'ui-chat';
+    this.root.classList.add('is-collapsed');
 
     this.root.innerHTML = `
       <div class="chat-log"></div>
       <div class="chat-tabs-row">
+        <button class="chat-toggle" title="Toggle log">Log</button>
         <button class="chat-tab is-active" data-channel="all">All</button>
         <button class="chat-tab" data-channel="game">Game</button>
         <button class="chat-tab" data-channel="combat">Combat</button>
@@ -66,6 +68,12 @@ export class ChatPanel {
   }
 
   private bindTabs(): void {
+    const toggle = this.root.querySelector<HTMLButtonElement>('.chat-toggle');
+    toggle?.addEventListener('click', () => {
+      this.root.classList.toggle('is-collapsed');
+      toggle.textContent = this.root.classList.contains('is-collapsed') ? 'Log' : 'Hide';
+    });
+
     const tabs = this.root.querySelectorAll<HTMLButtonElement>('.chat-tab[data-channel]');
 
     tabs.forEach((tab) => {

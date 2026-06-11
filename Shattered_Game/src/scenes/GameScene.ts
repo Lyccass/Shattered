@@ -97,6 +97,9 @@ export class GameScene extends Phaser.Scene {
       (spawnId, areaId, definitionId, worldX, worldY) =>
         this.handleEnemyKilledForLoot(spawnId, areaId, definitionId, worldX, worldY),
     );
+    this.turnCombatSession.onLog((line) => {
+      this.uiManager?.pushMessage(line, 'combat');
+    });
     this.turnCombatSession.setConsumeCallback((itemId) => {
       return this.worldRuntimeCoordinator?.consumeItem(itemId, 1) ?? false;
     });
@@ -134,6 +137,10 @@ export class GameScene extends Phaser.Scene {
         this.uiManager?.showInfo(ok ? 'Spellbook updated.' : 'That ability is not unlocked.');
       },
       onUtilitySpellUse: (abilityId) => {
+        if (this.turnCombatSession?.isInCombat()) {
+          this.uiManager?.pushMessage('Utility spells can only be used out of combat.', 'error');
+          return;
+        }
         const result = this.worldRuntimeCoordinator?.useUtilitySpell(abilityId);
         if (result) this.handleGameplayResult(result, { allowAutosave: true });
       },
@@ -498,6 +505,13 @@ export class GameScene extends Phaser.Scene {
         this.uiManager.showInfo('All companion slots are full.');
         return;
       }
+      if (this.turnCombatSession?.isInCombat()) {
+        const spent = this.turnCombatSession.trySpendPlayerMainAction('Equip companion');
+        if (!spent.ok) {
+          this.uiManager.pushMessage(spent.reason, 'error');
+          return;
+        }
+      }
       this.worldRuntimeCoordinator.consumeItem(itemId, 1);
       this.playerCompanionState.equip(freeSlot, def.companionId);
       this.turnCombatSession?.setEquippedCompanions(this.playerCompanionState.getSlots());
@@ -515,6 +529,14 @@ export class GameScene extends Phaser.Scene {
         this.uiManager.pushMessage(outcome.reason, 'error');
       }
       return;
+    }
+
+    if (this.turnCombatSession?.isInCombat() && def?.equipment) {
+      const spent = this.turnCombatSession.trySpendPlayerMainAction('Equip item');
+      if (!spent.ok) {
+        this.uiManager.pushMessage(spent.reason, 'error');
+        return;
+      }
     }
 
     const result = this.worldRuntimeCoordinator.useItem(itemId);

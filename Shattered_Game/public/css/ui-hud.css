@@ -22,9 +22,10 @@
 /* ── Container ──────────────────────────────────────── */
 #ui-enemy {
   position: absolute;
-  top: 60px;
-  left: 60px;
-  width: var(--enemy-w);
+  top: 36px;
+  left: 50%;
+  width: min(360px, calc(100vw - 48px));
+  transform: translateX(-50%);
   background: var(--c-panel-bg);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -44,7 +45,7 @@
 
 /* ── Name / tier row ────────────────────────────────── */
 .enemy-name-row {
-  padding: var(--sp-1) var(--sp-3);
+  padding: 5px var(--sp-3) 3px;
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -67,7 +68,7 @@
 .enemy-hp-wrap { padding: 0 var(--sp-3) var(--sp-2); }
 .enemy-hp-track {
   width: 100%;
-  height: 10px;
+  height: 8px;
   background: var(--c-hp-bg);
   border: 1px solid var(--c-secondary-dark);
   border-radius: 2px;
@@ -87,6 +88,49 @@
   text-align: center;
   margin-top: 3px;
   letter-spacing: 0.06em;
+}
+
+.enemy-turn-order {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 5px;
+  min-height: 18px;
+  overflow: hidden;
+}
+
+.enemy-turn-chip {
+  max-width: 70px;
+  padding: 1px 6px;
+  border: 1px solid var(--c-secondary-dark);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 8, 4, 0.42);
+  color: var(--c-text-muted);
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enemy-turn-chip.is-player {
+  border-color: #8cb8e8;
+}
+
+.enemy-turn-chip.is-companion {
+  border-color: #7fc89c;
+}
+
+.enemy-turn-chip.is-enemy {
+  border-color: #9f5647;
+}
+
+.enemy-turn-chip.is-active {
+  border-color: var(--c-primary);
+  color: var(--c-text);
+  background: rgba(255, 252, 195, 0.10);
 }
 
 
@@ -109,9 +153,9 @@
 /* ── Orb Column (left of ring) ──────────────────────── */
 
 .minimap-orb-col {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, var(--orb-size));
+  gap: 7px;
   align-items: center;
 }
 
@@ -143,6 +187,8 @@
 
 .orb-hp   .orb-fill { background: var(--c-hp-fill); }
 .orb-stam .orb-fill { background: var(--c-stam-fill); }
+.orb-magic .orb-fill { background: #4e9ac8; }
+.orb-devotion .orb-fill { background: #b9d46a; }
 
 .orb-hp.is-low .orb-fill { background: var(--c-hp-low); }
 

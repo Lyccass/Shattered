@@ -147,7 +147,7 @@ export class UiManager {
     this.overlay.pushMessage(message, 'system');
   }
 
-  pushMessage(message: string, channel: 'game' | 'error' | 'reward' | 'system' = 'game'): void {
+  pushMessage(message: string, channel: 'game' | 'combat' | 'error' | 'reward' | 'system' = 'game'): void {
     this.overlay.pushMessage(message, channel);
   }
 

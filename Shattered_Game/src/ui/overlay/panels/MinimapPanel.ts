@@ -10,6 +10,10 @@ export class MinimapPanel {
   private readonly hpValue: HTMLElement;
   private readonly stamFill: HTMLElement;
   private readonly stamValue: HTMLElement;
+  private readonly magicFill: HTMLElement;
+  private readonly magicValue: HTMLElement;
+  private readonly devotionFill: HTMLElement;
+  private readonly devotionValue: HTMLElement;
   private readonly playerDot: HTMLElement;
   private lastRenderedMapKey = '';
 
@@ -33,6 +37,16 @@ export class MinimapPanel {
           <span class="orb-icon">⚡</span>
           <span class="orb-value">100</span>
         </div>
+        <div class="minimap-orb orb-magic" title="Magic">
+          <div class="orb-fill"></div>
+          <span class="orb-icon">✦</span>
+          <span class="orb-value">–</span>
+        </div>
+        <div class="minimap-orb orb-devotion" title="Devotion">
+          <div class="orb-fill"></div>
+          <span class="orb-icon">✚</span>
+          <span class="orb-value">–</span>
+        </div>
       </div>
       <div class="minimap-ring">
         <canvas class="minimap-map-canvas" width="160" height="160"></canvas>
@@ -51,6 +65,10 @@ export class MinimapPanel {
     this.hpValue       = requireElement(this.root, '.orb-hp .orb-value');
     this.stamFill      = requireElement(this.root, '.orb-stam .orb-fill');
     this.stamValue     = requireElement(this.root, '.orb-stam .orb-value');
+    this.magicFill     = requireElement(this.root, '.orb-magic .orb-fill');
+    this.magicValue    = requireElement(this.root, '.orb-magic .orb-value');
+    this.devotionFill  = requireElement(this.root, '.orb-devotion .orb-fill');
+    this.devotionValue = requireElement(this.root, '.orb-devotion .orb-value');
     this.playerDot     = requireElement(this.root, '.minimap-player-dot');
 
     // Clicking the minimap ring opens/closes the map window
@@ -78,15 +96,25 @@ export class MinimapPanel {
     maxHp: number | null,
     stamina: number | null,
     maxStamina: number | null,
+    magic: number | null = null,
+    maxMagic: number | null = null,
+    devotion: number | null = null,
+    maxDevotion: number | null = null,
   ): void {
     const hpRatio  = (hp != null && maxHp  != null && maxHp  > 0) ? Math.max(0, Math.min(1, hp  / maxHp))  : 1;
     const stamRatio = (stamina != null && maxStamina != null && maxStamina > 0) ? Math.max(0, Math.min(1, stamina / maxStamina)) : 1;
+    const magicRatio = (magic != null && maxMagic != null && maxMagic > 0) ? Math.max(0, Math.min(1, magic / maxMagic)) : 0;
+    const devotionRatio = (devotion != null && maxDevotion != null && maxDevotion > 0) ? Math.max(0, Math.min(1, devotion / maxDevotion)) : 0;
 
     this.hpFill.style.height   = `${hpRatio * 100}%`;
     this.stamFill.style.height = `${stamRatio * 100}%`;
+    this.magicFill.style.height = `${magicRatio * 100}%`;
+    this.devotionFill.style.height = `${devotionRatio * 100}%`;
 
     this.hpValue.textContent   = hp   != null ? String(Math.round(hp))      : '–';
     this.stamValue.textContent = stamina != null ? String(Math.round(stamina)) : '–';
+    this.magicValue.textContent = magic != null ? String(Math.round(magic)) : '–';
+    this.devotionValue.textContent = devotion != null ? String(Math.round(devotion)) : '–';
   }
 
   updateMap(snapshot: MinimapSnapshot | null): void {

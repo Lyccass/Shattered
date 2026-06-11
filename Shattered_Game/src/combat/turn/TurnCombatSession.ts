@@ -13,6 +13,7 @@ import {
   buildUiSnapshot,
   createCombatState,
   getActiveParticipant,
+  resolvePendingTelegraphsForActor,
 } from './TurnCombatEngine';
 import { resolveEnemyTurnStep } from './TurnEnemyAi';
 import { getCompanionDefinition } from '../../companions/CompanionRegistry';
@@ -90,6 +91,7 @@ export class TurnCombatSession {
   private onCombatEnd?: (event: CombatEndEvent) => void;
   private onCombatXp?: (delta: SkillXpDelta) => LevelUpEvent[];
   private onEnemyKilledForLoot?: (spawnId: string, areaId: string | undefined, lootTableId: string | undefined, worldX: number, worldY: number) => void;
+  private onCombatLog?: (line: string) => void;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -174,6 +176,10 @@ export class TurnCombatSession {
     this.onEnemyKilledForLoot = cb;
   }
 
+  onLog(cb: (line: string) => void): void {
+    this.onCombatLog = cb;
+  }
+
   setConsumeCallback(cb: (itemId: string) => boolean): void {
     this.onConsumeItemCallback = cb;
   }
@@ -202,7 +208,13 @@ export class TurnCombatSession {
 
     // Update previews every frame — must reflect attack-mode selection immediately,
     // even while the anim queue is draining (e.g. post-enemy-turn delay).
-    this.previewRenderer.update(this.combatState, this.buildTileCtx(), this._isAttackMode);
+    this.previewRenderer.update(
+      this.combatState,
+      this.buildTileCtx(),
+      this._isAttackMode,
+      this.selectedPlayerAttackId,
+      this.selectedPlayerAbilityId,
+    );
 
     // Process animation queue first — block all logic until animations settle
     if (this.animQueue.length > 0) {
@@ -236,6 +248,21 @@ export class TurnCombatSession {
     // Auto-advance turn when the active unit (player or companion) has exhausted all actions
     if (this.combatState.phase === 'player_turn') {
       const active = getActiveParticipant(this.combatState);
+      if (active && (active.kind === 'player' || active.kind === 'companion')) {
+        const resolved = resolvePendingTelegraphsForActor(this.combatState, active.id, this.buildTileCtx());
+        if (resolved.outcomes.length > 0) {
+          this.combatState = resolved.state;
+          for (const outcome of resolved.outcomes) {
+            this.handleOutcome(outcome);
+            if (outcome.kind === 'combat_ended' || outcome.kind === 'fled') break;
+          }
+          if (this.combatState?.phase === 'combat_ended' && this.combatState.endReason) {
+            this.finalizeCombat(this.combatState.endReason);
+          }
+          return;
+        }
+      }
+
       if (
         (active?.kind === 'player' || active?.kind === 'companion') &&
         active.apRemaining === 0 &&
@@ -311,6 +338,30 @@ export class TurnCombatSession {
     const consumed = this.onConsumeItemCallback?.(itemId) ?? false;
     if (!consumed) return null;
     return this.submitPlayerAction({ kind: 'consume_item', itemId, healAmount });
+  }
+
+  trySpendPlayerMainAction(reason = 'Equip item'): { ok: true } | { ok: false; reason: string } {
+    if (!this.canAcceptPlayerInput() || !this.combatState) {
+      return { ok: false, reason: 'You can only do that on your turn.' };
+    }
+    const active = getActiveParticipant(this.combatState);
+    if (!active || active.kind !== 'player') {
+      return { ok: false, reason: 'Only the player can equip items.' };
+    }
+    if (active.apRemaining <= 0) {
+      return { ok: false, reason: `${reason} needs a Main Action.` };
+    }
+
+    this.combatState = {
+      ...this.combatState,
+      participants: this.combatState.participants.map((participant) =>
+        participant.id === active.id
+          ? { ...participant, apRemaining: Math.max(0, participant.apRemaining - 1) }
+          : participant,
+      ),
+    };
+    this.emitCombatLog(`${active.name} spends a Main Action: ${reason}.`);
+    return { ok: true };
   }
 
   /** Select which attack to use next. Clicking the same button again keeps it selected. */
@@ -419,6 +470,10 @@ export class TurnCombatSession {
       ...base,
       playerCurrentHp: liveHp ?? this.persistedPlayerHp,
       playerMaxHp: this.persistedPlayerMaxHp ?? this.derivedStats?.maxHp ?? null,
+      playerMagicResourceCurrent: base.playerMagicResourceCurrent ?? this.persistedMagicResource,
+      playerMagicResourceMax: base.playerMagicResourceMax ?? PLAYER_MAGIC_RESOURCE_MAX,
+      playerDevotionResourceCurrent: base.playerDevotionResourceCurrent ?? this.persistedDevotionResource,
+      playerDevotionResourceMax: base.playerDevotionResourceMax ?? PLAYER_DEVOTION_RESOURCE_MAX,
       isSprinting: this._isSprinting,
       isAttackMode: this._isAttackMode,
       selectedAttackId: this.selectedPlayerAttackId,
@@ -722,7 +777,83 @@ export class TurnCombatSession {
     return outcome;
   }
 
+  private emitCombatLog(line: string): void {
+    this.onCombatLog?.(line);
+  }
+
+  private logOutcome(outcome: ActionOutcome): void {
+    switch (outcome.kind) {
+      case 'attacked': {
+        const actor = this.getParticipantName(outcome.actorId);
+        const target = this.getParticipantName(outcome.targetId);
+        const suffix = outcome.killed ? ' Defeated.' : '';
+        this.emitCombatLog(outcome.hit
+          ? `${actor} uses ${outcome.attackName} on ${target} for ${outcome.damage} damage.${suffix}`
+          : `${actor} uses ${outcome.attackName} on ${target}, but misses.`);
+        break;
+      }
+      case 'ability_used': {
+        const actor = this.getParticipantName(outcome.actorId);
+        const target = this.getParticipantName(outcome.targetId);
+        if ((outcome.damage ?? 0) > 0) {
+          const suffix = outcome.killed ? ' Defeated.' : '';
+          this.emitCombatLog(`${actor} casts ${outcome.abilityName} on ${target} for ${outcome.damage} damage.${suffix}`);
+        } else if ((outcome.healAmount ?? 0) > 0) {
+          this.emitCombatLog(`${actor} uses ${outcome.abilityName} and restores ${outcome.healAmount} HP.`);
+        } else if (outcome.statusApplied) {
+          this.emitCombatLog(`${actor} uses ${outcome.abilityName}.`);
+        }
+        break;
+      }
+      case 'telegraph_prepared':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} prepares ${outcome.attackName}.`);
+        break;
+      case 'telegraph_resolved': {
+        const actor = this.getParticipantName(outcome.actorId);
+        const target = this.getParticipantName(outcome.targetId);
+        if (!outcome.targetWasInArea) {
+          this.emitCombatLog(`${target} avoids ${actor}'s ${outcome.attackName}.`);
+        } else if (outcome.hit) {
+          const suffix = outcome.killed ? ' Defeated.' : '';
+          this.emitCombatLog(`${actor}'s ${outcome.attackName} hits ${target} for ${outcome.damage} damage.${suffix}`);
+        } else {
+          this.emitCombatLog(`${actor}'s ${outcome.attackName} misses ${target}.`);
+        }
+        break;
+      }
+      case 'status_tick':
+        if (outcome.damage > 0) {
+          const suffix = outcome.killed ? ' Defeated.' : '';
+          this.emitCombatLog(`${this.getParticipantName(outcome.targetId)} takes ${outcome.damage} ${outcome.effectKind} damage.${suffix}`);
+        }
+        break;
+      case 'guarded':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} guards.`);
+        break;
+      case 'cleansed':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} cleanses ${outcome.removedEffect.kind}.`);
+        break;
+      case 'item_consumed':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} consumes an item and restores ${outcome.healAmount} HP.`);
+        break;
+      case 'fled':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} flees combat.`);
+        break;
+      case 'combat_ended':
+        this.emitCombatLog(outcome.reason === 'victory' ? 'Combat won.' : 'Combat ended.');
+        break;
+    }
+  }
+
+  private getParticipantName(participantId: string): string {
+    const participant = this.combatState?.participants.find((p) => p.id === participantId);
+    if (participant?.id === 'player') return 'You';
+    return participant?.name ?? participantId;
+  }
+
   private handleOutcome(outcome: ActionOutcome): void {
+    this.logOutcome(outcome);
+
     switch (outcome.kind) {
       case 'attacked': {
         const targetEs = this.findEnemySystem(outcome.targetId);
@@ -963,7 +1094,13 @@ export class TurnCombatSession {
       this.handleOutcome(outcome);
       if (outcome.kind === 'combat_ended' || outcome.kind === 'fled') break;
     }
-    this.previewRenderer.update(this.combatState, this.buildTileCtx(), this._isAttackMode);
+    this.previewRenderer.update(
+      this.combatState,
+      this.buildTileCtx(),
+      this._isAttackMode,
+      this.selectedPlayerAttackId,
+      this.selectedPlayerAbilityId,
+    );
 
     if (this.combatState?.phase === 'combat_ended' && this.combatState.endReason) {
       this.finalizeCombat(this.combatState.endReason);
@@ -1170,6 +1307,13 @@ export class TurnCombatSession {
       return;
     }
 
+    const companionVc = this.companionVisuals.get(pushed.targetId);
+    if (companionVc) {
+      const p = this.combatState?.participants.find((pp) => pp.id === pushed.targetId);
+      companionVc.update(to.x, to.y, p?.hp ?? 0, p?.maxHp ?? 1, this.scene.time.now);
+      return;
+    }
+
     const es = this.findEnemySystem(pushed.targetId);
     if (!es) return;
 
@@ -1190,6 +1334,14 @@ export class TurnCombatSession {
     toTile: { x: number; y: number };
   }): void {
     if (!this.currentTilemap) return;
+
+    const companionVc = this.companionVisuals.get(moved.targetId);
+    if (companionVc) {
+      const to = this.currentTilemap.getTileCenterWorld(moved.toTile.x, moved.toTile.y);
+      const p = this.combatState?.participants.find((pp) => pp.id === moved.targetId);
+      companionVc.update(to.x, to.y, p?.hp ?? 0, p?.maxHp ?? 1, this.scene.time.now);
+      return;
+    }
 
     const es = this.findEnemySystem(moved.targetId);
     if (!es) return;
