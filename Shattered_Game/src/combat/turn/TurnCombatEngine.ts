@@ -11,6 +11,7 @@ import type {
   TurnCombatState,
   TurnCombatUiSnapshot,
   TurnForcedMovement,
+  TurnAttackOutcome,
   TurnParticipant,
   TurnTelegraphConfig,
   TurnTelegraphTile,
@@ -20,6 +21,7 @@ import type {
 import {
   chebyshevDist,
   getMovePath,
+  getParticipantAttacks,
   getUsableAttacks,
   isValidAttack,
   isValidMove,
@@ -30,6 +32,10 @@ const DIRS_8 = [
   [0, -1], [1, 0], [0, 1], [-1, 0],
   [1, -1], [1, 1], [-1, 1], [-1, -1],
 ] as const;
+
+type FacingValue = -1 | 0 | 1;
+type FacingVector = { x: FacingValue; y: FacingValue };
+type FacingPatch = Pick<TurnParticipant, 'facingX' | 'facingY'>;
 
 // ─── Combat creation ──────────────────────────────────────────────────────────
 
@@ -45,6 +51,9 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
     abilities: cloneAbilities(p.abilities),
     attackCooldowns: { ...(p.attackCooldowns ?? {}) },
     abilityCooldowns: { ...(p.abilityCooldowns ?? {}) },
+    reactionRemaining: p.reactionRemaining ?? 1,
+    facingX: p.facingX ?? 0,
+    facingY: p.facingY ?? 1,
     initiative: p.initiative + Math.floor(Math.random() * 6) + 1,
   }));
 
@@ -277,6 +286,15 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
   };
 }
 
+export function calculateTurnHitChance(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  damageType: TurnAttack['damageType'],
+  baseHitChance: number,
+): { hitChance: number; positionalModifier: number } {
+  return getResolvedHitChance(actor, target, damageType, baseHitChance);
+}
+
 export function resolvePendingTelegraphsForActor(
   state: TurnCombatState,
   actorId: string,
@@ -307,6 +325,7 @@ export function resolvePendingTelegraphsForActor(
         current = updateParticipant(current, actor.id, {
           tileX: actorMoved.toTile.x,
           tileY: actorMoved.toTile.y,
+          ...getFacingPatchToward(actor, target),
         });
       }
       outcomes.push({
@@ -316,8 +335,13 @@ export function resolvePendingTelegraphsForActor(
       continue;
     }
 
-    const armourRating = getTargetArmourRating(target, telegraph.damageType);
-    const hitChance = Math.max(10, (telegraph.hitChance ?? actor.hitChance ?? 80) - armourRating * 5);
+    const hitContext = getResolvedHitChance(
+      actor,
+      target,
+      telegraph.damageType,
+      telegraph.hitChance ?? actor.hitChance ?? 80,
+    );
+    const hitChance = hitContext.hitChance;
     const hit = Math.random() * 100 < hitChance;
     const damage = hit
       ? Math.max(1, Math.ceil(rollDamage(telegraph.damage) * hitTile.damageMultiplier))
@@ -354,11 +378,21 @@ export function resolvePendingTelegraphsForActor(
       current = updateParticipant(current, actor.id, {
         tileX: actorMoved.toTile.x,
         tileY: actorMoved.toTile.y,
+        ...getFacingPatchToward(actor, target),
       });
     }
 
     outcomes.push({
-      ...buildTelegraphResolvedOutcome(telegraph, true, damage, hit, killed, statusApplied),
+      ...buildTelegraphResolvedOutcome(
+        telegraph,
+        true,
+        damage,
+        hit,
+        killed,
+        statusApplied,
+        hitChance,
+        hitContext.positionalModifier,
+      ),
       ...(pushed ? { pushed } : {}),
       ...(actorMoved ? { actorMoved } : {}),
     });
@@ -393,20 +427,36 @@ function applyMove(
   const fromTile = { x: actor.tileX, y: actor.tileY };
   const toTile   = { x: toTileX,     y: toTileY };
   const path = getMovePath(actor, toTileX, toTileY, state, tileCtx) ?? [toTile];
+  const moveFacing = getFacingFromDelta(toTileX - actor.tileX, toTileY - actor.tileY);
 
   const stepCost = Math.max(
     Math.abs(toTileX - actor.tileX),
     Math.abs(toTileY - actor.tileY),
   );
 
-  const next = updateParticipant(state, actor.id, {
+  let next = updateParticipant(state, actor.id, {
     tileX: toTileX,
     tileY: toTileY,
+    facingX: moveFacing.x,
+    facingY: moveFacing.y,
     mpRemaining: Math.max(0, actor.mpRemaining - stepCost),
     bleedMovementTiles: (actor.bleedMovementTiles ?? 0) + stepCost,
   });
 
-  return { outcome: { kind: 'moved', actorId: actor.id, fromTile, toTile, path }, state: next };
+  const reactions = resolveDisengageReactions(state, next, actor, fromTile, toTile);
+  next = reactions.state;
+
+  return {
+    outcome: {
+      kind: 'moved',
+      actorId: actor.id,
+      fromTile,
+      toTile,
+      path,
+      ...(reactions.outcomes.length > 0 ? { reactions: reactions.outcomes } : {}),
+    },
+    state: next,
+  };
 }
 
 function applyAttack(
@@ -444,9 +494,8 @@ function applyAttack(
     return prepareTelegraphedAttack(state, actor, target, attack, telegraphConfig, tileCtx);
   }
 
-  // Hit roll: target armour against this attack type reduces hit chance.
-  const armourRating = getTargetArmourRating(target, attack.damageType);
-  const hitChance = Math.max(10, (attack.hitChance ?? actor.hitChance ?? 80) - armourRating * 5);
+  const hitContext = getResolvedHitChance(actor, target, attack.damageType, attack.hitChance ?? actor.hitChance ?? 80);
+  const hitChance = hitContext.hitChance;
   const hitResult = rollAttackHit(attack, hitChance);
   const hit = hitResult.hit;
   const damage = hitResult.damage;
@@ -476,6 +525,7 @@ function applyAttack(
 
   let next = updateParticipant(state, actor.id, {
     apRemaining: Math.max(0, actor.apRemaining - attack.apCost),
+    ...getFacingPatchToward(actor, target),
     attackCooldowns: nextCooldowns,
   });
 
@@ -512,6 +562,8 @@ function applyAttack(
         killed,
         statusApplied: statusApplied ?? staggerResult.statusApplied,
         ...(pushed ? { pushed } : {}),
+        hitChance,
+        positionalModifier: hitContext.positionalModifier,
       },
       state: { ...next, phase: 'combat_ended', endReason: endCheck },
     };
@@ -529,6 +581,8 @@ function applyAttack(
       killed,
       statusApplied: statusApplied ?? staggerResult.statusApplied,
       ...(pushed ? { pushed } : {}),
+      hitChance,
+      positionalModifier: hitContext.positionalModifier,
     },
     state: next,
   };
@@ -580,6 +634,7 @@ function applyAbility(
 
   let next = updateParticipant(state, actor.id, {
     apRemaining: Math.max(0, actor.apRemaining - ability.apCost),
+    ...(target.id !== actor.id ? getFacingPatchToward(actor, target) : {}),
     magicResourceRemaining: Math.max(0, (actor.magicResourceRemaining ?? 0) - (ability.magicCost ?? 0)),
     devotionResourceRemaining: Math.max(0, (actor.devotionResourceRemaining ?? 0) - (ability.devotionCost ?? 0)),
     abilityCooldowns: {
@@ -589,8 +644,8 @@ function applyAbility(
   });
 
   if (ability.damage && ability.damage > 0) {
-    const armourRating = getTargetArmourRating(target, ability.damageType);
-    const hitChance = Math.max(10, (ability.hitChance ?? actor.hitChance ?? 85) - armourRating * 5);
+    const hitContext = getResolvedHitChance(actor, target, ability.damageType, ability.hitChance ?? actor.hitChance ?? 85);
+    const hitChance = hitContext.hitChance;
     const hit = Math.random() * 100 < hitChance;
     const damage = hit ? rollDamage(ability.damage) : 0;
     const nextHp = Math.max(0, target.hp - damage);
@@ -615,6 +670,8 @@ function applyAbility(
         damage,
         hit,
         killed,
+        hitChance,
+        positionalModifier: hitContext.positionalModifier,
         ...(statusApplied && hit && !killed ? { statusApplied } : {}),
       },
       state: endCheck ? { ...next, phase: 'combat_ended', endReason: endCheck } : next,
@@ -709,6 +766,7 @@ function prepareTelegraphedAttack(
     actor.id,
     {
       apRemaining: Math.max(0, actor.apRemaining - attack.apCost),
+      ...getFacingPatchToward(actor, target),
       attackCooldowns: nextCooldowns,
     },
   );
@@ -858,6 +916,8 @@ function buildTelegraphResolvedOutcome(
   hit: boolean,
   killed: boolean,
   statusApplied?: StatusEffect,
+  hitChance?: number,
+  positionalModifier?: number,
 ): Extract<ActionOutcome, { kind: 'telegraph_resolved' }> {
   return {
     kind: 'telegraph_resolved',
@@ -870,6 +930,8 @@ function buildTelegraphResolvedOutcome(
     killed,
     targetWasInArea,
     ...(statusApplied ? { statusApplied } : {}),
+    ...(hitChance !== undefined ? { hitChance } : {}),
+    ...(positionalModifier !== undefined ? { positionalModifier } : {}),
   };
 }
 
@@ -1038,6 +1100,7 @@ function restoreResources(state: TurnCombatState, participantId: string): TurnCo
     apRemaining: p.apMax,
     secondaryActionRemaining: p.secondaryActionMax ?? 0,
     mpRemaining: Math.max(0, p.mpMax - slowedReduction),
+    reactionRemaining: 1,
     attackCooldowns: tickAttackCooldowns(p.attackCooldowns),
     abilityCooldowns: tickCooldowns(p.abilityCooldowns),
   });
@@ -1100,6 +1163,162 @@ function getTargetArmourRating(
     .reduce((sum, effect) => sum + effect.value, 0);
 
   return typedDefence + guardBonus;
+}
+
+function getResolvedHitChance(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  damageType: TurnAttack['damageType'],
+  baseHitChance: number,
+): { hitChance: number; positionalModifier: number } {
+  const armourRating = getTargetArmourRating(target, damageType);
+  const positionalModifier = getPositionalHitModifier(actor, target);
+  const hitChance = clampHitChance(baseHitChance - armourRating * 5 + positionalModifier);
+  return { hitChance, positionalModifier };
+}
+
+function getPositionalHitModifier(actor: TurnParticipant, target: TurnParticipant): number {
+  const targetFacing = getParticipantFacing(target);
+  const attackerRelative = getFacingFromDelta(actor.tileX - target.tileX, actor.tileY - target.tileY);
+  if (attackerRelative.x === 0 && attackerRelative.y === 0) return 0;
+
+  const facingLen = Math.hypot(targetFacing.x, targetFacing.y) || 1;
+  const relativeLen = Math.hypot(attackerRelative.x, attackerRelative.y) || 1;
+  const alignment =
+    (targetFacing.x * attackerRelative.x + targetFacing.y * attackerRelative.y) /
+    (facingLen * relativeLen);
+
+  if (alignment <= -0.92) return 25; // directly behind
+  if (alignment <= -0.35) return 15; // rear diagonals
+  if (alignment < 0.35) return 8;    // sides
+  if (alignment >= 0.92) return -5;  // directly into guard/front
+  return -2;                         // front diagonals
+}
+
+function clampHitChance(value: number): number {
+  return Math.max(0, Math.min(99, Math.round(value)));
+}
+
+function getParticipantFacing(participant: TurnParticipant): FacingVector {
+  const x = normalizeFacingValue(participant.facingX ?? 0);
+  const y = normalizeFacingValue(participant.facingY ?? 1);
+  if (x === 0 && y === 0) return { x: 0, y: 1 };
+  return { x, y };
+}
+
+function getFacingFromDelta(dx: number, dy: number): FacingVector {
+  const x = normalizeFacingValue(dx);
+  const y = normalizeFacingValue(dy);
+  if (x === 0 && y === 0) return { x: 0, y: 1 };
+  return { x, y };
+}
+
+function getFacingPatchToward(actor: TurnParticipant, target: TurnParticipant): FacingPatch {
+  const facing = getFacingFromDelta(target.tileX - actor.tileX, target.tileY - actor.tileY);
+  return { facingX: facing.x, facingY: facing.y };
+}
+
+function normalizeFacingValue(value: number): FacingValue {
+  if (value < 0) return -1;
+  if (value > 0) return 1;
+  return 0;
+}
+
+function resolveDisengageReactions(
+  previous: TurnCombatState,
+  current: TurnCombatState,
+  moverBefore: TurnParticipant,
+  fromTile: { x: number; y: number },
+  toTile: { x: number; y: number },
+): { outcomes: TurnAttackOutcome[]; state: TurnCombatState } {
+  let next = current;
+  const outcomes: TurnAttackOutcome[] = [];
+
+  for (const previousReactor of previous.participants) {
+    if (previousReactor.id === moverBefore.id) continue;
+    if (previousReactor.hp <= 0) continue;
+    if (isSameSide(previousReactor, moverBefore)) continue;
+    if ((previousReactor.reactionRemaining ?? 1) <= 0) continue;
+
+    const fromDist = chebyshevDist(previousReactor.tileX, previousReactor.tileY, fromTile.x, fromTile.y);
+    const toDist = chebyshevDist(previousReactor.tileX, previousReactor.tileY, toTile.x, toTile.y);
+    if (fromDist > 1 || toDist <= 1) continue;
+
+    const liveReactor = next.participants.find((p) => p.id === previousReactor.id);
+    const liveMover = next.participants.find((p) => p.id === moverBefore.id);
+    if (!liveReactor || !liveMover || liveReactor.hp <= 0 || liveMover.hp <= 0) continue;
+
+    const reactionAttack = selectReactionAttack(liveReactor, fromDist);
+    if (!reactionAttack) continue;
+
+    const targetAtLeavingTile: TurnParticipant = {
+      ...liveMover,
+      tileX: fromTile.x,
+      tileY: fromTile.y,
+    };
+    const hitContext = getResolvedHitChance(
+      liveReactor,
+      targetAtLeavingTile,
+      reactionAttack.damageType,
+      reactionAttack.hitChance ?? liveReactor.hitChance ?? 80,
+    );
+    const hitResult = rollAttackHit(reactionAttack, hitContext.hitChance);
+    const damage = hitResult.damage;
+    const hit = hitResult.hit;
+    const nextHp = Math.max(0, liveMover.hp - damage);
+    const killed = hit && nextHp <= 0;
+    const statusApplied = hit && reactionAttack.statusEffect && !killed
+      ? {
+          kind: reactionAttack.statusEffect.kind,
+          turnsRemaining: reactionAttack.statusEffect.turns,
+          value: reactionAttack.statusEffect.value,
+        }
+      : undefined;
+
+    next = updateParticipant(next, liveReactor.id, {
+      reactionRemaining: 0,
+      ...getFacingPatchToward(liveReactor, targetAtLeavingTile),
+    });
+    next = updateParticipant(next, liveMover.id, {
+      hp: nextHp,
+      ...(statusApplied ? { statusEffects: [...liveMover.statusEffects, statusApplied] } : {}),
+    });
+
+    outcomes.push({
+      kind: 'attacked',
+      actorId: liveReactor.id,
+      targetId: liveMover.id,
+      attackId: reactionAttack.id,
+      attackName: reactionAttack.displayName,
+      damage,
+      hit,
+      killed,
+      reaction: true,
+      hitChance: hitContext.hitChance,
+      positionalModifier: hitContext.positionalModifier,
+      ...(statusApplied ? { statusApplied } : {}),
+    });
+
+    const endCheck = checkCombatEnd(next);
+    if (endCheck) {
+      next = { ...next, phase: 'combat_ended', endReason: endCheck };
+      break;
+    }
+  }
+
+  return { outcomes, state: next };
+}
+
+function selectReactionAttack(actor: TurnParticipant, distance: number): TurnAttack | null {
+  return getParticipantAttacks(actor).find((attack) => {
+    if (attack.telegraph) return false;
+    if ((actor.attackCooldowns?.[attack.id] ?? 0) > 0) return false;
+    return distance >= attack.minRangeTiles && distance <= Math.min(1, attack.maxRangeTiles);
+  }) ?? null;
+}
+
+function isSameSide(a: TurnParticipant, b: TurnParticipant): boolean {
+  return (a.kind === 'enemy') === (b.kind === 'enemy');
 }
 
 function tickAttackCooldowns(cooldowns: Record<string, number> | undefined): Record<string, number> {

@@ -109,6 +109,8 @@ export type TurnParticipant = {
   name: string;
   tileX: number;
   tileY: number;
+  facingX?: -1 | 0 | 1;
+  facingY?: -1 | 0 | 1;
   hp: number;
   maxHp: number;
   apMax: number;
@@ -119,6 +121,7 @@ export type TurnParticipant = {
   magicResourceRemaining?: number;
   devotionResourceMax?: number;
   devotionResourceRemaining?: number;
+  reactionRemaining?: number;
   secondaryActionMax?: number;
   secondaryActionRemaining?: number;
   /** Lower initiative acts first. Rolled once at combat start. */
@@ -168,12 +171,28 @@ export type TurnStatusTickOutcome = {
   killed: boolean;
 };
 
+export type TurnAttackOutcome = {
+  kind: 'attacked';
+  actorId: string;
+  targetId: string;
+  attackId: string;
+  attackName: string;
+  damage: number;
+  hit: boolean;
+  killed: boolean;
+  statusApplied?: StatusEffect;
+  pushed?: TurnPushResult;
+  reaction?: boolean;
+  hitChance?: number;
+  positionalModifier?: number;
+};
+
 export type ActionOutcome =
-  | { kind: 'moved';       actorId: string; fromTile: { x: number; y: number }; toTile: { x: number; y: number }; path?: { x: number; y: number }[] }
-  | { kind: 'attacked';    actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult }
-  | { kind: 'ability_used'; actorId: string; abilityId: string; abilityName: string; abilityKind: TurnAbilityKind; targetId: string; damage?: number; healAmount?: number; newHp?: number; hit?: boolean; killed?: boolean; statusApplied?: StatusEffect }
+  | { kind: 'moved';       actorId: string; fromTile: { x: number; y: number }; toTile: { x: number; y: number }; path?: { x: number; y: number }[]; reactions?: TurnAttackOutcome[] }
+  | TurnAttackOutcome
+  | { kind: 'ability_used'; actorId: string; abilityId: string; abilityName: string; abilityKind: TurnAbilityKind; targetId: string; damage?: number; healAmount?: number; newHp?: number; hit?: boolean; killed?: boolean; statusApplied?: StatusEffect; hitChance?: number; positionalModifier?: number }
   | { kind: 'telegraph_prepared'; actorId: string; targetId: string; attackId: string; attackName: string; telegraphId: string; tiles: TurnTelegraphTile[] }
-  | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult }
+  | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult; hitChance?: number; positionalModifier?: number }
   | TurnStatusTickOutcome
   | { kind: 'guarded';      actorId: string; statusApplied: StatusEffect }
   | { kind: 'cleansed';     actorId: string; removedEffect: StatusEffect }

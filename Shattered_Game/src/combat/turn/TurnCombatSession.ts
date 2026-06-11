@@ -4,6 +4,7 @@ import { HitsplatRenderer } from '../HitsplatRenderer';
 import type { EnemySpawnDefinition } from '../EnemyTypes';
 import type { IsoTilemap } from '../../world/IsoTilemap';
 import type { PlayerController } from '../../player/PlayerController';
+import type { PlayerFacingDirection } from '../../player/PlayerFacing';
 import type { GameEventBus } from '../../events/GameEventBus';
 import type { SkillXpDelta, LevelUpEvent } from '../../skills/SkillTypes';
 import type { PlayerDerivedStats } from '../../equipment/EquipmentTypes';
@@ -28,6 +29,7 @@ import type {
   TurnCombatState,
   TurnCombatUiSnapshot,
   TurnParticipant,
+  TurnAttackOutcome,
   TurnDamageType,
 } from './TurnCombatTypes';
 import type { TurnTileContext } from './TurnActionValidator';
@@ -66,6 +68,8 @@ export class TurnCombatSession {
   private animQueue: AnimStep[] = [];
   private animStepStartMs = 0;
   private blockedByAnim = false;
+  private pendingMoveReactions: TurnAttackOutcome[] = [];
+  private pendingCombatEndReason: CombatEndReason | null = null;
 
   /** Persistent player HP across combats. Null until first combat entry. */
   private persistedPlayerHp: number | null = null;
@@ -230,6 +234,18 @@ export class TurnCombatSession {
       return;
     }
 
+    if (this.pendingMoveReactions.length > 0) {
+      this.processPendingMoveReactions();
+      return;
+    }
+
+    if (this.pendingCombatEndReason) {
+      const reason = this.pendingCombatEndReason;
+      this.pendingCombatEndReason = null;
+      this.finalizeCombat(reason);
+      return;
+    }
+
     // Auto-flee when all enemies are far enough away
     if (this.combatState.phase === 'player_turn' && this.animQueue.length === 0 && !this.blockedByAnim) {
       const playerP = this.combatState.participants.find((p) => p.id === 'player');
@@ -257,7 +273,7 @@ export class TurnCombatSession {
             if (outcome.kind === 'combat_ended' || outcome.kind === 'fled') break;
           }
           if (this.combatState?.phase === 'combat_ended' && this.combatState.endReason) {
-            this.finalizeCombat(this.combatState.endReason);
+            this.deferOrFinalizeCombat(this.combatState.endReason);
           }
           return;
         }
@@ -565,6 +581,9 @@ export class TurnCombatSession {
     if (this.persistedDevotionResource === null) this.persistedDevotionResource = PLAYER_DEVOTION_RESOURCE_MAX;
     const playerAttacks = buildPlayerTurnAttacks(this.derivedStats);
     const playerAbilities = this.equippedTurnAbilities.map((ability) => ({ ...ability }));
+    const playerFacing = playerFacingToTurnVector(
+      this.playerController?.getFacingDirection() ?? 'down',
+    );
 
     const playerParticipant: TurnParticipant = {
       id:              'player',
@@ -572,6 +591,8 @@ export class TurnCombatSession {
       name:            'You',
       tileX:           playerTileX,
       tileY:           playerTileY,
+      facingX:         playerFacing.facingX,
+      facingY:         playerFacing.facingY,
       hp:              this.persistedPlayerHp,
       maxHp:           maxHp,
       apMax:           PLAYER_MAIN_ACTIONS_PER_TURN,
@@ -584,6 +605,7 @@ export class TurnCombatSession {
       magicResourceRemaining: this.persistedMagicResource ?? PLAYER_MAGIC_RESOURCE_MAX,
       devotionResourceMax: PLAYER_DEVOTION_RESOURCE_MAX,
       devotionResourceRemaining: this.persistedDevotionResource ?? PLAYER_DEVOTION_RESOURCE_MAX,
+      reactionRemaining: 1,
       initiative:      5,
       attackPower:     this.derivedStats.attack,
       hitChance:       this.derivedStats.accuracy,
@@ -609,12 +631,15 @@ export class TurnCombatSession {
         if (!record || !def) return null;
 
         es.setInCombat(true);
+        const facing = getTurnFacingFromDelta(playerTileX - record.tileX, playerTileY - record.tileY);
         return {
           id:              record.id,
           kind:            'enemy' as const,
           name:            def.displayName,
           tileX:           record.tileX,
           tileY:           record.tileY,
+          facingX:         facing.facingX,
+          facingY:         facing.facingY,
           hp:              record.hp,
           maxHp:           record.maxHp,
           apMax:           def.apPerTurn,
@@ -625,6 +650,7 @@ export class TurnCombatSession {
           magicResourceRemaining: 0,
           devotionResourceMax: 0,
           devotionResourceRemaining: 0,
+          reactionRemaining: 1,
           initiative:      def.initiative,
           attackPower:     def.attacks[0]?.damage ?? 1,
           hitChance:       def.attacks[0]?.hitChance,
@@ -730,6 +756,7 @@ export class TurnCombatSession {
         }
       }
       if (!spawnTile) continue;
+      const facing = getFacingTowardNearestEnemy(spawnTile, enemyParticipants);
 
       result.push({
         id: slotKey,
@@ -737,6 +764,8 @@ export class TurnCombatSession {
         name: def.displayName,
         tileX: spawnTile.x,
         tileY: spawnTile.y,
+        facingX: facing.facingX,
+        facingY: facing.facingY,
         hp: def.maxHp,
         maxHp: def.maxHp,
         apMax: def.apPerTurn,
@@ -747,6 +776,7 @@ export class TurnCombatSession {
         magicResourceRemaining: 0,
         devotionResourceMax: 0,
         devotionResourceRemaining: 0,
+        reactionRemaining: 1,
         initiative: def.initiative,
         attackPower: def.attackPower,
         defensePower: def.defensePower,
@@ -772,7 +802,7 @@ export class TurnCombatSession {
     this.combatState = next;
     this.handleOutcome(outcome);
     if (next.phase === 'combat_ended' && next.endReason) {
-      this.finalizeCombat(next.endReason);
+      this.deferOrFinalizeCombat(next.endReason);
     }
     return outcome;
   }
@@ -787,9 +817,11 @@ export class TurnCombatSession {
         const actor = this.getParticipantName(outcome.actorId);
         const target = this.getParticipantName(outcome.targetId);
         const suffix = outcome.killed ? ' Defeated.' : '';
+        const prefix = outcome.reaction ? 'Reaction: ' : '';
+        const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
         this.emitCombatLog(outcome.hit
-          ? `${actor} uses ${outcome.attackName} on ${target} for ${outcome.damage} damage.${suffix}`
-          : `${actor} uses ${outcome.attackName} on ${target}, but misses.`);
+          ? `${prefix}${actor} uses ${outcome.attackName} on ${target} for ${outcome.damage} damage${context}.${suffix}`
+          : `${prefix}${actor} uses ${outcome.attackName} on ${target}, but misses${context}.`);
         break;
       }
       case 'ability_used': {
@@ -797,7 +829,8 @@ export class TurnCombatSession {
         const target = this.getParticipantName(outcome.targetId);
         if ((outcome.damage ?? 0) > 0) {
           const suffix = outcome.killed ? ' Defeated.' : '';
-          this.emitCombatLog(`${actor} casts ${outcome.abilityName} on ${target} for ${outcome.damage} damage.${suffix}`);
+          const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
+          this.emitCombatLog(`${actor} casts ${outcome.abilityName} on ${target} for ${outcome.damage} damage${context}.${suffix}`);
         } else if ((outcome.healAmount ?? 0) > 0) {
           this.emitCombatLog(`${actor} uses ${outcome.abilityName} and restores ${outcome.healAmount} HP.`);
         } else if (outcome.statusApplied) {
@@ -815,9 +848,11 @@ export class TurnCombatSession {
           this.emitCombatLog(`${target} avoids ${actor}'s ${outcome.attackName}.`);
         } else if (outcome.hit) {
           const suffix = outcome.killed ? ' Defeated.' : '';
-          this.emitCombatLog(`${actor}'s ${outcome.attackName} hits ${target} for ${outcome.damage} damage.${suffix}`);
+          const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
+          this.emitCombatLog(`${actor}'s ${outcome.attackName} hits ${target} for ${outcome.damage} damage${context}.${suffix}`);
         } else {
-          this.emitCombatLog(`${actor}'s ${outcome.attackName} misses ${target}.`);
+          const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
+          this.emitCombatLog(`${actor}'s ${outcome.attackName} misses ${target}${context}.`);
         }
         break;
       }
@@ -1031,6 +1066,11 @@ export class TurnCombatSession {
             }
           }
         }
+        const reactions = outcome.reactions ?? [];
+        if (reactions.length > 0) {
+          this.pendingMoveReactions.push(...reactions);
+          this.animQueue.push({ kind: 'delay', durationMs: 260 });
+        }
         break;
       }
 
@@ -1072,7 +1112,7 @@ export class TurnCombatSession {
 
       case 'combat_ended':
         for (const tick of outcome.statusTicks ?? []) this.handleStatusTickVisual(tick, 360);
-        this.finalizeCombat(outcome.reason);
+        this.deferOrFinalizeCombat(outcome.reason);
         break;
 
       case 'fled':
@@ -1103,7 +1143,7 @@ export class TurnCombatSession {
     );
 
     if (this.combatState?.phase === 'combat_ended' && this.combatState.endReason) {
-      this.finalizeCombat(this.combatState.endReason);
+      this.deferOrFinalizeCombat(this.combatState.endReason);
       return;
     }
 
@@ -1181,6 +1221,26 @@ export class TurnCombatSession {
     this.blockedByAnim = false;
   }
 
+  private processPendingMoveReactions(): void {
+    const reactions = this.pendingMoveReactions.splice(0);
+    for (const reaction of reactions) {
+      this.handleOutcome(reaction);
+    }
+    if (this.pendingCombatEndReason && this.animQueue.length === 0 && !this.isPlayerMovementAnimating()) {
+      const reason = this.pendingCombatEndReason;
+      this.pendingCombatEndReason = null;
+      this.finalizeCombat(reason);
+    }
+  }
+
+  private deferOrFinalizeCombat(reason: CombatEndReason): void {
+    if (this.animQueue.length > 0 || this.pendingMoveReactions.length > 0 || this.isPlayerMovementAnimating()) {
+      this.pendingCombatEndReason = reason;
+      return;
+    }
+    this.finalizeCombat(reason);
+  }
+
   // ─── Private: combat end ──────────────────────────────────────────────────
 
   private finalizeCombat(reason: CombatEndReason): void {
@@ -1218,6 +1278,8 @@ export class TurnCombatSession {
     this.combatState   = null;
     this.animQueue     = [];
     this.blockedByAnim = false;
+    this.pendingMoveReactions = [];
+    this.pendingCombatEndReason = null;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
     this.selectedPlayerAbilityId = null;
@@ -1230,6 +1292,8 @@ export class TurnCombatSession {
     this.combatState   = null;
     this.animQueue     = [];
     this.blockedByAnim = false;
+    this.pendingMoveReactions = [];
+    this.pendingCombatEndReason = null;
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
     this.selectedPlayerAbilityId = null;
@@ -1500,6 +1564,8 @@ type WeaponStyle = {
 
 function getWeaponPrimaryStyle(archetype: PlayerDerivedStats['weaponArchetype']): WeaponStyle {
   switch (archetype) {
+    case 'fists':
+      return { damageType: 'crush',  displayName: 'Punch', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0, staggerDamage: 1 };
     case 'dagger':
       return { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8,  damageBonus: 0, rangeBonus: 0, staggerDamage: 2 };
     case 'spear':
@@ -1512,4 +1578,46 @@ function getWeaponPrimaryStyle(archetype: PlayerDerivedStats['weaponArchetype'])
     default:
       return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0, staggerDamage: 3 };
   }
+}
+
+function playerFacingToTurnVector(facing: PlayerFacingDirection): Pick<TurnParticipant, 'facingX' | 'facingY'> {
+  switch (facing) {
+    case 'up': return { facingX: 0, facingY: -1 };
+    case 'down': return { facingX: 0, facingY: 1 };
+    case 'left': return { facingX: -1, facingY: 0 };
+    case 'right': return { facingX: 1, facingY: 0 };
+  }
+}
+
+function getFacingTowardNearestEnemy(
+  fromTile: { x: number; y: number },
+  enemies: TurnParticipant[],
+): Pick<TurnParticipant, 'facingX' | 'facingY'> {
+  let nearest: TurnParticipant | null = null;
+  let nearestDist = Number.POSITIVE_INFINITY;
+  for (const enemy of enemies) {
+    const dist = Math.max(Math.abs(enemy.tileX - fromTile.x), Math.abs(enemy.tileY - fromTile.y));
+    if (dist < nearestDist) {
+      nearest = enemy;
+      nearestDist = dist;
+    }
+  }
+  if (!nearest) return { facingX: 0, facingY: 1 };
+  return getTurnFacingFromDelta(nearest.tileX - fromTile.x, nearest.tileY - fromTile.y);
+}
+
+function getTurnFacingFromDelta(dx: number, dy: number): Pick<TurnParticipant, 'facingX' | 'facingY'> {
+  return {
+    facingX: dx < 0 ? -1 : dx > 0 ? 1 : 0,
+    facingY: dy < 0 ? -1 : dy > 0 ? 1 : 0,
+  };
+}
+
+function formatHitContext(hitChance: number | undefined, positionalModifier: number | undefined): string {
+  const parts: string[] = [];
+  if (hitChance !== undefined) parts.push(`${hitChance}%`);
+  if (positionalModifier && positionalModifier !== 0) {
+    parts.push(`${positionalModifier > 0 ? '+' : ''}${positionalModifier} position`);
+  }
+  return parts.length > 0 ? ` (${parts.join(', ')})` : '';
 }

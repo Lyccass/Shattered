@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { RENDER_DEPTHS } from '../../render/RenderLayers';
-import type { TurnCombatState } from './TurnCombatTypes';
+import type { TurnCombatState, TurnDamageType } from './TurnCombatTypes';
 import {
   chebyshevDist,
   getAttackableTargets,
@@ -8,7 +8,7 @@ import {
   getReachableTiles,
   type TurnTileContext,
 } from './TurnActionValidator';
-import { getActiveParticipant } from './TurnCombatEngine';
+import { calculateTurnHitChance, getActiveParticipant } from './TurnCombatEngine';
 
 const MOVE_FILL   = 0x3b82f6; // blue
 const ATTACK_FILL = 0xef4444; // red
@@ -93,7 +93,15 @@ export class TurnActionPreviewRenderer {
         this.drawDiamond(this.previewGraphics, target.tileX, target.tileY);
       }
       if (selectedRange) {
-        this.drawTargetLabels(active, state, selectedRange.label, selectedRange.minRange, selectedRange.maxRange);
+        this.drawTargetLabels(
+          active,
+          state,
+          selectedRange.label,
+          selectedRange.minRange,
+          selectedRange.maxRange,
+          selectedRange.baseHitChance,
+          selectedRange.damageType,
+        );
       }
     }
   }
@@ -120,7 +128,7 @@ export class TurnActionPreviewRenderer {
     active: NonNullable<ReturnType<typeof getActiveParticipant>>,
     selectedAttackId: string | null,
     selectedAbilityId: string | null,
-  ): { label: string; minRange: number; maxRange: number } | null {
+  ): { label: string; minRange: number; maxRange: number; baseHitChance: number; damageType?: TurnDamageType } | null {
     if (selectedAbilityId) {
       const ability = active.abilities?.find((entry) => entry.id === selectedAbilityId);
       if (!ability || ability.target !== 'enemy') return null;
@@ -131,6 +139,8 @@ export class TurnActionPreviewRenderer {
         label: ability.displayName,
         minRange: ability.minRangeTiles ?? 0,
         maxRange: ability.maxRangeTiles ?? 1,
+        baseHitChance: ability.hitChance ?? active.hitChance ?? 85,
+        damageType: ability.damageType,
       };
     }
 
@@ -141,6 +151,8 @@ export class TurnActionPreviewRenderer {
         label: attack.displayName,
         minRange: attack.minRangeTiles,
         maxRange: attack.maxRangeTiles,
+        baseHitChance: attack.hitChance ?? active.hitChance ?? 80,
+        damageType: attack.damageType,
       };
     }
 
@@ -172,17 +184,26 @@ export class TurnActionPreviewRenderer {
     actionName: string,
     minRange: number,
     maxRange: number,
+    baseHitChance: number,
+    damageType: TurnDamageType | undefined,
   ): void {
     for (const target of state.participants) {
       if (target.kind === active.kind || (active.kind !== 'enemy' && target.kind !== 'enemy')) continue;
       if (target.hp <= 0) continue;
+      if (!this.isPointerOverTile(target.tileX, target.tileY)) continue;
       const dist = chebyshevDist(active.tileX, active.tileY, target.tileX, target.tileY);
       const inRange = dist >= minRange && dist <= maxRange;
+      const hitContext = inRange
+        ? calculateTurnHitChance(active, target, damageType, baseHitChance)
+        : null;
+      const labelText = hitContext
+        ? `${actionName} • ${hitContext.hitChance}%`
+        : 'Out of range';
       const center = this.getDiamondCenter(target.tileX, target.tileY);
       const label = this.previewGraphics.scene.add.text(
         center.x,
         center.y - 38,
-        inRange ? actionName : 'Out of range',
+        labelText,
         {
           fontFamily: 'monospace',
           fontSize: '12px',
@@ -195,6 +216,13 @@ export class TurnActionPreviewRenderer {
       label.setDepth(RENDER_DEPTHS.DEBUG - 180);
       this.targetLabels.push(label);
     }
+  }
+
+  private isPointerOverTile(tileX: number, tileY: number): boolean {
+    const pointer = this.previewGraphics.scene.input.activePointer;
+    if (!pointer) return false;
+    const polygon = new Phaser.Geom.Polygon(this.getTileDiamondPoints(tileX, tileY));
+    return Phaser.Geom.Polygon.Contains(polygon, pointer.worldX, pointer.worldY);
   }
 
   private getDiamondCenter(tileX: number, tileY: number): { x: number; y: number } {

@@ -304,6 +304,12 @@
   min-width: 42px;
   text-align: center;
 }
+.skd-row-badge--wide {
+  min-width: 132px;
+  max-width: 160px;
+  white-space: normal;
+  line-height: 1.25;
+}
 
 .skd-row-info {
   flex: 1;

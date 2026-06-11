@@ -28,4 +28,24 @@ describe('computeDerivedStats combat HP scaling', () => {
     expect(stats.combatLevel).toBe(100);
     expect(stats.maxHp).toBe(100);
   });
+
+  it('uses fists when no weapon is equipped and scales max hit by melee rank', () => {
+    const rankOne = computeDerivedStats({}, registry, {
+      melee: 1,
+      ranged: 1,
+      magic: 1,
+      devotion: 1,
+    });
+    const rankTen = computeDerivedStats({}, registry, {
+      melee: 100,
+      ranged: 1,
+      magic: 1,
+      devotion: 1,
+    });
+
+    expect(rankOne.weaponArchetype).toBe('fists');
+    expect(rankOne.damageType).toBe('crush');
+    expect(rankOne.attack).toBe(1);
+    expect(rankTen.attack).toBe(10);
+  });
 });

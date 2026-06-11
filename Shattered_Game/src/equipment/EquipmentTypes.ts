@@ -19,7 +19,7 @@ export const ALL_EQUIPMENT_SLOTS: EquipmentSlot[] = [
 
 export type PhysicalDamageType = 'slash' | 'pierce' | 'crush';
 
-export type WeaponArchetype = 'sword' | 'axe' | 'hammer' | 'spear' | 'dagger';
+export type WeaponArchetype = 'fists' | 'sword' | 'axe' | 'hammer' | 'spear' | 'dagger';
 
 // Shape of the player's attack hitbox — owned by each weapon definition.
 // arc   = swinging weapon; creates a fan/cone in front of the player.
@@ -129,9 +129,9 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     attackWindupMs: 160,
     attackActiveMs: 200,
     attackRecoveryMs: 640,
-    weaponArchetype: 'sword',
-    attackShape: { kind: 'arc', angleDeg: 180, rangeTiles: 1.5 },
-    damageType: 'slash',
+    weaponArchetype: 'fists',
+    attackShape: { kind: 'thrust', lengthTiles: 1, widthTiles: 1 },
+    damageType: 'crush',
     reachTiles: 1.0,
     attackStaminaCost: 12,
     dodgeChance: 0,

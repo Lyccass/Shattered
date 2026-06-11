@@ -1,5 +1,6 @@
 import type { EquippedSlots, PlayerDerivedStats, WeaponArchetype, WeaponAttackShape } from './EquipmentTypes';
 import type { EquipmentRegistry } from './EquipmentRegistry';
+import { levelToRankStage } from '../skills/SkillTypes';
 
 const MIN_MAX_HP = 10;
 const HARD_MAX_HP = 100;
@@ -13,11 +14,12 @@ const BASE_MAX_CARRY_WEIGHT = 20;
 const BASE_STAGGER_THRESHOLD = 100;
 
 const MIN_RECOVERY_MS  = 200;
-const DEFAULT_ARCHETYPE: WeaponArchetype = 'sword';
-const DEFAULT_ATTACK_SHAPE: WeaponAttackShape = { kind: 'arc', angleDeg: 180, rangeTiles: 1.5 };
+const DEFAULT_ARCHETYPE: WeaponArchetype = 'fists';
+const DEFAULT_ATTACK_SHAPE: WeaponAttackShape = { kind: 'thrust', lengthTiles: 1, widthTiles: 1 };
 
 function getArchetypeTimings(archetype: WeaponArchetype): { windupMs: number; activeMs: number } {
   switch (archetype) {
+    case 'fists':  return { windupMs: 220, activeMs: 160 };
     case 'hammer': return { windupMs: 600, activeMs: 200 };
     case 'sword':  return { windupMs: 400, activeMs: 200 };
     case 'axe':    return { windupMs: 350, activeMs: 180 };
@@ -60,12 +62,13 @@ export function computeDerivedStats(
   const mainHandDef = slots.main_hand ? registry.get(slots.main_hand) : undefined;
   const weapon = mainHandDef?.equipment?.weaponStats;
 
-  const attack = (weapon?.damage ?? BASE_ATTACK) + Math.floor(meleeLevel / 10);
+  const meleeRankBonus = levelToRankStage(meleeLevel).rank - 1;
+  const attack = (weapon?.damage ?? BASE_ATTACK) + meleeRankBonus;
   const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(meleeLevel * 0.4));
   const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
   const weaponArchetype: WeaponArchetype = weapon?.archetype ?? DEFAULT_ARCHETYPE;
   const attackShape: WeaponAttackShape = weapon?.attackShape ?? DEFAULT_ATTACK_SHAPE;
-  const damageType = weapon?.damageType ?? 'slash';
+  const damageType = weapon?.damageType ?? 'crush';
   const { windupMs: attackWindupMs, activeMs: attackActiveMs } = getArchetypeTimings(weaponArchetype);
   const attackRecoveryMs = Math.max(MIN_RECOVERY_MS, attackSpeedMs - attackWindupMs - attackActiveMs);
   const reachTiles = weapon?.reachTiles ?? BASE_REACH_TILES;

@@ -68,7 +68,9 @@ export class EquipmentTabContent {
     snapshot: EquipmentSnapshot,
     companions: CompanionSnapshot = {},
   ): void {
-    const key = JSON.stringify(snapshot.slots) + '|' + JSON.stringify(companions);
+    const key = JSON.stringify(snapshot.slots)
+      + '|' + JSON.stringify(snapshot.derivedStats)
+      + '|' + JSON.stringify(companions);
     if (key === this.lastRenderKey) return;
     this.lastRenderKey = key;
     this.snapshot = snapshot;
@@ -127,33 +129,42 @@ export class EquipmentTabContent {
     wrap.className = 'equip-stats';
     const s = this.snapshot.derivedStats;
 
-    this.appendGroup(wrap, 'Offence', [
-      ['Attack',      String(s.attack),                            'Maximum possible hit. Actual damage rolls between 1 and this value.'],
-      ['Atk Speed',   `${(s.attackSpeedMs / 1000).toFixed(2)}s`, 'Full attack cycle time: wind-up, active frames, and recovery.'],
-      ['Reach',       `${s.reachTiles.toFixed(1)} tiles`,         'How far your attack can reach from your position.'],
-      ['Stam. Cost',  String(s.attackStaminaCost),                'Stamina consumed each time you attack.'],
+    this.appendGroup(wrap, 'Combat Rating', [
+      ['Max HP',       `${s.maxHp} / 100`,                         'Current max HP from hidden combat level. Gear does not add HP.'],
+      ['Combat Lvl',   String(s.combatLevel),                      'Hidden combat level from Melee, Ranged, Magic, and Devotion.'],
+      ['Main Action',  '1 / turn',                                 'Used for weapon attacks, specials, combat spells, devotion abilities, strong consumables, and equipping in combat.'],
+      ['Move Points',  '5 / turn',                                 'Used for turn-based movement.'],
+      ['Secondary',    '1 / turn',                                 'Used for quick defensive or utility actions.'],
+    ]);
+
+    this.appendGroup(wrap, 'Weapon Actions', [
+      ['Basic Attack', `${s.attack} ${s.damageType}`,              'Always available if in range. No cooldown and no expedition charges.'],
+      ['Heavy Hit',    `${Math.max(2, Math.round(s.attack * 2))} ${s.damageType}`, 'Weapon special attack. Costs a Main Action and has a short cooldown.'],
+      ['Accuracy',     `${s.accuracy}%`,                           'Base hit chance before enemy defences are applied.'],
+      ['Range',        formatAttackRange(s),                       'Usable tile range for the equipped weapon in turn combat.'],
+      ['Stagger',      String(getWeaponStaggerEstimate(s)),         'Stagger pressure applied by weapon actions.'],
     ]);
 
     this.appendGroup(wrap, 'Defence', [
-      ['Slash Res',      String(s.slashDefence),      'Reduces incoming slash damage. High values let you roll the damage roll multiple times and take the lowest.'],
-      ['Pierce Res',     String(s.pierceDefence),     'Reduces incoming pierce damage. High values let you roll the damage roll multiple times and take the lowest.'],
-      ['Crush Res',      String(s.crushDefence),      'Reduces incoming crush damage. High values let you roll the damage roll multiple times and take the lowest.'],
-      ['Poise',          String(s.poise),             'Reduces stagger points added by incoming hits.'],
-      ['Stagger Thres.', String(s.staggerThreshold), 'Stagger accumulates from hits and dodgerolls. Reaching this limit staggers you briefly.'],
+      ['Armour',         String(s.physicalDefence),   'General armour from equipped gear. Used by combat to reduce incoming hit chance.'],
+      ['Slash Armour',   String(s.slashDefence),      'Armour against slash attacks.'],
+      ['Pierce Armour',  String(s.pierceDefence),     'Armour against pierce attacks.'],
+      ['Crush Armour',   String(s.crushDefence),      'Armour against crush attacks.'],
+      ['Poise',          String(s.poise),             'Reduces stagger pressure from incoming hits.'],
+      ['Stagger Limit',  String(s.staggerThreshold),  'Hidden combat-level scaling for how much stagger you can absorb.'],
+    ]);
+
+    this.appendGroup(wrap, 'Expedition', [
+      ['Magic Resource',    'Persistent',             'Spent by combat spells. Restores in cities, shrines, camps, rare dungeon events, or rare items.'],
+      ['Devotion Resource', 'Persistent',             'Spent by devotion abilities. Restores in cities, shrines, camps, rare dungeon events, or rare items.'],
+      ['Carry Weight',      `${s.carryWeight} / ${s.maxCarryWeight} kg`, 'Total equipped weight vs. your carry cap.'],
+      ['Stamina Regen',     formatRegenMultiplier(s.staminaRegenMultiplier), 'Exploration stamina regeneration. Penalised when over your carry cap.'],
     ]);
 
     this.appendGroup(wrap, 'Resistances', [
       ['Poison', String(s.poisonResistance), 'Reduces damage and duration from poison effects.'],
       ['Fire',   String(s.fireResistance),   'Reduces damage from fire and burning effects.'],
       ['Cold',   String(s.coldResistance),   'Reduces damage and slow effects from cold sources.'],
-    ]);
-
-    this.appendGroup(wrap, 'Body', [
-      ['Max HP',       String(s.maxHp),                                       'Health pool from hidden combat level. Capped at 100; no gear HP.'],
-      ['Combat Lvl',   String(s.combatLevel),                                 'Hidden combat level from Melee, Ranged, Magic, and Devotion.'],
-      ['Max Stamina',  String(s.maxStamina),                                  'Stamina pool for attacking, sprinting, and dodging.'],
-      ['Carry Weight', `${s.carryWeight} / ${s.maxCarryWeight} kg`,           'Total equipment weight vs. your carry cap. Exceeding it reduces stamina regen.'],
-      ['Stam. Regen',  formatRegenMultiplier(s.staminaRegenMultiplier),       'Stamina regeneration rate. Penalised when over your carry weight cap.'],
     ]);
 
     return wrap;
@@ -340,6 +351,25 @@ function formatRegenMultiplier(multiplier: number): string {
   if (multiplier >= 1) return 'Full';
   if (multiplier <= 0) return 'None';
   return `${Math.round(multiplier * 100)}%`;
+}
+
+function formatAttackRange(stats: EquipmentSnapshot['derivedStats']): string {
+  const minRange = stats.attackShape.kind === 'arc'
+    ? Math.max(0, Math.ceil(stats.attackShape.minRangeTiles ?? 0))
+    : 0;
+  const maxRange = Math.max(minRange, Math.max(1, Math.ceil(stats.reachTiles)));
+  return minRange > 0 ? `${minRange}-${maxRange} tiles` : `${maxRange} tile${maxRange === 1 ? '' : 's'}`;
+}
+
+function getWeaponStaggerEstimate(stats: EquipmentSnapshot['derivedStats']): number {
+  switch (stats.weaponArchetype) {
+    case 'fists': return 1;
+    case 'hammer': return 6;
+    case 'axe': return 5;
+    case 'spear': return 3;
+    case 'dagger': return 2;
+    case 'sword': return 4;
+  }
 }
 
 function getStatTooltipEl(): HTMLElement {

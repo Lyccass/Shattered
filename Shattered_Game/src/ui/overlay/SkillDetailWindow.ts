@@ -12,6 +12,9 @@ type TabDef = {
 };
 
 const TABS: TabDef[] = [
+  { id: 'misc',          label: 'Misc'       },
+  { id: 'weapon',        label: 'Weapons'    },
+  { id: 'armor',         label: 'Armour'     },
   { id: 'recipe',        label: 'Recipes'    },
   { id: 'resource_node', label: 'Resources'  },
   { id: 'tool',          label: 'Equipment'  },
@@ -177,6 +180,11 @@ export class SkillDetailWindow {
     if (kind) this.tabBtns.get(kind)?.classList.add('skd-tab--active');
 
     this.bodyEl.innerHTML = '';
+    const overview = kind === 'misc' ? this.buildSkillOverview() : null;
+    if (overview) {
+      this.bodyEl.appendChild(overview);
+      return;
+    }
 
     const all = kind
       ? REGISTRY.getAllForSkill(this.skill.id).filter((e) => e.kind === kind)
@@ -197,13 +205,74 @@ export class SkillDetailWindow {
     if (upcoming.length  > 0) this.bodyEl.appendChild(this.buildSection('Up Next',  upcoming,  false));
   }
 
+  private buildSkillOverview(): HTMLElement | null {
+    if (this.skill.id !== 'melee' && this.skill.id !== 'ranged') return null;
+
+    const rankDamageBonus = Math.max(0, this.skill.rank - 1);
+    const nextRankLevel = this.skill.rank < 10 ? rankStageToLevel(this.skill.rank + 1, 1) : null;
+    const skillName = this.skill.id === 'melee' ? 'Melee' : 'Ranged';
+    const weaponText = this.skill.id === 'melee'
+      ? 'every melee weapon and to fists'
+      : 'bows and crossbows';
+
+    const section = document.createElement('div');
+    section.className = 'skd-section';
+
+    const hd = document.createElement('div');
+    hd.className = 'skd-section-hd skd-section-hd--done';
+    hd.textContent = 'Combat Scaling';
+    section.appendChild(hd);
+
+    section.appendChild(this.buildInfoRow(
+      'Current Damage Bonus',
+      `+${rankDamageBonus} max hit`,
+      `${skillName} rank adds this bonus to ${weaponText}.`,
+      true,
+    ));
+    section.appendChild(this.buildInfoRow(
+      'Accuracy',
+      '+0.4% per level',
+      `${skillName} level raises base accuracy before armour and facing modifiers are applied.`,
+      true,
+    ));
+    section.appendChild(this.buildInfoRow(
+      'Next Rank',
+      nextRankLevel ? `Lv.${nextRankLevel}: +1 max hit` : 'Max rank reached',
+      `Each rank-up increases max hit by 1 for ${weaponText}.`,
+      nextRankLevel === null || this.skill.level >= nextRankLevel,
+    ));
+
+    return section;
+  }
+
+  private buildInfoRow(
+    name: string,
+    value: string,
+    description: string,
+    done: boolean,
+  ): HTMLElement {
+    const row = document.createElement('div');
+    row.className = `skd-row ${done ? 'skd-row--done' : 'skd-row--locked'}`;
+    row.innerHTML = `
+      <span class="skd-row-badge skd-row-badge--wide">${value}</span>
+      <div class="skd-row-info">
+        <span class="skd-row-name">${name}</span>
+        <span class="skd-row-desc">${description}</span>
+      </div>
+    `;
+    return row;
+  }
+
   private getDefaultTab(): UnlockKind | null {
     return this.getAvailableTabs()[0]?.id ?? null;
   }
 
   private getAvailableTabs(): TabDef[] {
     const entries = REGISTRY.getAllForSkill(this.skill.id);
-    return TABS.filter((tab) => entries.some((entry) => entry.kind === tab.id));
+    return TABS.filter((tab) =>
+      entries.some((entry) => entry.kind === tab.id) ||
+      (tab.id === 'misc' && (this.skill.id === 'melee' || this.skill.id === 'ranged')),
+    );
   }
 
   private buildSection(title: string, entries: SkillUnlockEntry[], done: boolean): HTMLElement {

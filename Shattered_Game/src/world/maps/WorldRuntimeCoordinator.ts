@@ -39,7 +39,7 @@ import type { EquipmentSlot } from '../../equipment/EquipmentTypes';
 import { getAbilityDefinition, type AbilitySlotType } from '../../combat/abilities/CombatAbilityDefinitions';
 import { PlayerSessionState } from '../../player/PlayerSessionState';
 import type { PlayerFacingDirection } from '../../player/PlayerFacing';
-import type { LevelUpEvent, SkillSnapshot, SkillXpDelta } from '../../skills/SkillTypes';
+import type { LevelUpEvent, SkillId, SkillSnapshot, SkillXpDelta } from '../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../tasks/TaskJournalTypes';
 import type { UiStateSnapshot } from '../../ui/UiTypes';
 import { UiStateAggregator } from '../../ui/UiStateAggregator';
@@ -465,6 +465,18 @@ export class WorldRuntimeCoordinator {
     }
 
     if (itemDefinition.equipment) {
+      const requiredSkill = getEquipmentRequirementSkill(itemDefinition.equipment.slot, !!itemDefinition.equipment.weaponStats);
+      const requiredLevel = itemDefinition.equipment.requiredLevel ?? 1;
+      const currentLevel = this.playerSessionState.getSkillLevel(requiredSkill);
+      if (currentLevel < requiredLevel) {
+        return {
+          ok: false,
+          interactionType: 'item_use',
+          targetId: itemId,
+          message: `Requires ${formatSkillName(requiredSkill)} level ${requiredLevel}.`,
+        };
+      }
+
       const slot = itemDefinition.equipment.slot;
       const equipState = this.playerSessionState.getEquipmentState();
       const previousId = equipState.getEquippedId(slot);
@@ -1215,6 +1227,22 @@ export class WorldRuntimeCoordinator {
     if (rawEnv !== null && typeof rawEnv === 'object' && !Array.isArray(rawEnv)) {
       this.worldEnv.setInitial(rawEnv as Record<string, unknown>);
     }
+  }
+}
+
+function getEquipmentRequirementSkill(slot: EquipmentSlot, isWeapon: boolean): SkillId {
+  if (slot === 'ammo') return 'ranged';
+  if (isWeapon) return 'melee';
+  return 'melee';
+}
+
+function formatSkillName(skillId: SkillId): string {
+  switch (skillId) {
+    case 'melee': return 'Melee';
+    case 'ranged': return 'Ranged';
+    case 'magic': return 'Magic';
+    case 'devotion': return 'Devotion';
+    default: return skillId;
   }
 }
 

@@ -59,6 +59,10 @@ export class PlayerSessionState {
     return this.skillProgressionSystem.getAllSkills();
   }
 
+  getSkillLevel(skillId: SkillId): number {
+    return this.skillProgressionSystem.getLevel(skillId);
+  }
+
   getSpellbookSnapshot(): SpellbookSnapshot {
     return this.spellbookState.getSnapshot((skillId) => this.getSkillLevel(skillId));
   }
@@ -123,10 +127,6 @@ export class PlayerSessionState {
       magic: this.skillProgressionSystem.getLevel('magic'),
       devotion: this.skillProgressionSystem.getLevel('devotion'),
     });
-  }
-
-  private getSkillLevel(skillId: SkillId): number {
-    return this.skillProgressionSystem.getLevel(skillId);
   }
 
   getActiveEffects(nowMs: number): ActiveEffectSnapshot[] {

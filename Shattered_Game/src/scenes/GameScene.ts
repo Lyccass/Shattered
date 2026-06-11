@@ -36,6 +36,8 @@ import { getItem } from '../items/ItemRegistry';
 import { WorldEncounterPopulationTracker } from '../combat/WorldEncounterPopulationTracker';
 import { PlayerCompanionState } from '../companions/PlayerCompanionState';
 import type { CompanionSlot } from '../companions/CompanionTypes';
+import { getCompanionDefinition } from '../companions/CompanionRegistry';
+import type { ItemDefinition } from '../items/ItemTypes';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
@@ -410,11 +412,15 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.playerController) {
       this.playerController = new PlayerController(this, this.player, loadedMap.isoTilemap);
+    } else {
+      this.playerController.setTilemap(loadedMap.isoTilemap);
     }
 
     if (!this.player) {
       return;
     }
+
+    this.playerController.setWorldPosition(spawnPoint.x, spawnPoint.y);
 
     if (!this.cameraSystem) {
       this.cameraSystem = new CameraSystem({
@@ -569,7 +575,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.worldRuntimeCoordinator) return;
     const data = this.worldRuntimeCoordinator.getItemDisplayData(itemId);
     if (data) {
-      this.uiManager?.showInfo(`${data.displayName}: ${data.description}`);
+      const def = getItem(itemId);
+      this.uiManager?.showInfo(def ? formatItemInspectText(def) : `${data.displayName}: ${data.description}`);
     }
   }
 
@@ -598,7 +605,6 @@ export class GameScene extends Phaser.Scene {
   private handlePlayerDied(): void {
     if (this.isRespawningAfterDeath) return;
     if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
-    this.isRespawningAfterDeath = true;
 
     const deathRuntime = this.worldRuntimeCoordinator.getCurrentRuntime();
     const deathMapId = deathRuntime.definition.id;
@@ -607,6 +613,7 @@ export class GameScene extends Phaser.Scene {
       : null;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
+    this.isRespawningAfterDeath = true;
 
     const playerPos = this.playerController?.getFeetPoint() ?? { x: 0, y: 0 };
     const tile = isoTilemap.transform.worldToTile(playerPos.x, playerPos.y);
@@ -619,6 +626,7 @@ export class GameScene extends Phaser.Scene {
 
     this.isSprinting = false;
     this.playerController?.setMovementSpeedMultiplier(1.0);
+    this.playerController?.clearClickMoveTarget();
     this.uiManager?.showInfo('You were downed. Your items were left behind.');
     void this.respawnPlayerAfterDeath({
       mapId: deathMapId,
@@ -631,6 +639,7 @@ export class GameScene extends Phaser.Scene {
     worldManifestUrl: string | null;
   }): Promise<void> {
     try {
+      this.playerController?.clearClickMoveTarget();
       this.playerController?.resetCombatVisual();
       if (options.worldManifestUrl) {
         await this.initializeWorldManifestRuntime(options.worldManifestUrl, 'default');
@@ -640,6 +649,7 @@ export class GameScene extends Phaser.Scene {
 
       if (this.hasShutdown) return;
 
+      this.playerController?.clearClickMoveTarget();
       this.playerController?.resetCombatVisual();
       this.turnCombatSession?.resetPlayerHp();
     } catch (error) {
@@ -850,6 +860,67 @@ export class GameScene extends Phaser.Scene {
       },
     );
   }
+}
+
+function formatItemInspectText(def: ItemDefinition): string {
+  const parts = [`${def.name}: ${def.examine}`];
+
+  if (def.equipment) {
+    const requirementSkill = def.equipment.slot === 'ammo'
+      ? 'Ranged'
+      : def.equipment.weaponStats ? 'Melee' : 'Melee';
+    parts.push(`Req ${requirementSkill} ${def.equipment.requiredLevel ?? 1}`);
+
+    if (def.equipment.weaponStats) {
+      const w = def.equipment.weaponStats;
+      const range = Math.max(1, Math.ceil(w.reachTiles));
+      parts.push(`Basic ${w.damage} ${w.damageType} dmg, range ${range}, no cooldown`);
+      parts.push(`Heavy Hit ${Math.max(2, Math.round(w.damage * 2))} ${w.damageType} dmg, cooldown 1`);
+      parts.push(`Stagger ${w.staggerImpact}, ${w.weight} kg`);
+    }
+
+    if (def.equipment.armorStats) {
+      const a = def.equipment.armorStats;
+      parts.push(`Armour ${a.physicalDefence}, slash ${a.typeDefence.slash}, pierce ${a.typeDefence.pierce}, crush ${a.typeDefence.crush}`);
+      parts.push(`Dodge ${formatSigned(a.dodgeBonus)}, poise ${a.poise}, ${a.weight} kg`);
+      const res = [
+        a.elementalResistance.poison ? `poison ${a.elementalResistance.poison}` : '',
+        a.elementalResistance.fire ? `fire ${a.elementalResistance.fire}` : '',
+        a.elementalResistance.cold ? `cold ${a.elementalResistance.cold}` : '',
+      ].filter(Boolean);
+      if (res.length > 0) parts.push(`Resist ${res.join(', ')}`);
+    }
+  }
+
+  if (def.consume) {
+    const effects = [
+      def.consume.hpRestore ? `restores ${def.consume.hpRestore} HP` : '',
+      def.consume.staminaRestore ? `restores ${def.consume.staminaRestore} stamina` : '',
+    ].filter(Boolean);
+    if (effects.length > 0) parts.push(`Consumable: ${effects.join(', ')}. In combat, food/drink uses an action.`);
+  }
+
+  if (def.companionId) {
+    const companion = getCompanionDefinition(def.companionId);
+    if (companion) {
+      parts.push(`Companion: ${companion.maxHp} HP, ${companion.apPerTurn} Main, ${companion.mpPerTurn} Move, ${companion.defensePower} armour`);
+      const attacks = companion.attacks.map((attack) => {
+        const cd = attack.cooldownTurns ? `, cd ${attack.cooldownTurns}` : '';
+        return `${attack.displayName} ${attack.damage} dmg range ${attack.minRangeTiles}-${attack.maxRangeTiles}${cd}`;
+      });
+      if (attacks.length > 0) parts.push(attacks.join('; '));
+    }
+  }
+
+  if (def.placementObjectDefinitionId) {
+    parts.push('Utility: placeable world item.');
+  }
+
+  return parts.join(' | ');
+}
+
+function formatSigned(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
 }
 
 function getWorldManifestUrl(): string | null {

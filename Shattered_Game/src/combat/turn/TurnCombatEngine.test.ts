@@ -348,7 +348,7 @@ describe('attack action', () => {
   });
 
   it('guard spends the secondary action and reduces incoming hit chance', () => {
-    const player = makePlayer({ tileX: 10, tileY: 10, apRemaining: 1, defensePower: 0 });
+    const player = makePlayer({ tileX: 10, tileY: 10, facingX: 1, facingY: 0, apRemaining: 1, defensePower: 0 });
     const enemy = makeEnemy('e1', {
       tileX: 11,
       tileY: 10,
@@ -393,6 +393,163 @@ describe('attack action', () => {
       OPEN_CTX,
     );
     expect(attackOutcome).toMatchObject({ kind: 'attacked', hit: false, damage: 0 });
+  });
+
+  it('raises hit chance from behind and lowers it from the target front arc', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    const attacker = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'punch',
+        displayName: 'Punch',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'crush',
+        hitChance: 70,
+      }],
+    });
+    const frontTarget = makeEnemy('front', {
+      tileX: 11,
+      tileY: 10,
+      facingX: -1,
+      facingY: 0,
+    });
+    const rearTarget = makeEnemy('rear', {
+      tileX: 11,
+      tileY: 10,
+      facingX: 1,
+      facingY: 0,
+    });
+    const diagonalFrontAttacker = makePlayer({
+      ...attacker,
+      tileX: 10,
+      tileY: 9,
+    });
+    const diagonalFrontTarget = makeEnemy('diag-front', {
+      tileX: 11,
+      tileY: 10,
+      facingX: -1,
+      facingY: 0,
+    });
+
+    const front = applyAction({
+      participants: [attacker, frontTarget],
+      turnOrderIds: ['player', 'front'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'front', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    const rear = applyAction({
+      participants: [attacker, rearTarget],
+      turnOrderIds: ['player', 'rear'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'rear', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    const diagonalFront = applyAction({
+      participants: [diagonalFrontAttacker, diagonalFrontTarget],
+      turnOrderIds: ['player', 'diag-front'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'diag-front', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    expect(front).toMatchObject({ kind: 'attacked', hitChance: 65, positionalModifier: -5 });
+    expect(diagonalFront).toMatchObject({ kind: 'attacked', hitChance: 68, positionalModifier: -2 });
+    expect(rear).toMatchObject({ kind: 'attacked', hitChance: 95, positionalModifier: 25 });
+  });
+
+  it('lets adjacent enemies use a reaction when a unit leaves melee range', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0) // reaction hit roll
+      .mockReturnValueOnce(0); // reaction damage roll
+
+    const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 3, facingX: 1, facingY: 0 });
+    const enemy = makeEnemy('e1', {
+      tileX: 9,
+      tileY: 10,
+      reactionRemaining: 1,
+      attacks: [{
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'slash',
+        hitChance: 100,
+      }],
+    });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'move', toTileX: 12, toTileY: 10 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({
+      kind: 'moved',
+      reactions: [{ kind: 'attacked', actorId: 'e1', targetId: 'player', reaction: true, hit: true, damage: 1 }],
+    });
+    expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(9);
+    expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(0);
+  });
+
+  it('clamps final hit chance between 0 and 99 percent', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+
+    const attacker = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'punch',
+        displayName: 'Punch',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'crush',
+        hitChance: 90,
+      }],
+    });
+    const rearTarget = makeEnemy('rear', {
+      tileX: 11,
+      tileY: 10,
+      facingX: 1,
+      facingY: 0,
+    });
+
+    const high = applyAction({
+      participants: [attacker, rearTarget],
+      turnOrderIds: ['player', 'rear'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'rear', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    const heavilyArmouredTarget = makeEnemy('armoured', {
+      tileX: 11,
+      tileY: 10,
+      crushDefence: 40,
+    });
+    const low = applyAction({
+      participants: [attacker, heavilyArmouredTarget],
+      turnOrderIds: ['player', 'armoured'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'armoured', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    expect(high).toMatchObject({ kind: 'attacked', hitChance: 99 });
+    expect(low).toMatchObject({ kind: 'attacked', hitChance: 0 });
   });
 
   it('cleanse spends the secondary action and removes one harmful status', () => {
