@@ -496,14 +496,15 @@ export class WorldRuntimeCoordinator {
 
       const slot = itemDefinition.equipment.slot;
       const equipState = this.playerSessionState.getEquipmentState();
-      const previousId = equipState.getEquippedId(slot);
-      const equipped = equipState.equip(slot, itemId);
-      if (!equipped) {
-        return { ok: false, interactionType: 'item_use', targetId: itemId, message: `Cannot equip ${itemDefinition.name}.` };
+      const equipResult = equipState.equip(slot, itemId);
+      if (!equipResult.ok) {
+        return { ok: false, interactionType: 'item_use', targetId: itemId, message: equipResult.reason };
       }
       const inv = this.playerSessionState.getInventoryState();
       inv.consume(itemId, 1);
-      if (previousId) inv.add(previousId, 1);
+      for (const displacedId of Object.values(equipResult.displaced)) {
+        if (displacedId) inv.add(displacedId, 1);
+      }
       return { ok: true, interactionType: 'item_use', targetId: itemId, message: `Equipped ${itemDefinition.name}.` };
     }
 

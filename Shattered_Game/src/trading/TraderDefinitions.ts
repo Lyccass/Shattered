@@ -17,6 +17,12 @@ export const SHOP_DEFINITIONS: ShopDefinition[] = [
       { itemId: 'copper_dagger',   stock: 2,  maxStock: 5 },
       { itemId: 'copper_hammer',   stock: 1,  maxStock: 3 },
       { itemId: 'copper_spear',    stock: 2,  maxStock: 5 },
+      // ── Starter armour ────────────────────────────────────────────────────
+      { itemId: 'copper_head',      stock: 1,  maxStock: 2 },
+      { itemId: 'copper_gloves',    stock: 1,  maxStock: 2 },
+      { itemId: 'copper_body',      stock: 1,  maxStock: 2 },
+      { itemId: 'copper_legs',      stock: 1,  maxStock: 2 },
+      { itemId: 'copper_feet',      stock: 1,  maxStock: 2 },
     ],
   },
 ];

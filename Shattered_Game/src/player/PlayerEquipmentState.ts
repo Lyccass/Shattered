@@ -12,16 +12,40 @@ import type { ItemDefinition } from '../items/ItemTypes';
 
 export const EQUIPMENT_REGISTRY = new EquipmentRegistry();
 
+export type EquipResult =
+  | { ok: true; displaced: Partial<Record<EquipmentSlot, string>> }
+  | { ok: false; reason: string };
+
 export class PlayerEquipmentState {
   private readonly slots: EquippedSlots = {};
 
   constructor(private readonly registry = EQUIPMENT_REGISTRY) {}
 
-  equip(slot: EquipmentSlot, itemId: string): boolean {
+  equip(slot: EquipmentSlot, itemId: string): EquipResult {
     const def = this.registry.get(itemId);
-    if (!def || def.equipment?.slot !== slot) return false;
+    if (!def || def.equipment?.slot !== slot) {
+      return { ok: false, reason: 'Item does not fit that equipment slot.' };
+    }
+
+    const mainHand = this.getEquipped('main_hand');
+    if (slot === 'off_hand' && mainHand?.equipment?.twoHanded) {
+      return { ok: false, reason: `${mainHand.name} requires both hands.` };
+    }
+
+    const displaced: Partial<Record<EquipmentSlot, string>> = {};
+    const previousSlotItem = this.slots[slot];
+    if (previousSlotItem) displaced[slot] = previousSlotItem;
+
+    if (slot === 'main_hand' && def.equipment.twoHanded) {
+      const previousOffHand = this.slots.off_hand;
+      if (previousOffHand) {
+        displaced.off_hand = previousOffHand;
+        delete this.slots.off_hand;
+      }
+    }
+
     this.slots[slot] = itemId;
-    return true;
+    return { ok: true, displaced };
   }
 
   unequip(slot: EquipmentSlot): void {
@@ -68,6 +92,11 @@ export class PlayerEquipmentState {
       if (this.registry.has(itemId)) {
         (this.slots as Record<string, string>)[slot] = itemId;
       }
+    }
+
+    const mainHand = this.getEquipped('main_hand');
+    if (mainHand?.equipment?.twoHanded) {
+      delete this.slots.off_hand;
     }
   }
 }

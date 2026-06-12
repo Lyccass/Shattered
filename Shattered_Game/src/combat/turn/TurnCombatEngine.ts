@@ -50,7 +50,7 @@ const COMBAT_POSITION_TUNING = {
 
 const HIT_CHANCE_TUNING = {
   skillAccuracyPerLevel: 1.5,
-  curvePower: 2.4,
+  curvePower: 5.5,
   minChance: 0,
   maxChance: 0.99,
 } as const;

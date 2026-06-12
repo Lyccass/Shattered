@@ -40,7 +40,7 @@ export const WOLF_PASSIVE: EnemyDefinition = {
       maxRangeTiles: 1,
       damage: 2,
       damageType: 'pierce',
-      hitChance: 75,
+      hitChance: 65,
       statusEffect: { kind: 'bleeding', turns: 2, value: 1 },
     },
     {
@@ -51,7 +51,7 @@ export const WOLF_PASSIVE: EnemyDefinition = {
       maxRangeTiles: 5,
       damage: 2,
       damageType: 'crush',
-      hitChance: 65,
+      hitChance: 55,
       telegraph: { pattern: 'target_plus_adjacent', warningDamageMultiplier: 0.5 },
       forcedMovement: { kind: 'push', distance: 1 },
       cooldownTurns: 2,

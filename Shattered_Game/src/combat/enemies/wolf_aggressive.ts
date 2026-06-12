@@ -40,7 +40,7 @@ export const WOLF_AGGRESSIVE: EnemyDefinition = {
       maxRangeTiles: 1,
       damage: 2,
       damageType: 'pierce',
-      hitChance: 80,
+      hitChance: 70,
       statusEffect: { kind: 'bleeding', turns: 2, value: 1 },
     },
     {
@@ -51,7 +51,7 @@ export const WOLF_AGGRESSIVE: EnemyDefinition = {
       maxRangeTiles: 5,
       damage: 3,
       damageType: 'crush',
-      hitChance: 85,
+      hitChance: 65,
       statusEffect: { kind: 'bleeding', turns: 2, value: 1 },
       telegraph: { pattern: 'target_plus_adjacent', warningDamageMultiplier: 0.5 },
       forcedMovement: { kind: 'push', distance: 1 },

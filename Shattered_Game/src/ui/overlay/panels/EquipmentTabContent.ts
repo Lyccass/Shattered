@@ -165,6 +165,7 @@ export class EquipmentTabContent {
       ['Poison', String(s.poisonResistance), 'Reduces damage and duration from poison effects.'],
       ['Fire',   String(s.fireResistance),   'Reduces damage from fire and burning effects.'],
       ['Cold',   String(s.coldResistance),   'Reduces damage and slow effects from cold sources.'],
+      ['Lightning', String(s.lightningDefence), 'Reduces hit chance from lightning attacks.'],
     ]);
 
     return wrap;

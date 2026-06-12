@@ -908,6 +908,7 @@ function formatItemInspectText(def: ItemDefinition): string {
     if (def.equipment.weaponStats) {
       const w = def.equipment.weaponStats;
       const range = Math.max(1, Math.ceil(w.reachTiles));
+      if (def.equipment.twoHanded) parts.push('Two-handed: blocks off-hand equipment');
       parts.push(`Basic ${w.damage} ${w.damageType} dmg, accuracy ${w.accuracyRating ?? 'base'}, range ${range}`);
       parts.push(`Special ${formatWeaponSpecialInspect(w)}, cooldown 1`);
       parts.push(`Stagger ${w.staggerImpact}, ${w.weight} kg`);
@@ -921,6 +922,7 @@ function formatItemInspectText(def: ItemDefinition): string {
         a.elementalResistance.poison ? `poison ${a.elementalResistance.poison}` : '',
         a.elementalResistance.fire ? `fire ${a.elementalResistance.fire}` : '',
         a.elementalResistance.cold ? `cold ${a.elementalResistance.cold}` : '',
+        a.elementalResistance.lightning ? `lightning ${a.elementalResistance.lightning}` : '',
       ].filter(Boolean);
       if (res.length > 0) parts.push(`Resist ${res.join(', ')}`);
     }

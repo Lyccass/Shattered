@@ -54,6 +54,7 @@ export type ElementalResistance = {
   poison: number;
   fire: number;
   cold: number;
+  lightning: number;
 };
 
 export type ArmorStats = {

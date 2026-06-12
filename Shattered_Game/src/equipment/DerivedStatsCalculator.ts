@@ -86,6 +86,7 @@ export function computeDerivedStats(
   let poisonResistance = 0;
   let fireResistance = 0;
   let coldResistance = 0;
+  let lightningResistance = 0;
   let armorDodge = 0;
   let poise = 0;
   let carryWeight = weapon?.weight ?? 0;
@@ -95,12 +96,13 @@ export function computeDerivedStats(
     const a = def?.equipment?.armorStats;
     if (!a) continue;
     physicalDefence += a.physicalDefence;
-    slashDefence    += a.typeDefence.slash;
-    pierceDefence   += a.typeDefence.pierce;
-    crushDefence    += a.typeDefence.crush;
+    slashDefence    += a.physicalDefence + a.typeDefence.slash;
+    pierceDefence   += a.physicalDefence + a.typeDefence.pierce;
+    crushDefence    += a.physicalDefence + a.typeDefence.crush;
     poisonResistance += a.elementalResistance.poison;
     fireResistance  += a.elementalResistance.fire;
     coldResistance  += a.elementalResistance.cold;
+    lightningResistance += a.elementalResistance.lightning;
     armorDodge      += a.dodgeBonus;
     poise           += a.poise;
     carryWeight     += a.weight;
@@ -136,10 +138,10 @@ export function computeDerivedStats(
     slashDefence,
     pierceDefence,
     crushDefence,
-    lightningDefence: 0,
-    fireDefence:      0,
-    coldDefence:      0,
-    poisonDefence:    0,
+    lightningDefence: lightningResistance,
+    fireDefence:      fireResistance,
+    coldDefence:      coldResistance,
+    poisonDefence:    poisonResistance,
     poisonResistance,
     fireResistance,
     coldResistance,
