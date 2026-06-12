@@ -35,7 +35,6 @@ const DIRS_8 = [
 ] as const;
 
 const COMBAT_POSITION_TUNING = {
-  armourHitPenaltyPerPoint: 5,
   facingMultiplierCurve: [
     { alignment: 1, multiplier: 1.0 },
     { alignment: Math.SQRT1_2, multiplier: 1.05 },
@@ -378,12 +377,23 @@ export function calculateTurnHitChance(
   tileCtx?: TurnTileContext,
 ): {
   hitChance: number;
+  maxAccuracyRoll: number;
+  maxDefenceRoll: number;
   positionalModifier: number;
   heightModifier: number;
   positionalMultiplier: number;
   heightMultiplier: number;
 } {
   return getResolvedHitChance(actor, target, damageType, baseHitChance, tileCtx);
+}
+
+/** Closed-form expected hit rate for the dual-roll system. Use for UI tooltips. */
+export function expectedHitRate(maxAccuracyRoll: number, maxDefenceRoll: number): number {
+  if (maxAccuracyRoll <= 0) return 0;
+  if (maxDefenceRoll <= 0) return maxAccuracyRoll / (maxAccuracyRoll + 1);
+  if (maxAccuracyRoll > maxDefenceRoll)
+    return 1 - (maxDefenceRoll + 2) / (2 * (maxAccuracyRoll + 1));
+  return maxAccuracyRoll / (2 * (maxDefenceRoll + 1));
 }
 
 export function resolvePendingTelegraphsForActor(
@@ -433,8 +443,7 @@ export function resolvePendingTelegraphsForActor(
       telegraph.hitChance ?? actor.hitChance ?? 80,
       tileCtx,
     );
-    const hitChance = hitContext.hitChance;
-    const hit = Math.random() * 100 < hitChance;
+    const hit = rollDualHit(hitContext.maxAccuracyRoll, hitContext.maxDefenceRoll);
     const damage = hit
       ? Math.max(
           1,
@@ -484,7 +493,7 @@ export function resolvePendingTelegraphsForActor(
         hit,
         killed,
         statusApplied,
-        hitChance,
+        hitContext.hitChance,
         hitContext.positionalModifier,
         hitContext.heightModifier,
         hitContext.positionalMultiplier,
@@ -596,8 +605,7 @@ function applyAttack(
     ...attack,
     damage: getHeightAdjustedMaxHit(attack.damage, actor, target, tileCtx),
   };
-  const hitChance = hitContext.hitChance;
-  const hitResult = rollAttackHit(effectiveAttack, hitChance);
+  const hitResult = rollAttackHit(effectiveAttack, hitContext.maxAccuracyRoll, hitContext.maxDefenceRoll);
   const hit = hitResult.hit;
   const damage = hitResult.damage;
   const statusApplied = hit && attack.statusEffect
@@ -667,7 +675,7 @@ function applyAttack(
         killed,
         statusApplied: statusApplied ?? staggerResult.statusApplied,
         ...(pushed ? { pushed } : {}),
-        hitChance,
+        hitChance: hitContext.hitChance,
         positionalModifier: hitContext.positionalModifier,
         heightModifier: hitContext.heightModifier,
         positionalMultiplier: hitContext.positionalMultiplier,
@@ -689,7 +697,7 @@ function applyAttack(
       killed,
       statusApplied: statusApplied ?? staggerResult.statusApplied,
       ...(pushed ? { pushed } : {}),
-      hitChance,
+      hitChance: hitContext.hitChance,
       positionalModifier: hitContext.positionalModifier,
       heightModifier: hitContext.heightModifier,
       positionalMultiplier: hitContext.positionalMultiplier,
@@ -753,8 +761,7 @@ function applyAbility(
 
   if (ability.damage && ability.damage > 0) {
     const hitContext = getResolvedHitChance(actor, target, ability.damageType, ability.hitChance ?? actor.hitChance ?? 85, tileCtx);
-    const hitChance = hitContext.hitChance;
-    const hit = Math.random() * 100 < hitChance;
+    const hit = rollDualHit(hitContext.maxAccuracyRoll, hitContext.maxDefenceRoll);
     const damage = hit
       ? rollDamage(getHeightAdjustedMaxHit(ability.damage, actor, target, tileCtx))
       : 0;
@@ -780,7 +787,7 @@ function applyAbility(
         damage,
         hit,
         killed,
-        hitChance,
+        hitChance: hitContext.hitChance,
         positionalModifier: hitContext.positionalModifier,
         heightModifier: hitContext.heightModifier,
         positionalMultiplier: hitContext.positionalMultiplier,
@@ -1163,7 +1170,7 @@ function resolveStaggerHit(
 ): { stagger: number; statusApplied?: StatusEffect } {
   if (staggerDamage <= 0) return { stagger: target.stagger ?? 0 };
 
-  const poise = Math.max(0, target.defensePower);
+  const poise = Math.max(0, target.poise ?? 0);
   const nextStagger = (target.stagger ?? 0) + Math.max(1, staggerDamage - poise);
   const threshold = Math.max(1, target.staggerThreshold ?? 10);
   if (nextStagger < threshold) return { stagger: nextStagger };
@@ -1345,25 +1352,32 @@ function selectUsableAttack(
   return attacks[0] ?? null;
 }
 
-function getTargetArmourRating(
+function levelScale(level: number): number {
+  return 1 + (level - 1) * 0.042;
+}
+
+function getTypedMaxDefenceRoll(
   target: TurnParticipant,
   damageType: TurnAttack['damageType'],
 ): number {
-  const typedDefence = (() => {
+  const base = (() => {
     switch (damageType) {
-      case 'slash':  return target.slashDefence ?? target.defensePower;
-      case 'pierce': return target.pierceDefence ?? target.defensePower;
-      case 'crush':  return target.crushDefence ?? target.defensePower;
-      case 'lightning': return target.lightningDefence ?? target.defensePower;
-      default:       return target.defensePower;
+      case 'slash':     return target.slashDefence;
+      case 'pierce':    return target.pierceDefence;
+      case 'crush':     return target.crushDefence;
+      case 'lightning': return target.lightningDefence;
+      case 'fire':      return target.fireDefence;
+      case 'cold':      return target.coldDefence;
+      case 'poison':    return target.poisonDefence;
+      default:          return target.slashDefence;
     }
   })();
 
   const guardBonus = target.statusEffects
-    .filter((effect) => effect.kind === 'guarded' || effect.kind === 'fortified')
-    .reduce((sum, effect) => sum + effect.value, 0);
+    .filter((e) => e.kind === 'guarded' || e.kind === 'fortified')
+    .reduce((sum, e) => sum + e.value, 0);
 
-  return typedDefence + guardBonus;
+  return Math.max(0, base + guardBonus);
 }
 
 function getResolvedHitChance(
@@ -1374,23 +1388,26 @@ function getResolvedHitChance(
   tileCtx?: TurnTileContext,
 ): {
   hitChance: number;
+  maxAccuracyRoll: number;
+  maxDefenceRoll: number;
   positionalModifier: number;
   heightModifier: number;
   positionalMultiplier: number;
   heightMultiplier: number;
 } {
-  const armourRating = getTargetArmourRating(target, damageType);
   const positionalMultiplier = getPositionalHitMultiplier(actor, target);
-  const heightMultiplier = getHeightHitMultiplier(actor, target, tileCtx);
-  const armouredBaseHitChance = Math.max(
-    0,
-    baseHitChance - armourRating * COMBAT_POSITION_TUNING.armourHitPenaltyPerPoint,
-  );
-  const hitChance = clampHitChance(armouredBaseHitChance * positionalMultiplier * heightMultiplier);
+  const heightMultiplier     = getHeightHitMultiplier(actor, target, tileCtx);
+  const maxDefenceRoll       = getTypedMaxDefenceRoll(target, damageType);
+  const maxAccuracyRoll      = Math.max(0, Math.floor(
+    baseHitChance * levelScale(actor.attackLevel ?? 1) * positionalMultiplier * heightMultiplier,
+  ));
+  const rate = expectedHitRate(maxAccuracyRoll, maxDefenceRoll);
   return {
-    hitChance,
-    positionalModifier: multiplierToPercentDelta(positionalMultiplier),
-    heightModifier: multiplierToPercentDelta(heightMultiplier),
+    hitChance:           Math.round(rate * 100),
+    maxAccuracyRoll,
+    maxDefenceRoll,
+    positionalModifier:  multiplierToPercentDelta(positionalMultiplier),
+    heightModifier:      multiplierToPercentDelta(heightMultiplier),
     positionalMultiplier,
     heightMultiplier,
   };
@@ -1466,9 +1483,6 @@ function multiplierToPercentDelta(multiplier: number): number {
   return Math.round((multiplier - 1) * 100);
 }
 
-function clampHitChance(value: number): number {
-  return Math.max(0, Math.min(99, Math.round(value)));
-}
 
 function getParticipantFacing(participant: TurnParticipant): FacingVector {
   const x = normalizeFacingValue(participant.facingX ?? 0);
@@ -1539,7 +1553,7 @@ function resolveDisengageReactions(
       ...reactionAttack,
       damage: getHeightAdjustedMaxHit(reactionAttack.damage, liveReactor, targetAtLeavingTile, tileCtx),
     };
-    const hitResult = rollAttackHit(effectiveReactionAttack, hitContext.hitChance);
+    const hitResult = rollAttackHit(effectiveReactionAttack, hitContext.maxAccuracyRoll, hitContext.maxDefenceRoll);
     const damage = hitResult.damage;
     const hit = hitResult.hit;
     const nextHp = Math.max(0, liveMover.hp - damage);
@@ -1638,13 +1652,23 @@ function rollDamage(attackPower: number): number {
   return Math.floor(Math.random() * (Math.max(0, attackPower) + 1));
 }
 
-function rollAttackHit(attack: TurnAttack, hitChance: number): { hit: boolean; damage: number } {
+function rollDualHit(maxAccuracyRoll: number, maxDefenceRoll: number): boolean {
+  const attackRoll  = Math.floor(Math.random() * (maxAccuracyRoll + 1));
+  const defenceRoll = Math.floor(Math.random() * (maxDefenceRoll + 1));
+  return attackRoll > defenceRoll;
+}
+
+function rollAttackHit(
+  attack: TurnAttack,
+  maxAccuracyRoll: number,
+  maxDefenceRoll: number,
+): { hit: boolean; damage: number } {
   const hitCount = Math.max(1, Math.floor(attack.hitCount ?? 1));
   let damage = 0;
   let hit = false;
 
   for (let i = 0; i < hitCount; i += 1) {
-    if (Math.random() * 100 < hitChance) {
+    if (rollDualHit(maxAccuracyRoll, maxDefenceRoll)) {
       hit = true;
       damage += rollDamage(attack.damage);
     }

@@ -257,7 +257,7 @@ export class EquipmentTabContent {
     const statDefs: Array<[string, string]> = [
       ['HP',      String(def.maxHp)],
       ['Init',    String(def.initiative)],
-      ['Def',     String(def.defensePower)],
+      ['Def (slash)', String(def.slashDefence)],
       ['AP/turn', String(def.apPerTurn)],
       ['MP/turn', String(def.mpPerTurn)],
       ['Stagger', String(def.staggerThreshold)],

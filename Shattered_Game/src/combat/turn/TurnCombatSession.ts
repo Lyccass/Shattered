@@ -61,6 +61,15 @@ type CombatLootDropSummary = {
   label: string;
 };
 
+const TIER_TO_LEVEL: Record<number, number> = {
+  1: 5, 2: 15, 3: 30, 4: 50, 5: 70, 6: 85, 7: 99, 8: 99, 9: 99, 10: 99,
+};
+
+function enemyLevelScale(tier: number): number {
+  const level = TIER_TO_LEVEL[tier] ?? 5;
+  return 1 + (level - 1) * 0.042;
+}
+
 const ENEMY_MOVE_TWEEN_MS  = 280;
 const ENEMY_ATTACK_WAIT_MS = 420;
 const ENEMY_TURN_DELAY_MS  = 180;
@@ -719,14 +728,18 @@ export class TurnCombatSession {
       devotionResourceMax: this.devotionResourceMax,
       devotionResourceRemaining: this.persistedDevotionResource ?? this.devotionResourceMax,
       reactionRemaining: 1,
-      initiative:      this.derivedStats.combatLevel,
-      attackPower:     this.derivedStats.attack,
-      hitChance:       this.derivedStats.accuracy,
-      defensePower:    Math.floor(this.derivedStats.physicalDefence / 10),
-      slashDefence:    Math.floor(this.derivedStats.slashDefence / 10),
-      pierceDefence:   Math.floor(this.derivedStats.pierceDefence / 10),
-      crushDefence:    Math.floor(this.derivedStats.crushDefence / 10),
-      lightningDefence: 0,
+      initiative:       this.derivedStats.combatLevel,
+      attackPower:      this.derivedStats.attack,
+      hitChance:        this.derivedStats.accuracy,
+      attackLevel:      this.derivedStats.combatLevel,
+      poise:            Math.floor(this.derivedStats.poise / 10),
+      slashDefence:     Math.floor(this.derivedStats.slashDefence / 10),
+      pierceDefence:    Math.floor(this.derivedStats.pierceDefence / 10),
+      crushDefence:     Math.floor(this.derivedStats.crushDefence / 10),
+      lightningDefence: Math.floor(this.derivedStats.lightningDefence / 10),
+      fireDefence:      Math.floor(this.derivedStats.fireDefence / 10),
+      coldDefence:      Math.floor(this.derivedStats.coldDefence / 10),
+      poisonDefence:    Math.floor(this.derivedStats.poisonDefence / 10),
       attackRangeTiles: Math.max(...playerAttacks.map((attack) => attack.maxRangeTiles)),
       attacks:         playerAttacks,
       attackCooldowns: { ...storedCooldowns.attackCooldowns },
@@ -804,13 +817,17 @@ export class TurnCombatSession {
       devotionResourceRemaining: 0,
       reactionRemaining: 1,
       initiative:      def.initiative,
-      attackPower:     def.attacks[0]?.damage ?? 1,
-      hitChance:       def.attacks[0]?.hitChance,
-      defensePower:    def.defense,
-      slashDefence:    def.defense,
-      pierceDefence:   def.defense,
-      crushDefence:    def.defense,
-      lightningDefence: def.lightningDefence ?? def.defense,
+      attackPower:      def.attacks[0]?.damage ?? 1,
+      hitChance:        def.attacks[0]?.hitChance,
+      attackLevel:      TIER_TO_LEVEL[def.tier] ?? 5,
+      poise:            0,
+      slashDefence:     Math.floor(def.slashDefence    * enemyLevelScale(def.tier)),
+      pierceDefence:    Math.floor(def.pierceDefence   * enemyLevelScale(def.tier)),
+      crushDefence:     Math.floor(def.crushDefence    * enemyLevelScale(def.tier)),
+      lightningDefence: Math.floor(def.lightningDefence * enemyLevelScale(def.tier)),
+      fireDefence:      Math.floor(def.fireDefence     * enemyLevelScale(def.tier)),
+      coldDefence:      Math.floor(def.coldDefence     * enemyLevelScale(def.tier)),
+      poisonDefence:    Math.floor(def.poisonDefence   * enemyLevelScale(def.tier)),
       attackRangeTiles: Math.max(1, ...def.attacks.map((attack) => attack.maxRangeTiles)),
       attacks:         def.attacks.map((attack) => ({
         id: attack.id,
@@ -906,12 +923,16 @@ export class TurnCombatSession {
         devotionResourceRemaining: 0,
         reactionRemaining: 1,
         initiative: def.initiative,
-        attackPower: def.attackPower,
-        defensePower: def.defensePower,
-        slashDefence:  def.slashDefence  ?? def.defensePower,
-        pierceDefence: def.pierceDefence ?? def.defensePower,
-        crushDefence:  def.crushDefence  ?? def.defensePower,
-        lightningDefence: def.lightningDefence ?? def.defensePower,
+        attackPower:      def.attackPower,
+        attackLevel:      def.attackLevel,
+        poise:            0,
+        slashDefence:     def.slashDefence,
+        pierceDefence:    def.pierceDefence,
+        crushDefence:     def.crushDefence,
+        lightningDefence: def.lightningDefence,
+        fireDefence:      def.fireDefence,
+        coldDefence:      def.coldDefence,
+        poisonDefence:    def.poisonDefence,
         attackRangeTiles: def.attackRangeTiles,
         attacks: def.attacks.map((a) => ({ ...a })),
         attackCooldowns: {},

@@ -45,7 +45,7 @@ export type TurnAttackDefinition = {
 export type EnemyDefinition = {
   id: string;
   displayName: string;
-  /** 1–10 matching skill rank scale. */
+  /** 1–10 matching skill rank scale. Drives the hidden combat level used in dual-roll hit resolution. */
   tier: number;
   maxHealth: number;
   /** Lower initiative acts first. Used as base before the 1–6 random roll. */
@@ -54,10 +54,14 @@ export type EnemyDefinition = {
   mpPerTurn: number;
   /** Action points per turn. */
   apPerTurn: number;
-  /** Base defence (each point reduces enemy hit chance by 5%, min 10%). */
-  defense: number;
-  /** Optional defence against lightning magic; defaults to base defence. */
-  lightningDefence?: number;
+  /** Typed defences — each is the max defence roll base before tier-level scaling. */
+  slashDefence: number;
+  pierceDefence: number;
+  crushDefence: number;
+  lightningDefence: number;
+  fireDefence: number;
+  coldDefence: number;
+  poisonDefence: number;
   /** Pixel speed used for visual move tweens. */
   moveSpeed: number;
   collisionRadiusTiles: number;

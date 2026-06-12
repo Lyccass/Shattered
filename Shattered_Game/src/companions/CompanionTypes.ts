@@ -7,11 +7,16 @@ export type CompanionDefinition = {
   displayName: string;
   maxHp: number;
   attackPower: number;
-  defensePower: number;
-  /** Typed resistances — each defaults to defensePower when absent. */
-  slashDefence?: number;
-  pierceDefence?: number;
-  crushDefence?: number;
+  /** Combat level — scales the accuracy roll max in dual-roll hit resolution. */
+  attackLevel: number;
+  /** Base typed defences (pre-level-scaling). */
+  slashDefence: number;
+  pierceDefence: number;
+  crushDefence: number;
+  lightningDefence: number;
+  fireDefence: number;
+  coldDefence: number;
+  poisonDefence: number;
   attackRangeTiles: number;
   initiative: number;
   apPerTurn: number;

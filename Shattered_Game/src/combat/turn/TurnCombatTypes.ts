@@ -1,4 +1,4 @@
-export type TurnDamageType = 'slash' | 'pierce' | 'crush' | 'lightning';
+export type TurnDamageType = 'slash' | 'pierce' | 'crush' | 'lightning' | 'fire' | 'cold' | 'poison';
 export type TurnAbilityKind = 'combat_spell' | 'devotion';
 export type TurnAbilityTarget = 'enemy' | 'self';
 
@@ -133,13 +133,19 @@ export type TurnParticipant = {
   /** Lower initiative acts first. Rolled once at combat start. */
   initiative: number;
   attackPower: number;
-  /** 0-100 percentage before target defence is applied. Defaults to 80. */
+  /** Base weapon accuracy — max roll before level scaling. Defaults to 80. */
   hitChance?: number;
-  defensePower: number;
-  slashDefence?: number;
-  pierceDefence?: number;
-  crushDefence?: number;
-  lightningDefence?: number;
+  /** Combat level — scales the accuracy roll max. */
+  attackLevel: number;
+  /** Poise — reduces stagger build-up per hit. */
+  poise?: number;
+  slashDefence: number;
+  pierceDefence: number;
+  crushDefence: number;
+  lightningDefence: number;
+  fireDefence: number;
+  coldDefence: number;
+  poisonDefence: number;
   attackRangeTiles: number;
   attacks?: TurnAttack[];
   attackCooldowns?: Record<string, number>;

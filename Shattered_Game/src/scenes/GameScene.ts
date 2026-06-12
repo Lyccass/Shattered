@@ -937,7 +937,7 @@ function formatItemInspectText(def: ItemDefinition): string {
   if (def.companionId) {
     const companion = getCompanionDefinition(def.companionId);
     if (companion) {
-      parts.push(`Companion: ${companion.maxHp} HP, ${companion.apPerTurn} Main, ${companion.mpPerTurn} Move, ${companion.defensePower} armour`);
+      parts.push(`Companion: ${companion.maxHp} HP, ${companion.apPerTurn} Main, ${companion.mpPerTurn} Move, ${companion.slashDefence} slash def`);
       const attacks = companion.attacks.map((attack) => {
         const cd = attack.cooldownTurns ? `, cd ${attack.cooldownTurns}` : '';
         return `${attack.displayName} ${attack.damage} dmg range ${attack.minRangeTiles}-${attack.maxRangeTiles}${cd}`;

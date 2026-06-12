@@ -48,7 +48,14 @@ function makePlayer(overrides: Partial<TurnParticipant> = {}): TurnParticipant {
     secondaryActionRemaining: 1,
     initiative: 5,
     attackPower: 3,
-    defensePower: 0,
+    attackLevel: 1,
+    slashDefence: 0,
+    pierceDefence: 0,
+    crushDefence: 0,
+    lightningDefence: 0,
+    fireDefence: 0,
+    coldDefence: 0,
+    poisonDefence: 0,
     attackRangeTiles: 1,
     statusEffects: [],
     ...overrides,
@@ -72,7 +79,14 @@ function makeEnemy(id: string, overrides: Partial<TurnParticipant> = {}): TurnPa
     secondaryActionRemaining: 1,
     initiative: 8,
     attackPower: 1,
-    defensePower: 0,
+    attackLevel: 1,
+    slashDefence: 0,
+    pierceDefence: 0,
+    crushDefence: 0,
+    lightningDefence: 0,
+    fireDefence: 0,
+    coldDefence: 0,
+    poisonDefence: 0,
     attackRangeTiles: 1,
     definitionId: 'wolf_aggressive',
     spawnId: id,
@@ -297,7 +311,7 @@ describe('attack action', () => {
 
   it('sets combat_ended with victory when enemy HP drops to 0', () => {
     const player = makePlayer({ tileX: 10, tileY: 10, attackRangeTiles: 1, attackPower: 100 });
-    const enemy  = makeEnemy('e1', { tileX: 11, tileY: 10, hp: 1, defensePower: 0 });
+    const enemy  = makeEnemy('e1', { tileX: 11, tileY: 10, hp: 1 });
     const state  = {
       ...createCombatState([player, enemy]),
       turnOrderIds: ['player', 'e1'],
@@ -322,10 +336,11 @@ describe('attack action', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.5) // createCombatState player roll
       .mockReturnValueOnce(0.5) // createCombatState enemy roll
-      .mockReturnValueOnce(0.5); // attack roll = 50
+      .mockReturnValueOnce(0)   // attackRoll = 0 → miss (defenceRoll is always 0 with defence=0)
+      .mockReturnValueOnce(0);  // defenceRoll = 0
 
     const player = makePlayer({ tileX: 10, tileY: 10, attackRangeTiles: 1, hitChance: 40 });
-    const enemy  = makeEnemy('e1', { tileX: 11, tileY: 10, defensePower: 0 });
+    const enemy  = makeEnemy('e1', { tileX: 11, tileY: 10 });
     const state  = {
       ...createCombatState([player, enemy]),
       turnOrderIds: ['player', 'e1'],
@@ -341,7 +356,8 @@ describe('attack action', () => {
 
   it('uses armour rating against the selected damage type for hit chance', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0.5); // attack roll = 50
+      .mockReturnValueOnce(0.5)   // attackRoll  = floor(0.5 * 81) = 40
+      .mockReturnValueOnce(0.99); // defenceRoll = floor(0.99 * 91) = 89 → 40 > 89 = miss
 
     const player = makePlayer({
       tileX: 10,
@@ -360,10 +376,7 @@ describe('attack action', () => {
     const enemy = makeEnemy('e1', {
       tileX: 11,
       tileY: 10,
-      defensePower: 0,
-      pierceDefence: 8,
-      slashDefence: 0,
-      crushDefence: 0,
+      pierceDefence: 90,
     });
     const state = {
       participants: [player, enemy],
@@ -383,7 +396,7 @@ describe('attack action', () => {
   });
 
   it('guard spends the secondary action and reduces incoming hit chance', () => {
-    const player = makePlayer({ tileX: 10, tileY: 10, facingX: 1, facingY: 0, apRemaining: 1, defensePower: 0 });
+    const player = makePlayer({ tileX: 10, tileY: 10, facingX: 1, facingY: 0, apRemaining: 1 });
     const enemy = makeEnemy('e1', {
       tileX: 11,
       tileY: 10,
@@ -412,7 +425,8 @@ describe('attack action', () => {
     expect(guardedState.participants.find((p) => p.id === 'player')?.secondaryActionRemaining).toBe(0);
 
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0.65); // attack roll = 65, misses guarded 80 - 4*5 = 60
+      .mockReturnValueOnce(0.04)  // attackRoll  = floor(0.04 * 81) = 3
+      .mockReturnValueOnce(0.99); // defenceRoll = floor(0.99 * 5)  = 4 → guard value:4, 3 > 4 = miss
 
     const enemyAttackState = {
       ...guardedState,
@@ -444,7 +458,7 @@ describe('attack action', () => {
         maxRangeTiles: 1,
         damage: 1,
         damageType: 'crush',
-        hitChance: 70,
+        hitChance: 10,
       }],
     });
     const frontTarget = makeEnemy('front', {
@@ -533,17 +547,23 @@ describe('attack action', () => {
       phase: 'player_turn' as const,
     }, { kind: 'attack', targetId: 'diag-rear', attackId: 'punch' }, OPEN_CTX).outcome;
 
-    expect(front).toMatchObject({ kind: 'attacked', hitChance: 70, positionalMultiplier: 1 });
-    expect(diagonalFront).toMatchObject({ kind: 'attacked', hitChance: 74, positionalMultiplier: 1.05 });
-    expect(side).toMatchObject({ kind: 'attacked', hitChance: 81, positionalMultiplier: 1.15 });
-    expect(diagonalRear).toMatchObject({ kind: 'attacked', hitChance: 84, positionalMultiplier: 1.2 });
-    expect(rear).toMatchObject({ kind: 'attacked', hitChance: 95, positionalMultiplier: 1.35 });
+    // positionalMultiplier values are unchanged; hitChance is now expectedHitRate %
+    expect(front).toMatchObject({ kind: 'attacked', positionalMultiplier: 1 });
+    expect(diagonalFront).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.05 });
+    expect(side).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.15 });
+    expect(diagonalRear).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.2 });
+    expect(rear).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.35 });
+    // Rear attack should have the highest expected hit rate
+    const rearHit  = (rear  as { hitChance?: number }).hitChance ?? 0;
+    const frontHit = (front as { hitChance?: number }).hitChance ?? 0;
+    expect(rearHit).toBeGreaterThan(frontHit);
   });
 
   it('lets adjacent enemies use a reaction when a unit leaves melee range', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0) // reaction hit roll
-      .mockReturnValueOnce(0.99); // reaction damage roll
+      .mockReturnValueOnce(0.5)   // attackRoll  = floor(0.5 * 101) = 50 > 0 → hit
+      .mockReturnValueOnce(0)     // defenceRoll = 0 (slashDefence 0)
+      .mockReturnValueOnce(0.99); // damage roll
 
     const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 3, facingX: 1, facingY: 0 });
     const enemy = makeEnemy('e1', {
@@ -580,8 +600,9 @@ describe('attack action', () => {
 
   it('lets the player react when an enemy leaves melee range', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0.99);
+      .mockReturnValueOnce(0.5)   // attackRoll = 50 > 0 → hit
+      .mockReturnValueOnce(0)     // defenceRoll = 0
+      .mockReturnValueOnce(0.99); // damage roll
 
     const player = makePlayer({
       tileX: 10,
@@ -683,6 +704,8 @@ describe('attack action', () => {
     const heavilyArmouredTarget = makeEnemy('armoured', {
       tileX: 11,
       tileY: 10,
+      facingX: -1,
+      facingY: 0,
       crushDefence: 40,
     });
     const low = applyAction({
@@ -693,8 +716,10 @@ describe('attack action', () => {
       phase: 'player_turn' as const,
     }, { kind: 'attack', targetId: 'armoured', attackId: 'punch' }, OPEN_CTX).outcome;
 
+    // Rear attack with high base accuracy → expected hit rate caps at 99%
     expect(high).toMatchObject({ kind: 'attacked', hitChance: 99 });
-    expect(low).toMatchObject({ kind: 'attacked', hitChance: 0 });
+    // Heavily armoured target (crushDefence:40 vs accuracy:90) → noticeably lower expected hit rate
+    expect((low as { hitChance?: number }).hitChance).toBeLessThan(80);
   });
 
   it('uses multiplicative height advantage for hit chance', () => {
@@ -723,27 +748,28 @@ describe('attack action', () => {
 
   it('uses lightning defence against lightning spells', () => {
     const caster = makePlayer({ tileX: 10, tileY: 10 });
-    const wolfLikeTarget = makeEnemy('wolf', {
-      tileX: 11,
-      tileY: 10,
-      facingX: -1,
-      facingY: 0,
-      defensePower: 0,
-      lightningDefence: 3,
-    });
+    const noDefenceTarget  = makeEnemy('no-def',  { tileX: 11, tileY: 10, facingX: -1, facingY: 0 });
+    const lightningTarget  = makeEnemy('lightning', { tileX: 11, tileY: 10, facingX: -1, facingY: 0, lightningDefence: 3 });
+    const slashTarget      = makeEnemy('slash',     { tileX: 11, tileY: 10, facingX: -1, facingY: 0, slashDefence: 3 });
 
-    const hitContext = calculateTurnHitChance(caster, wolfLikeTarget, 'lightning', 85, OPEN_CTX);
+    const noDefCtx  = calculateTurnHitChance(caster, noDefenceTarget, 'lightning', 85, OPEN_CTX);
+    const lightCtx  = calculateTurnHitChance(caster, lightningTarget, 'lightning', 85, OPEN_CTX);
+    const slashCtx  = calculateTurnHitChance(caster, slashTarget,     'lightning', 85, OPEN_CTX);
 
-    expect(hitContext).toMatchObject({
-      hitChance: 70,
-      positionalMultiplier: 1,
-    });
+    // Lightning defence reduces hit rate against lightning damage
+    expect(lightCtx.hitChance).toBeLessThan(noDefCtx.hitChance);
+    // Slash defence does NOT affect lightning attacks
+    expect(slashCtx.hitChance).toBe(noDefCtx.hitChance);
+    // maxDefenceRoll exposed correctly
+    expect(lightCtx.maxDefenceRoll).toBe(3);
+    expect(slashCtx.maxDefenceRoll).toBe(0);
   });
 
   it('extends ranged attack range by one tile per height advantage', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0.99);
+      .mockReturnValueOnce(0.5)  // attackRoll > 0 → hit
+      .mockReturnValueOnce(0)    // defenceRoll = 0
+      .mockReturnValueOnce(0.99); // damage = floor(0.99*3) = 2
 
     const player = makePlayer({
       tileX: 10,
@@ -865,10 +891,12 @@ describe('attack action', () => {
 
   it('sums damage from multi-hit attacks', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0) // first hit roll
-      .mockReturnValueOnce(0.5) // first damage roll
-      .mockReturnValueOnce(0) // second hit roll
-      .mockReturnValueOnce(0.5); // second damage roll
+      .mockReturnValueOnce(0.5) // hit 1: attackRoll = 50 > 0 → hit
+      .mockReturnValueOnce(0)   // hit 1: defenceRoll = 0
+      .mockReturnValueOnce(0.5) // hit 1: damage = floor(0.5*3) = 1
+      .mockReturnValueOnce(0.5) // hit 2: attackRoll = 50 > 0 → hit
+      .mockReturnValueOnce(0)   // hit 2: defenceRoll = 0
+      .mockReturnValueOnce(0.5); // hit 2: damage = 1; total = 2
 
     const player = makePlayer({
       tileX: 10,
@@ -905,8 +933,9 @@ describe('attack action', () => {
 
   it('builds stagger on hit and stuns when the target threshold is reached', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0);
+      .mockReturnValueOnce(0.5)  // attackRoll = 50 > 0 → hit
+      .mockReturnValueOnce(0)    // defenceRoll = 0
+      .mockReturnValueOnce(0.99); // damage = floor(0.99*2) = 1
 
     const player = makePlayer({
       tileX: 10,
@@ -953,8 +982,9 @@ describe('attack action', () => {
 
   it('moves a stagger-stunned target to the end of the turn order', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0);
+      .mockReturnValueOnce(0.5)  // attackRoll = 50 > 0 → hit
+      .mockReturnValueOnce(0)    // defenceRoll = 0
+      .mockReturnValueOnce(0.99); // damage = 1, stagger threshold reached
 
     const player = makePlayer({
       tileX: 10,
@@ -1215,7 +1245,8 @@ describe('attack action', () => {
   });
 
   it('resolves telegraphed hits and pushes the target from the origin', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.5).mockReturnValue(0);
+    // attackRoll=50>0→hit; defenceRoll=0; damage=max(1,ceil(floor(0*4)*1))=1
 
     const player = makePlayer({ tileX: 10, tileY: 10, hp: 10 });
     const enemy = makeEnemy('e1', { tileX: 12, tileY: 10 });
@@ -1463,8 +1494,9 @@ describe('stunned status effect', () => {
 
   it('makes a one-turn stun applied by an attack skip the target next action', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0.99);
+      .mockReturnValueOnce(0.5)  // attackRoll = 50 > 0 → hit
+      .mockReturnValueOnce(0)    // defenceRoll = 0
+      .mockReturnValueOnce(0.99); // damage = floor(0.99*2) = 1
 
     const player = makePlayer({
       tileX: 10,

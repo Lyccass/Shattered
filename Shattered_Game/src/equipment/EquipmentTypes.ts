@@ -105,6 +105,10 @@ export type PlayerDerivedStats = {
   slashDefence: number;
   pierceDefence: number;
   crushDefence: number;
+  lightningDefence: number;
+  fireDefence: number;
+  coldDefence: number;
+  poisonDefence: number;
   poisonResistance: number;
   fireResistance: number;
   coldResistance: number;
@@ -141,6 +145,10 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     slashDefence: 0,
     pierceDefence: 0,
     crushDefence: 0,
+    lightningDefence: 0,
+    fireDefence: 0,
+    coldDefence: 0,
+    poisonDefence: 0,
     poisonResistance: 0,
     fireResistance: 0,
     coldResistance: 0,
