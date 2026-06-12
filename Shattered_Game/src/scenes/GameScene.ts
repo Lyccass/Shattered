@@ -908,8 +908,8 @@ function formatItemInspectText(def: ItemDefinition): string {
     if (def.equipment.weaponStats) {
       const w = def.equipment.weaponStats;
       const range = Math.max(1, Math.ceil(w.reachTiles));
-      parts.push(`Basic ${w.damage} ${w.damageType} dmg, range ${range}, no cooldown`);
-      parts.push(`Heavy Hit ${Math.max(2, Math.round(w.damage * 1.5))} ${w.damageType} dmg, cooldown 1`);
+      parts.push(`Basic ${w.damage} ${w.damageType} dmg, accuracy ${w.accuracyRating ?? 'base'}, range ${range}`);
+      parts.push(`Special ${formatWeaponSpecialInspect(w)}, cooldown 1`);
       parts.push(`Stagger ${w.staggerImpact}, ${w.weight} kg`);
     }
 
@@ -951,6 +951,24 @@ function formatItemInspectText(def: ItemDefinition): string {
   }
 
   return parts.join(' | ');
+}
+
+function formatWeaponSpecialInspect(
+  weapon: NonNullable<NonNullable<ItemDefinition['equipment']>['weaponStats']>,
+): string {
+  switch (weapon.archetype) {
+    case 'hammer':
+      return `${weapon.damage} ${weapon.damageType} dmg, push`;
+    case 'dagger':
+      return `2x ${weapon.damage} ${weapon.damageType} dmg`;
+    case 'spear':
+      return `${weapon.damage} ${weapon.damageType} dmg, +1 range`;
+    case 'axe':
+      return `${weapon.damage} ${weapon.damageType} dmg, bleed`;
+    case 'sword':
+    default:
+      return `${Math.max(2, Math.round(weapon.damage * 1.5))} ${weapon.damageType} dmg`;
+  }
 }
 
 function formatSigned(value: number): string {

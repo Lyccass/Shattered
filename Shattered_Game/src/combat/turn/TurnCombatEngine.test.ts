@@ -336,8 +336,7 @@ describe('attack action', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.5) // createCombatState player roll
       .mockReturnValueOnce(0.5) // createCombatState enemy roll
-      .mockReturnValueOnce(0)   // attackRoll = 0 → miss (defenceRoll is always 0 with defence=0)
-      .mockReturnValueOnce(0);  // defenceRoll = 0
+      .mockReturnValueOnce(0.995); // hit roll above 99% cap → miss
 
     const player = makePlayer({ tileX: 10, tileY: 10, attackRangeTiles: 1, hitChance: 40 });
     const enemy  = makeEnemy('e1', { tileX: 11, tileY: 10 });
@@ -356,8 +355,7 @@ describe('attack action', () => {
 
   it('uses armour rating against the selected damage type for hit chance', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0.5)   // attackRoll  = floor(0.5 * 81) = 40
-      .mockReturnValueOnce(0.99); // defenceRoll = floor(0.99 * 91) = 89 → 40 > 89 = miss
+      .mockReturnValueOnce(0.99); // hit roll above defended chance → miss
 
     const player = makePlayer({
       tileX: 10,
@@ -425,8 +423,7 @@ describe('attack action', () => {
     expect(guardedState.participants.find((p) => p.id === 'player')?.secondaryActionRemaining).toBe(0);
 
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0.04)  // attackRoll  = floor(0.04 * 81) = 3
-      .mockReturnValueOnce(0.99); // defenceRoll = floor(0.99 * 5)  = 4 → guard value:4, 3 > 4 = miss
+      .mockReturnValueOnce(0.99); // hit roll above guarded chance → miss
 
     const enemyAttackState = {
       ...guardedState,
@@ -466,12 +463,14 @@ describe('attack action', () => {
       tileY: 10,
       facingX: -1,
       facingY: 0,
+      crushDefence: 20,
     });
     const rearTarget = makeEnemy('rear', {
       tileX: 11,
       tileY: 10,
       facingX: 1,
       facingY: 0,
+      crushDefence: 20,
     });
     const diagonalFrontAttacker = makePlayer({
       ...attacker,
@@ -483,6 +482,7 @@ describe('attack action', () => {
       tileY: 10,
       facingX: -1,
       facingY: 0,
+      crushDefence: 20,
     });
     const sideAttacker = makePlayer({
       ...attacker,
@@ -494,6 +494,7 @@ describe('attack action', () => {
       tileY: 10,
       facingX: -1,
       facingY: 0,
+      crushDefence: 20,
     });
     const diagonalRearAttacker = makePlayer({
       ...attacker,
@@ -505,6 +506,7 @@ describe('attack action', () => {
       tileY: 10,
       facingX: 1,
       facingY: 0,
+      crushDefence: 20,
     });
 
     const front = applyAction({
@@ -547,7 +549,6 @@ describe('attack action', () => {
       phase: 'player_turn' as const,
     }, { kind: 'attack', targetId: 'diag-rear', attackId: 'punch' }, OPEN_CTX).outcome;
 
-    // positionalMultiplier values are unchanged; hitChance is now expectedHitRate %
     expect(front).toMatchObject({ kind: 'attacked', positionalMultiplier: 1 });
     expect(diagonalFront).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.05 });
     expect(side).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.15 });
@@ -706,7 +707,7 @@ describe('attack action', () => {
       tileY: 10,
       facingX: -1,
       facingY: 0,
-      crushDefence: 40,
+      crushDefence: 140,
     });
     const low = applyAction({
       participants: [attacker, heavilyArmouredTarget],
@@ -718,13 +719,13 @@ describe('attack action', () => {
 
     // Rear attack with high base accuracy → expected hit rate caps at 99%
     expect(high).toMatchObject({ kind: 'attacked', hitChance: 99 });
-    // Heavily armoured target (crushDefence:40 vs accuracy:90) → noticeably lower expected hit rate
-    expect((low as { hitChance?: number }).hitChance).toBeLessThan(80);
+    // Heavily armoured target (crushDefence:140 vs accuracy:90) → noticeably lower expected hit rate
+    expect((low as { hitChance?: number }).hitChance).toBeLessThan(40);
   });
 
   it('uses multiplicative height advantage for hit chance', () => {
     const attacker = makePlayer({ tileX: 10, tileY: 10 });
-    const target = makeEnemy('e1', { tileX: 11, tileY: 10 });
+    const target = makeEnemy('e1', { tileX: 11, tileY: 10, facingX: -1, facingY: 0 });
 
     const downhill = calculateTurnHitChance(
       attacker,
@@ -749,7 +750,7 @@ describe('attack action', () => {
   it('uses lightning defence against lightning spells', () => {
     const caster = makePlayer({ tileX: 10, tileY: 10 });
     const noDefenceTarget  = makeEnemy('no-def',  { tileX: 11, tileY: 10, facingX: -1, facingY: 0 });
-    const lightningTarget  = makeEnemy('lightning', { tileX: 11, tileY: 10, facingX: -1, facingY: 0, lightningDefence: 3 });
+    const lightningTarget  = makeEnemy('lightning', { tileX: 11, tileY: 10, facingX: -1, facingY: 0, lightningDefence: 60 });
     const slashTarget      = makeEnemy('slash',     { tileX: 11, tileY: 10, facingX: -1, facingY: 0, slashDefence: 3 });
 
     const noDefCtx  = calculateTurnHitChance(caster, noDefenceTarget, 'lightning', 85, OPEN_CTX);
@@ -761,15 +762,14 @@ describe('attack action', () => {
     // Slash defence does NOT affect lightning attacks
     expect(slashCtx.hitChance).toBe(noDefCtx.hitChance);
     // maxDefenceRoll exposed correctly
-    expect(lightCtx.maxDefenceRoll).toBe(3);
+    expect(lightCtx.maxDefenceRoll).toBe(60);
     expect(slashCtx.maxDefenceRoll).toBe(0);
   });
 
   it('extends ranged attack range by one tile per height advantage', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0.5)  // attackRoll > 0 → hit
-      .mockReturnValueOnce(0)    // defenceRoll = 0
-      .mockReturnValueOnce(0.99); // damage = floor(0.99*3) = 2
+      .mockReturnValueOnce(0.5)  // hit roll under capped chance → hit
+      .mockReturnValueOnce(0.99); // damage = floor(0.99*2)+1 = 2
 
     const player = makePlayer({
       tileX: 10,
@@ -891,12 +891,10 @@ describe('attack action', () => {
 
   it('sums damage from multi-hit attacks', () => {
     vi.spyOn(Math, 'random')
-      .mockReturnValueOnce(0.5) // hit 1: attackRoll = 50 > 0 → hit
-      .mockReturnValueOnce(0)   // hit 1: defenceRoll = 0
-      .mockReturnValueOnce(0.5) // hit 1: damage = floor(0.5*3) = 1
-      .mockReturnValueOnce(0.5) // hit 2: attackRoll = 50 > 0 → hit
-      .mockReturnValueOnce(0)   // hit 2: defenceRoll = 0
-      .mockReturnValueOnce(0.5); // hit 2: damage = 1; total = 2
+      .mockReturnValueOnce(0.5) // hit 1
+      .mockReturnValueOnce(0)   // hit 1 damage = 1
+      .mockReturnValueOnce(0.5) // hit 2
+      .mockReturnValueOnce(0);  // hit 2 damage = 1; total = 2
 
     const player = makePlayer({
       tileX: 10,

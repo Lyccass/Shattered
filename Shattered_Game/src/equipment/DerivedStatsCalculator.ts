@@ -12,26 +12,24 @@ const MIN_MAX_HP = 10;
 const HARD_MAX_HP = 100;
 const BASE_MAX_STAMINA = 100;
 const BASE_ATTACK = 1;
-const BASE_ACCURACY = 50;
-const BASE_ATTACK_SPEED_MS = 1000;
 const BASE_REACH_TILES = 1.0;
 const BASE_ATTACK_STAMINA_COST = 12;
+const BASE_STAGGER_IMPACT = 1;
 const BASE_MAX_CARRY_WEIGHT = 20;
 const BASE_STAGGER_THRESHOLD = 100;
 
-const MIN_RECOVERY_MS  = 200;
 const DEFAULT_ARCHETYPE: WeaponArchetype = 'fists';
 const DEFAULT_ATTACK_SHAPE: WeaponAttackShape = { kind: 'thrust', lengthTiles: 1, widthTiles: 1 };
 
-function getArchetypeTimings(archetype: WeaponArchetype): { windupMs: number; activeMs: number } {
+function getArchetypeBaseAccuracy(archetype: WeaponArchetype): number {
   switch (archetype) {
-    case 'fists':  return { windupMs: 220, activeMs: 160 };
-    case 'hammer': return { windupMs: 600, activeMs: 200 };
-    case 'sword':  return { windupMs: 400, activeMs: 200 };
-    case 'axe':    return { windupMs: 350, activeMs: 180 };
-    case 'spear':  return { windupMs: 150, activeMs: 200 };
-    case 'dagger': return { windupMs: 100, activeMs: 160 };
-    case 'bow':    return { windupMs: 450, activeMs: 140 };
+    case 'fists':  return 40;
+    case 'dagger': return 55;
+    case 'sword':  return 65;
+    case 'axe':    return 60;
+    case 'spear':  return 70;
+    case 'hammer': return 55;
+    case 'bow':    return 65;
   }
 }
 
@@ -73,14 +71,12 @@ export function computeDerivedStats(
   const combatStyleLevel = RANGED_ARCHETYPES.has(weaponArchetype) ? rangedLevel : meleeLevel;
   const rankDamageBonus = levelToRankStage(combatStyleLevel).rank - 1;
   const attack = (weapon?.damage ?? BASE_ATTACK) + rankDamageBonus;
-  const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(combatStyleLevel * 0.4));
-  const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
+  const accuracy = weapon?.accuracyRating ?? getArchetypeBaseAccuracy(weaponArchetype);
   const attackShape: WeaponAttackShape = weapon?.attackShape ?? DEFAULT_ATTACK_SHAPE;
   const damageType = weapon?.damageType ?? 'crush';
-  const { windupMs: attackWindupMs, activeMs: attackActiveMs } = getArchetypeTimings(weaponArchetype);
-  const attackRecoveryMs = Math.max(MIN_RECOVERY_MS, attackSpeedMs - attackWindupMs - attackActiveMs);
   const reachTiles = weapon?.reachTiles ?? BASE_REACH_TILES;
   const attackStaminaCost = weapon?.staminaCost ?? BASE_ATTACK_STAMINA_COST;
+  const staggerImpact = weapon?.staggerImpact ?? BASE_STAGGER_IMPACT;
 
   // Accumulate armour stats from all slots
   let physicalDefence = 0;
@@ -125,18 +121,16 @@ export function computeDerivedStats(
   return {
     maxHp,
     combatLevel,
+    combatStyleLevel,
     maxStamina: BASE_MAX_STAMINA,
     attack,
     accuracy,
-    attackSpeedMs,
-    attackWindupMs,
-    attackActiveMs,
-    attackRecoveryMs,
     weaponArchetype,
     attackShape,
     damageType,
     reachTiles,
     attackStaminaCost,
+    staggerImpact,
     dodgeChance,
     physicalDefence,
     slashDefence,

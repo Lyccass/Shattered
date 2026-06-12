@@ -25,10 +25,10 @@ export type TurnAttackDefinition = {
   apCost: number;
   minRangeTiles: number;
   maxRangeTiles: number;
-  /** Max hit; damage is rolled 0–damage (OSRS-style). */
+  /** Max hit; landed damage is rolled 1–damage. Misses display as 0. */
   damage: number;
   damageType?: TurnDamageType;
-  /** 0–100 percentage. Defaults to 80 when omitted. */
+  /** Attack accuracy rating before skill level, target defence, position, and height. */
   hitChance?: number;
   /** Optional status effect applied on hit. */
   statusEffect?: {
@@ -45,8 +45,10 @@ export type TurnAttackDefinition = {
 export type EnemyDefinition = {
   id: string;
   displayName: string;
-  /** 1–10 matching skill rank scale. Drives the hidden combat level used in dual-roll hit resolution. */
+  /** 1–10 display/power band. Also supplies the default attack level when no explicit attack stat exists. */
   tier: number;
+  /** Optional offensive level override. If omitted, tier supplies a default. */
+  attackLevel?: number;
   maxHealth: number;
   /** Lower initiative acts first. Used as base before the 1–6 random roll. */
   initiative: number;
@@ -54,7 +56,7 @@ export type EnemyDefinition = {
   mpPerTurn: number;
   /** Action points per turn. */
   apPerTurn: number;
-  /** Typed defences — each is the max defence roll base before tier-level scaling. */
+  /** Typed defences used directly by hit chance resolution. Lower values are weaknesses. */
   slashDefence: number;
   pierceDefence: number;
   crushDefence: number;

@@ -139,8 +139,8 @@ export class EquipmentTabContent {
 
     this.appendGroup(wrap, 'Weapon Actions', [
       ['Basic Attack', `${s.attack} ${s.damageType}`,              'Always available if in range. No cooldown and no expedition charges.'],
-      ['Heavy Hit',    `${Math.max(2, Math.round(s.attack * 1.5))} ${s.damageType}`, 'Weapon special attack. Costs a Main Action and has a short cooldown.'],
-      ['Accuracy',     `${s.accuracy}%`,                           'Base hit chance before enemy defences are applied.'],
+      ['Special',      getWeaponSpecialSummary(s),                 'Weapon special attack. Costs a Main Action and has a short cooldown.'],
+      ['Accuracy',     String(s.accuracy),                          'Weapon accuracy rating before skill, enemy defence, position, and height are applied.'],
       ['Range',        formatAttackRange(s),                       'Usable tile range for the equipped weapon in turn combat.'],
       ['Stagger',      String(getWeaponStaggerEstimate(s)),         'Stagger pressure applied by weapon actions.'],
     ]);
@@ -370,6 +370,22 @@ function getWeaponStaggerEstimate(stats: EquipmentSnapshot['derivedStats']): num
     case 'dagger': return 2;
     case 'sword': return 4;
     case 'bow': return 2;
+  }
+}
+
+function getWeaponSpecialSummary(stats: EquipmentSnapshot['derivedStats']): string {
+  switch (stats.weaponArchetype) {
+    case 'hammer':
+      return `${stats.attack} ${stats.damageType}, push`;
+    case 'dagger':
+      return `2x ${stats.attack} ${stats.damageType}`;
+    case 'spear':
+      return `${stats.attack} ${stats.damageType}, +1 range`;
+    case 'axe':
+      return `${stats.attack} ${stats.damageType}, bleed`;
+    case 'sword':
+    default:
+      return `${Math.max(2, Math.round(stats.attack * 1.5))} ${stats.damageType}`;
   }
 }
 

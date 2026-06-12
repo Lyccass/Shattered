@@ -1,296 +1,172 @@
-import { PLAYER_CONFIG } from '../../../player/PlayerConfig';
+import type { PhysicalDamageType, WeaponArchetype, WeaponAttackShape } from '../../../equipment/EquipmentTypes';
 import type { ItemDefinition } from '../../ItemTypes';
 
-// Attack speed and reach scale with weapon archetype, not material tier.
-// Damage scales with tier (worn < copper < iron < steel < mithril...).
-// Each archetype has a distinct feel: swords are balanced, axes are fast/high stagger,
-// hammers are slow/crushing, spears have reach, daggers hit twice.
-
-// IDs added to inventory when starting a fresh game (no save).
-export const STARTING_WEAPON_IDS: Record<string, number> = {
-  copper_sword:    1,
-  copper_dagger:   1,
-  copper_axe:      1,
-  copper_hammer:   1,
-  copper_spear:    1,
+type MaterialTier = {
+  id: string;
+  displayName: string;
+  rank: number;
+  valueMultiplier: number;
+  weightMultiplier: number;
 };
 
-export const WEAPON_ITEMS: ItemDefinition[] = [
-  // ── Copper tier (starter weapons, one per archetype) ─────────────────────
+type WeaponArchetypeConfig = {
+  archetype: Exclude<WeaponArchetype, 'fists' | 'bow'>;
+  displayName: string;
+  icon: string;
+  examine: string;
+  damageType: PhysicalDamageType;
+  attackShape: WeaponAttackShape;
+  baseAccuracy: number;
+  baseDamage: number;
+  reachTiles: number;
+  staminaCost: number;
+  staggerImpact: number;
+  weight: number;
+  durability: number;
+};
+
+const MATERIAL_TIERS: MaterialTier[] = [
+  { id: 'copper',   displayName: 'Copper',   rank: 1, valueMultiplier: 1,  weightMultiplier: 1.00 },
+  { id: 'iron',     displayName: 'Iron',     rank: 2, valueMultiplier: 4,  weightMultiplier: 1.10 },
+  { id: 'steel',    displayName: 'Steel',    rank: 3, valueMultiplier: 9,  weightMultiplier: 1.05 },
+  { id: 'cobalt',   displayName: 'Cobalt',   rank: 4, valueMultiplier: 16, weightMultiplier: 0.95 },
+  { id: 'tungsten', displayName: 'Tungsten', rank: 5, valueMultiplier: 25, weightMultiplier: 1.25 },
+  { id: 'adamant',  displayName: 'Adamant',  rank: 6, valueMultiplier: 36, weightMultiplier: 1.15 },
+  { id: 'titanite', displayName: 'Titanite', rank: 7, valueMultiplier: 49, weightMultiplier: 1.00 },
+];
+
+const ARCHETYPES: WeaponArchetypeConfig[] = [
   {
-    id: 'copper_sword',
-    name: 'Copper Sword',
-    examine: 'A basic copper blade. Good for learning the swing.',
+    archetype: 'sword',
+    displayName: 'Sword',
     icon: '🗡️',
-    category: 'equipment',
-    stackable: false,
+    examine: 'A balanced blade with reliable reach and control.',
+    damageType: 'slash',
+    attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.5, minRangeTiles: 0.3 },
+    baseAccuracy: 32,
+    baseDamage: 1,
+    reachTiles: 1.0,
+    staminaCost: 11,
+    staggerImpact: 5,
     weight: 1.3,
-    value: 10,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'sword',
-        attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.5, minRangeTiles: 0.3 },
-        damage: 1,
-        damageType: 'slash',
-        attackSpeedMs: 1600,
-        reachTiles: 1.0,
-        staminaCost: 11,
-        staggerImpact: 8,
-        weight: 1.3,
-        durability: 80,
-        maxDurability: 100,
-      },
-    },
+    durability: 80,
   },
   {
-    id: 'copper_dagger',
-    name: 'Copper Dagger',
-    examine: 'Light and fast. Strikes twice before the foe can react.',
+    archetype: 'dagger',
+    displayName: 'Dagger',
     icon: '🔪',
-    category: 'equipment',
-    stackable: false,
+    examine: 'A light stabbing weapon that rewards precision.',
+    damageType: 'pierce',
+    attackShape: { kind: 'thrust', lengthTiles: 1.2, widthTiles: 0.6 },
+    baseAccuracy: 38,
+    baseDamage: 1,
+    reachTiles: 1.0,
+    staminaCost: 8,
+    staggerImpact: 2,
     weight: 0.6,
-    value: 10,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'dagger',
-        attackShape: { kind: 'thrust', lengthTiles: 1.2, widthTiles: 0.6 },
-        damage: 1,
-        damageType: 'pierce',
-        attackSpeedMs: 1400,
-        reachTiles: 1.0,
-        staminaCost: 8,
-        staggerImpact: 4,
-        weight: 0.6,
-        durability: 70,
-        maxDurability: 100,
-      },
-    },
+    durability: 70,
   },
   {
-    id: 'copper_axe',
-    name: 'Copper Axe',
-    examine: 'A wide sweep that chips through armour.',
+    archetype: 'axe',
+    displayName: 'Axe',
     icon: '🪓',
-    category: 'equipment',
-    stackable: false,
+    examine: 'A heavy chopping weapon with strong stagger pressure.',
+    damageType: 'slash',
+    attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.2, minRangeTiles: 0.5 },
+    baseAccuracy: 28,
+    baseDamage: 1,
+    reachTiles: 1.0,
+    staminaCost: 13,
+    staggerImpact: 7,
     weight: 1.8,
-    value: 10,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'axe',
-        attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.2, minRangeTiles: 0.5 },
-        damage: 1,
-        damageType: 'slash',
-        attackSpeedMs: 1400,
-        reachTiles: 1.0,
-        staminaCost: 13,
-        staggerImpact: 12,
-        weight: 1.8,
-        durability: 75,
-        maxDurability: 100,
-      },
-    },
+    durability: 75,
   },
   {
-    id: 'copper_hammer',
-    name: 'Copper Hammer',
-    examine: 'Slow but devastating. Hits a 2×2 area.',
+    archetype: 'hammer',
+    displayName: 'Hammer',
     icon: '🔨',
-    category: 'equipment',
-    stackable: false,
+    examine: 'A slow-feeling crush weapon built to break guard and bone.',
+    damageType: 'crush',
+    attackShape: { kind: 'thrust', lengthTiles: 1.5, widthTiles: 2.0 },
+    baseAccuracy: 24,
+    baseDamage: 1,
+    reachTiles: 1.0,
+    staminaCost: 16,
+    staggerImpact: 10,
     weight: 2.8,
-    value: 10,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'hammer',
-        attackShape: { kind: 'thrust', lengthTiles: 1.5, widthTiles: 2.0 },
-        damage: 1,
-        damageType: 'crush',
-        attackSpeedMs: 2400,
-        reachTiles: 1.0,
-        staminaCost: 16,
-        staggerImpact: 20,
-        weight: 2.8,
-        durability: 85,
-        maxDurability: 100,
-      },
-    },
+    durability: 85,
   },
   {
-    id: 'copper_spear',
-    name: 'Copper Spear',
-    examine: 'Keep enemies at distance with a 2-tile reach.',
+    archetype: 'spear',
+    displayName: 'Spear',
     icon: '🏹',
-    category: 'equipment',
-    stackable: false,
+    examine: 'A long piercing weapon for holding enemies at distance.',
+    damageType: 'pierce',
+    attackShape: { kind: 'thrust', lengthTiles: 2.5, widthTiles: 0.7 },
+    baseAccuracy: 34,
+    baseDamage: 1,
+    reachTiles: 2.0,
+    staminaCost: 10,
+    staggerImpact: 4,
     weight: 1.5,
-    value: 10,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'spear',
-        attackShape: { kind: 'thrust', lengthTiles: 2.5, widthTiles: 0.7 },
-        damage: 1,
-        damageType: 'pierce',
-        attackSpeedMs: 1800,
-        reachTiles: 2.0,
-        staminaCost: 10,
-        staggerImpact: 7,
-        weight: 1.5,
-        durability: 80,
-        maxDurability: 100,
-      },
-    },
-  },
-
-  // ── Higher tiers ─────────────────────────────────────────────────────────
-
-  {
-    id: 'worn_shortsword',
-    name: 'Worn Shortsword',
-    examine: 'A battered blade, better than nothing.',
-    icon: '🗡️',
-    category: 'equipment',
-    stackable: false,
-    weight: 1.2,
-    value: 5,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'sword',
-        attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.3, minRangeTiles: 0.3 },
-        damage: 2,
-        damageType: 'slash',
-        attackSpeedMs: 860,
-        reachTiles: 1.0,
-        staminaCost: 12,
-        staggerImpact: 8,
-        weight: 1.2,
-        durability: 60,
-        maxDurability: 100,
-      },
-    },
-  },
-  {
-    id: 'iron_shortsword',
-    name: 'Iron Shortsword',
-    examine: 'A reliable blade for close quarters.',
-    icon: '🗡️',
-    category: 'equipment',
-    stackable: false,
-    weight: 1.5,
-    value: 50,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 5,
-      weaponStats: {
-        archetype: 'sword',
-        attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.4, minRangeTiles: 0.3 },
-        damage: 4,
-        damageType: 'slash',
-        attackSpeedMs: 860,
-        reachTiles: 1.0,
-        staminaCost: 12,
-        staggerImpact: 10,
-        weight: 1.5,
-        durability: 100,
-        maxDurability: 100,
-      },
-    },
-  },
-  {
-    id: 'rusty_axe',
-    name: 'Rusty Axe',
-    examine: 'Heavy but brutal. Chips through armour.',
-    icon: '🪓',
-    category: 'equipment',
-    stackable: false,
-    weight: 2.0,
-    value: 30,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 3,
-      weaponStats: {
-        archetype: 'axe',
-        attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.1, minRangeTiles: 0.5 },
-        damage: 3,
-        damageType: 'slash',
-        attackSpeedMs: 760,
-        reachTiles: 0.9,
-        staminaCost: 14,
-        staggerImpact: 14,
-        weight: 2.0,
-        durability: 70,
-        maxDurability: 100,
-      },
-    },
-  },
-  {
-    id: 'stone_hammer',
-    name: 'Stone Hammer',
-    examine: 'Slow and punishing. Crushes bone.',
-    icon: '🔨',
-    category: 'equipment',
-    stackable: false,
-    weight: 3.2,
-    value: 20,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 1,
-      weaponStats: {
-        archetype: 'hammer',
-        attackShape: { kind: 'thrust', lengthTiles: 1.3, widthTiles: 2.0 },
-        damage: 5,
-        damageType: 'crush',
-        attackSpeedMs: 1100,
-        reachTiles: 0.9,
-        staminaCost: 18,
-        staggerImpact: 22,
-        weight: 3.2,
-        durability: 80,
-        maxDurability: 100,
-      },
-    },
-  },
-  {
-    id: 'short_spear',
-    name: 'Short Spear',
-    examine: 'Longer reach, keeps enemies at distance.',
-    icon: '🏹',
-    category: 'equipment',
-    stackable: false,
-    weight: 1.8,
-    value: 45,
-    equipment: {
-      slot: 'main_hand',
-      requiredLevel: 4,
-      weaponStats: {
-        archetype: 'spear',
-        attackShape: { kind: 'thrust', lengthTiles: 3.5, widthTiles: 0.7 },
-        damage: 3,
-        damageType: 'pierce',
-        attackSpeedMs: 900,
-        reachTiles: 3.0,
-        staminaCost: 11,
-        staggerImpact: 8,
-        weight: 1.8,
-        durability: 90,
-        maxDurability: 100,
-      },
-    },
+    durability: 80,
   },
 ];
 
-// Suppress unused import warning — PLAYER_CONFIG kept for future weapon speed scaling
-void PLAYER_CONFIG;
+// IDs added to inventory when starting a fresh game (no save).
+export const STARTING_WEAPON_IDS: Record<string, number> = {
+  copper_sword: 1,
+  copper_dagger: 1,
+  copper_axe: 1,
+  copper_hammer: 1,
+  copper_spear: 1,
+};
+
+export const WEAPON_ITEMS: ItemDefinition[] = MATERIAL_TIERS.flatMap((material) =>
+  ARCHETYPES.map((weapon) => makeWeaponDefinition(material, weapon)),
+);
+
+function makeWeaponDefinition(
+  material: MaterialTier,
+  weapon: WeaponArchetypeConfig,
+): ItemDefinition {
+  const materialIndex = material.rank - 1;
+  const id = `${material.id}_${weapon.archetype}`;
+  const requiredLevel = materialIndex * 10 + 1;
+  const damage = weapon.baseDamage + materialIndex;
+  const accuracyRating = weapon.baseAccuracy + materialIndex * 8;
+  const staggerImpact = weapon.staggerImpact + materialIndex;
+  const weight = roundTenth(weapon.weight * material.weightMultiplier);
+
+  return {
+    id,
+    name: `${material.displayName} ${weapon.displayName}`,
+    examine: `${weapon.examine} Requires rank ${material.rank} melee handling.`,
+    icon: weapon.icon,
+    category: 'equipment',
+    stackable: false,
+    weight,
+    value: Math.round(10 * material.valueMultiplier * (1 + weapon.baseDamage * 0.2)),
+    equipment: {
+      slot: 'main_hand',
+      requiredLevel,
+      weaponStats: {
+        archetype: weapon.archetype,
+        attackShape: weapon.attackShape,
+        damage,
+        damageType: weapon.damageType,
+        reachTiles: weapon.reachTiles,
+        staminaCost: weapon.staminaCost,
+        staggerImpact,
+        weight,
+        durability: weapon.durability + materialIndex * 10,
+        maxDurability: 100 + materialIndex * 10,
+        accuracyRating,
+      },
+    },
+  };
+}
+
+function roundTenth(value: number): number {
+  return Math.round(value * 10) / 10;
+}

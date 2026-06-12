@@ -68,7 +68,6 @@ describe('computeDerivedStats combat HP scaling', () => {
           attackShape: { kind: 'thrust', lengthTiles: 4, widthTiles: 1 },
           damage: 1,
           damageType: 'pierce',
-          attackSpeedMs: 1600,
           reachTiles: 4,
           staminaCost: 10,
           staggerImpact: 4,
@@ -93,6 +92,7 @@ describe('computeDerivedStats combat HP scaling', () => {
 
     expect(stats.weaponArchetype).toBe('bow');
     expect(stats.attack).toBe(10);
-    expect(stats.accuracy).toBe(90);
+    expect(stats.accuracy).toBe(65);  // bow archetype base accuracy (flat, skill goes into combatStyleLevel)
+    expect(stats.combatStyleLevel).toBe(100); // ranged skill, not melee
   });
 });

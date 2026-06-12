@@ -35,14 +35,13 @@ export type WeaponStats = {
   attackShape: WeaponAttackShape;
   damage: number;
   damageType: PhysicalDamageType;
-  attackSpeedMs: number;
   reachTiles: number;
   staminaCost: number;
   staggerImpact: number;
   weight: number;
   durability: number;
   maxDurability: number;
-  specialAction?: string; // ID of the weapon's unique move; implemented per archetype
+  accuracyRating?: number; // flat base accuracy; falls back to archetype default
 };
 
 export type PhysicalTypeDefence = {
@@ -88,18 +87,16 @@ export type EquippedSlotEntry = {
 export type PlayerDerivedStats = {
   maxHp: number;
   combatLevel: number;
+  combatStyleLevel: number;
   maxStamina: number;
   attack: number;
   accuracy: number;
-  attackSpeedMs: number;
-  attackWindupMs: number;
-  attackActiveMs: number;
-  attackRecoveryMs: number;
   weaponArchetype: WeaponArchetype;
   attackShape: WeaponAttackShape;
   damageType: PhysicalDamageType;
   reachTiles: number;
   attackStaminaCost: number;
+  staggerImpact: number;
   dodgeChance: number;
   physicalDefence: number;
   slashDefence: number;
@@ -128,18 +125,16 @@ export function emptyDerivedStats(): PlayerDerivedStats {
   return {
     maxHp: 10,
     combatLevel: 1,
+    combatStyleLevel: 0,
     maxStamina: 100,
     attack: 1,
-    accuracy: 50,
-    attackSpeedMs: 1000,
-    attackWindupMs: 160,
-    attackActiveMs: 200,
-    attackRecoveryMs: 640,
+    accuracy: 40,
     weaponArchetype: 'fists',
     attackShape: { kind: 'thrust', lengthTiles: 1, widthTiles: 1 },
     damageType: 'crush',
     reachTiles: 1.0,
     attackStaminaCost: 12,
+    staggerImpact: 1,
     dodgeChance: 0,
     physicalDefence: 0,
     slashDefence: 0,

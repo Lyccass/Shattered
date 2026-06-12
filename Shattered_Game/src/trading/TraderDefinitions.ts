@@ -12,7 +12,6 @@ export const SHOP_DEFINITIONS: ShopDefinition[] = [
       // ── Materials ──────────────────────────────────────────────────────────
       { itemId: 'herb',            stock: 20, maxStock: 20, restockRatePerMin: 1.0 },
       // ── Starter weapons ────────────────────────────────────────────────────
-      { itemId: 'worn_shortsword', stock: 3,  maxStock: 3 },
       { itemId: 'copper_sword',    stock: 2,  maxStock: 5 },
       { itemId: 'copper_axe',      stock: 2,  maxStock: 5 },
       { itemId: 'copper_dagger',   stock: 2,  maxStock: 5 },

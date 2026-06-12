@@ -7,7 +7,7 @@ export type CompanionDefinition = {
   displayName: string;
   maxHp: number;
   attackPower: number;
-  /** Combat level — scales the accuracy roll max in dual-roll hit resolution. */
+  /** Combat level used to add accuracy in hit resolution. */
   attackLevel: number;
   /** Base typed defences (pre-level-scaling). */
   slashDefence: number;
