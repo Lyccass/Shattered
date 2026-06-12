@@ -18,13 +18,19 @@ export type StatusEffect = {
 };
 
 export type TurnForcedMovement = {
-  kind: 'push';
+  kind: 'push' | 'pull';
   distance: number;
 };
 
 export type TurnTelegraphConfig = {
-  pattern: 'target' | 'target_plus_adjacent';
+  pattern: 'target' | 'target_plus_adjacent' | 'line' | 'cone' | 'ring';
   warningDamageMultiplier?: number;
+  /** line: max tiles to extend past actor (defaults to actor→target distance) */
+  length?: number;
+  /** cone: full angle in degrees (default 90) */
+  angleDeg?: number;
+  /** ring: ring radius in tiles (default 2) */
+  radius?: number;
 };
 
 export type TurnTelegraphTile = {
@@ -197,7 +203,7 @@ export type ActionOutcome =
   | { kind: 'guarded';      actorId: string; statusApplied: StatusEffect }
   | { kind: 'cleansed';     actorId: string; removedEffect: StatusEffect }
   | { kind: 'item_consumed'; actorId: string; itemId: string; healAmount: number; newHp: number }
-  | { kind: 'turn_ended';  actorId: string; nextParticipantId: string | null; statusTicks?: TurnStatusTickOutcome[] }
+  | { kind: 'turn_ended';  actorId: string; nextParticipantId: string | null; statusTicks?: TurnStatusTickOutcome[]; statusExpired?: Array<{ participantId: string; effectKind: StatusEffectKind }> }
   | { kind: 'fled';        actorId: string }
   | { kind: 'combat_ended'; reason: CombatEndReason; statusTicks?: TurnStatusTickOutcome[] }
   | { kind: 'invalid';     actorId: string; reason: string };
@@ -238,6 +244,9 @@ export type TurnParticipantUiSnapshot = {
   secondaryActionRemaining: number;
   secondaryActionMax: number;
   statusEffects: StatusEffect[];
+  stagger: number;
+  staggerThreshold: number;
+  bleedMovementTiles: number;
   attacks: TurnAttackUiSnapshot[];
   attackCooldowns: Record<string, number>;
   magicResourceRemaining: number;

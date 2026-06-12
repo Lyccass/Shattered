@@ -11,6 +11,49 @@ const DIRS_8 = [
   [1, -1], [1, 1], [-1, 1], [-1, -1],
 ] as const;
 
+type TilePoint = { x: number; y: number };
+type BfsBounds = { mapWidth: number; mapHeight: number };
+
+export function tileKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+export function parseTileKey(key: string): TilePoint {
+  const [x, y] = key.split(',').map(Number);
+  return { x, y };
+}
+
+export function bfsFlood(
+  origin: TilePoint,
+  maxCost: number,
+  blocked: (tileX: number, tileY: number) => boolean,
+  bounds: BfsBounds,
+): Map<string, number> {
+  const costs = new Map<string, number>([[tileKey(origin.x, origin.y), 0]]);
+  const queue: Array<TilePoint & { cost: number }> = [{ ...origin, cost: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    for (const [dx, dy] of DIRS_8) {
+      const nx = current.x + dx;
+      const ny = current.y + dy;
+      const key = tileKey(nx, ny);
+      const newCost = current.cost + 1;
+
+      if (newCost > maxCost) continue;
+      if (costs.has(key)) continue;
+      if (nx < 0 || ny < 0 || nx >= bounds.mapWidth || ny >= bounds.mapHeight) continue;
+      if (blocked(nx, ny)) continue;
+
+      costs.set(key, newCost);
+      queue.push({ x: nx, y: ny, cost: newCost });
+    }
+  }
+
+  return costs;
+}
+
 /**
  * BFS flood-fill from participant's current tile up to mpRemaining steps.
  * Returns all tiles reachable without crossing occupied or unwalkable tiles.
@@ -28,35 +71,17 @@ export function getReachableTiles(
       .filter((p) => p.id !== participant.id && p.hp > 0)
       .map((p) => `${p.tileX},${p.tileY}`),
   );
+  const origin = { x: participant.tileX, y: participant.tileY };
+  const costs = bfsFlood(
+    origin,
+    participant.mpRemaining,
+    (x, y) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y)),
+    tileCtx,
+  );
 
-  const visited = new Set<string>([`${participant.tileX},${participant.tileY}`]);
-  const reachable: { x: number; y: number }[] = [];
-  const queue: { x: number; y: number; cost: number }[] = [
-    { x: participant.tileX, y: participant.tileY, cost: 0 },
-  ];
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-
-    for (const [dx, dy] of DIRS_8) {
-      const nx = current.x + dx;
-      const ny = current.y + dy;
-      const key = `${nx},${ny}`;
-      const newCost = current.cost + 1;
-
-      if (newCost > participant.mpRemaining) continue;
-      if (visited.has(key)) continue;
-      if (nx < 0 || ny < 0 || nx >= tileCtx.mapWidth || ny >= tileCtx.mapHeight) continue;
-      if (!tileCtx.isTileWalkable(nx, ny)) continue;
-      if (occupied.has(key)) continue;
-
-      visited.add(key);
-      reachable.push({ x: nx, y: ny });
-      queue.push({ x: nx, y: ny, cost: newCost });
-    }
-  }
-
-  return reachable;
+  return [...costs.keys()]
+    .filter((key) => key !== tileKey(origin.x, origin.y))
+    .map(parseTileKey);
 }
 
 /**
@@ -124,40 +149,15 @@ export function getMovePath(
       .filter((p) => p.id !== participant.id && p.hp > 0)
       .map((p) => `${p.tileX},${p.tileY}`),
   );
-
-  const startKey = `${participant.tileX},${participant.tileY}`;
-  const visited = new Set<string>([startKey]);
-  const previous = new Map<string, string>();
-  const queue: { x: number; y: number; cost: number }[] = [
-    { x: participant.tileX, y: participant.tileY, cost: 0 },
-  ];
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const currentKey = `${current.x},${current.y}`;
-    if (currentKey === targetKey) {
-      return rebuildPath(previous, startKey, targetKey);
-    }
-
-    for (const [dx, dy] of DIRS_8) {
-      const nx = current.x + dx;
-      const ny = current.y + dy;
-      const key = `${nx},${ny}`;
-      const newCost = current.cost + 1;
-
-      if (newCost > participant.mpRemaining) continue;
-      if (visited.has(key)) continue;
-      if (nx < 0 || ny < 0 || nx >= tileCtx.mapWidth || ny >= tileCtx.mapHeight) continue;
-      if (!tileCtx.isTileWalkable(nx, ny)) continue;
-      if (occupied.has(key)) continue;
-
-      visited.add(key);
-      previous.set(key, currentKey);
-      queue.push({ x: nx, y: ny, cost: newCost });
-    }
-  }
-
-  return null;
+  const startKey = tileKey(participant.tileX, participant.tileY);
+  const costs = bfsFlood(
+    { x: participant.tileX, y: participant.tileY },
+    participant.mpRemaining,
+    (x, y) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y)),
+    tileCtx,
+  );
+  if (!costs.has(targetKey)) return null;
+  return rebuildPathFromCosts(costs, startKey, targetKey);
 }
 
 /** Returns true if the participant can attack the given target right now. */
@@ -232,8 +232,8 @@ export function getBestApproachTile(
   return best;
 }
 
-function rebuildPath(
-  previous: Map<string, string>,
+function rebuildPathFromCosts(
+  costs: Map<string, number>,
   startKey: string,
   targetKey: string,
 ): { x: number; y: number }[] {
@@ -241,11 +241,15 @@ function rebuildPath(
   let currentKey = targetKey;
 
   while (currentKey !== startKey) {
-    const [x, y] = currentKey.split(',').map(Number);
-    reversed.push({ x, y });
-    const prev = previous.get(currentKey);
-    if (!prev) break;
-    currentKey = prev;
+    const currentCost = costs.get(currentKey);
+    if (currentCost === undefined || currentCost <= 0) break;
+    const current = parseTileKey(currentKey);
+    reversed.push(current);
+    const previous = DIRS_8
+      .map(([dx, dy]) => tileKey(current.x - dx, current.y - dy))
+      .find((key) => costs.get(key) === currentCost - 1);
+    if (!previous) break;
+    currentKey = previous;
   }
 
   return reversed.reverse();

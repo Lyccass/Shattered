@@ -39,6 +39,10 @@ export type PlayerSaveState = {
     utilitySpellIds?: Array<string | null>;
     devotionAbilityIds?: Array<string | null>;
   };
+  combatCooldowns?: {
+    attackCooldowns?: Record<string, number>;
+    abilityCooldowns?: Record<string, number>;
+  };
 };
 
 export type PersonalIslandPlacedObjectSaveState = {

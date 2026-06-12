@@ -89,6 +89,11 @@ function validatePlayerSaveState(input: unknown): SaveValidationResult<PlayerSav
     : validateSpellbookLoadout(record.value.spellbookLoadout);
   if (spellbookLoadout && !spellbookLoadout.ok) return spellbookLoadout;
 
+  const combatCooldowns = record.value.combatCooldowns === undefined
+    ? undefined
+    : validateCombatCooldowns(record.value.combatCooldowns);
+  if (combatCooldowns && !combatCooldowns.ok) return combatCooldowns;
+
   return {
     ok: true,
     value: {
@@ -107,8 +112,41 @@ function validatePlayerSaveState(input: unknown): SaveValidationResult<PlayerSav
       activeEffects: activeEffects.value,
       ...(equippedSlots ? { equippedSlots: equippedSlots.value } : {}),
       ...(spellbookLoadout ? { spellbookLoadout: spellbookLoadout.value } : {}),
+      ...(combatCooldowns ? { combatCooldowns: combatCooldowns.value } : {}),
     },
   };
+}
+
+function validateCombatCooldowns(input: unknown): SaveValidationResult<NonNullable<PlayerSaveState['combatCooldowns']>> {
+  const record = asRecord(input, 'PlayerSaveState.combatCooldowns');
+  if (!record.ok) return record;
+
+  const attackCooldowns = record.value.attackCooldowns === undefined
+    ? undefined
+    : readNumberRecord(record.value.attackCooldowns, 'PlayerSaveState.combatCooldowns.attackCooldowns');
+  if (attackCooldowns && !attackCooldowns.ok) return attackCooldowns;
+
+  const abilityCooldowns = record.value.abilityCooldowns === undefined
+    ? undefined
+    : readNumberRecord(record.value.abilityCooldowns, 'PlayerSaveState.combatCooldowns.abilityCooldowns');
+  if (abilityCooldowns && !abilityCooldowns.ok) return abilityCooldowns;
+
+  return {
+    ok: true,
+    value: {
+      attackCooldowns: sanitizeCooldownRecord(attackCooldowns?.value),
+      abilityCooldowns: sanitizeCooldownRecord(abilityCooldowns?.value),
+    },
+  };
+}
+
+function sanitizeCooldownRecord(record: Record<string, number> | undefined): Record<string, number> {
+  const sanitized: Record<string, number> = {};
+  for (const [id, value] of Object.entries(record ?? {})) {
+    const remaining = Math.max(0, Math.floor(value));
+    if (remaining > 0) sanitized[id] = remaining;
+  }
+  return sanitized;
 }
 
 function validateSpellbookLoadout(input: unknown): SaveValidationResult<NonNullable<PlayerSaveState['spellbookLoadout']>> {

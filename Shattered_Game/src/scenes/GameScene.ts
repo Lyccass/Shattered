@@ -28,7 +28,7 @@ import {
 } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
 import type { InteractionResult } from '../interactions/InteractionTypes';
-import { GroundItemSystem } from '../world/items/GroundItemSystem';
+import { GroundItemSystem, type SpawnedLootDrop } from '../world/items/GroundItemSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
 import { STARTING_COMPANION_IDS } from '../items/definitions/companions';
@@ -105,6 +105,13 @@ export class GameScene extends Phaser.Scene {
     this.turnCombatSession.setConsumeCallback((itemId) => {
       return this.worldRuntimeCoordinator?.consumeItem(itemId, 1) ?? false;
     });
+    this.turnCombatSession.setCooldownPersistence(
+      () => this.worldRuntimeCoordinator?.getCombatCooldownSnapshot() ?? {
+        attackCooldowns: {},
+        abilityCooldowns: {},
+      },
+      (snapshot) => this.worldRuntimeCoordinator?.setCombatCooldownSnapshot(snapshot),
+    );
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
     this.worldRuntimeCoordinator.setGroundItemCollector(
@@ -721,24 +728,24 @@ export class GameScene extends Phaser.Scene {
     definitionId: string | undefined,
     worldX: number,
     worldY: number,
-  ): void {
+  ): SpawnedLootDrop[] {
     if (areaId) {
       this.encounterPopulation.recordKill(spawnId, areaId);
       if (this.encounterPopulation.isAreaCleared(areaId)) {
         this.worldRuntimeCoordinator?.applyAreaCleared(1);
       }
     }
-    if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return;
+    if (!this.groundItemSystem || !this.worldRuntimeCoordinator) return [];
     const enemyDef = ENEMY_DEFINITIONS.find((d) => d.id === definitionId);
     const lootTables = enemyDef?.lootTables;
-    if (!lootTables || lootTables.length === 0) return;
+    if (!lootTables || lootTables.length === 0) return [];
     const mapId = this.worldRuntimeCoordinator.getCurrentRuntime().definition.id;
     const isoTilemap = this.worldRuntimeCoordinator.getIsoTilemap();
-    if (!isoTilemap) return;
+    if (!isoTilemap) return [];
     const rawTile = isoTilemap.transform.worldToTile(worldX, worldY);
     const dropTile = findNearestWalkableTile(rawTile, isoTilemap) ?? rawTile;
     const center = isoTilemap.transform.getTileCenterWorld(dropTile.x, dropTile.y);
-    this.groundItemSystem.spawnFromLootTable(mapId, lootTables, center.x, center.y, this.time.now);
+    return this.groundItemSystem.spawnFromLootTable(mapId, lootTables, center.x, center.y, this.time.now);
   }
 
   private refreshGroundItemTargets(): void {

@@ -369,6 +369,7 @@ function getWeaponStaggerEstimate(stats: EquipmentSnapshot['derivedStats']): num
     case 'spear': return 3;
     case 'dagger': return 2;
     case 'sword': return 4;
+    case 'bow': return 2;
   }
 }
 

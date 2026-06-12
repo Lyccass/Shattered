@@ -160,7 +160,7 @@ export class UiManager {
   }
 
   toggleSkills(): boolean {
-    return this.overlay.toggleTab('journal');
+    return this.overlay.toggleTab('skills');
   }
 
   toggleMapWindow(playerTileX: number, playerTileY: number): void {

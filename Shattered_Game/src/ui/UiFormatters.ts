@@ -61,14 +61,14 @@ export function formatHudPanelText(
 
   const hints = ['[I Inventory]', '[J Journal]', '[P Skills]'];
 
-  hints.push('[Shift Sprint]', '[Space Dodge]');
+  hints.push('[Space Sprint]');
 
   if ((inventory.stacks['firestarter_set'] ?? 0) > 0) {
-    hints.push('[B Place]');
+    hints.push('[Inventory: Place Firestarter]');
   }
 
   if ((inventory.stacks['warm_tea'] ?? 0) > 0) {
-    hints.push('[T Drink]');
+    hints.push('[Inventory: Drink Tea]');
   }
 
   lines.push(hints.join('   '));

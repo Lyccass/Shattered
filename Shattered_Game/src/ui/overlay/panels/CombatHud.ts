@@ -1,10 +1,12 @@
 import type { TurnCombatUiSnapshot } from '../../../combat/CombatUiTypes';
+import { renderStatusIcons } from './EnemyPanel';
 
 type HudAttack = {
   id: string;
   displayName: string;
   apCost: number;
   cooldownRemaining: number;
+  minRangeTiles: number;
   maxRangeTiles: number;
 };
 
@@ -17,6 +19,7 @@ type HudAbility = {
   cooldownRemaining: number;
   magicCost: number;
   devotionCost: number;
+  minRangeTiles: number;
   maxRangeTiles: number;
 };
 
@@ -26,6 +29,7 @@ export class CombatHud {
   private readonly apPipsEl: HTMLElement;
   private readonly movePipsEl: HTMLElement;
   private readonly secondaryPipsEl: HTMLElement;
+  private readonly statusIconsEl: HTMLElement;
   private readonly moveBtn: HTMLButtonElement;
   private readonly attackBtn: HTMLButtonElement;
   private readonly specialBtn: HTMLButtonElement;
@@ -75,6 +79,9 @@ export class CombatHud {
     resources.appendChild(this.makeResourceGroup('Move', this.movePipsEl));
     resources.appendChild(this.makeResourceGroup('Sec', this.secondaryPipsEl));
 
+    this.statusIconsEl = document.createElement('div');
+    this.statusIconsEl.className = 'combat-status-icons';
+
     const actionGrid = document.createElement('div');
     actionGrid.className = 'combat-action-grid';
 
@@ -95,6 +102,7 @@ export class CombatHud {
     actionGrid.appendChild(this.endTurnBtn);
 
     body.appendChild(resources);
+    body.appendChild(this.statusIconsEl);
     body.appendChild(actionGrid);
 
     this.actionHint = document.createElement('div');
@@ -139,6 +147,14 @@ export class CombatHud {
       this.buildPips(this.movePipsEl, actor.mpMax, actor.mpRemaining, 'move-pip');
       this.buildPips(this.secondaryPipsEl, actor.secondaryActionMax, actor.secondaryActionRemaining, 'secondary-pip');
     }
+
+    // Always show the player's (or active companion's) status icons
+    const statusSource = combat.activeUnit ?? combat.player;
+    renderStatusIcons(
+      this.statusIconsEl,
+      statusSource?.statusEffects ?? [],
+      statusSource?.bleedMovementTiles ?? 0,
+    );
 
     this.moveBtn.textContent = 'Move';
     this.moveBtn.disabled = !canAct || (actor?.mpRemaining ?? 0) <= 0;
@@ -279,7 +295,7 @@ export class CombatHud {
       ? `${attack.displayName} cooldown: ${attack.cooldownRemaining} turn(s)`
       : lacksAp
         ? 'Needs Main Action'
-        : `Pick a target for ${attack.displayName}`;
+        : `Pick a target for ${attack.displayName} (${formatRange(attack.minRangeTiles, attack.maxRangeTiles)})`;
   }
 
   private configureAbilityButton(
@@ -311,7 +327,7 @@ export class CombatHud {
           : lacksDevotion
             ? 'Needs Devotion resource'
             : ability.target === 'enemy'
-              ? `Pick a target for ${ability.displayName}`
+              ? `Pick a target for ${ability.displayName} (${formatRange(ability.minRangeTiles, ability.maxRangeTiles)})`
               : `Use ${ability.displayName}`;
   }
 
@@ -349,7 +365,7 @@ export class CombatHud {
     if (combat.selectedAbilityId) {
       const selected = abilities.find((ability) => ability.id === combat.selectedAbilityId);
       this.actionHint.textContent = selected
-        ? `${selected.displayName}: click an enemy in range ${selected.maxRangeTiles}`
+        ? `${selected.displayName}: click an enemy in ${formatRange(selected.minRangeTiles, selected.maxRangeTiles)}`
         : 'Click an enemy target';
       return;
     }
@@ -357,7 +373,7 @@ export class CombatHud {
     if (combat.selectedAttackId) {
       const selected = attacks.find((attack) => attack.id === combat.selectedAttackId);
       this.actionHint.textContent = selected
-        ? `${selected.displayName}: click an enemy in range ${selected.maxRangeTiles}`
+        ? `${selected.displayName}: click an enemy in ${formatRange(selected.minRangeTiles, selected.maxRangeTiles)}`
         : 'Click an enemy target';
       return;
     }
@@ -368,4 +384,10 @@ export class CombatHud {
 
 function stopOverlayInput(event: Event): void {
   event.stopPropagation();
+}
+
+function formatRange(minRange: number, maxRange: number): string {
+  const min = Math.max(0, Math.floor(minRange));
+  const max = Math.max(min, Math.floor(maxRange));
+  return min === max ? `range ${max}` : `range ${min}-${max}`;
 }

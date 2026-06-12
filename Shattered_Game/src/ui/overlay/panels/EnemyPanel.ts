@@ -1,4 +1,5 @@
 import type { TurnCombatUiSnapshot } from '../../../combat/CombatUiTypes';
+import type { StatusEffect } from '../../../combat/turn/TurnCombatTypes';
 import { requireElement } from '../../domUtils';
 
 const LOW_HP_THRESHOLD = 0.25;
@@ -9,6 +10,9 @@ export class EnemyPanel {
   private readonly tierEl: HTMLElement;
   private readonly hpFill: HTMLElement;
   private readonly hpText: HTMLElement;
+  private readonly staggerFill: HTMLElement;
+  private readonly staggerWrap: HTMLElement;
+  private readonly statusIconsEl: HTMLElement;
   private readonly turnOrderEl: HTMLElement;
 
   constructor(overlay: HTMLElement) {
@@ -25,15 +29,24 @@ export class EnemyPanel {
         <div class="enemy-hp-track">
           <div class="enemy-hp-fill"></div>
         </div>
+        <div class="enemy-stagger-wrap">
+          <div class="enemy-stagger-track">
+            <div class="enemy-stagger-fill"></div>
+          </div>
+        </div>
         <div class="enemy-hp-text"></div>
+        <div class="enemy-status-icons"></div>
         <div class="enemy-turn-order"></div>
       </div>
     `;
 
-    this.nameEl = requireElement(this.root, '.enemy-name');
-    this.tierEl = requireElement(this.root, '.enemy-tier');
-    this.hpFill = requireElement(this.root, '.enemy-hp-fill');
-    this.hpText = requireElement(this.root, '.enemy-hp-text');
+    this.nameEl      = requireElement(this.root, '.enemy-name');
+    this.tierEl      = requireElement(this.root, '.enemy-tier');
+    this.hpFill      = requireElement(this.root, '.enemy-hp-fill');
+    this.hpText      = requireElement(this.root, '.enemy-hp-text');
+    this.staggerFill = requireElement(this.root, '.enemy-stagger-fill');
+    this.staggerWrap = requireElement(this.root, '.enemy-stagger-wrap');
+    this.statusIconsEl = requireElement(this.root, '.enemy-status-icons');
     this.turnOrderEl = requireElement(this.root, '.enemy-turn-order');
 
     overlay.appendChild(this.root);
@@ -63,6 +76,17 @@ export class EnemyPanel {
     this.hpFill.style.width = `${ratio * 100}%`;
     this.hpFill.classList.toggle('is-low', ratio <= LOW_HP_THRESHOLD);
     this.hpText.textContent = `${enemy.hp} / ${enemy.maxHp}`;
+
+    // Stagger bar
+    const stagger = enemy.stagger ?? 0;
+    const staggerThreshold = Math.max(1, enemy.staggerThreshold ?? 10);
+    const staggerRatio = Math.min(1, stagger / staggerThreshold);
+    this.staggerFill.style.width = `${staggerRatio * 100}%`;
+    this.staggerWrap.style.display = stagger > 0 ? '' : 'none';
+
+    // Status icons
+    renderStatusIcons(this.statusIconsEl, enemy.statusEffects, 0);
+
     this.renderTurnOrder(combat);
   }
 
@@ -88,5 +112,33 @@ export class EnemyPanel {
         : participant.name;
       this.turnOrderEl.appendChild(chip);
     }
+  }
+}
+
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  stunned:          { label: 'Stun',  cls: 'csi--debuff' },
+  slowed:           { label: 'Slow',  cls: 'csi--debuff' },
+  bleeding:         { label: 'Bleed', cls: 'csi--debuff' },
+  damage_over_time: { label: 'DoT',   cls: 'csi--debuff' },
+  guarded:          { label: 'Guard', cls: 'csi--guard'  },
+  fortified:        { label: 'Fort',  cls: 'csi--buff'   },
+};
+
+export function renderStatusIcons(container: HTMLElement, effects: StatusEffect[], bleedMoveTiles: number): void {
+  container.innerHTML = '';
+  for (const effect of effects) {
+    const meta = STATUS_META[effect.kind];
+    if (!meta) continue;
+    const chip = document.createElement('span');
+    chip.className = `csi ${meta.cls}`;
+    const isBleed = effect.kind === 'bleeding' && bleedMoveTiles > 0;
+    chip.textContent = isBleed
+      ? `${meta.label}(${bleedMoveTiles})`
+      : meta.label;
+    const turns = document.createElement('span');
+    turns.className = 'csi__turns';
+    turns.textContent = ` ${effect.turnsRemaining}`;
+    chip.appendChild(turns);
+    container.appendChild(chip);
   }
 }

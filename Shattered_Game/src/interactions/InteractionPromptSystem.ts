@@ -65,14 +65,14 @@ export class InteractionPromptSystem {
         ];
         const hintParts: string[] = [];
 
-        hintParts.push('[J: journal]');
+        hintParts.push('[I: inventory]', '[J: journal]', '[P: skills]');
 
         if (!placementState?.active && (inventory.stacks['firestarter_set'] ?? 0) > 0) {
-          hintParts.push('[B: place]');
+          hintParts.push('[inventory: place firestarter]');
         }
 
         if ((inventory.stacks['warm_tea'] ?? 0) > 0) {
-          hintParts.push('[T: drink]');
+          hintParts.push('[inventory: drink tea]');
         }
 
         const effectLine = activeEffects.length > 0

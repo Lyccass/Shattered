@@ -359,6 +359,52 @@
   pointer-events: none;
 }
 
+/* ── Status effect icon chips (shared by HUD + enemy panel) ── */
+.csi {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 5px 1px 4px;
+  border-radius: 3px;
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.csi--debuff {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.10);
+}
+.csi--buff {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.35);
+  background: rgba(125, 211, 252, 0.10);
+}
+.csi--guard {
+  color: #86efac;
+  border-color: rgba(134, 239, 172, 0.35);
+  background: rgba(134, 239, 172, 0.10);
+}
+.csi__turns {
+  opacity: 0.60;
+  font-weight: 400;
+}
+
+/* ── Status icons row inside the action bar ── */
+.combat-status-icons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  min-height: 0;
+}
+.combat-status-icons:empty { display: none; }
+
 @media (max-width: 760px) {
   #ui-combat-actions {
     left: 50%;

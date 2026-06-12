@@ -169,7 +169,6 @@ export class TurnActionPreviewRenderer {
     for (let y = active.tileY - maxRange; y <= active.tileY + maxRange; y += 1) {
       for (let x = active.tileX - maxRange; x <= active.tileX + maxRange; x += 1) {
         if (x < 0 || y < 0 || x >= tileCtx.mapWidth || y >= tileCtx.mapHeight) continue;
-        if (!tileCtx.isTileWalkable(x, y)) continue;
         const dist = chebyshevDist(active.tileX, active.tileY, x, y);
         if (dist < minRange || dist > maxRange) continue;
         tiles.push({ x, y });

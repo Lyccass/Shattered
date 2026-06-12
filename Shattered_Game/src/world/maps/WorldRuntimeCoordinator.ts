@@ -705,6 +705,17 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getEquippedTurnAbilities();
   }
 
+  getCombatCooldownSnapshot() {
+    return this.playerSessionState.getCombatCooldownSnapshot();
+  }
+
+  setCombatCooldownSnapshot(snapshot: {
+    attackCooldowns: Record<string, number>;
+    abilityCooldowns: Record<string, number>;
+  }): void {
+    this.playerSessionState.setCombatCooldownSnapshot(snapshot);
+  }
+
   equipSpellbookAbility(slotType: AbilitySlotType, slotIndex: number, abilityId: string | null): boolean {
     return this.playerSessionState.equipSpellbookAbility(slotType, slotIndex, abilityId);
   }

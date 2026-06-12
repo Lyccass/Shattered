@@ -8,6 +8,10 @@ export type CompanionDefinition = {
   maxHp: number;
   attackPower: number;
   defensePower: number;
+  /** Typed resistances — each defaults to defensePower when absent. */
+  slashDefence?: number;
+  pierceDefence?: number;
+  crushDefence?: number;
   attackRangeTiles: number;
   initiative: number;
   apPerTurn: number;

@@ -6,8 +6,10 @@ import {
 } from './TurnCombatEngine';
 import type { ActionOutcome, TurnAction, TurnAttack, TurnCombatState, TurnParticipant } from './TurnCombatTypes';
 import {
+  chebyshevDist,
   getBestApproachTile,
   getAttackableTargets,
+  getReachableTiles,
   getUsableAttacks,
   type TurnTileContext,
 } from './TurnActionValidator';
@@ -142,22 +144,24 @@ export function chooseEnemyAction(
     return { kind: 'end_turn' };
   }
 
-  // 3. Move toward the nearest non-enemy target (player or companion)
+  // 3. Retreat when critically low HP (< 25%)
+  if (actor.maxHp > 0 && actor.hp / actor.maxHp < 0.25 && actor.mpRemaining > 0) {
+    const retreatTile = findRetreatTile(actor, state, tileCtx);
+    if (retreatTile) {
+      return { kind: 'move', toTileX: retreatTile.x, toTileY: retreatTile.y };
+    }
+  }
+
+  // 4. Move toward the nearest non-enemy target, preferring flanking positions
   const moveTarget = pickMoveTarget(actor, state);
   if (moveTarget && actor.mpRemaining > 0) {
-    const approachTile = getBestApproachTile(
-      actor,
-      moveTarget.tileX,
-      moveTarget.tileY,
-      state,
-      tileCtx,
-    );
+    const approachTile = getFlankOrBestApproachTile(actor, moveTarget, state, tileCtx);
     if (approachTile) {
       return { kind: 'move', toTileX: approachTile.x, toTileY: approachTile.y };
     }
   }
 
-  // 4. Nothing useful — end turn
+  // 5. Nothing useful — end turn
   return { kind: 'end_turn' };
 }
 
@@ -167,13 +171,100 @@ function pickMoveTarget(actor: TurnParticipant, state: TurnCombatState): TurnPar
   );
   if (threats.length === 0) return null;
   return threats.reduce<TurnParticipant>((best, p) => {
-    const distP = Math.abs(p.tileX - actor.tileX) + Math.abs(p.tileY - actor.tileY);
-    const distBest = Math.abs(best.tileX - actor.tileX) + Math.abs(best.tileY - actor.tileY);
+    const distP    = chebyshevDist(actor.tileX, actor.tileY, p.tileX, p.tileY);
+    const distBest = chebyshevDist(actor.tileX, actor.tileY, best.tileX, best.tileY);
     if (distP < distBest) return p;
     // prefer player at equal distance
     if (distP === distBest && p.kind === 'player') return p;
     return best;
   }, threats[0]);
+}
+
+/**
+ * Find the best approach tile, preferring flanking positions (behind/side of target)
+ * over purely-closest tiles when the difference is at most 1 step.
+ */
+function getFlankOrBestApproachTile(
+  actor: TurnParticipant,
+  moveTarget: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): { x: number; y: number } | null {
+  const best = getBestApproachTile(actor, moveTarget.tileX, moveTarget.tileY, state, tileCtx);
+  if (!best) return null;
+
+  const bestDist = chebyshevDist(best.x, best.y, moveTarget.tileX, moveTarget.tileY);
+  const reachable = getReachableTiles(actor, state, tileCtx);
+
+  let topScore = getFlankScore(best, moveTarget);
+  let topTile = best;
+
+  for (const tile of reachable) {
+    const distToTarget = chebyshevDist(tile.x, tile.y, moveTarget.tileX, moveTarget.tileY);
+    // Accept tiles up to 1 further than the optimal approach distance
+    if (distToTarget > bestDist + 1) continue;
+    const score = getFlankScore(tile, moveTarget);
+    if (score > topScore) {
+      topScore = score;
+      topTile = tile;
+    }
+  }
+
+  return topTile;
+}
+
+/**
+ * Higher score = better flanking position (behind or side of target).
+ * Ranges roughly −1 (head-on) to +1 (directly behind).
+ */
+function getFlankScore(tile: { x: number; y: number }, target: TurnParticipant): number {
+  const dx = tile.x - target.tileX;
+  const dy = tile.y - target.tileY;
+  if (dx === 0 && dy === 0) return 0;
+  const len = Math.hypot(dx, dy);
+  const relX = dx / len;
+  const relY = dy / len;
+  const facingX = target.facingX ?? 0;
+  const facingY = target.facingY ?? 1;
+  // Negative alignment = attacker is behind target (good for attacker)
+  return -(facingX * relX + facingY * relY);
+}
+
+/**
+ * Try to move to a tile that maximises minimum distance from all threats.
+ * Only returns a tile if it genuinely increases the enemy's safety.
+ */
+function findRetreatTile(
+  actor: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): { x: number; y: number } | null {
+  const threats = state.participants.filter(
+    (p) => (p.kind === 'player' || p.kind === 'companion') && p.hp > 0,
+  );
+  if (threats.length === 0) return null;
+
+  const reachable = getReachableTiles(actor, state, tileCtx);
+  if (reachable.length === 0) return null;
+
+  const currentMinDist = Math.min(
+    ...threats.map((t) => chebyshevDist(actor.tileX, actor.tileY, t.tileX, t.tileY)),
+  );
+
+  let bestMinDist = currentMinDist;
+  let bestTile: { x: number; y: number } | null = null;
+
+  for (const tile of reachable) {
+    const minDist = Math.min(
+      ...threats.map((t) => chebyshevDist(tile.x, tile.y, t.tileX, t.tileY)),
+    );
+    if (minDist > bestMinDist) {
+      bestMinDist = minDist;
+      bestTile = tile;
+    }
+  }
+
+  return bestTile;
 }
 
 function chooseBestTargetAttack(
@@ -187,24 +278,29 @@ function chooseBestTargetAttack(
   for (const target of targets) {
     const attack = getUsableAttacks(actor, target)
       .slice()
-      .sort((a, b) => scoreAttack(b) - scoreAttack(a))[0] ?? null;
+      .sort((a, b) => scoreAttack(b, target.mpRemaining) - scoreAttack(a, target.mpRemaining))[0] ?? null;
     if (attack) return { target, attack };
   }
 
   return null;
 }
 
-function scoreAttack(attack: {
-  damage: number;
-  maxRangeTiles: number;
-  cooldownTurns?: number;
-  statusEffect?: unknown;
-  telegraph?: unknown;
-  forcedMovement?: unknown;
-}): number {
+function scoreAttack(
+  attack: {
+    damage: number;
+    maxRangeTiles: number;
+    cooldownTurns?: number;
+    statusEffect?: unknown;
+    telegraph?: unknown;
+    forcedMovement?: unknown;
+  },
+  targetMp = 0,
+): number {
+  // Telegraph attacks are valuable when the target can dodge (has MP), less so when they can't
+  const telegraphBonus = attack.telegraph ? (targetMp > 0 ? 1.5 : -0.5) : 0;
   return attack.damage
     + (attack.statusEffect ? 2 : 0)
-    + (attack.telegraph ? 1.5 : 0)
+    + telegraphBonus
     + (attack.forcedMovement ? 0.75 : 0)
     + (attack.cooldownTurns && attack.cooldownTurns > 0 ? 0.5 : 0)
     + attack.maxRangeTiles * 0.1;

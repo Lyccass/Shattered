@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  addParticipantsToCombatState,
   applyAction,
   advanceTurn,
   createCombatState,
@@ -91,6 +92,29 @@ describe('createCombatState', () => {
     const first = state.participants.find((p) => p.id === state.turnOrderIds[0])!;
     const second = state.participants.find((p) => p.id === state.turnOrderIds[1])!;
     expect(first.initiative).toBeLessThanOrEqual(second.initiative);
+  });
+});
+
+describe('addParticipantsToCombatState', () => {
+  it('adds joiners without changing the active participant', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const state = {
+      ...createCombatState([
+        makePlayer({ initiative: 1 }),
+        makeEnemy('e1', { initiative: 10 }),
+      ]),
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      phase: 'player_turn' as const,
+    };
+
+    const joined = addParticipantsToCombatState(state, [
+      makeEnemy('e2', { initiative: 5, tileX: 12, tileY: 12 }),
+    ]);
+
+    expect(joined.participants.some((p) => p.id === 'e2')).toBe(true);
+    expect(joined.turnOrderIds).toContain('e2');
+    expect(joined.turnOrderIds[joined.activeIndex]).toBe('player');
   });
 });
 
@@ -501,6 +525,76 @@ describe('attack action', () => {
     });
     expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(9);
     expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(0);
+  });
+
+  it('lets the player react when an enemy leaves melee range', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      reactionRemaining: 1,
+      attacks: [{
+        id: 'punch',
+        displayName: 'Punch',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'crush',
+        hitChance: 100,
+      }],
+    });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10, mpRemaining: 3 });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    }, { kind: 'move', toTileX: 13, toTileY: 10 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({
+      kind: 'moved',
+      reactions: [{ kind: 'attacked', actorId: 'player', targetId: 'e1', reaction: true, hit: true, damage: 1 }],
+    });
+    expect(next.participants.find((p) => p.id === 'e1')?.hp).toBe(4);
+    expect(next.participants.find((p) => p.id === 'player')?.reactionRemaining).toBe(0);
+  });
+
+  it('does not give bow users a melee disengage reaction', () => {
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      reactionRemaining: 1,
+      weaponId: 'bow',
+      attacks: [{
+        id: 'shot',
+        displayName: 'Shot',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 4,
+        damage: 1,
+        damageType: 'pierce',
+        hitChance: 100,
+      }],
+    });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10, mpRemaining: 3 });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    }, { kind: 'move', toTileX: 13, toTileY: 10 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({ kind: 'moved' });
+    expect((outcome as { reactions?: unknown[] }).reactions).toBeUndefined();
+    expect(next.participants.find((p) => p.id === 'player')?.reactionRemaining).toBe(1);
   });
 
   it('clamps final hit chance between 0 and 99 percent', () => {

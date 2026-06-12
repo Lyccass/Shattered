@@ -15,6 +15,11 @@ import { TaskJournalState } from '../tasks/TaskJournalState';
 import type { TurnCombatAbility } from '../combat/turn/TurnCombatTypes';
 import type { AbilitySlotType } from '../combat/abilities/CombatAbilityDefinitions';
 
+type CombatCooldownSnapshot = {
+  attackCooldowns: Record<string, number>;
+  abilityCooldowns: Record<string, number>;
+};
+
 export class PlayerSessionState {
   private readonly inventoryState = new PlayerInventoryState();
   private readonly currencyState = new PlayerCurrencyState();
@@ -26,6 +31,10 @@ export class PlayerSessionState {
   );
   private readonly equipmentState = new PlayerEquipmentState();
   private readonly spellbookState = new PlayerSpellbookState();
+  private combatCooldowns: CombatCooldownSnapshot = {
+    attackCooldowns: {},
+    abilityCooldowns: {},
+  };
 
   getInventoryState(): PlayerInventoryState {
     return this.inventoryState;
@@ -73,6 +82,20 @@ export class PlayerSessionState {
 
   equipSpellbookAbility(slotType: AbilitySlotType, slotIndex: number, abilityId: string | null): boolean {
     return this.spellbookState.equip(slotType, slotIndex, abilityId, (skillId) => this.getSkillLevel(skillId));
+  }
+
+  getCombatCooldownSnapshot(): CombatCooldownSnapshot {
+    return {
+      attackCooldowns: { ...this.combatCooldowns.attackCooldowns },
+      abilityCooldowns: { ...this.combatCooldowns.abilityCooldowns },
+    };
+  }
+
+  setCombatCooldownSnapshot(snapshot: CombatCooldownSnapshot): void {
+    this.combatCooldowns = {
+      attackCooldowns: sanitizeCooldowns(snapshot.attackCooldowns),
+      abilityCooldowns: sanitizeCooldowns(snapshot.abilityCooldowns),
+    };
   }
 
   getTaskJournalState(): TaskJournalState {
@@ -166,6 +189,7 @@ export class PlayerSessionState {
       activeEffects: this.effectSystem.createSaveSnapshot(nowMs),
       equippedSlots: this.equipmentState.createSaveSnapshot(),
       spellbookLoadout: this.spellbookState.createSaveSnapshot(),
+      combatCooldowns: this.getCombatCooldownSnapshot(),
     };
   }
 
@@ -183,5 +207,18 @@ export class PlayerSessionState {
       this.equipmentState.restoreSaveSnapshot(snapshot.equippedSlots);
     }
     this.spellbookState.restoreSaveSnapshot(snapshot.spellbookLoadout);
+    this.setCombatCooldownSnapshot({
+      attackCooldowns: snapshot.combatCooldowns?.attackCooldowns ?? {},
+      abilityCooldowns: snapshot.combatCooldowns?.abilityCooldowns ?? {},
+    });
   }
+}
+
+function sanitizeCooldowns(cooldowns: Record<string, number>): Record<string, number> {
+  const sanitized: Record<string, number> = {};
+  for (const [id, value] of Object.entries(cooldowns)) {
+    const remaining = Math.max(0, Math.floor(value));
+    if (remaining > 0) sanitized[id] = remaining;
+  }
+  return sanitized;
 }

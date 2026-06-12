@@ -165,7 +165,11 @@ export class UIOverlayManager {
   /** Toggle a sidebar tab (open if closed, close if open). */
   toggleTab(tabId: TabId): boolean {
     const wasOpen = this.taskbarPanel.isTabOpen(tabId);
-    this.taskbarPanel.openTab(tabId);
+    if (wasOpen) {
+      this.taskbarPanel.closePanel();
+    } else {
+      this.taskbarPanel.openTab(tabId);
+    }
     return !wasOpen;
   }
 

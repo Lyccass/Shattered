@@ -19,7 +19,9 @@ export const ALL_EQUIPMENT_SLOTS: EquipmentSlot[] = [
 
 export type PhysicalDamageType = 'slash' | 'pierce' | 'crush';
 
-export type WeaponArchetype = 'fists' | 'sword' | 'axe' | 'hammer' | 'spear' | 'dagger';
+export type WeaponArchetype = 'fists' | 'sword' | 'axe' | 'hammer' | 'spear' | 'dagger' | 'bow';
+
+export const RANGED_ARCHETYPES: ReadonlySet<WeaponArchetype> = new Set(['bow']);
 
 // Shape of the player's attack hitbox — owned by each weapon definition.
 // arc   = swinging weapon; creates a fan/cone in front of the player.

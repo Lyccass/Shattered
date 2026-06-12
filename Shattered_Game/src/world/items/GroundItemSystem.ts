@@ -9,6 +9,12 @@ type DropVisuals = {
   container: Phaser.GameObjects.Container;
 };
 
+export type SpawnedLootDrop = {
+  itemId: string;
+  count: number;
+  label: string;
+};
+
 let dropCounter = 0;
 
 export class GroundItemSystem {
@@ -44,15 +50,24 @@ export class GroundItemSystem {
     worldX: number,
     worldY: number,
     nowMs: number,
-  ): void {
+  ): SpawnedLootDrop[] {
+    const spawned: SpawnedLootDrop[] = [];
     const despawnAtMs = nowMs + 300_000;
     for (const table of lootTables) {
       if (Math.random() >= 1 / table.oneIn) continue;
       const entry = pickWeighted(table.entries);
       if (!entry) continue;
       const count = entry.count ?? 1;
-      if (count > 0) this.spawnDrop(mapId, entry.itemId, count, worldX, worldY, nowMs, despawnAtMs);
+      if (count > 0) {
+        this.spawnDrop(mapId, entry.itemId, count, worldX, worldY, nowMs, despawnAtMs);
+        spawned.push({
+          itemId: entry.itemId,
+          count,
+          label: getInventoryItemMeta(entry.itemId).label,
+        });
+      }
     }
+    return spawned;
   }
 
   tick(nowMs: number): void {

@@ -67,6 +67,7 @@ export class PlayerInventoryState {
   }
 
   consume(id: string, amount = 1): boolean {
+    if (amount <= 0) return false;
     if (!this.hasAtLeast(id, amount)) return false;
     this.stacks[id] = (this.stacks[id] ?? 0) - amount;
     if (this.stacks[id] === 0) delete this.stacks[id];

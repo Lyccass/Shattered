@@ -8,9 +8,11 @@ import type { PlayerFacingDirection } from '../../player/PlayerFacing';
 import type { GameEventBus } from '../../events/GameEventBus';
 import type { SkillXpDelta, LevelUpEvent } from '../../skills/SkillTypes';
 import { levelToRankStage } from '../../skills/SkillTypes';
-import type { PlayerDerivedStats } from '../../equipment/EquipmentTypes';
+import type { PlayerDerivedStats, WeaponArchetype } from '../../equipment/EquipmentTypes';
+import { RANGED_ARCHETYPES } from '../../equipment/EquipmentTypes';
 import { TurnActionPreviewRenderer } from './TurnActionPreviewRenderer';
 import {
+  addParticipantsToCombatState,
   applyAction,
   buildUiSnapshot,
   createCombatState,
@@ -48,6 +50,17 @@ type AnimStep =
   | { kind: 'hit_flash';     targetId: string; durationMs: number }
   | { kind: 'delay';         durationMs: number };
 
+type CombatCooldownSnapshot = {
+  attackCooldowns: Record<string, number>;
+  abilityCooldowns: Record<string, number>;
+};
+
+type CombatLootDropSummary = {
+  itemId: string;
+  count: number;
+  label: string;
+};
+
 const ENEMY_MOVE_TWEEN_MS  = 280;
 const ENEMY_ATTACK_WAIT_MS = 420;
 const ENEMY_TURN_DELAY_MS  = 180;
@@ -55,7 +68,7 @@ const PLAYER_MAIN_ACTIONS_PER_TURN      = 1;
 const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
 const PLAYER_MOVE_POINTS_PER_TURN       = 5;
 const PLAYER_HP_REGEN_INTERVAL_MS       = 60_000;
-const AUTO_FLEE_DISTANCE = 8;
+const AUTO_FLEE_DISTANCE = 12;
 const PLAYER_BASE_MAGIC_RESOURCE_MAX = 4;
 const PLAYER_BASE_DEVOTION_RESOURCE_MAX = 4;
 
@@ -88,6 +101,9 @@ export class TurnCombatSession {
   private equippedTurnAbilities: TurnCombatAbility[] = [];
   private equippedCompanions: EquippedCompanionSlots = {};
   private companionVisuals: Map<string, CompanionVisualController> = new Map();
+  private defeatedEnemyNames: string[] = [];
+  private droppedLootSummary: CombatLootDropSummary[] = [];
+  private recordedDefeats = new Set<string>();
 
   private readonly previewRenderer: TurnActionPreviewRenderer;
   private readonly hitsplatRenderer: HitsplatRenderer;
@@ -97,8 +113,16 @@ export class TurnCombatSession {
   // Callbacks
   private onCombatEnd?: (event: CombatEndEvent) => void;
   private onCombatXp?: (delta: SkillXpDelta) => LevelUpEvent[];
-  private onEnemyKilledForLoot?: (spawnId: string, areaId: string | undefined, lootTableId: string | undefined, worldX: number, worldY: number) => void;
+  private onEnemyKilledForLoot?: (
+    spawnId: string,
+    areaId: string | undefined,
+    lootTableId: string | undefined,
+    worldX: number,
+    worldY: number,
+  ) => CombatLootDropSummary[];
   private onCombatLog?: (line: string) => void;
+  private getPersistedCooldowns?: () => CombatCooldownSnapshot;
+  private setPersistedCooldowns?: (snapshot: CombatCooldownSnapshot) => void;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -170,6 +194,7 @@ export class TurnCombatSession {
     this.persistedPlayerMaxHp = maxHp;
     this.persistedMagicResource = this.magicResourceMax;
     this.persistedDevotionResource = this.devotionResourceMax;
+    this.clearPersistedCooldowns();
   }
 
   setEquippedCompanions(slots: EquippedCompanionSlots): void {
@@ -189,7 +214,13 @@ export class TurnCombatSession {
   }
 
   onEnemyKilled(
-    cb: (spawnId: string, areaId: string | undefined, lootTableId: string | undefined, worldX: number, worldY: number) => void,
+    cb: (
+      spawnId: string,
+      areaId: string | undefined,
+      lootTableId: string | undefined,
+      worldX: number,
+      worldY: number,
+    ) => CombatLootDropSummary[],
   ): void {
     this.onEnemyKilledForLoot = cb;
   }
@@ -200,6 +231,14 @@ export class TurnCombatSession {
 
   setConsumeCallback(cb: (itemId: string) => boolean): void {
     this.onConsumeItemCallback = cb;
+  }
+
+  setCooldownPersistence(
+    getSnapshot: () => CombatCooldownSnapshot,
+    setSnapshot: (snapshot: CombatCooldownSnapshot) => void,
+  ): void {
+    this.getPersistedCooldowns = getSnapshot;
+    this.setPersistedCooldowns = setSnapshot;
   }
 
   /** Restore HP outside of combat (eating/drinking in explore mode). */
@@ -223,6 +262,8 @@ export class TurnCombatSession {
       this.previewRenderer.update(null, this.buildTileCtx());
       return;
     }
+
+    this.checkAggroJoinCombat(nowMs);
 
     // Update previews every frame — must reflect attack-mode selection immediately,
     // even while the anim queue is draining (e.g. post-enemy-turn delay).
@@ -457,8 +498,17 @@ export class TurnCombatSession {
           this.selectedPlayerAbilityId = null;
           return abilityResult;
         }
+        // Ability failed (out of range / no resource) — restore selection and try to move closer
         this._isAttackMode = savedMode;
         this.selectedPlayerAbilityId = savedAbilityId;
+        const active = getActiveParticipant(this.combatState);
+        if (active && active.mpRemaining > 0) {
+          const approach = getBestApproachTile(
+            active, targetParticipant.tileX, targetParticipant.tileY,
+            this.combatState, this.buildTileCtx(),
+          );
+          if (approach) return this.tryPlayerMove(approach.x, approach.y);
+        }
         return abilityResult;
       }
 
@@ -535,6 +585,38 @@ export class TurnCombatSession {
     this.enterCombat(playerTile.x, playerTile.y, aggroEnemies, nowMs);
   }
 
+  private checkAggroJoinCombat(_nowMs: number): void {
+    if (!this.combatState || this.combatState.phase === 'combat_ended') return;
+
+    const playerSide = this.combatState.participants.filter(
+      (participant) =>
+        participant.hp > 0 &&
+        (participant.kind === 'player' || participant.kind === 'companion'),
+    );
+    if (playerSide.length === 0) return;
+
+    const joiners = this.enemySystems.filter(
+      (es) =>
+        es.isAlive() &&
+        !es.inCombat &&
+        es.wouldAggro() &&
+        playerSide.some((participant) => es.isInAggroRange(participant.tileX, participant.tileY)),
+    );
+    if (joiners.length === 0) return;
+
+    const focus = playerSide[0];
+    const participants = joiners
+      .map((es) => this.buildEnemyParticipant(es, focus.tileX, focus.tileY))
+      .filter(Boolean) as TurnParticipant[];
+    if (participants.length === 0) return;
+
+    this.combatState = addParticipantsToCombatState(this.combatState, participants);
+    for (const participant of participants) {
+      this.emitCombatLog(`${participant.name} joins the fight.`);
+    }
+    this.eventBus.emitSfx('combat_hit');
+  }
+
   /**
    * Triggered when the player explicitly clicks an enemy while in combat stance
    * (explore mode + combat toggle active). Works for passive AND aggressive enemies.
@@ -595,6 +677,10 @@ export class TurnCombatSession {
     if (this.persistedDevotionResource === null) this.persistedDevotionResource = this.devotionResourceMax;
     const playerAttacks = buildPlayerTurnAttacks(this.derivedStats);
     const playerAbilities = this.equippedTurnAbilities.map((ability) => ({ ...ability }));
+    const storedCooldowns = this.getPersistedCooldowns?.() ?? {
+      attackCooldowns: {},
+      abilityCooldowns: {},
+    };
     const playerFacing = playerFacingToTurnVector(
       this.playerController?.getFacingDirection() ?? 'down',
     );
@@ -620,7 +706,7 @@ export class TurnCombatSession {
       devotionResourceMax: this.devotionResourceMax,
       devotionResourceRemaining: this.persistedDevotionResource ?? this.devotionResourceMax,
       reactionRemaining: 1,
-      initiative:      5,
+      initiative:      this.derivedStats.combatLevel,
       attackPower:     this.derivedStats.attack,
       hitChance:       this.derivedStats.accuracy,
       defensePower:    Math.floor(this.derivedStats.physicalDefence / 10),
@@ -629,9 +715,9 @@ export class TurnCombatSession {
       crushDefence:    Math.floor(this.derivedStats.crushDefence / 10),
       attackRangeTiles: Math.max(...playerAttacks.map((attack) => attack.maxRangeTiles)),
       attacks:         playerAttacks,
-      attackCooldowns: {},
+      attackCooldowns: { ...storedCooldowns.attackCooldowns },
       abilities:       playerAbilities,
-      abilityCooldowns: {},
+      abilityCooldowns: { ...storedCooldowns.abilityCooldowns },
       stagger:         0,
       staggerThreshold: Math.max(10, Math.ceil(this.derivedStats.staggerThreshold / 10)),
       weaponId:        this.derivedStats.weaponArchetype,
@@ -639,74 +725,17 @@ export class TurnCombatSession {
     };
 
     const enemyParticipants: TurnParticipant[] = enemySystems
-      .map((es) => {
-        const record = es.getRecord();
-        const def    = es.getDefinition();
-        if (!record || !def) return null;
-
-        es.setInCombat(true);
-        const facing = getTurnFacingFromDelta(playerTileX - record.tileX, playerTileY - record.tileY);
-        return {
-          id:              record.id,
-          kind:            'enemy' as const,
-          name:            def.displayName,
-          tileX:           record.tileX,
-          tileY:           record.tileY,
-          facingX:         facing.facingX,
-          facingY:         facing.facingY,
-          hp:              record.hp,
-          maxHp:           record.maxHp,
-          apMax:           def.apPerTurn,
-          mpMax:           def.mpPerTurn,
-          apRemaining:     def.apPerTurn,
-          mpRemaining:     def.mpPerTurn,
-          magicResourceMax: 0,
-          magicResourceRemaining: 0,
-          devotionResourceMax: 0,
-          devotionResourceRemaining: 0,
-          reactionRemaining: 1,
-          initiative:      def.initiative,
-          attackPower:     def.attacks[0]?.damage ?? 1,
-          hitChance:       def.attacks[0]?.hitChance,
-          defensePower:    def.defense,
-          slashDefence:    def.defense,
-          pierceDefence:   def.defense,
-          crushDefence:    def.defense,
-          attackRangeTiles: Math.max(1, ...def.attacks.map((attack) => attack.maxRangeTiles)),
-          attacks:         def.attacks.map((attack) => ({
-            id: attack.id,
-            displayName: attack.displayName,
-            apCost: attack.apCost,
-            minRangeTiles: attack.minRangeTiles,
-            maxRangeTiles: attack.maxRangeTiles,
-            damage: attack.damage,
-            damageType: attack.damageType ?? 'slash',
-            hitChance: attack.hitChance,
-            statusEffect: attack.statusEffect ? {
-              kind: attack.statusEffect.kind,
-              turns: attack.statusEffect.turns,
-              value: attack.statusEffect.value,
-            } : undefined,
-            cooldownTurns: attack.cooldownTurns ?? 0,
-            telegraph: attack.telegraph ? { ...attack.telegraph } : undefined,
-            forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
-          })),
-          attackCooldowns: {},
-          stagger:         0,
-          staggerThreshold: 10,
-          definitionId:    def.id,
-          spawnId:         record.id,
-          areaId:          undefined,
-          lootTableId:     undefined,
-          statusEffects:   [],
-        };
-      })
+      .map((es) => this.buildEnemyParticipant(es, playerTileX, playerTileY))
       .filter(Boolean) as TurnParticipant[];
 
     if (enemyParticipants.length === 0) return;
 
+    this.defeatedEnemyNames = [];
+    this.droppedLootSummary = [];
+    this.recordedDefeats.clear();
+
     const companionParticipants = this.buildCompanionParticipants(
-      playerTileX, playerTileY, enemyParticipants,
+      playerTileX, playerTileY, enemyParticipants, this.buildTileCtx(),
     );
 
     this.combatState = createCombatState([
@@ -730,10 +759,78 @@ export class TurnCombatSession {
     this.eventBus.emitSfx('combat_hit');
   }
 
+  private buildEnemyParticipant(
+    es: EnemySystem,
+    focusTileX: number,
+    focusTileY: number,
+  ): TurnParticipant | null {
+    const record = es.getRecord();
+    const def    = es.getDefinition();
+    if (!record || !def) return null;
+
+    es.setInCombat(true);
+    const facing = getTurnFacingFromDelta(focusTileX - record.tileX, focusTileY - record.tileY);
+    return {
+      id:              record.id,
+      kind:            'enemy',
+      name:            def.displayName,
+      tileX:           record.tileX,
+      tileY:           record.tileY,
+      facingX:         facing.facingX,
+      facingY:         facing.facingY,
+      hp:              record.hp,
+      maxHp:           record.maxHp,
+      apMax:           def.apPerTurn,
+      mpMax:           def.mpPerTurn,
+      apRemaining:     def.apPerTurn,
+      mpRemaining:     def.mpPerTurn,
+      magicResourceMax: 0,
+      magicResourceRemaining: 0,
+      devotionResourceMax: 0,
+      devotionResourceRemaining: 0,
+      reactionRemaining: 1,
+      initiative:      def.initiative,
+      attackPower:     def.attacks[0]?.damage ?? 1,
+      hitChance:       def.attacks[0]?.hitChance,
+      defensePower:    def.defense,
+      slashDefence:    def.defense,
+      pierceDefence:   def.defense,
+      crushDefence:    def.defense,
+      attackRangeTiles: Math.max(1, ...def.attacks.map((attack) => attack.maxRangeTiles)),
+      attacks:         def.attacks.map((attack) => ({
+        id: attack.id,
+        displayName: attack.displayName,
+        apCost: attack.apCost,
+        minRangeTiles: attack.minRangeTiles,
+        maxRangeTiles: attack.maxRangeTiles,
+        damage: attack.damage,
+        damageType: attack.damageType ?? 'slash',
+        hitChance: attack.hitChance,
+        statusEffect: attack.statusEffect ? {
+          kind: attack.statusEffect.kind,
+          turns: attack.statusEffect.turns,
+          value: attack.statusEffect.value,
+        } : undefined,
+        cooldownTurns: attack.cooldownTurns ?? 0,
+        telegraph: attack.telegraph ? { ...attack.telegraph } : undefined,
+        forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
+      })),
+      attackCooldowns: {},
+      stagger:         0,
+      staggerThreshold: 10,
+      definitionId:    def.id,
+      spawnId:         record.id,
+      areaId:          undefined,
+      lootTableId:     undefined,
+      statusEffects:   [],
+    };
+  }
+
   private buildCompanionParticipants(
     playerTileX: number,
     playerTileY: number,
     enemyParticipants: TurnParticipant[],
+    tileCtx: TurnTileContext,
   ): TurnParticipant[] {
     const occupied = new Set<string>(
       enemyParticipants.map((p) => `${p.tileX},${p.tileY}`),
@@ -762,6 +859,8 @@ export class TurnCombatSession {
       for (const [dx, dy] of SLOT_OFFSETS[i]) {
         const tx = playerTileX + dx;
         const ty = playerTileY + dy;
+        if (tx < 0 || ty < 0 || tx >= tileCtx.mapWidth || ty >= tileCtx.mapHeight) continue;
+        if (!tileCtx.isTileWalkable(tx, ty)) continue;
         const key = `${tx},${ty}`;
         if (!occupied.has(key)) {
           spawnTile = { x: tx, y: ty };
@@ -794,6 +893,9 @@ export class TurnCombatSession {
         initiative: def.initiative,
         attackPower: def.attackPower,
         defensePower: def.defensePower,
+        slashDefence:  def.slashDefence  ?? def.defensePower,
+        pierceDefence: def.pierceDefence ?? def.defensePower,
+        crushDefence:  def.crushDefence  ?? def.defensePower,
         attackRangeTiles: def.attackRangeTiles,
         attacks: def.attacks.map((a) => ({ ...a })),
         attackCooldowns: {},
@@ -815,6 +917,7 @@ export class TurnCombatSession {
     const { outcome, state: next } = applyAction(this.combatState, action, this.buildTileCtx());
     this.combatState = next;
     this.handleOutcome(outcome);
+    this.persistCurrentPlayerCooldowns();
     if (next.phase === 'combat_ended' && next.endReason) {
       this.deferOrFinalizeCombat(next.endReason);
     }
@@ -900,6 +1003,22 @@ export class TurnCombatSession {
     return participant?.name ?? participantId;
   }
 
+  private recordEnemyDefeat(es: EnemySystem): void {
+    const spawnId = es.getSpawnId();
+    if (spawnId && this.recordedDefeats.has(spawnId)) return;
+
+    const pos = es.getWorldPosition();
+    const def = es.getDefinition();
+    if (def) this.defeatedEnemyNames.push(def.displayName);
+    if (spawnId) this.recordedDefeats.add(spawnId);
+
+    es.recordDeath(this.scene.time.now);
+    if (spawnId && pos && def) {
+      const drops = this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y) ?? [];
+      this.droppedLootSummary.push(...drops);
+    }
+  }
+
   private handleOutcome(outcome: ActionOutcome): void {
     this.logOutcome(outcome);
 
@@ -913,8 +1032,10 @@ export class TurnCombatSession {
           if (outcome.hit) targetEs.flashHit(this.scene.time.now);
 
           if (outcome.actorId === 'player' && outcome.hit && outcome.damage > 0) {
-            const meleeXp = outcome.damage * 4;
-            this.onCombatXp?.({ melee: meleeXp });
+            const xp = outcome.damage * 4;
+            const playerP = this.combatState?.participants.find((p) => p.id === 'player');
+            const isRanged = isRangedWeaponId(playerP?.weaponId);
+            this.onCombatXp?.(isRanged ? { ranged: xp } : { melee: xp });
           }
         } else if (outcome.targetId === 'player') {
           const feet = this.playerController?.getFeetPoint();
@@ -943,21 +1064,26 @@ export class TurnCombatSession {
 
         if (outcome.killed) {
           const es = this.findEnemySystem(outcome.targetId);
-          if (es) {
-            const pos  = es.getWorldPosition();
-            const def  = es.getDefinition();
-            const spawnId = es.getSpawnId();
-            es.recordDeath(this.scene.time.now);
-            if (spawnId && pos && def) {
-              this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y);
-            }
-          }
+          if (es) this.recordEnemyDefeat(es);
           // Hide companion sprite when it's killed
           const killedVc = this.companionVisuals.get(outcome.targetId);
           if (killedVc) killedVc.destroy();
           this.companionVisuals.delete(outcome.targetId);
         }
         if (outcome.pushed) this.handleForcedMovementVisual(outcome.pushed);
+
+        // Show enemy attacker posing for a beat when it lands a hit on the player/companion
+        if (outcome.hit && outcome.actorId !== 'player') {
+          const actorP = this.combatState?.participants.find((p) => p.id === outcome.actorId);
+          if (actorP?.kind === 'enemy') {
+            this.animQueue.push({
+              kind: 'attack_flash',
+              attackerId: outcome.actorId,
+              targetId: outcome.targetId,
+              durationMs: 360,
+            });
+          }
+        }
         break;
       }
 
@@ -988,15 +1114,7 @@ export class TurnCombatSession {
 
         if (outcome.killed) {
           const es = this.findEnemySystem(outcome.targetId);
-          if (es) {
-            const pos  = es.getWorldPosition();
-            const def  = es.getDefinition();
-            const spawnId = es.getSpawnId();
-            es.recordDeath(this.scene.time.now);
-            if (spawnId && pos && def) {
-              this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y);
-            }
-          }
+          if (es) this.recordEnemyDefeat(es);
         }
         if (outcome.actorId === 'player') {
           const xpAmount = Math.max(
@@ -1026,8 +1144,10 @@ export class TurnCombatSession {
           if (outcome.hit) targetEs.flashHit(this.scene.time.now);
 
           if (outcome.actorId === 'player' && outcome.hit && outcome.damage > 0) {
-            const meleeXp = outcome.damage * 4;
-            this.onCombatXp?.({ melee: meleeXp });
+            const xp = outcome.damage * 4;
+            const playerP = this.combatState?.participants.find((p) => p.id === 'player');
+            const isRanged = isRangedWeaponId(playerP?.weaponId);
+            this.onCombatXp?.(isRanged ? { ranged: xp } : { melee: xp });
           }
         } else if (outcome.targetId === 'player') {
           const feet = this.playerController?.getFeetPoint();
@@ -1044,15 +1164,7 @@ export class TurnCombatSession {
 
         if (outcome.killed) {
           const es = this.findEnemySystem(outcome.targetId);
-          if (es) {
-            const pos  = es.getWorldPosition();
-            const def  = es.getDefinition();
-            const spawnId = es.getSpawnId();
-            es.recordDeath(this.scene.time.now);
-            if (spawnId && pos && def) {
-              this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y);
-            }
-          }
+          if (es) this.recordEnemyDefeat(es);
         }
         if (outcome.actorMoved) this.handleTelegraphActorMoveVisual(outcome.actorMoved);
         if (outcome.pushed) this.handleForcedMovementVisual(outcome.pushed);
@@ -1122,6 +1234,9 @@ export class TurnCombatSession {
 
       case 'turn_ended':
         for (const tick of outcome.statusTicks ?? []) this.handleStatusTickVisual(tick, 360);
+        for (const exp of outcome.statusExpired ?? []) {
+          this.emitCombatLog(`${this.getParticipantName(exp.participantId)}'s ${exp.effectKind} fades.`);
+        }
         break;
 
       case 'combat_ended':
@@ -1148,6 +1263,7 @@ export class TurnCombatSession {
       this.handleOutcome(outcome);
       if (outcome.kind === 'combat_ended' || outcome.kind === 'fled') break;
     }
+    this.persistCurrentPlayerCooldowns();
     this.previewRenderer.update(
       this.combatState,
       this.buildTileCtx(),
@@ -1205,12 +1321,13 @@ export class TurnCombatSession {
       }
 
       case 'attack_flash': {
-        const targetEs = this.findEnemySystem(step.targetId);
-        if (targetEs) {
-          const record = this.combatState?.participants.find((p) => p.id === step.targetId);
-          const pos = targetEs.getWorldPosition();
-          if (record && pos) {
-            targetEs.applyVisualUpdate(pos.x, pos.y, false, record.hp, 'hurt', nowMs);
+        const attackerEs = this.findEnemySystem(step.attackerId);
+        const record = this.combatState?.participants.find((p) => p.id === step.attackerId);
+        if (attackerEs && record) {
+          const pos = attackerEs.getWorldPosition();
+          if (pos) {
+            attackerEs.applyVisualUpdate(pos.x, pos.y, false, record.hp,
+              elapsed >= step.durationMs ? 'idle' : 'attacking', nowMs);
           }
         }
         if (elapsed >= step.durationMs) this.shiftAnimQueue();
@@ -1255,6 +1372,30 @@ export class TurnCombatSession {
     this.finalizeCombat(reason);
   }
 
+  private persistCurrentPlayerCooldowns(): void {
+    const playerP = this.combatState?.participants.find((p) => p.id === 'player');
+    if (!playerP) return;
+    this.setPersistedCooldowns?.({
+      attackCooldowns: { ...(playerP.attackCooldowns ?? {}) },
+      abilityCooldowns: { ...(playerP.abilityCooldowns ?? {}) },
+    });
+  }
+
+  private clearPersistedCooldowns(): void {
+    this.setPersistedCooldowns?.({ attackCooldowns: {}, abilityCooldowns: {} });
+  }
+
+  private emitVictorySummary(): void {
+    if (this.defeatedEnemyNames.length > 0) {
+      this.emitCombatLog(`Defeated: ${summarizeNames(this.defeatedEnemyNames)}.`);
+    }
+    if (this.droppedLootSummary.length > 0) {
+      this.emitCombatLog(`Drops: ${summarizeLoot(this.droppedLootSummary)}.`);
+    } else {
+      this.emitCombatLog('Drops: none.');
+    }
+  }
+
   // ─── Private: combat end ──────────────────────────────────────────────────
 
   private finalizeCombat(reason: CombatEndReason): void {
@@ -1265,7 +1406,11 @@ export class TurnCombatSession {
       this.persistedPlayerHp = reason === 'player_died' ? 0 : playerP.hp;
       this.persistedMagicResource = playerP.magicResourceRemaining ?? this.persistedMagicResource;
       this.persistedDevotionResource = playerP.devotionResourceRemaining ?? this.persistedDevotionResource;
+      if (reason === 'player_fled') this.persistCurrentPlayerCooldowns();
+      else this.clearPersistedCooldowns();
     }
+
+    if (reason === 'victory') this.emitVictorySummary();
 
     for (const es of this.enemySystems) {
       if (es.inCombat) {
@@ -1297,6 +1442,9 @@ export class TurnCombatSession {
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
     this.selectedPlayerAbilityId = null;
+    this.defeatedEnemyNames = [];
+    this.droppedLootSummary = [];
+    this.recordedDefeats.clear();
     this.previewRenderer.clear();
     this.onCombatEnd?.({ reason, killedSpawnIds: killedIds.filter(Boolean) });
   }
@@ -1311,6 +1459,9 @@ export class TurnCombatSession {
     this._isAttackMode = false;
     this.selectedPlayerAttackId = null;
     this.selectedPlayerAbilityId = null;
+    this.defeatedEnemyNames = [];
+    this.droppedLootSummary = [];
+    this.recordedDefeats.clear();
   }
 
   // ─── Private: helpers ─────────────────────────────────────────────────────
@@ -1627,6 +1778,11 @@ function getTurnFacingFromDelta(dx: number, dy: number): Pick<TurnParticipant, '
   };
 }
 
+function isRangedWeaponId(weaponId: string | undefined): boolean {
+  if (!weaponId) return false;
+  return RANGED_ARCHETYPES.has(weaponId as WeaponArchetype);
+}
+
 function formatHitContext(hitChance: number | undefined, positionalModifier: number | undefined): string {
   const parts: string[] = [];
   if (hitChance !== undefined) parts.push(`${hitChance}%`);
@@ -1634,6 +1790,30 @@ function formatHitContext(hitChance: number | undefined, positionalModifier: num
     parts.push(`${positionalModifier > 0 ? '+' : ''}${positionalModifier} position`);
   }
   return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
+
+function summarizeNames(names: string[]): string {
+  const counts = new Map<string, number>();
+  for (const name of names) {
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([name, count]) => count > 1 ? `${name} x${count}` : name)
+    .join(', ');
+}
+
+function summarizeLoot(drops: CombatLootDropSummary[]): string {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const drop of drops) {
+    const existing = counts.get(drop.itemId);
+    counts.set(drop.itemId, {
+      label: drop.label,
+      count: (existing?.count ?? 0) + drop.count,
+    });
+  }
+  return [...counts.values()]
+    .map((drop) => drop.count > 1 ? `${drop.label} x${drop.count}` : drop.label)
+    .join(', ');
 }
 
 function getPersistentResourceMax(skillLevel: number, baseMax: number): number {

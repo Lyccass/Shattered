@@ -44,7 +44,10 @@ type FacingPatch = Pick<TurnParticipant, 'facingX' | 'facingY'>;
  * Shuffles initiative with a random 1–6 bonus so each fight feels different.
  */
 export function createCombatState(participants: TurnParticipant[]): TurnCombatState {
-  const withRoll = participants.map((p) => ({
+  const rollD10 = () => Math.floor(Math.random() * 10) + 1;
+
+  // Clone participants and add initial 1–10 roll on top of their base initiative
+  const cloned = participants.map((p) => ({
     ...p,
     statusEffects: [...p.statusEffects],
     attacks: cloneAttacks(p.attacks),
@@ -54,10 +57,25 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
     reactionRemaining: p.reactionRemaining ?? 1,
     facingX: p.facingX ?? 0,
     facingY: p.facingY ?? 1,
-    initiative: p.initiative + Math.floor(Math.random() * 6) + 1,
+    initiative: p.initiative + rollD10(),
   }));
 
-  withRoll.sort((a, b) => a.initiative - b.initiative);
+  // Detect ties and reroll just the tied participants once
+  const rolledVals = cloned.map((p) => p.initiative);
+  const tiedVals = new Set(rolledVals.filter((v, i) => rolledVals.indexOf(v) !== i));
+  const withRoll = tiedVals.size > 0
+    ? cloned.map((p, i) =>
+        tiedVals.has(p.initiative)
+          ? { ...p, initiative: participants[i].initiative + rollD10() }
+          : p,
+      )
+    : cloned;
+
+  // Sort ascending; persistent ties resolved by player > companion > enemy
+  withRoll.sort((a, b) => {
+    if (a.initiative !== b.initiative) return a.initiative - b.initiative;
+    return kindSortKey(a.kind) - kindSortKey(b.kind);
+  });
 
   const firstKind = withRoll[0]?.kind;
   const firstPhase: TurnPhase =
@@ -70,6 +88,47 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
     activeIndex: 0,
     round: 1,
     phase: firstPhase,
+  };
+}
+
+export function addParticipantsToCombatState(
+  state: TurnCombatState,
+  participants: TurnParticipant[],
+): TurnCombatState {
+  const existingIds = new Set(state.participants.map((p) => p.id));
+  const incoming = participants
+    .filter((p) => !existingIds.has(p.id))
+    .map((p) => ({
+      ...p,
+      statusEffects: [...p.statusEffects],
+      attacks: cloneAttacks(p.attacks),
+      abilities: cloneAbilities(p.abilities),
+      attackCooldowns: { ...(p.attackCooldowns ?? {}) },
+      abilityCooldowns: { ...(p.abilityCooldowns ?? {}) },
+      reactionRemaining: p.reactionRemaining ?? 1,
+      facingX: p.facingX ?? 0,
+      facingY: p.facingY ?? 1,
+      initiative: p.initiative + Math.floor(Math.random() * 10) + 1,
+    }));
+
+  if (incoming.length === 0) return state;
+
+  const activeId = state.turnOrderIds[state.activeIndex] ?? null;
+  const nextParticipants = [
+    ...cloneState(state).participants,
+    ...incoming,
+  ].sort((a, b) => {
+    if (a.initiative !== b.initiative) return a.initiative - b.initiative;
+    return kindSortKey(a.kind) - kindSortKey(b.kind);
+  });
+  const turnOrderIds = nextParticipants.map((p) => p.id);
+  const activeIndex = activeId ? Math.max(0, turnOrderIds.indexOf(activeId)) : state.activeIndex;
+
+  return {
+    ...state,
+    participants: nextParticipants,
+    turnOrderIds,
+    activeIndex,
   };
 }
 
@@ -175,6 +234,12 @@ export function advanceTurn(
       actorId,
       nextParticipantId: next.turnOrderIds[nextIndex] ?? null,
       statusTicks: ticked.outcomes,
+      ...(ticked.expired.length > 0 ? {
+        statusExpired: ticked.expired.map((effect) => ({
+          participantId: next.turnOrderIds[nextIndex] ?? '',
+          effectKind: effect.kind,
+        })),
+      } : {}),
     },
     state: next,
   };
@@ -250,6 +315,9 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
       secondaryActionRemaining: p.secondaryActionRemaining ?? 0,
       secondaryActionMax: p.secondaryActionMax ?? 0,
       statusEffects: p.statusEffects,
+      stagger: p.stagger ?? 0,
+      staggerThreshold: p.staggerThreshold ?? 10,
+      bleedMovementTiles: p.bleedMovementTiles ?? 0,
       attacks,
       attackCooldowns: { ...(p.attackCooldowns ?? {}) },
       magicResourceRemaining: p.magicResourceRemaining ?? 0,
@@ -512,11 +580,16 @@ function applyAttack(
   const staggerResult = hit && !killed
     ? resolveStaggerHit(target, attack.staggerDamage ?? 0)
     : { stagger: target.stagger ?? 0, statusApplied: undefined };
-  const appliedStatusEffects = [
-    ...target.statusEffects,
+  const incomingEffects = [
     ...(statusApplied && !killed ? [statusApplied] : []),
     ...(staggerResult.statusApplied ? [staggerResult.statusApplied] : []),
   ];
+  const appliedStatusEffects = incomingEffects.length > 0
+    ? [
+        ...target.statusEffects.filter((e) => !incomingEffects.some((n) => n.kind === e.kind)),
+        ...incomingEffects,
+      ]
+    : target.statusEffects;
 
   const nextCooldowns = {
     ...(actor.attackCooldowns ?? {}),
@@ -532,9 +605,7 @@ function applyAttack(
   next = updateParticipant(next, targetId, {
     hp: nextHp,
     stagger: staggerResult.stagger,
-    ...(appliedStatusEffects.length !== target.statusEffects.length
-      ? { statusEffects: appliedStatusEffects }
-      : {}),
+    ...(incomingEffects.length > 0 ? { statusEffects: appliedStatusEffects } : {}),
   });
 
   const pushed = hit && !killed && attack.forcedMovement
@@ -545,6 +616,11 @@ function applyAttack(
       tileX: pushed.toTile.x,
       tileY: pushed.toTile.y,
     });
+  }
+
+  // Stagger stun: push the stunned participant's turn to the end of the order
+  if (staggerResult.statusApplied?.kind === 'stunned') {
+    next = pushParticipantTurnToEnd(next, targetId);
   }
 
   // Check win condition before resolving status
@@ -752,7 +828,7 @@ function prepareTelegraphedAttack(
     forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
     originTile: { x: actor.tileX, y: actor.tileY },
     targetTile: { x: target.tileX, y: target.tileY },
-    tiles: buildTelegraphTiles(target.tileX, target.tileY, telegraphConfig, tileCtx),
+    tiles: buildTelegraphTiles(actor.tileX, actor.tileY, target.tileX, target.tileY, telegraphConfig, tileCtx),
   };
   const nextCooldowns = {
     ...(actor.attackCooldowns ?? {}),
@@ -879,34 +955,97 @@ function applyConsumeItem(
 }
 
 function buildTelegraphTiles(
+  actorTileX: number,
+  actorTileY: number,
   targetTileX: number,
   targetTileY: number,
   config: NonNullable<TurnAttack['telegraph']>,
   tileCtx: TurnTileContext,
-) {
-  const tiles: TurnTelegraphTile[] = [{
-    x: targetTileX,
-    y: targetTileY,
-    intensity: 'danger' as const,
-    damageMultiplier: 1,
-  }];
+): TurnTelegraphTile[] {
+  const warnMult = config.warningDamageMultiplier ?? 0.5;
 
-  if (config.pattern === 'target_plus_adjacent') {
-    const warningDamageMultiplier = config.warningDamageMultiplier ?? 0.5;
-    for (const [dx, dy] of DIRS_8) {
-      const x = targetTileX + dx;
-      const y = targetTileY + dy;
-      if (!isTileWithinBounds(x, y, tileCtx)) continue;
-      tiles.push({
-        x,
-        y,
-        intensity: 'warning' as const,
-        damageMultiplier: warningDamageMultiplier,
-      });
+  if (config.pattern === 'target' || config.pattern === 'target_plus_adjacent') {
+    const tiles: TurnTelegraphTile[] = [{
+      x: targetTileX, y: targetTileY,
+      intensity: 'danger', damageMultiplier: 1,
+    }];
+    if (config.pattern === 'target_plus_adjacent') {
+      for (const [ddx, ddy] of DIRS_8) {
+        const x = targetTileX + ddx;
+        const y = targetTileY + ddy;
+        if (!isTileWithinBounds(x, y, tileCtx)) continue;
+        tiles.push({ x, y, intensity: 'warning', damageMultiplier: warnMult });
+      }
     }
+    return tiles.filter((t) => isTileWithinBounds(t.x, t.y, tileCtx));
   }
 
-  return tiles.filter((tile) => isTileWithinBounds(tile.x, tile.y, tileCtx));
+  if (config.pattern === 'line') {
+    const dx = Math.sign(targetTileX - actorTileX);
+    const dy = Math.sign(targetTileY - actorTileY);
+    const safeDy = dx === 0 && dy === 0 ? 1 : dy;
+    const dist = chebyshevDist(actorTileX, actorTileY, targetTileX, targetTileY) || 1;
+    const length = config.length ?? dist;
+    const tiles: TurnTelegraphTile[] = [];
+    for (let step = 1; step <= length; step++) {
+      const x = actorTileX + dx * step;
+      const y = actorTileY + safeDy * step;
+      if (!isTileWithinBounds(x, y, tileCtx)) break;
+      tiles.push({
+        x, y,
+        intensity: step === dist ? 'danger' : 'warning',
+        damageMultiplier: step === dist ? 1 : warnMult,
+      });
+    }
+    return tiles;
+  }
+
+  if (config.pattern === 'cone') {
+    const halfAngleRad = ((config.angleDeg ?? 90) / 2) * (Math.PI / 180);
+    const range = chebyshevDist(actorTileX, actorTileY, targetTileX, targetTileY) || 1;
+    const dirX = targetTileX - actorTileX;
+    const dirY = targetTileY - actorTileY;
+    const dirLen = Math.hypot(dirX, dirY) || 1;
+    const normDirX = dirX / dirLen;
+    const normDirY = dirY / dirLen;
+    const tiles: TurnTelegraphTile[] = [];
+    for (let cdy = -range; cdy <= range; cdy++) {
+      for (let cdx = -range; cdx <= range; cdx++) {
+        const x = actorTileX + cdx;
+        const y = actorTileY + cdy;
+        if (!isTileWithinBounds(x, y, tileCtx)) continue;
+        if (chebyshevDist(actorTileX, actorTileY, x, y) > range) continue;
+        if (cdx === 0 && cdy === 0) continue;
+        const tileLen = Math.hypot(cdx, cdy);
+        const dot = (normDirX * cdx + normDirY * cdy) / tileLen;
+        if (Math.acos(Math.max(-1, Math.min(1, dot))) > halfAngleRad) continue;
+        const isCenter = x === targetTileX && y === targetTileY;
+        tiles.push({
+          x, y,
+          intensity: isCenter ? 'danger' : 'warning',
+          damageMultiplier: isCenter ? 1 : warnMult,
+        });
+      }
+    }
+    return tiles;
+  }
+
+  if (config.pattern === 'ring') {
+    const radius = Math.max(1, config.radius ?? 2);
+    const tiles: TurnTelegraphTile[] = [];
+    for (let rdy = -radius; rdy <= radius; rdy++) {
+      for (let rdx = -radius; rdx <= radius; rdx++) {
+        const x = actorTileX + rdx;
+        const y = actorTileY + rdy;
+        if (!isTileWithinBounds(x, y, tileCtx)) continue;
+        if (chebyshevDist(actorTileX, actorTileY, x, y) !== radius) continue;
+        tiles.push({ x, y, intensity: 'danger', damageMultiplier: 1 });
+      }
+    }
+    return tiles;
+  }
+
+  return [];
 }
 
 function buildTelegraphResolvedOutcome(
@@ -943,7 +1082,7 @@ function getForcedMovementResult(
   tileCtx: TurnTileContext,
   originTile = { x: actor.tileX, y: actor.tileY },
 ) {
-  if (forcedMovement.kind !== 'push' || forcedMovement.distance <= 0) return null;
+  if (forcedMovement.distance <= 0) return null;
 
   const target = state.participants.find((p) => p.id === targetId);
   if (!target) return null;
@@ -955,6 +1094,12 @@ function getForcedMovementResult(
     dy = Math.sign(target.tileY - actor.tileY);
   }
   if (dx === 0 && dy === 0) dy = 1;
+
+  // Pull: target moves toward the origin (negate push direction)
+  if (forcedMovement.kind === 'pull') {
+    dx = -dx;
+    dy = -dy;
+  }
 
   const fromTile = { x: target.tileX, y: target.tileY };
   let toTile = fromTile;
@@ -1040,14 +1185,15 @@ function isTileWithinBounds(tileX: number, tileY: number, tileCtx: TurnTileConte
 function tickStatusEffects(
   state: TurnCombatState,
   participantId: string,
-): { state: TurnCombatState; outcomes: Extract<ActionOutcome, { kind: 'status_tick' }>[] } {
+): { state: TurnCombatState; outcomes: Extract<ActionOutcome, { kind: 'status_tick' }>[]; expired: StatusEffect[] } {
   const participant = state.participants.find((p) => p.id === participantId);
-  if (!participant) return { state, outcomes: [] };
+  if (!participant) return { state, outcomes: [], expired: [] };
 
   let nextHp = participant.hp;
   let mpReduction = 0;
   const updated: StatusEffect[] = [];
   const outcomes: Extract<ActionOutcome, { kind: 'status_tick' }>[] = [];
+  const expired: StatusEffect[] = [];
 
   for (const effect of participant.statusEffects) {
     if (effect.kind === 'bleeding' || effect.kind === 'damage_over_time') {
@@ -1073,8 +1219,9 @@ function tickStatusEffects(
 
     if (effect.turnsRemaining > 1) {
       updated.push({ ...effect, turnsRemaining: effect.turnsRemaining - 1 });
+    } else {
+      expired.push(effect);
     }
-    // Expired effects are dropped
   }
 
   return {
@@ -1085,6 +1232,7 @@ function tickStatusEffects(
       bleedMovementTiles: 0,
     }),
     outcomes,
+    expired,
   };
 }
 
@@ -1281,7 +1429,12 @@ function resolveDisengageReactions(
     });
     next = updateParticipant(next, liveMover.id, {
       hp: nextHp,
-      ...(statusApplied ? { statusEffects: [...liveMover.statusEffects, statusApplied] } : {}),
+      ...(statusApplied ? {
+        statusEffects: [
+          ...liveMover.statusEffects.filter((e) => e.kind !== statusApplied.kind),
+          statusApplied,
+        ],
+      } : {}),
     });
 
     outcomes.push({
@@ -1310,6 +1463,7 @@ function resolveDisengageReactions(
 }
 
 function selectReactionAttack(actor: TurnParticipant, distance: number): TurnAttack | null {
+  if (actor.kind === 'player' && actor.weaponId === 'bow') return null;
   return getParticipantAttacks(actor).find((attack) => {
     if (attack.telegraph) return false;
     if ((actor.attackCooldowns?.[attack.id] ?? 0) > 0) return false;
@@ -1423,4 +1577,20 @@ function cloneAbilities(abilities: TurnCombatAbility[] | undefined): TurnCombatA
     ...ability,
     statusEffect: ability.statusEffect ? { ...ability.statusEffect } : undefined,
   }));
+}
+
+function pushParticipantTurnToEnd(state: TurnCombatState, participantId: string): TurnCombatState {
+  const idx = state.turnOrderIds.indexOf(participantId);
+  if (idx === -1 || idx === state.activeIndex) return state;
+  const newOrder = [...state.turnOrderIds];
+  newOrder.splice(idx, 1);
+  newOrder.push(participantId);
+  const newActiveIndex = idx < state.activeIndex
+    ? Math.max(0, state.activeIndex - 1)
+    : state.activeIndex;
+  return { ...state, turnOrderIds: newOrder, activeIndex: newActiveIndex };
+}
+
+function kindSortKey(kind: TurnParticipant['kind']): number {
+  return kind === 'player' ? 0 : kind === 'companion' ? 1 : 2;
 }

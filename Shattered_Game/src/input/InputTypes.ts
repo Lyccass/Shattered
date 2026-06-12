@@ -29,7 +29,7 @@ export type InputCallbacks = {
   onPlacementConfirm: () => void;
   onPlacementCancel: () => void;
 
-  // Toggle panels (available in all non-combat modes)
+  // Toggle panels (normal exploration mode only)
   onToggleInventory: () => void;
   onToggleJournal: () => void;
   onToggleSkills: () => void;

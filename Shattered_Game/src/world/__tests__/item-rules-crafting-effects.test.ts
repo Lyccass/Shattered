@@ -89,6 +89,15 @@ describe('evaluateItemPlacement', () => {
 });
 
 describe('ItemUseSystem', () => {
+  it('rejects non-positive inventory consumption without changing item counts', () => {
+    const inventory = new PlayerInventoryState();
+    inventory.add('warm_tea', 1);
+
+    expect(inventory.consume('warm_tea', 0)).toBe(false);
+    expect(inventory.consume('warm_tea', -3)).toBe(false);
+    expect(inventory.getCount('warm_tea')).toBe(1);
+  });
+
   it('consuming warm_tea applies the Warmth effect and consumes the item', () => {
     const inventory = new PlayerInventoryState();
     inventory.add('warm_tea', 1);

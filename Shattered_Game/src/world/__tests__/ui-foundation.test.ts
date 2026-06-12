@@ -23,8 +23,10 @@ describe('UiFormatters', () => {
     expect(text).not.toContain('Firestarter 1');
     expect(text).toContain('Effects Warmth 59s');
     expect(text).toContain('[I Inventory]');
-    expect(text).toContain('[B Place]');
-    expect(text).toContain('[T Drink]');
+    expect(text).toContain('[Inventory: Place Firestarter]');
+    expect(text).toContain('[Inventory: Drink Tea]');
+    expect(text).not.toContain('[B Place]');
+    expect(text).not.toContain('[T Drink]');
   });
 
   it('formats the dedicated inventory panel with full pouch contents', () => {

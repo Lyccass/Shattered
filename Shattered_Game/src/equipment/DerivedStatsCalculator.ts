@@ -25,6 +25,7 @@ function getArchetypeTimings(archetype: WeaponArchetype): { windupMs: number; ac
     case 'axe':    return { windupMs: 350, activeMs: 180 };
     case 'spear':  return { windupMs: 150, activeMs: 200 };
     case 'dagger': return { windupMs: 100, activeMs: 160 };
+    case 'bow':    return { windupMs: 450, activeMs: 140 };
   }
 }
 
