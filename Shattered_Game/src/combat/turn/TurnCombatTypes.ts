@@ -1,4 +1,4 @@
-export type TurnDamageType = 'slash' | 'pierce' | 'crush';
+export type TurnDamageType = 'slash' | 'pierce' | 'crush' | 'lightning';
 export type TurnAbilityKind = 'combat_spell' | 'devotion';
 export type TurnAbilityTarget = 'enemy' | 'self';
 
@@ -139,6 +139,7 @@ export type TurnParticipant = {
   slashDefence?: number;
   pierceDefence?: number;
   crushDefence?: number;
+  lightningDefence?: number;
   attackRangeTiles: number;
   attacks?: TurnAttack[];
   attackCooldowns?: Record<string, number>;
@@ -191,14 +192,17 @@ export type TurnAttackOutcome = {
   reaction?: boolean;
   hitChance?: number;
   positionalModifier?: number;
+  heightModifier?: number;
+  positionalMultiplier?: number;
+  heightMultiplier?: number;
 };
 
 export type ActionOutcome =
   | { kind: 'moved';       actorId: string; fromTile: { x: number; y: number }; toTile: { x: number; y: number }; path?: { x: number; y: number }[]; reactions?: TurnAttackOutcome[] }
   | TurnAttackOutcome
-  | { kind: 'ability_used'; actorId: string; abilityId: string; abilityName: string; abilityKind: TurnAbilityKind; targetId: string; damage?: number; healAmount?: number; newHp?: number; hit?: boolean; killed?: boolean; statusApplied?: StatusEffect; hitChance?: number; positionalModifier?: number }
+  | { kind: 'ability_used'; actorId: string; abilityId: string; abilityName: string; abilityKind: TurnAbilityKind; targetId: string; damage?: number; healAmount?: number; newHp?: number; hit?: boolean; killed?: boolean; statusApplied?: StatusEffect; hitChance?: number; positionalModifier?: number; heightModifier?: number; positionalMultiplier?: number; heightMultiplier?: number }
   | { kind: 'telegraph_prepared'; actorId: string; targetId: string; attackId: string; attackName: string; telegraphId: string; tiles: TurnTelegraphTile[] }
-  | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult; hitChance?: number; positionalModifier?: number }
+  | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult; hitChance?: number; positionalModifier?: number; heightModifier?: number; positionalMultiplier?: number; heightMultiplier?: number }
   | TurnStatusTickOutcome
   | { kind: 'guarded';      actorId: string; statusApplied: StatusEffect }
   | { kind: 'cleansed';     actorId: string; removedEffect: StatusEffect }

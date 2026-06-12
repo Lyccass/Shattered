@@ -130,7 +130,7 @@ export function chooseEnemyAction(
   if (!actor || actor.kind !== 'enemy') return { kind: 'end_turn' };
 
   // 1. Can we attack right now?
-  const attackChoice = chooseBestTargetAttack(actor, state);
+  const attackChoice = chooseBestTargetAttack(actor, state, tileCtx);
   if (attackChoice) {
     return {
       kind: 'attack',
@@ -270,13 +270,14 @@ function findRetreatTile(
 function chooseBestTargetAttack(
   actor: TurnParticipant,
   state: TurnCombatState,
+  tileCtx: TurnTileContext,
 ): { target: TurnParticipant; attack: TurnAttack } | null {
-  const targets = getAttackableTargets(actor, state)
+  const targets = getAttackableTargets(actor, state, tileCtx)
     .slice()
     .sort((a, b) => Number(b.kind === 'player') - Number(a.kind === 'player'));
 
   for (const target of targets) {
-    const attack = getUsableAttacks(actor, target)
+    const attack = getUsableAttacks(actor, target, tileCtx)
       .slice()
       .sort((a, b) => scoreAttack(b, target.mpRemaining) - scoreAttack(a, target.mpRemaining))[0] ?? null;
     if (attack) return { target, attack };

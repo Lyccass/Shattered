@@ -3,6 +3,7 @@ import {
   addParticipantsToCombatState,
   applyAction,
   advanceTurn,
+  calculateTurnHitChance,
   createCombatState,
   buildUiSnapshot,
   resolvePendingTelegraphsForActor,
@@ -18,6 +19,13 @@ const OPEN_CTX: TurnTileContext = {
   mapWidth: 64,
   mapHeight: 64,
 };
+
+function makeElevationCtx(elevations: Record<string, number>): TurnTileContext {
+  return {
+    ...OPEN_CTX,
+    getTerrainElevation: (tileX, tileY) => elevations[`${tileX},${tileY}`] ?? 0,
+  };
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -462,6 +470,28 @@ describe('attack action', () => {
       facingX: -1,
       facingY: 0,
     });
+    const sideAttacker = makePlayer({
+      ...attacker,
+      tileX: 11,
+      tileY: 9,
+    });
+    const sideTarget = makeEnemy('side', {
+      tileX: 11,
+      tileY: 10,
+      facingX: -1,
+      facingY: 0,
+    });
+    const diagonalRearAttacker = makePlayer({
+      ...attacker,
+      tileX: 10,
+      tileY: 9,
+    });
+    const diagonalRearTarget = makeEnemy('diag-rear', {
+      tileX: 11,
+      tileY: 10,
+      facingX: 1,
+      facingY: 0,
+    });
 
     const front = applyAction({
       participants: [attacker, frontTarget],
@@ -487,9 +517,27 @@ describe('attack action', () => {
       phase: 'player_turn' as const,
     }, { kind: 'attack', targetId: 'diag-front', attackId: 'punch' }, OPEN_CTX).outcome;
 
-    expect(front).toMatchObject({ kind: 'attacked', hitChance: 65, positionalModifier: -5 });
-    expect(diagonalFront).toMatchObject({ kind: 'attacked', hitChance: 68, positionalModifier: -2 });
-    expect(rear).toMatchObject({ kind: 'attacked', hitChance: 95, positionalModifier: 25 });
+    const side = applyAction({
+      participants: [sideAttacker, sideTarget],
+      turnOrderIds: ['player', 'side'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'side', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    const diagonalRear = applyAction({
+      participants: [diagonalRearAttacker, diagonalRearTarget],
+      turnOrderIds: ['player', 'diag-rear'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'attack', targetId: 'diag-rear', attackId: 'punch' }, OPEN_CTX).outcome;
+
+    expect(front).toMatchObject({ kind: 'attacked', hitChance: 70, positionalMultiplier: 1 });
+    expect(diagonalFront).toMatchObject({ kind: 'attacked', hitChance: 74, positionalMultiplier: 1.05 });
+    expect(side).toMatchObject({ kind: 'attacked', hitChance: 81, positionalMultiplier: 1.15 });
+    expect(diagonalRear).toMatchObject({ kind: 'attacked', hitChance: 84, positionalMultiplier: 1.2 });
+    expect(rear).toMatchObject({ kind: 'attacked', hitChance: 95, positionalMultiplier: 1.35 });
   });
 
   it('lets adjacent enemies use a reaction when a unit leaves melee range', () => {
@@ -647,6 +695,91 @@ describe('attack action', () => {
 
     expect(high).toMatchObject({ kind: 'attacked', hitChance: 99 });
     expect(low).toMatchObject({ kind: 'attacked', hitChance: 0 });
+  });
+
+  it('uses multiplicative height advantage for hit chance', () => {
+    const attacker = makePlayer({ tileX: 10, tileY: 10 });
+    const target = makeEnemy('e1', { tileX: 11, tileY: 10 });
+
+    const downhill = calculateTurnHitChance(
+      attacker,
+      target,
+      'pierce',
+      70,
+      makeElevationCtx({ '10,10': 2, '11,10': 0 }),
+    );
+    const uphill = calculateTurnHitChance(
+      attacker,
+      target,
+      'pierce',
+      70,
+      makeElevationCtx({ '10,10': 0, '11,10': 2 }),
+    );
+
+    expect(downhill.heightMultiplier).toBe(1.2);
+    expect(uphill.heightMultiplier).toBe(0.8);
+    expect(downhill.hitChance).toBeGreaterThan(uphill.hitChance);
+  });
+
+  it('uses lightning defence against lightning spells', () => {
+    const caster = makePlayer({ tileX: 10, tileY: 10 });
+    const wolfLikeTarget = makeEnemy('wolf', {
+      tileX: 11,
+      tileY: 10,
+      facingX: -1,
+      facingY: 0,
+      defensePower: 0,
+      lightningDefence: 3,
+    });
+
+    const hitContext = calculateTurnHitChance(caster, wolfLikeTarget, 'lightning', 85, OPEN_CTX);
+
+    expect(hitContext).toMatchObject({
+      hitChance: 70,
+      positionalMultiplier: 1,
+    });
+  });
+
+  it('extends ranged attack range by one tile per height advantage', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      weaponId: 'bow',
+      attacks: [{
+        id: 'bow_shot',
+        displayName: 'Bow Shot',
+        apCost: 1,
+        minRangeTiles: 2,
+        maxRangeTiles: 3,
+        damage: 1,
+        damageType: 'pierce',
+        hitChance: 100,
+      }],
+    });
+    const target = makeEnemy('e1', { tileX: 15, tileY: 10, hp: 10 });
+
+    const { outcome } = applyAction(
+      {
+        participants: [player, target],
+        turnOrderIds: ['player', 'e1'],
+        activeIndex: 0,
+        round: 1,
+        phase: 'player_turn' as const,
+      },
+      { kind: 'attack', targetId: 'e1', attackId: 'bow_shot' },
+      makeElevationCtx({ '10,10': 2, '15,10': 0 }),
+    );
+
+    expect(outcome).toMatchObject({
+      kind: 'attacked',
+      hit: true,
+      damage: 2,
+      heightMultiplier: 1.2,
+    });
   });
 
   it('cleanse spends the secondary action and removes one harmful status', () => {
@@ -816,6 +949,53 @@ describe('attack action', () => {
     const staggered = next.participants.find((p) => p.id === 'e1')!;
     expect(staggered.stagger).toBe(0);
     expect(staggered.statusEffects.some((effect) => effect.kind === 'stunned')).toBe(true);
+  });
+
+  it('moves a stagger-stunned target to the end of the turn order', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'hammer_crush',
+        displayName: 'Crush',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        hitChance: 100,
+        staggerDamage: 10,
+      }],
+    });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      hp: 10,
+      staggerThreshold: 10,
+    });
+    const laterEnemy = makeEnemy('e2', {
+      tileX: 15,
+      tileY: 10,
+      hp: 10,
+    });
+    const state = {
+      participants: [player, enemy, laterEnemy],
+      turnOrderIds: ['player', 'e1', 'e2'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1', attackId: 'hammer_crush' },
+      OPEN_CTX,
+    );
+
+    expect(next.turnOrderIds).toEqual(['player', 'e2', 'e1']);
   });
 
   it('defaults to the first usable attack and spends that main action cost', () => {
@@ -1279,6 +1459,70 @@ describe('stunned status effect', () => {
       OPEN_CTX,
     );
     expect(outcome.kind).toBe('turn_ended');
+  });
+
+  it('makes a one-turn stun applied by an attack skip the target next action', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+    });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      attacks: [{
+        id: 'slam',
+        displayName: 'Slam',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        hitChance: 100,
+        statusEffect: { kind: 'stunned', turns: 1, value: 0 },
+      }],
+    });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 1,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcome: attackOutcome, state: afterAttack } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'player', attackId: 'slam' },
+      OPEN_CTX,
+    );
+    expect(attackOutcome).toMatchObject({
+      kind: 'attacked',
+      statusApplied: { kind: 'stunned', turnsRemaining: 2 },
+    });
+
+    const { state: playerTurn } = advanceTurn(afterAttack);
+    const stunnedPlayer = playerTurn.participants.find((p) => p.id === 'player')!;
+    expect(stunnedPlayer.statusEffects).toMatchObject([{ kind: 'stunned', turnsRemaining: 1 }]);
+
+    const { outcome: skippedOutcome, state: afterSkipped } = applyAction(
+      playerTurn,
+      { kind: 'move', toTileX: 11, toTileY: 10 },
+      OPEN_CTX,
+    );
+    expect(skippedOutcome.kind).toBe('turn_ended');
+
+    const { state: nextPlayerTurn } = advanceTurn(afterSkipped);
+    const recoveredPlayer = nextPlayerTurn.participants.find((p) => p.id === 'player')!;
+    expect(recoveredPlayer.statusEffects.some((effect) => effect.kind === 'stunned')).toBe(false);
+
+    const { outcome: moveOutcome } = applyAction(
+      nextPlayerTurn,
+      { kind: 'move', toTileX: 10, toTileY: 11 },
+      OPEN_CTX,
+    );
+    expect(moveOutcome.kind).toBe('moved');
   });
 });
 

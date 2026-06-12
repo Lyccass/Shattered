@@ -726,6 +726,7 @@ export class TurnCombatSession {
       slashDefence:    Math.floor(this.derivedStats.slashDefence / 10),
       pierceDefence:   Math.floor(this.derivedStats.pierceDefence / 10),
       crushDefence:    Math.floor(this.derivedStats.crushDefence / 10),
+      lightningDefence: 0,
       attackRangeTiles: Math.max(...playerAttacks.map((attack) => attack.maxRangeTiles)),
       attacks:         playerAttacks,
       attackCooldowns: { ...storedCooldowns.attackCooldowns },
@@ -809,6 +810,7 @@ export class TurnCombatSession {
       slashDefence:    def.defense,
       pierceDefence:   def.defense,
       crushDefence:    def.defense,
+      lightningDefence: def.lightningDefence ?? def.defense,
       attackRangeTiles: Math.max(1, ...def.attacks.map((attack) => attack.maxRangeTiles)),
       attacks:         def.attacks.map((attack) => ({
         id: attack.id,
@@ -909,6 +911,7 @@ export class TurnCombatSession {
         slashDefence:  def.slashDefence  ?? def.defensePower,
         pierceDefence: def.pierceDefence ?? def.defensePower,
         crushDefence:  def.crushDefence  ?? def.defensePower,
+        lightningDefence: def.lightningDefence ?? def.defensePower,
         attackRangeTiles: def.attackRangeTiles,
         attacks: def.attacks.map((a) => ({ ...a })),
         attackCooldowns: {},
@@ -948,18 +951,16 @@ export class TurnCombatSession {
         const target = this.getParticipantName(outcome.targetId);
         const suffix = outcome.killed ? ' Defeated.' : '';
         const prefix = outcome.reaction ? 'Reaction: ' : '';
-        const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
-        this.emitCombatLog(outcome.hit
-          ? `${prefix}${actor} uses ${outcome.attackName} on ${target} for ${outcome.damage} damage${context}.${suffix}`
-          : `${prefix}${actor} uses ${outcome.attackName} on ${target}, but misses${context}.`);
+        const context = formatHitContext(outcome.hitChance, outcome.positionalMultiplier, outcome.heightMultiplier);
+        this.emitCombatLog(`${prefix}${actor} uses ${outcome.attackName} on ${target} for ${outcome.damage} damage${context}.${suffix}`);
         break;
       }
       case 'ability_used': {
         const actor = this.getParticipantName(outcome.actorId);
         const target = this.getParticipantName(outcome.targetId);
-        if ((outcome.damage ?? 0) > 0) {
+        if (outcome.damage !== undefined) {
           const suffix = outcome.killed ? ' Defeated.' : '';
-          const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
+          const context = formatHitContext(outcome.hitChance, outcome.positionalMultiplier, outcome.heightMultiplier);
           this.emitCombatLog(`${actor} casts ${outcome.abilityName} on ${target} for ${outcome.damage} damage${context}.${suffix}`);
         } else if ((outcome.healAmount ?? 0) > 0) {
           this.emitCombatLog(`${actor} uses ${outcome.abilityName} and restores ${outcome.healAmount} HP.`);
@@ -978,11 +979,11 @@ export class TurnCombatSession {
           this.emitCombatLog(`${target} avoids ${actor}'s ${outcome.attackName}.`);
         } else if (outcome.hit) {
           const suffix = outcome.killed ? ' Defeated.' : '';
-          const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
+          const context = formatHitContext(outcome.hitChance, outcome.positionalMultiplier, outcome.heightMultiplier);
           this.emitCombatLog(`${actor}'s ${outcome.attackName} hits ${target} for ${outcome.damage} damage${context}.${suffix}`);
         } else {
-          const context = formatHitContext(outcome.hitChance, outcome.positionalModifier);
-          this.emitCombatLog(`${actor}'s ${outcome.attackName} misses ${target}${context}.`);
+          const context = formatHitContext(outcome.hitChance, outcome.positionalMultiplier, outcome.heightMultiplier);
+          this.emitCombatLog(`${actor}'s ${outcome.attackName} hits ${target} for ${outcome.damage} damage${context}.`);
         }
         break;
       }
@@ -1716,12 +1717,14 @@ export class TurnCombatSession {
     if (!tilemap) {
       return {
         isTileWalkable: () => false,
+        getTerrainElevation: () => null,
         mapWidth: 0,
         mapHeight: 0,
       };
     }
     return {
       isTileWalkable: (tx, ty) => tilemap.isTileWalkable(tx, ty),
+      getTerrainElevation: (tx, ty) => tilemap.getTerrainElevation(tx, ty),
       mapWidth:  tilemap.width,
       mapHeight: tilemap.height,
     };
@@ -1859,12 +1862,15 @@ function isRangedWeaponId(weaponId: string | undefined): boolean {
   return RANGED_ARCHETYPES.has(weaponId as WeaponArchetype);
 }
 
-function formatHitContext(hitChance: number | undefined, positionalModifier: number | undefined): string {
+function formatHitContext(
+  hitChance: number | undefined,
+  positionalMultiplier: number | undefined,
+  heightMultiplier: number | undefined,
+): string {
   const parts: string[] = [];
   if (hitChance !== undefined) parts.push(`${hitChance}%`);
-  if (positionalModifier && positionalModifier !== 0) {
-    parts.push(`${positionalModifier > 0 ? '+' : ''}${positionalModifier} position`);
-  }
+  if (positionalMultiplier !== undefined && positionalMultiplier !== 1) parts.push(`position x${positionalMultiplier.toFixed(2)}`);
+  if (heightMultiplier !== undefined && heightMultiplier !== 1) parts.push(`height x${heightMultiplier.toFixed(2)}`);
   return parts.length > 0 ? ` (${parts.join(', ')})` : '';
 }
 

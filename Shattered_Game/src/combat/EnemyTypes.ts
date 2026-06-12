@@ -56,6 +56,8 @@ export type EnemyDefinition = {
   apPerTurn: number;
   /** Base defence (each point reduces enemy hit chance by 5%, min 10%). */
   defense: number;
+  /** Optional defence against lightning magic; defaults to base defence. */
+  lightningDefence?: number;
   /** Pixel speed used for visual move tweens. */
   moveSpeed: number;
   collisionRadiusTiles: number;

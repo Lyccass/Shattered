@@ -10,6 +10,7 @@ export const WOLF_AGGRESSIVE: EnemyDefinition = {
   mpPerTurn: 3,
   apPerTurn: 1,
   defense: 0,
+  lightningDefence: 3,
   behavior: 'aggressive',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.70,
   collisionRadiusTiles: 0.55,

@@ -17,12 +17,12 @@ export class HitsplatRenderer {
     color?: string,
   ): void {
     const offsetX = (Math.random() - 0.5) * 10;
-    const isMiss = damage === 0;
-    const textValue = isMiss ? 'Miss' : label ? `${label} -${damage}` : String(damage);
+    const isZero = damage === 0;
+    const textValue = label ? (isZero ? label : `${label} -${damage}`) : String(damage);
     const text = this.scene.add.text(worldX + offsetX, worldY - 36, textValue, {
       fontFamily: '"JetBrains Mono", monospace',
       fontSize: '14px',
-      color: color ?? (isMiss ? '#94a3b8' : '#facc15'),
+      color: color ?? (isZero ? '#94a3b8' : '#facc15'),
       stroke: '#000000',
       strokeThickness: 3,
     });

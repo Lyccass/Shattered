@@ -20,6 +20,7 @@ import type {
 } from './TurnCombatTypes';
 import {
   chebyshevDist,
+  getElevationDelta,
   getMovePath,
   getParticipantAttacks,
   getUsableAttacks,
@@ -32,6 +33,21 @@ const DIRS_8 = [
   [0, -1], [1, 0], [0, 1], [-1, 0],
   [1, -1], [1, 1], [-1, 1], [-1, -1],
 ] as const;
+
+const COMBAT_POSITION_TUNING = {
+  armourHitPenaltyPerPoint: 5,
+  facingMultiplierCurve: [
+    { alignment: 1, multiplier: 1.0 },
+    { alignment: Math.SQRT1_2, multiplier: 1.05 },
+    { alignment: 0, multiplier: 1.15 },
+    { alignment: -Math.SQRT1_2, multiplier: 1.2 },
+    { alignment: -1, multiplier: 1.35 },
+  ],
+  heightHitMultiplierPerStep: 0.1,
+  maxHeightSteps: 3,
+  maxHitBonusPerHeightStep: 0.5,
+  maxHeightMaxHitBonus: 2,
+} as const;
 
 type FacingValue = -1 | 0 | 1;
 type FacingVector = { x: FacingValue; y: FacingValue };
@@ -163,7 +179,7 @@ export function applyAction(
   switch (action.kind) {
     case 'move':    return applyMove(state, active, action.toTileX, action.toTileY, tileCtx);
     case 'attack':  return applyAttack(state, active, action.targetId, action.attackId, tileCtx);
-    case 'use_ability': return applyAbility(state, active, action.abilityId, action.targetId);
+    case 'use_ability': return applyAbility(state, active, action.abilityId, action.targetId, tileCtx);
     case 'guard':        return applyGuard(state, active);
     case 'cleanse':      return applyCleanse(state, active);
     case 'consume_item': return applyConsumeItem(state, active, action.itemId, action.healAmount);
@@ -359,8 +375,15 @@ export function calculateTurnHitChance(
   target: TurnParticipant,
   damageType: TurnAttack['damageType'],
   baseHitChance: number,
-): { hitChance: number; positionalModifier: number } {
-  return getResolvedHitChance(actor, target, damageType, baseHitChance);
+  tileCtx?: TurnTileContext,
+): {
+  hitChance: number;
+  positionalModifier: number;
+  heightModifier: number;
+  positionalMultiplier: number;
+  heightMultiplier: number;
+} {
+  return getResolvedHitChance(actor, target, damageType, baseHitChance, tileCtx);
 }
 
 export function resolvePendingTelegraphsForActor(
@@ -408,20 +431,23 @@ export function resolvePendingTelegraphsForActor(
       target,
       telegraph.damageType,
       telegraph.hitChance ?? actor.hitChance ?? 80,
+      tileCtx,
     );
     const hitChance = hitContext.hitChance;
     const hit = Math.random() * 100 < hitChance;
     const damage = hit
-      ? Math.max(1, Math.ceil(rollDamage(telegraph.damage) * hitTile.damageMultiplier))
+      ? Math.max(
+          1,
+          Math.ceil(
+            rollDamage(getHeightAdjustedMaxHit(telegraph.damage, actor, target, tileCtx)) *
+              hitTile.damageMultiplier,
+          ),
+        )
       : 0;
     const nextHp = Math.max(0, target.hp - damage);
     const killed = hit && nextHp <= 0;
     const statusApplied = hit && telegraph.statusEffect
-      ? {
-          kind: telegraph.statusEffect.kind,
-          turnsRemaining: telegraph.statusEffect.turns,
-          value: telegraph.statusEffect.value,
-        }
+      ? createAppliedStatusEffect(telegraph.statusEffect)
       : undefined;
 
     current = updateParticipant(current, target.id, {
@@ -460,6 +486,9 @@ export function resolvePendingTelegraphsForActor(
         statusApplied,
         hitChance,
         hitContext.positionalModifier,
+        hitContext.heightModifier,
+        hitContext.positionalMultiplier,
+        hitContext.heightMultiplier,
       ),
       ...(pushed ? { pushed } : {}),
       ...(actorMoved ? { actorMoved } : {}),
@@ -511,7 +540,7 @@ function applyMove(
     bleedMovementTiles: (actor.bleedMovementTiles ?? 0) + stepCost,
   });
 
-  const reactions = resolveDisengageReactions(state, next, actor, fromTile, toTile);
+  const reactions = resolveDisengageReactions(state, next, actor, fromTile, toTile, tileCtx);
   next = reactions.state;
 
   return {
@@ -534,7 +563,7 @@ function applyAttack(
   attackId: string | undefined,
   tileCtx: TurnTileContext,
 ): { outcome: ActionOutcome; state: TurnCombatState } {
-  if (!isValidAttack(actor, targetId, state, attackId)) {
+  if (!isValidAttack(actor, targetId, state, attackId, tileCtx)) {
     return {
       outcome: { kind: 'invalid', actorId: actor.id, reason: 'Attack is on cooldown, target is out of range, or no AP remains.' },
       state,
@@ -549,7 +578,7 @@ function applyAttack(
     };
   }
 
-  const attack = selectUsableAttack(actor, target, attackId);
+  const attack = selectUsableAttack(actor, target, attackId, tileCtx);
   if (!attack) {
     return {
       outcome: { kind: 'invalid', actorId: actor.id, reason: 'No usable attack found.' },
@@ -562,17 +591,17 @@ function applyAttack(
     return prepareTelegraphedAttack(state, actor, target, attack, telegraphConfig, tileCtx);
   }
 
-  const hitContext = getResolvedHitChance(actor, target, attack.damageType, attack.hitChance ?? actor.hitChance ?? 80);
+  const hitContext = getResolvedHitChance(actor, target, attack.damageType, attack.hitChance ?? actor.hitChance ?? 80, tileCtx);
+  const effectiveAttack = {
+    ...attack,
+    damage: getHeightAdjustedMaxHit(attack.damage, actor, target, tileCtx),
+  };
   const hitChance = hitContext.hitChance;
-  const hitResult = rollAttackHit(attack, hitChance);
+  const hitResult = rollAttackHit(effectiveAttack, hitChance);
   const hit = hitResult.hit;
   const damage = hitResult.damage;
   const statusApplied = hit && attack.statusEffect
-    ? {
-        kind: attack.statusEffect.kind,
-        turnsRemaining: attack.statusEffect.turns,
-        value: attack.statusEffect.value,
-      }
+    ? createAppliedStatusEffect(attack.statusEffect)
     : undefined;
 
   const nextHp = Math.max(0, target.hp - damage);
@@ -640,6 +669,9 @@ function applyAttack(
         ...(pushed ? { pushed } : {}),
         hitChance,
         positionalModifier: hitContext.positionalModifier,
+        heightModifier: hitContext.heightModifier,
+        positionalMultiplier: hitContext.positionalMultiplier,
+        heightMultiplier: hitContext.heightMultiplier,
       },
       state: { ...next, phase: 'combat_ended', endReason: endCheck },
     };
@@ -659,6 +691,9 @@ function applyAttack(
       ...(pushed ? { pushed } : {}),
       hitChance,
       positionalModifier: hitContext.positionalModifier,
+      heightModifier: hitContext.heightModifier,
+      positionalMultiplier: hitContext.positionalMultiplier,
+      heightMultiplier: hitContext.heightMultiplier,
     },
     state: next,
   };
@@ -669,6 +704,7 @@ function applyAbility(
   actor: TurnParticipant,
   abilityId: string,
   targetId: string | undefined,
+  tileCtx: TurnTileContext,
 ): { outcome: ActionOutcome; state: TurnCombatState } {
   const ability = actor.abilities?.find((entry) => entry.id === abilityId);
   if (!ability) {
@@ -698,11 +734,7 @@ function applyAbility(
   }
 
   const statusApplied = ability.statusEffect
-    ? {
-        kind: ability.statusEffect.kind,
-        turnsRemaining: ability.statusEffect.turns,
-        value: ability.statusEffect.value,
-      }
+    ? createAppliedStatusEffect(ability.statusEffect)
     : undefined;
   const cooldownPatch = ability.cooldownTurns && ability.cooldownTurns > 0
     ? { [ability.id]: ability.cooldownTurns + 1 }
@@ -720,10 +752,12 @@ function applyAbility(
   });
 
   if (ability.damage && ability.damage > 0) {
-    const hitContext = getResolvedHitChance(actor, target, ability.damageType, ability.hitChance ?? actor.hitChance ?? 85);
+    const hitContext = getResolvedHitChance(actor, target, ability.damageType, ability.hitChance ?? actor.hitChance ?? 85, tileCtx);
     const hitChance = hitContext.hitChance;
     const hit = Math.random() * 100 < hitChance;
-    const damage = hit ? rollDamage(ability.damage) : 0;
+    const damage = hit
+      ? rollDamage(getHeightAdjustedMaxHit(ability.damage, actor, target, tileCtx))
+      : 0;
     const nextHp = Math.max(0, target.hp - damage);
     const killed = hit && nextHp <= 0;
 
@@ -748,6 +782,9 @@ function applyAbility(
         killed,
         hitChance,
         positionalModifier: hitContext.positionalModifier,
+        heightModifier: hitContext.heightModifier,
+        positionalMultiplier: hitContext.positionalMultiplier,
+        heightMultiplier: hitContext.heightMultiplier,
         ...(statusApplied && hit && !killed ? { statusApplied } : {}),
       },
       state: endCheck ? { ...next, phase: 'combat_ended', endReason: endCheck } : next,
@@ -1057,6 +1094,9 @@ function buildTelegraphResolvedOutcome(
   statusApplied?: StatusEffect,
   hitChance?: number,
   positionalModifier?: number,
+  heightModifier?: number,
+  positionalMultiplier?: number,
+  heightMultiplier?: number,
 ): Extract<ActionOutcome, { kind: 'telegraph_resolved' }> {
   return {
     kind: 'telegraph_resolved',
@@ -1071,6 +1111,9 @@ function buildTelegraphResolvedOutcome(
     ...(statusApplied ? { statusApplied } : {}),
     ...(hitChance !== undefined ? { hitChance } : {}),
     ...(positionalModifier !== undefined ? { positionalModifier } : {}),
+    ...(heightModifier !== undefined ? { heightModifier } : {}),
+    ...(positionalMultiplier !== undefined ? { positionalMultiplier } : {}),
+    ...(heightMultiplier !== undefined ? { heightMultiplier } : {}),
   };
 }
 
@@ -1132,6 +1175,14 @@ function resolveStaggerHit(
       turnsRemaining: 2,
       value: 0,
     },
+  };
+}
+
+function createAppliedStatusEffect(effect: { kind: StatusEffect['kind']; turns: number; value: number }): StatusEffect {
+  return {
+    kind: effect.kind,
+    turnsRemaining: effect.kind === 'stunned' ? effect.turns + 1 : effect.turns,
+    value: effect.value,
   };
 }
 
@@ -1284,8 +1335,9 @@ function selectUsableAttack(
   actor: TurnParticipant,
   target: TurnParticipant,
   attackId: string | undefined,
+  tileCtx?: TurnTileContext,
 ): TurnAttack | null {
-  const attacks = getUsableAttacks(actor, target);
+  const attacks = getUsableAttacks(actor, target, tileCtx);
   if (attackId) {
     return attacks.find((attack) => attack.id === attackId) ?? null;
   }
@@ -1302,6 +1354,7 @@ function getTargetArmourRating(
       case 'slash':  return target.slashDefence ?? target.defensePower;
       case 'pierce': return target.pierceDefence ?? target.defensePower;
       case 'crush':  return target.crushDefence ?? target.defensePower;
+      case 'lightning': return target.lightningDefence ?? target.defensePower;
       default:       return target.defensePower;
     }
   })();
@@ -1318,17 +1371,35 @@ function getResolvedHitChance(
   target: TurnParticipant,
   damageType: TurnAttack['damageType'],
   baseHitChance: number,
-): { hitChance: number; positionalModifier: number } {
+  tileCtx?: TurnTileContext,
+): {
+  hitChance: number;
+  positionalModifier: number;
+  heightModifier: number;
+  positionalMultiplier: number;
+  heightMultiplier: number;
+} {
   const armourRating = getTargetArmourRating(target, damageType);
-  const positionalModifier = getPositionalHitModifier(actor, target);
-  const hitChance = clampHitChance(baseHitChance - armourRating * 5 + positionalModifier);
-  return { hitChance, positionalModifier };
+  const positionalMultiplier = getPositionalHitMultiplier(actor, target);
+  const heightMultiplier = getHeightHitMultiplier(actor, target, tileCtx);
+  const armouredBaseHitChance = Math.max(
+    0,
+    baseHitChance - armourRating * COMBAT_POSITION_TUNING.armourHitPenaltyPerPoint,
+  );
+  const hitChance = clampHitChance(armouredBaseHitChance * positionalMultiplier * heightMultiplier);
+  return {
+    hitChance,
+    positionalModifier: multiplierToPercentDelta(positionalMultiplier),
+    heightModifier: multiplierToPercentDelta(heightMultiplier),
+    positionalMultiplier,
+    heightMultiplier,
+  };
 }
 
-function getPositionalHitModifier(actor: TurnParticipant, target: TurnParticipant): number {
+function getPositionalHitMultiplier(actor: TurnParticipant, target: TurnParticipant): number {
   const targetFacing = getParticipantFacing(target);
   const attackerRelative = getFacingFromDelta(actor.tileX - target.tileX, actor.tileY - target.tileY);
-  if (attackerRelative.x === 0 && attackerRelative.y === 0) return 0;
+  if (attackerRelative.x === 0 && attackerRelative.y === 0) return 1;
 
   const facingLen = Math.hypot(targetFacing.x, targetFacing.y) || 1;
   const relativeLen = Math.hypot(attackerRelative.x, attackerRelative.y) || 1;
@@ -1336,11 +1407,63 @@ function getPositionalHitModifier(actor: TurnParticipant, target: TurnParticipan
     (targetFacing.x * attackerRelative.x + targetFacing.y * attackerRelative.y) /
     (facingLen * relativeLen);
 
-  if (alignment <= -0.92) return 25; // directly behind
-  if (alignment <= -0.35) return 15; // rear diagonals
-  if (alignment < 0.35) return 8;    // sides
-  if (alignment >= 0.92) return -5;  // directly into guard/front
-  return -2;                         // front diagonals
+  return roundMultiplier(interpolateFacingMultiplier(alignment));
+}
+
+function interpolateFacingMultiplier(alignment: number): number {
+  const curve = COMBAT_POSITION_TUNING.facingMultiplierCurve;
+  if (alignment >= curve[0].alignment) return curve[0].multiplier;
+
+  for (let i = 1; i < curve.length; i += 1) {
+    const from = curve[i - 1];
+    const to = curve[i];
+    if (alignment >= to.alignment) {
+      const span = from.alignment - to.alignment || 1;
+      const t = (from.alignment - alignment) / span;
+      const smoothed = t * t * (3 - 2 * t);
+      return from.multiplier + (to.multiplier - from.multiplier) * smoothed;
+    }
+  }
+
+  return curve[curve.length - 1].multiplier;
+}
+
+function getHeightHitMultiplier(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  tileCtx?: TurnTileContext,
+): number {
+  const heightDelta = clampHeightDelta(getElevationDelta(actor, target, tileCtx));
+  return roundMultiplier(1 + heightDelta * COMBAT_POSITION_TUNING.heightHitMultiplierPerStep);
+}
+
+function getHeightAdjustedMaxHit(
+  baseMaxHit: number,
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  tileCtx: TurnTileContext,
+): number {
+  const heightAdvantage = Math.max(0, clampHeightDelta(getElevationDelta(actor, target, tileCtx)));
+  const bonus = Math.min(
+    COMBAT_POSITION_TUNING.maxHeightMaxHitBonus,
+    Math.round(heightAdvantage * COMBAT_POSITION_TUNING.maxHitBonusPerHeightStep),
+  );
+  return Math.max(0, baseMaxHit + bonus);
+}
+
+function clampHeightDelta(value: number): number {
+  return Math.max(
+    -COMBAT_POSITION_TUNING.maxHeightSteps,
+    Math.min(COMBAT_POSITION_TUNING.maxHeightSteps, value),
+  );
+}
+
+function roundMultiplier(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function multiplierToPercentDelta(multiplier: number): number {
+  return Math.round((multiplier - 1) * 100);
 }
 
 function clampHitChance(value: number): number {
@@ -1378,6 +1501,7 @@ function resolveDisengageReactions(
   moverBefore: TurnParticipant,
   fromTile: { x: number; y: number },
   toTile: { x: number; y: number },
+  tileCtx: TurnTileContext,
 ): { outcomes: TurnAttackOutcome[]; state: TurnCombatState } {
   let next = current;
   const outcomes: TurnAttackOutcome[] = [];
@@ -1409,18 +1533,19 @@ function resolveDisengageReactions(
       targetAtLeavingTile,
       reactionAttack.damageType,
       reactionAttack.hitChance ?? liveReactor.hitChance ?? 80,
+      tileCtx,
     );
-    const hitResult = rollAttackHit(reactionAttack, hitContext.hitChance);
+    const effectiveReactionAttack = {
+      ...reactionAttack,
+      damage: getHeightAdjustedMaxHit(reactionAttack.damage, liveReactor, targetAtLeavingTile, tileCtx),
+    };
+    const hitResult = rollAttackHit(effectiveReactionAttack, hitContext.hitChance);
     const damage = hitResult.damage;
     const hit = hitResult.hit;
     const nextHp = Math.max(0, liveMover.hp - damage);
     const killed = hit && nextHp <= 0;
     const statusApplied = hit && reactionAttack.statusEffect && !killed
-      ? {
-          kind: reactionAttack.statusEffect.kind,
-          turnsRemaining: reactionAttack.statusEffect.turns,
-          value: reactionAttack.statusEffect.value,
-        }
+      ? createAppliedStatusEffect(reactionAttack.statusEffect)
       : undefined;
 
     next = updateParticipant(next, liveReactor.id, {
@@ -1449,6 +1574,9 @@ function resolveDisengageReactions(
       reaction: true,
       hitChance: hitContext.hitChance,
       positionalModifier: hitContext.positionalModifier,
+      heightModifier: hitContext.heightModifier,
+      positionalMultiplier: hitContext.positionalMultiplier,
+      heightMultiplier: hitContext.heightMultiplier,
       ...(statusApplied ? { statusApplied } : {}),
     });
 

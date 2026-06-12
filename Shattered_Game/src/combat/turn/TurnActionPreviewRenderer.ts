@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { RENDER_DEPTHS } from '../../render/RenderLayers';
-import type { TurnCombatState, TurnDamageType } from './TurnCombatTypes';
+import type { TurnAttack, TurnCombatState, TurnDamageType } from './TurnCombatTypes';
 import {
   chebyshevDist,
+  getEffectiveAttackMaxRange,
   getAttackableTargets,
   getParticipantAttacks,
   getReachableTiles,
@@ -88,7 +89,7 @@ export class TurnActionPreviewRenderer {
         }
       }
 
-      const targets = this.getTargetPreviewTiles(active, state, selectedAttackId, selectedAbilityId);
+      const targets = this.getTargetPreviewTiles(active, state, selectedAttackId, selectedAbilityId, tileCtx);
       for (const target of targets) {
         this.drawDiamond(this.previewGraphics, target.tileX, target.tileY);
       }
@@ -101,6 +102,8 @@ export class TurnActionPreviewRenderer {
           selectedRange.maxRange,
           selectedRange.baseHitChance,
           selectedRange.damageType,
+          selectedRange.attack,
+          tileCtx,
         );
       }
     }
@@ -128,7 +131,7 @@ export class TurnActionPreviewRenderer {
     active: NonNullable<ReturnType<typeof getActiveParticipant>>,
     selectedAttackId: string | null,
     selectedAbilityId: string | null,
-  ): { label: string; minRange: number; maxRange: number; baseHitChance: number; damageType?: TurnDamageType } | null {
+  ): { label: string; minRange: number; maxRange: number; baseHitChance: number; damageType?: TurnDamageType; attack?: TurnAttack } | null {
     if (selectedAbilityId) {
       const ability = active.abilities?.find((entry) => entry.id === selectedAbilityId);
       if (!ability || ability.target !== 'enemy') return null;
@@ -153,6 +156,7 @@ export class TurnActionPreviewRenderer {
         maxRange: attack.maxRangeTiles,
         baseHitChance: attack.hitChance ?? active.hitChance ?? 80,
         damageType: attack.damageType,
+        attack,
       };
     }
 
@@ -185,15 +189,18 @@ export class TurnActionPreviewRenderer {
     maxRange: number,
     baseHitChance: number,
     damageType: TurnDamageType | undefined,
+    attack: TurnAttack | undefined,
+    tileCtx: TurnTileContext,
   ): void {
     for (const target of state.participants) {
       if (target.kind === active.kind || (active.kind !== 'enemy' && target.kind !== 'enemy')) continue;
       if (target.hp <= 0) continue;
       if (!this.isPointerOverTile(target.tileX, target.tileY)) continue;
       const dist = chebyshevDist(active.tileX, active.tileY, target.tileX, target.tileY);
-      const inRange = dist >= minRange && dist <= maxRange;
+      const effectiveMaxRange = attack ? getEffectiveAttackMaxRange(active, target, attack, tileCtx) : maxRange;
+      const inRange = dist >= minRange && dist <= effectiveMaxRange;
       const hitContext = inRange
-        ? calculateTurnHitChance(active, target, damageType, baseHitChance)
+        ? calculateTurnHitChance(active, target, damageType, baseHitChance, tileCtx)
         : null;
       const labelText = hitContext
         ? `${actionName} • ${hitContext.hitChance}%`
@@ -243,6 +250,7 @@ export class TurnActionPreviewRenderer {
     state: TurnCombatState,
     selectedAttackId: string | null,
     selectedAbilityId: string | null,
+    tileCtx: TurnTileContext,
   ) {
     if (selectedAbilityId) {
       const ability = active.abilities?.find((entry) => entry.id === selectedAbilityId);
@@ -268,11 +276,11 @@ export class TurnActionPreviewRenderer {
         if (target.kind === active.kind || (active.kind !== 'enemy' && target.kind !== 'enemy')) return false;
         if (target.hp <= 0) return false;
         const dist = chebyshevDist(active.tileX, active.tileY, target.tileX, target.tileY);
-        return dist >= attack.minRangeTiles && dist <= attack.maxRangeTiles;
+        return dist >= attack.minRangeTiles && dist <= getEffectiveAttackMaxRange(active, target, attack, tileCtx);
       });
     }
 
-    return getAttackableTargets(active, state);
+    return getAttackableTargets(active, state, tileCtx);
   }
 
   private drawPendingTelegraphs(state: TurnCombatState): void {

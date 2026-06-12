@@ -2,6 +2,7 @@ import type { TurnAttack, TurnCombatState, TurnParticipant } from './TurnCombatT
 
 export interface TurnTileContext {
   isTileWalkable(tileX: number, tileY: number): boolean;
+  getTerrainElevation?(tileX: number, tileY: number): number | null;
   mapWidth: number;
   mapHeight: number;
 }
@@ -91,6 +92,7 @@ export function getReachableTiles(
 export function getAttackableTargets(
   attacker: TurnParticipant,
   state: TurnCombatState,
+  tileCtx?: TurnTileContext,
 ): TurnParticipant[] {
   if (attacker.apRemaining <= 0) return [];
   if (attacker.hp <= 0) return [];
@@ -101,13 +103,14 @@ export function getAttackableTargets(
     // player and companion are on the same side
     if (attackerIsEnemy === (p.kind === 'enemy')) return false;
     if (p.hp <= 0) return false;
-    return getUsableAttacks(attacker, p).length > 0;
+    return getUsableAttacks(attacker, p, tileCtx).length > 0;
   });
 }
 
 export function getUsableAttacks(
   attacker: TurnParticipant,
   target: TurnParticipant,
+  tileCtx?: TurnTileContext,
 ): TurnAttack[] {
   if (attacker.apRemaining <= 0) return [];
   if (attacker.hp <= 0) return [];
@@ -118,7 +121,7 @@ export function getUsableAttacks(
   return getParticipantAttacks(attacker).filter((attack) => {
     if (attacker.apRemaining < attack.apCost) return false;
     if ((attacker.attackCooldowns?.[attack.id] ?? 0) > 0) return false;
-    return dist >= attack.minRangeTiles && dist <= attack.maxRangeTiles;
+    return dist >= attack.minRangeTiles && dist <= getEffectiveAttackMaxRange(attacker, target, attack, tileCtx);
   });
 }
 
@@ -166,11 +169,12 @@ export function isValidAttack(
   targetId: string,
   state: TurnCombatState,
   attackId?: string,
+  tileCtx?: TurnTileContext,
 ): boolean {
   const target = state.participants.find((p) => p.id === targetId);
   if (!target) return false;
 
-  const attacks = getUsableAttacks(attacker, target);
+  const attacks = getUsableAttacks(attacker, target, tileCtx);
   return attackId ? attacks.some((attack) => attack.id === attackId) : attacks.length > 0;
 }
 
@@ -201,6 +205,38 @@ export function getParticipantAttacks(participant: TurnParticipant): TurnAttack[
     hitChance: participant.hitChance,
     cooldownTurns: 0,
   }];
+}
+
+export function getTileElevation(tileCtx: TurnTileContext | undefined, tileX: number, tileY: number): number {
+  const elevation = tileCtx?.getTerrainElevation?.(tileX, tileY);
+  return Number.isFinite(elevation) ? elevation ?? 0 : 0;
+}
+
+export function getElevationDelta(
+  attacker: TurnParticipant,
+  target: TurnParticipant,
+  tileCtx?: TurnTileContext,
+): number {
+  return getTileElevation(tileCtx, attacker.tileX, attacker.tileY) -
+    getTileElevation(tileCtx, target.tileX, target.tileY);
+}
+
+export function getEffectiveAttackMaxRange(
+  attacker: TurnParticipant,
+  target: TurnParticipant,
+  attack: TurnAttack,
+  tileCtx?: TurnTileContext,
+): number {
+  if (!isRangedAttack(attacker, attack)) {
+    return attack.maxRangeTiles;
+  }
+
+  const heightAdvantage = Math.max(0, Math.floor(getElevationDelta(attacker, target, tileCtx)));
+  return attack.maxRangeTiles + heightAdvantage;
+}
+
+export function isRangedAttack(attacker: TurnParticipant, attack: TurnAttack): boolean {
+  return attacker.weaponId === 'bow' || attack.minRangeTiles >= 2;
 }
 
 /**
