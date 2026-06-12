@@ -1,4 +1,5 @@
 import type { TurnCombatUiSnapshot } from '../../../combat/CombatUiTypes';
+import type { SfxEventId } from '../../../audio/SfxTypes';
 import { renderStatusIcons } from './EnemyPanel';
 
 type HudAttack = {
@@ -46,6 +47,7 @@ export class CombatHud {
     private readonly onMoveMode: () => void,
     private readonly onAttackMode: (attackId?: string) => void,
     private readonly onAbility: (abilityId: string) => void,
+    private readonly onUiSfx: (id: SfxEventId) => void,
   ) {
     this.initBar = document.createElement('div');
     this.initBar.id = 'ui-combat-init';
@@ -256,7 +258,10 @@ export class CombatHud {
     button.addEventListener('pointerdown', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!button.disabled) handler();
+      if (!button.disabled) {
+        this.onUiSfx('ui_button');
+        handler();
+      }
     });
     button.addEventListener('click', stopOverlayInput);
   }
@@ -338,7 +343,10 @@ export class CombatHud {
     button.onpointerdown = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!button.disabled) handler();
+      if (!button.disabled) {
+        this.onUiSfx('ui_button');
+        handler();
+      }
     };
     button.onclick = stopOverlayInput;
   }

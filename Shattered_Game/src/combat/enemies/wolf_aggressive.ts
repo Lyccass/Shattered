@@ -16,14 +16,14 @@ export const WOLF_AGGRESSIVE: EnemyDefinition = {
   aggroRangeTiles: 8,
   leashRangeTiles: 14,
   lootTables: [
-    { oneIn: 1, entries: [{ itemId: 'bone', weight: 1 }] },
     {
       oneIn: 1,
       entries: [
+        { itemId: 'wolf_pelt_torn',    weight: 9 },
         { itemId: 'wolf_pelt_healthy', weight: 1 },
-        { itemId: 'wolf_pelt_torn',    weight: 4 },
       ],
     },
+    { oneIn: 10, entries: [{ itemId: 'bone', weight: 1 }] },
   ],
   attacks: [
     {

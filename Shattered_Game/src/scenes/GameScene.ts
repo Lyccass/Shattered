@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SfxSystem } from '../audio/SfxSystem';
+import { getDefaultAudioMixerSettings, SfxSystem } from '../audio/SfxSystem';
 import { CameraSystem } from '../camera/CameraSystem';
 import { createEnemyAnimations, preloadEnemyAssets } from '../combat/EnemyAssets';
 import { TurnCombatSession } from '../combat/turn/TurnCombatSession';
@@ -62,6 +62,7 @@ export class GameScene extends Phaser.Scene {
   private isRespawningAfterDeath = false;
   private readonly encounterPopulation = new WorldEncounterPopulationTracker();
   private readonly playerCompanionState = new PlayerCompanionState();
+  private lastFootstepSfxMs = 0;
 
   constructor() {
     super('GameScene');
@@ -99,6 +100,9 @@ export class GameScene extends Phaser.Scene {
       (spawnId, areaId, definitionId, worldX, worldY) =>
         this.handleEnemyKilledForLoot(spawnId, areaId, definitionId, worldX, worldY),
     );
+    this.turnCombatSession.onEnemyRespawned((spawnId, areaId) => {
+      this.encounterPopulation.recordRespawn(spawnId, areaId);
+    });
     this.turnCombatSession.onLog((line) => {
       this.uiManager?.pushMessage(line, 'combat');
     });
@@ -187,6 +191,9 @@ export class GameScene extends Phaser.Scene {
         };
       },
       onClearSave: () => this.saveController?.clearSavedGame(this.getSaveControllerContext()),
+      onUiSfx: (id) => this.gameEventBus.emitSfx(id),
+      getAudioSettings: () => this.sfxSystem?.getMixerSettings() ?? getDefaultAudioMixerSettings(),
+      onAudioSettingsChange: (settings) => this.sfxSystem?.setMixerSettings(settings),
     });
     this.saveController = new GameSaveController(this);
     this.interactionController = new GameInteractionController(this, {
@@ -211,6 +218,7 @@ export class GameScene extends Phaser.Scene {
 
     // Always run player controller — click-move must process even during combat turns.
     this.playerController?.update(delta, this.time.now);
+    this.updateFootstepSfx(this.time.now);
 
     this.groundItemSystem?.tick(this.time.now);
     this.refreshGroundItemTargets();
@@ -613,6 +621,21 @@ export class GameScene extends Phaser.Scene {
     this.turnCombatSession?.setSprinting(this.isSprinting);
   }
 
+  private updateFootstepSfx(nowMs: number): void {
+    if (!this.playerController?.isMoving()) {
+      this.lastFootstepSfxMs = 0;
+      return;
+    }
+
+    const intervalMs = this.isSprinting ? 240 : 420;
+    if (this.lastFootstepSfxMs > 0 && nowMs - this.lastFootstepSfxMs < intervalMs) {
+      return;
+    }
+
+    this.lastFootstepSfxMs = nowMs;
+    this.gameEventBus.emitSfx(this.isSprinting ? 'footstep_run' : 'footstep_walk');
+  }
+
   private handlePlayerDied(): void {
     if (this.isRespawningAfterDeath) return;
     if (!this.worldRuntimeCoordinator || !this.groundItemSystem) return;
@@ -886,7 +909,7 @@ function formatItemInspectText(def: ItemDefinition): string {
       const w = def.equipment.weaponStats;
       const range = Math.max(1, Math.ceil(w.reachTiles));
       parts.push(`Basic ${w.damage} ${w.damageType} dmg, range ${range}, no cooldown`);
-      parts.push(`Heavy Hit ${Math.max(2, Math.round(w.damage * 2))} ${w.damageType} dmg, cooldown 1`);
+      parts.push(`Heavy Hit ${Math.max(2, Math.round(w.damage * 1.5))} ${w.damageType} dmg, cooldown 1`);
       parts.push(`Stagger ${w.staggerImpact}, ${w.weight} kg`);
     }
 

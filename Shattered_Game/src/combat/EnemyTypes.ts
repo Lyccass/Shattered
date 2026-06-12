@@ -89,7 +89,7 @@ export type EnemyRuntimeRecord = {
   mapId: string;
   spawnTileX: number;
   spawnTileY: number;
-  /** Current tile position (may differ from spawn while in combat). */
+  /** Current tile position (may differ from spawn while wandering or in combat). */
   tileX: number;
   tileY: number;
   worldX: number;
@@ -101,6 +101,12 @@ export type EnemyRuntimeRecord = {
   /** Wall-clock time this enemy died (null = alive). */
   diedAtMs: number | null;
   respawnMs: number;
+  /** Encounter area this spawn belongs to — used for population tracking. */
+  areaId?: string;
+  /** Wander target tile when idle roaming (null = waiting at current position). */
+  wanderTarget: { tileX: number; tileY: number } | null;
+  /** Wall-clock time to pick the next wander target. */
+  nextWanderMs: number;
 };
 
 export type EnemyUiSnapshot = {

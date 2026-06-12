@@ -16,14 +16,14 @@ export const WOLF_PASSIVE: EnemyDefinition = {
   aggroRangeTiles: 0,
   leashRangeTiles: 10,
   lootTables: [
-    { oneIn: 1, entries: [{ itemId: 'bone', weight: 1 }] },
     {
       oneIn: 1,
       entries: [
+        { itemId: 'wolf_pelt_torn',    weight: 9 },
         { itemId: 'wolf_pelt_healthy', weight: 1 },
-        { itemId: 'wolf_pelt_torn',    weight: 4 },
       ],
     },
+    { oneIn: 10, entries: [{ itemId: 'bone', weight: 1 }] },
   ],
   attacks: [
     {

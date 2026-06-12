@@ -32,7 +32,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       weaponStats: {
         archetype: 'sword',
         attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.5, minRangeTiles: 0.3 },
-        damage: 2,
+        damage: 1,
         damageType: 'slash',
         attackSpeedMs: 1600,
         reachTiles: 1.0,
@@ -58,8 +58,8 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       requiredLevel: 1,
       weaponStats: {
         archetype: 'dagger',
-        attackShape: { kind: 'thrust', lengthTiles: 1.2, widthTiles: 0.6, doubleHit: true },
-        damage: 2,
+        attackShape: { kind: 'thrust', lengthTiles: 1.2, widthTiles: 0.6 },
+        damage: 1,
         damageType: 'pierce',
         attackSpeedMs: 1400,
         reachTiles: 1.0,
@@ -86,7 +86,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       weaponStats: {
         archetype: 'axe',
         attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.2, minRangeTiles: 0.5 },
-        damage: 2,
+        damage: 1,
         damageType: 'slash',
         attackSpeedMs: 1400,
         reachTiles: 1.0,
@@ -113,7 +113,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       weaponStats: {
         archetype: 'hammer',
         attackShape: { kind: 'thrust', lengthTiles: 1.5, widthTiles: 2.0 },
-        damage: 2,
+        damage: 1,
         damageType: 'crush',
         attackSpeedMs: 2400,
         reachTiles: 1.0,
@@ -140,7 +140,7 @@ export const WEAPON_ITEMS: ItemDefinition[] = [
       weaponStats: {
         archetype: 'spear',
         attackShape: { kind: 'thrust', lengthTiles: 2.5, widthTiles: 0.7 },
-        damage: 2,
+        damage: 1,
         damageType: 'pierce',
         attackSpeedMs: 1800,
         reachTiles: 2.0,

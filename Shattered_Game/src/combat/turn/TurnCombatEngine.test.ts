@@ -200,6 +200,9 @@ describe('attack action', () => {
       activeIndex: 0,
       phase: 'player_turn' as const,
     };
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0) // hit roll
+      .mockReturnValueOnce(0.99); // damage roll
 
     const { outcome, state: next } = applyAction(state, { kind: 'attack', targetId: 'e1' }, OPEN_CTX);
     const attacked = outcome as { kind: 'attacked'; damage: number; hit: boolean };
@@ -492,7 +495,7 @@ describe('attack action', () => {
   it('lets adjacent enemies use a reaction when a unit leaves melee range', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0) // reaction hit roll
-      .mockReturnValueOnce(0); // reaction damage roll
+      .mockReturnValueOnce(0.99); // reaction damage roll
 
     const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 3, facingX: 1, facingY: 0 });
     const enemy = makeEnemy('e1', {
@@ -530,7 +533,7 @@ describe('attack action', () => {
   it('lets the player react when an enemy leaves melee range', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0);
+      .mockReturnValueOnce(0.99);
 
     const player = makePlayer({
       tileX: 10,
@@ -730,9 +733,9 @@ describe('attack action', () => {
   it('sums damage from multi-hit attacks', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0) // first hit roll
-      .mockReturnValueOnce(0) // first damage roll
+      .mockReturnValueOnce(0.5) // first damage roll
       .mockReturnValueOnce(0) // second hit roll
-      .mockReturnValueOnce(0); // second damage roll
+      .mockReturnValueOnce(0.5); // second damage roll
 
     const player = makePlayer({
       tileX: 10,

@@ -139,7 +139,7 @@ export class EquipmentTabContent {
 
     this.appendGroup(wrap, 'Weapon Actions', [
       ['Basic Attack', `${s.attack} ${s.damageType}`,              'Always available if in range. No cooldown and no expedition charges.'],
-      ['Heavy Hit',    `${Math.max(2, Math.round(s.attack * 2))} ${s.damageType}`, 'Weapon special attack. Costs a Main Action and has a short cooldown.'],
+      ['Heavy Hit',    `${Math.max(2, Math.round(s.attack * 1.5))} ${s.damageType}`, 'Weapon special attack. Costs a Main Action and has a short cooldown.'],
       ['Accuracy',     `${s.accuracy}%`,                           'Base hit chance before enemy defences are applied.'],
       ['Range',        formatAttackRange(s),                       'Usable tile range for the equipped weapon in turn combat.'],
       ['Stagger',      String(getWeaponStaggerEstimate(s)),         'Stagger pressure applied by weapon actions.'],

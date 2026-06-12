@@ -1,4 +1,10 @@
-import type { EquippedSlots, PlayerDerivedStats, WeaponArchetype, WeaponAttackShape } from './EquipmentTypes';
+import {
+  RANGED_ARCHETYPES,
+  type EquippedSlots,
+  type PlayerDerivedStats,
+  type WeaponArchetype,
+  type WeaponAttackShape,
+} from './EquipmentTypes';
 import type { EquipmentRegistry } from './EquipmentRegistry';
 import { levelToRankStage } from '../skills/SkillTypes';
 
@@ -63,11 +69,12 @@ export function computeDerivedStats(
   const mainHandDef = slots.main_hand ? registry.get(slots.main_hand) : undefined;
   const weapon = mainHandDef?.equipment?.weaponStats;
 
-  const meleeRankBonus = levelToRankStage(meleeLevel).rank - 1;
-  const attack = (weapon?.damage ?? BASE_ATTACK) + meleeRankBonus;
-  const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(meleeLevel * 0.4));
-  const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
   const weaponArchetype: WeaponArchetype = weapon?.archetype ?? DEFAULT_ARCHETYPE;
+  const combatStyleLevel = RANGED_ARCHETYPES.has(weaponArchetype) ? rangedLevel : meleeLevel;
+  const rankDamageBonus = levelToRankStage(combatStyleLevel).rank - 1;
+  const attack = (weapon?.damage ?? BASE_ATTACK) + rankDamageBonus;
+  const accuracy = Math.min(99, BASE_ACCURACY + Math.floor(combatStyleLevel * 0.4));
+  const attackSpeedMs = weapon?.attackSpeedMs ?? BASE_ATTACK_SPEED_MS;
   const attackShape: WeaponAttackShape = weapon?.attackShape ?? DEFAULT_ATTACK_SHAPE;
   const damageType = weapon?.damageType ?? 'crush';
   const { windupMs: attackWindupMs, activeMs: attackActiveMs } = getArchetypeTimings(weaponArchetype);

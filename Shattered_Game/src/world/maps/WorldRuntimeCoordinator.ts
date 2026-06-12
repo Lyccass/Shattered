@@ -72,6 +72,7 @@ import { ShopSystem } from '../../trading/ShopSystem';
 import type { ShopSnapshot } from '../../trading/TraderTypes';
 import { WorldChunkStreamingReconciler } from './WorldChunkStreamingReconciler';
 import { synthesizeEditorAreaSpawns } from './WorldEncounterSpawnBridge';
+import { WorldPlacementController } from './WorldPlacementController';
 
 export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
@@ -127,6 +128,7 @@ export class WorldRuntimeCoordinator {
   private readonly actionFactory: InteractionActionFactory;
   private readonly uiAggregator: UiStateAggregator;
   private readonly prototypeSaveController: WorldPrototypeSaveController;
+  private readonly placementController: WorldPlacementController;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -262,6 +264,21 @@ export class WorldRuntimeCoordinator {
       this.contractBoardSystem.setEnvironmentVariables(vars as Record<string, number | string>);
       this.shopSystem.setPriceMultiplier(this.worldEnv.getShopPriceMultiplier());
     });
+
+    this.placementController = new WorldPlacementController(
+      this.placementModeSystem,
+      this.placedStructureSystem,
+      this.itemRegistry,
+      this.eventBus,
+      {
+        getPlayerController: () => this.bindings?.playerController ?? null,
+        hasActiveRuntime: () => !!this.currentRuntime,
+        getInventory: () => this.playerSessionState.getInventoryState(),
+        getObjectPlacementSystem: () => this.objectManager.getPlacementSystem() ?? null,
+        getNowMs: () => this.scene.time.now,
+        rebuildInteractionTargets: () => this.rebuildInteractionTargets(),
+      },
+    );
   }
 
   applyAreaCleared(clearedCount: number): void {
@@ -406,7 +423,7 @@ export class WorldRuntimeCoordinator {
     }
 
     this.updateActiveInteraction(feetTile.x, feetTile.y);
-    this.placementModeSystem.updatePreview(this.bindings.playerController);
+    this.placementController.updatePreview();
     this.updateActionProgress(deltaMs);
     return this.consumePendingUiResults();
   }
@@ -535,39 +552,7 @@ export class WorldRuntimeCoordinator {
   }
 
   placeItemInFacingDirection(itemId: string): InteractionResult {
-    if (!this.bindings || !this.currentRuntime) {
-      return { ok: false, interactionType: 'item_use', targetId: itemId, message: 'Placement unavailable.' };
-    }
-
-    const inventory = this.playerSessionState.getInventoryState();
-    if (!inventory.hasAtLeast(itemId, 1)) {
-      return {
-        ok: false,
-        interactionType: 'item_use',
-        targetId: itemId,
-        message: `No ${this.itemRegistry.get(itemId).name} in inventory.`,
-      };
-    }
-
-    const placementState = this.placementModeSystem.startPlacement(itemId);
-    if (!placementState) {
-      return { ok: false, interactionType: 'item_use', targetId: itemId, message: `${this.itemRegistry.get(itemId).name} cannot be placed.` };
-    }
-
-    const preview = this.placementModeSystem.updatePreview(this.bindings.playerController);
-    if (!preview?.valid) {
-      this.placementModeSystem.cancelPlacement();
-      return {
-        ok: false,
-        interactionType: 'item_use',
-        targetId: itemId,
-        message: preview?.invalidReason ?? `Can't place ${this.itemRegistry.get(itemId).name} here.`,
-        toastKind: 'error',
-      };
-    }
-
-    const result = this.confirmPlacementMode();
-    return result ?? { ok: false, interactionType: 'item_use', targetId: itemId, message: 'Placement failed.' };
+    return this.placementController.placeItemInFacingDirection(itemId);
   }
 
   collectGroundItem(itemId: string, count: number): void {
@@ -801,7 +786,7 @@ export class WorldRuntimeCoordinator {
   }
 
   getPlacementState(): PlacementPreviewState | null {
-    return this.placementModeSystem.getState();
+    return this.placementController.getPlacementState();
   }
 
   getTaskJournalEntries(): TaskJournalEntry[] {
@@ -832,7 +817,7 @@ export class WorldRuntimeCoordinator {
   }
 
   isPlacementModeActive(): boolean {
-    return this.placementModeSystem.isActive();
+    return this.placementController.isActive();
   }
 
   isChoiceMenuOpen(): boolean {
@@ -861,69 +846,15 @@ export class WorldRuntimeCoordinator {
   }
 
   startPlacementMode(itemId: string = 'firestarter_set'): string {
-    if (!this.bindings || !this.currentRuntime) {
-      return 'Placement is unavailable right now.';
-    }
-
-    if (!this.playerSessionState.getInventoryState().hasAtLeast(itemId, 1)) {
-      return `You don't have a ${this.itemRegistry.get(itemId).name}.`;
-    }
-
-    const placementState = this.placementModeSystem.startPlacement(itemId);
-
-    if (!placementState) {
-      return `${this.itemRegistry.get(itemId).name} cannot be placed.`;
-    }
-
-    this.placementModeSystem.updatePreview(this.bindings.playerController);
-    return `Placing ${placementState.itemDisplayName}.`;
+    return this.placementController.start(itemId);
   }
 
   confirmPlacementMode(): InteractionResult | null {
-    const placementState = this.placementModeSystem.getState();
-    const objectPlacementSystem = this.objectManager.getPlacementSystem();
-
-    if (!placementState || !objectPlacementSystem) {
-      return null;
-    }
-
-    if (!placementState.valid) {
-      this.eventBus.emitSfx('invalid_action');
-      return {
-        ok: false,
-        sfxId: 'invalid_action',
-        interactionType: 'placed_object',
-        targetId: placementState.itemId,
-        message: placementState.invalidReason ?? `Can't place ${placementState.itemDisplayName} there.`,
-      };
-    }
-
-    const result = this.placedStructureSystem.placeItem(
-      placementState.itemId,
-      placementState.targetTileX,
-      placementState.targetTileY,
-      this.scene.time.now,
-      this.playerSessionState.getInventoryState(),
-      this.itemRegistry,
-      objectPlacementSystem,
-    );
-
-    if (result.ok) {
-      this.placementModeSystem.cancelPlacement();
-      this.rebuildInteractionTargets();
-    }
-
-    this.actionBroker.emitResultSfx(result);
-    return result;
+    return this.placementController.confirm();
   }
 
   cancelPlacementMode(): string | null {
-    if (!this.placementModeSystem.isActive()) {
-      return null;
-    }
-
-    this.placementModeSystem.cancelPlacement();
-    return 'Placement cancelled.';
+    return this.placementController.cancel();
   }
 
   moveChoiceMenuSelection(delta: number): void {

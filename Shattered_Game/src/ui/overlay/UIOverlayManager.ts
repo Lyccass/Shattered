@@ -68,6 +68,9 @@ export class UIOverlayManager {
       (skill) => this.openSkillDetail(skill),
       () => this.toggleMapWindow(this.lastPlayerTileX, this.lastPlayerTileY),
       callbacks.onClearSave,
+      callbacks.onUiSfx,
+      callbacks.getAudioSettings,
+      callbacks.onAudioSettingsChange,
     );
     this.xpDropPanel     = new XpDropPanel(this.overlay);
     this.combatHud       = new CombatHud(
@@ -76,6 +79,7 @@ export class UIOverlayManager {
       callbacks.onCombatMoveMode,
       callbacks.onCombatAttackMode,
       callbacks.onCombatAbility,
+      callbacks.onUiSfx,
     );
     this.choiceMenuPopup = new ChoiceMenuPopup(
       this.overlay,

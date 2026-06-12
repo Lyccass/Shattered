@@ -24,13 +24,14 @@ export class NpcSystem {
   ): void {
     const origin = tilemap.getTileCenterWorld(startTileX, startTileY);
     this.definitions.set(definition.id, definition);
+    const resolvedPatrolTiles = patrolTiles.length > 0 ? patrolTiles : [{ x: startTileX, y: startTileY }];
     this.states.push({
       id: instanceId,
       definitionId: definition.id,
       worldX: origin.x,
       worldY: origin.y,
-      patrolTiles: patrolTiles.length > 0 ? patrolTiles : [{ x: startTileX, y: startTileY }],
-      patrolIndex: 0,
+      patrolTiles: resolvedPatrolTiles,
+      patrolIndex: resolvedPatrolTiles.length > 1 ? 1 : 0,
       nextWaypointMs: nowMs + randomBetween(WAYPOINT_WAIT_MIN_MS, WAYPOINT_WAIT_MAX_MS),
       bubbleText: null,
       bubbleUntilMs: 0,

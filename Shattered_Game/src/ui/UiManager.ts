@@ -12,6 +12,8 @@ import type { CurrencySnapshot } from '../player/PlayerCurrencyState';
 import { SKILL_UNLOCKS } from '../skills/SkillUnlockData';
 import { SkillUnlockRegistry } from '../skills/SkillUnlockRegistry';
 import type { AbilitySlotType } from '../combat/abilities/CombatAbilityDefinitions';
+import type { AudioMixerSettings } from '../audio/AudioTypes';
+import type { SfxEventId } from '../audio/SfxTypes';
 
 export interface UiManagerCallbacks {
   onCombatToggle: () => void;
@@ -36,6 +38,9 @@ export interface UiManagerCallbacks {
   onMinimapZoom: (delta: number) => void;
   onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
   onClearSave: () => void;
+  onUiSfx: (id: SfxEventId) => void;
+  getAudioSettings: () => AudioMixerSettings;
+  onAudioSettingsChange: (settings: Partial<AudioMixerSettings>) => void;
 }
 
 const UNLOCK_REGISTRY = new SkillUnlockRegistry(SKILL_UNLOCKS);
@@ -78,6 +83,9 @@ export class UiManager {
       onMinimapZoom:           callbacks.onMinimapZoom,
       onMapTileQuery:          callbacks.onMapTileQuery,
       onClearSave:             callbacks.onClearSave,
+      onUiSfx:                 callbacks.onUiSfx,
+      getAudioSettings:        callbacks.getAudioSettings,
+      onAudioSettingsChange:   callbacks.onAudioSettingsChange,
     });
 
     const displayObjects = this.getPhaserDisplayObjects();

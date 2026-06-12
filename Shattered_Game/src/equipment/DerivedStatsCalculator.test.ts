@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeDerivedStats } from './DerivedStatsCalculator';
 import { EquipmentRegistry } from './EquipmentRegistry';
+import type { ItemDefinition } from '../items/ItemTypes';
 
 describe('computeDerivedStats combat HP scaling', () => {
   const registry = new EquipmentRegistry();
@@ -47,5 +48,51 @@ describe('computeDerivedStats combat HP scaling', () => {
     expect(rankOne.damageType).toBe('crush');
     expect(rankOne.attack).toBe(1);
     expect(rankTen.attack).toBe(10);
+  });
+
+  it('scales ranged weapon max hit by ranged rank instead of melee rank', () => {
+    const bow: ItemDefinition = {
+      id: 'test_copper_bow',
+      name: 'Test Copper Bow',
+      examine: 'A bow used by stat tests.',
+      icon: '',
+      category: 'equipment',
+      stackable: false,
+      weight: 1,
+      value: 1,
+      equipment: {
+        slot: 'main_hand',
+        requiredLevel: 1,
+        weaponStats: {
+          archetype: 'bow',
+          attackShape: { kind: 'thrust', lengthTiles: 4, widthTiles: 1 },
+          damage: 1,
+          damageType: 'pierce',
+          attackSpeedMs: 1600,
+          reachTiles: 4,
+          staminaCost: 10,
+          staggerImpact: 4,
+          weight: 1,
+          durability: 80,
+          maxDurability: 100,
+        },
+      },
+    };
+    const bowRegistry: EquipmentRegistry = {
+      has: (id: string) => id === bow.id,
+      get: (id: string) => id === bow.id ? bow : undefined,
+      getAll: () => [bow],
+    };
+
+    const stats = computeDerivedStats({ main_hand: bow.id }, bowRegistry, {
+      melee: 1,
+      ranged: 100,
+      magic: 1,
+      devotion: 1,
+    });
+
+    expect(stats.weaponArchetype).toBe('bow');
+    expect(stats.attack).toBe(10);
+    expect(stats.accuracy).toBe(90);
   });
 });

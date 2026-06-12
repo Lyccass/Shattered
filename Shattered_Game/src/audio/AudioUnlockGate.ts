@@ -180,13 +180,13 @@ export class AudioUnlockGate {
     this.scene.input.keyboard?.on('keydown', this.handleSceneGesture);
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('pointerdown', this.handleWindowGesture, { passive: true });
-      window.addEventListener('pointerup', this.handleWindowGesture, { passive: true });
-      window.addEventListener('mousedown', this.handleWindowGesture, { passive: true });
-      window.addEventListener('mouseup', this.handleWindowGesture, { passive: true });
-      window.addEventListener('touchstart', this.handleWindowGesture, { passive: true });
-      window.addEventListener('touchend', this.handleWindowGesture, { passive: true });
-      window.addEventListener('keydown', this.handleWindowGesture, { passive: true });
+      window.addEventListener('pointerdown', this.handleWindowGesture, { passive: true, capture: true });
+      window.addEventListener('pointerup', this.handleWindowGesture, { passive: true, capture: true });
+      window.addEventListener('mousedown', this.handleWindowGesture, { passive: true, capture: true });
+      window.addEventListener('mouseup', this.handleWindowGesture, { passive: true, capture: true });
+      window.addEventListener('touchstart', this.handleWindowGesture, { passive: true, capture: true });
+      window.addEventListener('touchend', this.handleWindowGesture, { passive: true, capture: true });
+      window.addEventListener('keydown', this.handleWindowGesture, { passive: true, capture: true });
     }
 
     this.unlockListenersRegistered = true;
@@ -202,13 +202,13 @@ export class AudioUnlockGate {
     this.scene.input.keyboard?.off('keydown', this.handleSceneGesture);
 
     if (typeof window !== 'undefined') {
-      window.removeEventListener('pointerdown', this.handleWindowGesture);
-      window.removeEventListener('pointerup', this.handleWindowGesture);
-      window.removeEventListener('mousedown', this.handleWindowGesture);
-      window.removeEventListener('mouseup', this.handleWindowGesture);
-      window.removeEventListener('touchstart', this.handleWindowGesture);
-      window.removeEventListener('touchend', this.handleWindowGesture);
-      window.removeEventListener('keydown', this.handleWindowGesture);
+      window.removeEventListener('pointerdown', this.handleWindowGesture, true);
+      window.removeEventListener('pointerup', this.handleWindowGesture, true);
+      window.removeEventListener('mousedown', this.handleWindowGesture, true);
+      window.removeEventListener('mouseup', this.handleWindowGesture, true);
+      window.removeEventListener('touchstart', this.handleWindowGesture, true);
+      window.removeEventListener('touchend', this.handleWindowGesture, true);
+      window.removeEventListener('keydown', this.handleWindowGesture, true);
     }
 
     this.unlockListenersRegistered = false;

@@ -1505,22 +1505,24 @@ function getAttackCooldownPatch(attack: TurnAttack): Record<string, number> {
   return {};
 }
 
-/** Roll 1 to maxHit inclusive so a successful hit always produces feedback. */
+/** Roll 0 to maxHit inclusive; starter weapons are intentionally low variance. */
 function rollDamage(attackPower: number): number {
-  return Math.floor(Math.random() * Math.max(1, attackPower)) + 1;
+  return Math.floor(Math.random() * (Math.max(0, attackPower) + 1));
 }
 
 function rollAttackHit(attack: TurnAttack, hitChance: number): { hit: boolean; damage: number } {
   const hitCount = Math.max(1, Math.floor(attack.hitCount ?? 1));
   let damage = 0;
+  let hit = false;
 
   for (let i = 0; i < hitCount; i += 1) {
     if (Math.random() * 100 < hitChance) {
+      hit = true;
       damage += rollDamage(attack.damage);
     }
   }
 
-  return { hit: damage > 0, damage };
+  return { hit, damage };
 }
 
 // ─── Immutable state helpers ──────────────────────────────────────────────────

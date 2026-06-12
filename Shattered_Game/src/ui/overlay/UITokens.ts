@@ -1,5 +1,7 @@
 
 import type { AbilitySlotType } from '../../combat/abilities/CombatAbilityDefinitions';
+import type { AudioMixerSettings } from '../../audio/AudioTypes';
+import type { SfxEventId } from '../../audio/SfxTypes';
 
 /**
  * Design tokens mirrored from public/ui.css :root block.
@@ -86,4 +88,7 @@ export interface UIOverlayCallbacks {
   onMinimapZoom: (delta: number) => void;
   onMapTileQuery: (tileX: number, tileY: number) => { terrain: string | null; walkable: boolean } | null;
   onClearSave: () => void;
+  onUiSfx: (id: SfxEventId) => void;
+  getAudioSettings: () => AudioMixerSettings;
+  onAudioSettingsChange: (settings: Partial<AudioMixerSettings>) => void;
 }

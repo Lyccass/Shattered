@@ -221,7 +221,7 @@ export class SkillDetailWindow {
     const nextRankLevel = this.skill.rank < 10 ? rankStageToLevel(this.skill.rank + 1, 1) : null;
     const skillName = this.skill.id === 'melee' ? 'Melee' : 'Ranged';
     const weaponText = this.skill.id === 'melee'
-      ? 'every melee weapon and to fists'
+      ? 'melee weapons and fists'
       : 'bows and crossbows';
 
     const section = document.createElement('div');

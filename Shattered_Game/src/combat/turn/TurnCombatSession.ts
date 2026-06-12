@@ -120,6 +120,7 @@ export class TurnCombatSession {
     worldX: number,
     worldY: number,
   ) => CombatLootDropSummary[];
+  private onEnemyRespawnedCb?: (spawnId: string, areaId: string) => void;
   private onCombatLog?: (line: string) => void;
   private getPersistedCooldowns?: () => CombatCooldownSnapshot;
   private setPersistedCooldowns?: (snapshot: CombatCooldownSnapshot) => void;
@@ -225,6 +226,10 @@ export class TurnCombatSession {
     this.onEnemyKilledForLoot = cb;
   }
 
+  onEnemyRespawned(cb: (spawnId: string, areaId: string) => void): void {
+    this.onEnemyRespawnedCb = cb;
+  }
+
   onLog(cb: (line: string) => void): void {
     this.onCombatLog = cb;
   }
@@ -250,9 +255,17 @@ export class TurnCombatSession {
   // ─── Per-frame update ─────────────────────────────────────────────────────
 
   update(nowMs: number): void {
-    // Update idle / dead enemy visuals outside of combat
+    // Update idle / dead enemy visuals outside of combat; detect respawns
     for (const es of this.enemySystems) {
-      if (!es.inCombat) es.update(nowMs);
+      if (!es.inCombat) {
+        const wasDead = !es.isAlive();
+        es.update(nowMs);
+        if (wasDead && es.isAlive() && this.onEnemyRespawnedCb) {
+          const spawnId = es.getSpawnId();
+          const areaId  = es.getAreaId();
+          if (spawnId && areaId) this.onEnemyRespawnedCb(spawnId, areaId);
+        }
+      }
     }
 
     this.updatePlayerHpRegen(nowMs);
@@ -614,7 +627,7 @@ export class TurnCombatSession {
     for (const participant of participants) {
       this.emitCombatLog(`${participant.name} joins the fight.`);
     }
-    this.eventBus.emitSfx('combat_hit');
+    this.eventBus.emitSfx('combat_start');
   }
 
   /**
@@ -756,7 +769,7 @@ export class TurnCombatSession {
       this.companionVisuals.set(p.id, vc);
     }
 
-    this.eventBus.emitSfx('combat_hit');
+    this.eventBus.emitSfx('combat_start');
   }
 
   private buildEnemyParticipant(
@@ -1014,13 +1027,14 @@ export class TurnCombatSession {
 
     es.recordDeath(this.scene.time.now);
     if (spawnId && pos && def) {
-      const drops = this.onEnemyKilledForLoot?.(spawnId, undefined, def.id, pos.x, pos.y) ?? [];
+      const drops = this.onEnemyKilledForLoot?.(spawnId, es.getAreaId(), def.id, pos.x, pos.y) ?? [];
       this.droppedLootSummary.push(...drops);
     }
   }
 
   private handleOutcome(outcome: ActionOutcome): void {
     this.logOutcome(outcome);
+    this.emitOutcomeFeedback(outcome);
 
     switch (outcome.kind) {
       case 'attacked': {
@@ -1247,7 +1261,69 @@ export class TurnCombatSession {
       case 'fled':
         this.finalizeCombat('player_fled');
         break;
+      }
+  }
+
+  private emitOutcomeFeedback(outcome: ActionOutcome): void {
+    switch (outcome.kind) {
+      case 'attacked':
+      case 'telegraph_resolved': {
+        if (outcome.kind === 'telegraph_resolved' && !outcome.targetWasInArea) {
+          this.eventBus.emitSfx('combat_miss');
+          return;
+        }
+
+        if (outcome.hit && outcome.damage > 0) {
+          this.eventBus.emitSfx('combat_hit');
+          this.shakeImpact(outcome.damage, outcome.targetId);
+          if (outcome.killed) this.eventBus.emitSfx('enemy_down');
+        } else {
+          this.eventBus.emitSfx('combat_miss');
+        }
+        return;
+      }
+      case 'ability_used':
+        if ((outcome.damage ?? 0) > 0) {
+          if (outcome.hit) {
+            this.eventBus.emitSfx('combat_hit');
+            this.shakeImpact(outcome.damage ?? 0, outcome.targetId);
+            if (outcome.killed) this.eventBus.emitSfx('enemy_down');
+          } else {
+            this.eventBus.emitSfx('combat_miss');
+          }
+        } else if ((outcome.healAmount ?? 0) > 0) {
+          this.eventBus.emitSfx('tea_consumed');
+        }
+        return;
+      case 'guarded':
+        this.eventBus.emitSfx('guard_block');
+        return;
+      case 'cleansed':
+      case 'item_consumed':
+        this.eventBus.emitSfx('tea_consumed');
+        return;
+      case 'fled':
+        this.eventBus.emitSfx('menu_cancel');
+        return;
+      case 'invalid':
+        this.eventBus.emitSfx('invalid_action');
+        return;
     }
+  }
+
+  private shakeImpact(damage: number, targetId: string): void {
+    if (damage <= 0) {
+      return;
+    }
+
+    const isPlayerHit = targetId === 'player';
+    const durationMs = Phaser.Math.Clamp(55 + damage * 10, 65, isPlayerHit ? 180 : 130);
+    const intensity = Phaser.Math.Clamp(
+      (isPlayerHit ? 0.0045 : 0.0028) + damage * 0.00045,
+      0.003,
+      isPlayerHit ? 0.012 : 0.008,
+    );
+    this.scene.cameras.main.shake(durationMs, intensity);
   }
 
   // ─── Private: enemy turn execution ───────────────────────────────────────
@@ -1684,7 +1760,7 @@ function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
     apCost: 1,
     minRangeTiles,
     maxRangeTiles: maxRangeTiles + style.rangeBonus,
-    damage: Math.max(1, stats.attack + style.damageBonus),
+    damage: Math.max(1, stats.attack),
     damageType: style.damageType,
     hitCount: hitCount,
     oncePerTurn: true,
@@ -1701,7 +1777,7 @@ function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
     apCost: 1,
     minRangeTiles,
     maxRangeTiles,
-    damage: Math.max(2, Math.round(stats.attack * 2)),
+    damage: Math.max(2, Math.round(stats.attack * 1.5)),
     damageType: style.damageType,
     hitChance: Math.max(10, stats.accuracy - 15),
     staggerDamage: (style.staggerDamage ?? 0) + 4,
@@ -1736,9 +1812,9 @@ function getWeaponPrimaryStyle(archetype: PlayerDerivedStats['weaponArchetype'])
     case 'spear':
       return { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 5,  damageBonus: 0, rangeBonus: 0, staggerDamage: 4, forcedMovement: { kind: 'push', distance: 1 } };
     case 'axe':
-      return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 1, rangeBonus: 0, staggerDamage: 4 };
+      return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0, staggerDamage: 4 };
     case 'hammer':
-      return { damageType: 'crush',  displayName: 'Crush', accuracyBonus: -4, damageBonus: 2, rangeBonus: 0, staggerDamage: 7, forcedMovement: { kind: 'push', distance: 1 } };
+      return { damageType: 'crush',  displayName: 'Crush', accuracyBonus: -4, damageBonus: 0, rangeBonus: 0, staggerDamage: 7, forcedMovement: { kind: 'push', distance: 1 } };
     case 'sword':
     default:
       return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0, staggerDamage: 3 };

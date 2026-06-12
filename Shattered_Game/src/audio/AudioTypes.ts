@@ -21,6 +21,16 @@ export type AudioDiagnosticsSnapshot = {
   failureReason: string | null;
 };
 
+export type AudioMixerSettings = {
+  masterVolume: number;
+  musicVolume: number;
+  sfxVolume: number;
+  uiVolume: number;
+  musicEnabled: boolean;
+  sfxEnabled: boolean;
+  uiEnabled: boolean;
+};
+
 export interface AudioPlaybackBackend {
   readonly name: string;
   supports(definition: SfxClipDefinition): boolean;

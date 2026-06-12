@@ -8,6 +8,13 @@ import type { IsoTilemap } from '../world/IsoTilemap';
 
 const DEFAULT_RESPAWN_MS = 60_000;
 
+const WANDER_RADIUS_TILES   = 3;
+const WANDER_SPEED_PER_MS   = 0.022;
+const WANDER_MIN_WAIT_MS    = 3_000;
+const WANDER_MAX_WAIT_MS    = 8_000;
+const WANDER_ARRIVE_DIST    = 4;
+const WANDER_PICK_ATTEMPTS  = 10;
+
 export class EnemySystem {
   private readonly registry = new EnemyRegistry(ENEMY_DEFINITIONS);
   private readonly visualController: EnemyVisualController;
@@ -18,6 +25,9 @@ export class EnemySystem {
 
   /** True while the enemy is a participant in an active turn combat. */
   private _inCombat = false;
+
+  /** Used to compute deltaMs from successive nowMs values. */
+  private lastUpdateMs: number | null = null;
 
   constructor(scene: Phaser.Scene) {
     this.visualController = new EnemyVisualController(scene);
@@ -35,50 +45,52 @@ export class EnemySystem {
     const origin    = tilemap.getTileCenterWorld(spawn.tileX, spawn.tileY);
 
     this.record = {
-      id:          spawn.id,
+      id:           spawn.id,
       definitionId: spawn.definitionId,
       mapId,
-      spawnTileX:  spawn.tileX,
-      spawnTileY:  spawn.tileY,
-      tileX:       spawn.tileX,
-      tileY:       spawn.tileY,
-      worldX:      origin.x,
-      worldY:      origin.y,
-      hp:          this.definition.maxHealth,
-      maxHp:       this.definition.maxHealth,
-      inCombat:    false,
-      diedAtMs:    null,
-      respawnMs:   spawn.respawnMs ?? DEFAULT_RESPAWN_MS,
+      spawnTileX:   spawn.tileX,
+      spawnTileY:   spawn.tileY,
+      tileX:        spawn.tileX,
+      tileY:        spawn.tileY,
+      worldX:       origin.x,
+      worldY:       origin.y,
+      hp:           this.definition.maxHealth,
+      maxHp:        this.definition.maxHealth,
+      inCombat:     false,
+      diedAtMs:     null,
+      respawnMs:    spawn.respawnMs ?? DEFAULT_RESPAWN_MS,
+      areaId:       spawn.areaId,
+      wanderTarget: null,
+      nextWanderMs: 0,
     };
 
     this.visualController.spawn(origin.x, origin.y);
   }
 
-  // ─── Per-frame update (called by GameScene outside of combat) ────────────
+  // ─── Per-frame update (called by TurnCombatSession outside of combat) ─────
 
-  /**
-   * Handles respawn timing and drives the visual controller.
-   * TurnCombatSession calls setVisualState() separately during combat turns.
-   */
   update(nowMs: number): void {
     if (!this.record || !this.tilemap) return;
 
-    // Respawn dead enemies
+    const deltaMs = this.lastUpdateMs !== null ? nowMs - this.lastUpdateMs : 0;
+    this.lastUpdateMs = nowMs;
+
     if (this.record.diedAtMs !== null) {
       if (nowMs - this.record.diedAtMs >= this.record.respawnMs) {
-        this.respawn();
+        this.respawn(nowMs);
       } else {
-      this.visualController.applyTurnState(
-        this.record.worldX, this.record.worldY,
-        false, 0, this.record.maxHp, 'dead', nowMs,
-        false,
-      );
+        this.visualController.applyTurnState(
+          this.record.worldX, this.record.worldY,
+          false, 0, this.record.maxHp, 'dead', nowMs,
+          false,
+        );
       }
       return;
     }
 
-    // Normal idle rendering (outside combat, session drives during combat)
     if (!this._inCombat) {
+      this.updateWander(nowMs, deltaMs);
+
       this.visualController.applyTurnState(
         this.record.worldX, this.record.worldY,
         false, this.record.hp, this.record.maxHp, 'idle', nowMs,
@@ -91,7 +103,13 @@ export class EnemySystem {
 
   setInCombat(inCombat: boolean): void {
     this._inCombat = inCombat;
-    if (this.record) this.record.inCombat = inCombat;
+    if (this.record) {
+      this.record.inCombat = inCombat;
+      if (inCombat) {
+        this.record.wanderTarget = null;
+        this.record.nextWanderMs = 0;
+      }
+    }
   }
 
   get inCombat(): boolean { return this._inCombat; }
@@ -147,6 +165,7 @@ export class EnemySystem {
     this.record.hp = 0;
     this._inCombat = false;
     this.record.inCombat = false;
+    this.record.wanderTarget = null;
   }
 
   // ─── Queries ──────────────────────────────────────────────────────────────
@@ -159,6 +178,7 @@ export class EnemySystem {
   getDefinition(): EnemyDefinition | null { return this.definition; }
   getSpawnId(): string | null { return this.record?.id ?? null; }
   getDefinitionId(): string | null { return this.definition?.id ?? null; }
+  getAreaId(): string | undefined { return this.record?.areaId; }
 
   getWorldPosition(): { x: number; y: number } | null {
     if (!this.record) return null;
@@ -190,6 +210,7 @@ export class EnemySystem {
     this.record = null;
     this.definition = null;
     this.tilemap = null;
+    this.lastUpdateMs = null;
   }
 
   // ─── Private ──────────────────────────────────────────────────────────────
@@ -199,19 +220,89 @@ export class EnemySystem {
     this.record = null;
     this.definition = null;
     this._inCombat = false;
+    this.lastUpdateMs = null;
   }
 
-  private respawn(): void {
+  private respawn(nowMs: number): void {
     if (!this.record || !this.definition || !this.tilemap) return;
     const origin = this.tilemap.getTileCenterWorld(this.record.spawnTileX, this.record.spawnTileY);
-    this.record.tileX    = this.record.spawnTileX;
-    this.record.tileY    = this.record.spawnTileY;
-    this.record.worldX   = origin.x;
-    this.record.worldY   = origin.y;
-    this.record.hp       = this.record.maxHp;
-    this.record.diedAtMs = null;
-    this.record.inCombat = false;
-    this._inCombat = false;
+    this.record.tileX        = this.record.spawnTileX;
+    this.record.tileY        = this.record.spawnTileY;
+    this.record.worldX       = origin.x;
+    this.record.worldY       = origin.y;
+    this.record.hp           = this.record.maxHp;
+    this.record.diedAtMs     = null;
+    this.record.inCombat     = false;
+    this._inCombat           = false;
+    this.record.wanderTarget = null;
+    this.record.nextWanderMs = nowMs + randomBetween(WANDER_MIN_WAIT_MS, WANDER_MAX_WAIT_MS);
     this.visualController.spawn(origin.x, origin.y);
   }
+
+  private updateWander(nowMs: number, deltaMs: number): void {
+    if (!this.record || !this.tilemap || deltaMs <= 0) return;
+
+    if (this.record.wanderTarget === null) {
+      if (nowMs < this.record.nextWanderMs) return;
+
+      const target = this.pickWanderTarget();
+      if (!target) {
+        this.record.nextWanderMs = nowMs + WANDER_MIN_WAIT_MS;
+        return;
+      }
+      this.record.wanderTarget = target;
+      return;
+    }
+
+    const { tileX: targetTileX, tileY: targetTileY } = this.record.wanderTarget;
+    const targetWorld = this.tilemap.getTileCenterWorld(targetTileX, targetTileY);
+
+    const dx   = targetWorld.x - this.record.worldX;
+    const dy   = targetWorld.y - this.record.worldY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist <= WANDER_ARRIVE_DIST) {
+      this.record.worldX       = targetWorld.x;
+      this.record.worldY       = targetWorld.y;
+      this.record.tileX        = targetTileX;
+      this.record.tileY        = targetTileY;
+      this.record.wanderTarget = null;
+      this.record.nextWanderMs = nowMs + randomBetween(WANDER_MIN_WAIT_MS, WANDER_MAX_WAIT_MS);
+      return;
+    }
+
+    const step = Math.min(dist, WANDER_SPEED_PER_MS * deltaMs);
+    this.record.worldX += (dx / dist) * step;
+    this.record.worldY += (dy / dist) * step;
+
+    // Keep tile in sync for aggro range checks
+    const tileCoord = this.tilemap.transform.worldToTile(this.record.worldX, this.record.worldY);
+    this.record.tileX = Math.round(tileCoord.x);
+    this.record.tileY = Math.round(tileCoord.y);
+  }
+
+  private pickWanderTarget(): { tileX: number; tileY: number } | null {
+    if (!this.record || !this.tilemap) return null;
+    const { spawnTileX, spawnTileY } = this.record;
+
+    for (let i = 0; i < WANDER_PICK_ATTEMPTS; i++) {
+      const dx = Math.round((Math.random() * 2 - 1) * WANDER_RADIUS_TILES);
+      const dy = Math.round((Math.random() * 2 - 1) * WANDER_RADIUS_TILES);
+      if (dx === 0 && dy === 0) continue;
+      const tx = spawnTileX + dx;
+      const ty = spawnTileY + dy;
+
+      if (
+        this.tilemap.isTileInBounds(tx, ty) &&
+        !this.tilemap.isTileTerrainBlocked(tx, ty)
+      ) {
+        return { tileX: tx, tileY: ty };
+      }
+    }
+    return null;
+  }
+}
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.random() * (max - min);
 }

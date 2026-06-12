@@ -7,6 +7,8 @@ import type { SpellbookSnapshot } from '../../../player/PlayerSpellbookState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
 import type { AbilitySlotType } from '../../../combat/abilities/CombatAbilityDefinitions';
+import type { AudioMixerSettings } from '../../../audio/AudioTypes';
+import type { SfxEventId } from '../../../audio/SfxTypes';
 import { UI_TOKENS, type TabId } from '../UITokens';
 import { EquipmentTabContent } from './EquipmentTabContent';
 import { DevotionTabContent } from './DevotionTabContent';
@@ -69,6 +71,9 @@ export class TaskbarPanel {
     private readonly onSkillOpen: (skill: SkillSnapshot) => void,
     private readonly onMapOpen: () => void,
     private readonly onClearSave: () => void,
+    private readonly onUiSfx: (id: SfxEventId) => void,
+    private readonly getAudioSettings: () => AudioMixerSettings,
+    private readonly onAudioSettingsChange: (settings: Partial<AudioMixerSettings>) => void,
   ) {
     this.root = document.createElement('div');
     this.root.id = 'ui-sidebar';
@@ -83,13 +88,19 @@ export class TaskbarPanel {
     // Combat toggle button FIRST (top of list)
     this.combatBtn = this.createIconBtn('Combat', UI_TOKENS.icons.combatOff);
     this.combatBtn.classList.add('taskbar-btn--combat');
-    this.combatBtn.addEventListener('click', () => { this.onCombatToggle(); });
+    this.combatBtn.addEventListener('click', () => {
+      this.onUiSfx('ui_button');
+      this.onCombatToggle();
+    });
     taskbar.appendChild(this.combatBtn);
 
     // Sprint toggle button (second)
     this.sprintBtn = this.createIconBtn('Sprint', UI_TOKENS.icons.sprint);
     this.sprintBtn.classList.add('taskbar-btn--sprint');
-    this.sprintBtn.addEventListener('click', () => { this.onSprintToggle(); });
+    this.sprintBtn.addEventListener('click', () => {
+      this.onUiSfx('ui_button');
+      this.onSprintToggle();
+    });
     taskbar.appendChild(this.sprintBtn);
 
     // Main tab buttons
@@ -130,7 +141,12 @@ export class TaskbarPanel {
     this.devotionContent  = new DevotionTabContent(this.onSpellbookEquip);
     this.skillsContent    = new SkillsTabContent(this.onSkillOpen);
     this.journalContent   = new JournalTabContent();
-    this.settingsContent  = new SettingsTabContent(this.onClearSave);
+    this.settingsContent  = new SettingsTabContent(
+      this.onClearSave,
+      this.onUiSfx,
+      this.getAudioSettings,
+      this.onAudioSettingsChange,
+    );
   }
 
   private createIconBtn(label: string, iconUrl: string): HTMLElement {
@@ -149,11 +165,13 @@ export class TaskbarPanel {
   private handleTabClick(tabId: TabId): void {
     // Map opens the floating MapWindow — not a sidebar panel.
     if (tabId === 'map') {
+      this.onUiSfx('menu_open');
       this.onMapOpen();
       return;
     }
 
     if (this.activeTab === tabId) {
+      this.onUiSfx('ui_tab_close');
       this.activeTab = null;
       this.panelArea.classList.add('ui-hidden');
       this.panelArea.innerHTML = '';
@@ -163,6 +181,9 @@ export class TaskbarPanel {
 
     if (this.activeTab) {
       this.tabButtons.get(this.activeTab)?.classList.remove('is-active');
+      this.onUiSfx('menu_select');
+    } else {
+      this.onUiSfx('ui_tab_open');
     }
 
     this.activeTab = tabId;
