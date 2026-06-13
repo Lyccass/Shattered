@@ -1238,10 +1238,8 @@ export class TurnCombatSession {
 
       case 'moved': {
         if (outcome.actorId === 'player' && this.playerController && this.currentTilemap) {
-          const world = this.currentTilemap.getTileCenterWorld(outcome.toTile.x, outcome.toTile.y);
-          // Use click-move so the player walks smoothly instead of teleporting.
-          // playerController.update() always runs (see GameScene) so this resolves each frame.
-          this.playerController.setClickMoveTarget(world.x, world.y);
+          // Use the engine-approved combat path so visual movement cannot re-path through units.
+          this.playerController.setClickMoveTilePath(outcome.path?.length ? outcome.path : [outcome.toTile]);
         } else {
           const companionVc = this.companionVisuals.get(outcome.actorId);
           if (companionVc && this.currentTilemap) {

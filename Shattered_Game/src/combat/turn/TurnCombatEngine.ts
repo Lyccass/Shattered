@@ -557,7 +557,7 @@ function applyMove(
     bleedMovementTiles: (actor.bleedMovementTiles ?? 0) + stepCost,
   });
 
-  const reactions = resolveDisengageReactions(state, next, actor, fromTile, toTile, tileCtx);
+  const reactions = resolveDisengageReactions(state, next, actor, fromTile, path, tileCtx);
   next = reactions.state;
 
   return {
@@ -1527,11 +1527,12 @@ function resolveDisengageReactions(
   current: TurnCombatState,
   moverBefore: TurnParticipant,
   fromTile: { x: number; y: number },
-  toTile: { x: number; y: number },
+  path: { x: number; y: number }[],
   tileCtx: TurnTileContext,
 ): { outcomes: TurnAttackOutcome[]; state: TurnCombatState } {
   let next = current;
   const outcomes: TurnAttackOutcome[] = [];
+  const movementSteps = buildMovementSteps(fromTile, path);
 
   for (const previousReactor of previous.participants) {
     if (previousReactor.id === moverBefore.id) continue;
@@ -1539,21 +1540,20 @@ function resolveDisengageReactions(
     if (isSameSide(previousReactor, moverBefore)) continue;
     if ((previousReactor.reactionRemaining ?? 1) <= 0) continue;
 
-    const fromDist = chebyshevDist(previousReactor.tileX, previousReactor.tileY, fromTile.x, fromTile.y);
-    const toDist = chebyshevDist(previousReactor.tileX, previousReactor.tileY, toTile.x, toTile.y);
-    if (fromDist > 1 || toDist <= 1) continue;
+    const threatenedStep = findReactionStep(previousReactor, movementSteps);
+    if (!threatenedStep) continue;
 
     const liveReactor = next.participants.find((p) => p.id === previousReactor.id);
     const liveMover = next.participants.find((p) => p.id === moverBefore.id);
     if (!liveReactor || !liveMover || liveReactor.hp <= 0 || liveMover.hp <= 0) continue;
 
-    const reactionAttack = selectReactionAttack(liveReactor, fromDist);
+    const reactionAttack = selectReactionAttack(liveReactor, threatenedStep.fromDist);
     if (!reactionAttack) continue;
 
     const targetAtLeavingTile: TurnParticipant = {
       ...liveMover,
-      tileX: fromTile.x,
-      tileY: fromTile.y,
+      tileX: threatenedStep.from.x,
+      tileY: threatenedStep.from.y,
     };
     const hitContext = getResolvedHitChance(
       liveReactor,
@@ -1615,6 +1615,44 @@ function resolveDisengageReactions(
   }
 
   return { outcomes, state: next };
+}
+
+function buildMovementSteps(
+  fromTile: { x: number; y: number },
+  path: { x: number; y: number }[],
+): Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> {
+  const steps: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> = [];
+  let current = fromTile;
+  for (const to of path) {
+    steps.push({ from: current, to });
+    current = to;
+  }
+  return steps;
+}
+
+function findReactionStep(
+  reactor: TurnParticipant,
+  steps: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }>,
+): { from: { x: number; y: number }; to: { x: number; y: number }; fromDist: number } | null {
+  for (const step of steps) {
+    const reaction = doesStepProvokeReaction(reactor, step.from, step.to);
+    if (reaction) return { ...step, fromDist: reaction.fromDist };
+  }
+  return null;
+}
+
+function doesStepProvokeReaction(
+  reactor: TurnParticipant,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): { fromDist: number } | null {
+  const fromDist = chebyshevDist(reactor.tileX, reactor.tileY, from.x, from.y);
+  if (fromDist > 1) return null;
+
+  const toDist = chebyshevDist(reactor.tileX, reactor.tileY, to.x, to.y);
+  if (toDist < fromDist) return null;
+
+  return { fromDist };
 }
 
 function selectReactionAttack(actor: TurnParticipant, distance: number): TurnAttack | null {

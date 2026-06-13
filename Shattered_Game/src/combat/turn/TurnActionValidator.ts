@@ -14,6 +14,12 @@ const DIRS_8 = [
 
 type TilePoint = { x: number; y: number };
 type BfsBounds = { mapWidth: number; mapHeight: number };
+type BfsCanTraverse = (
+  fromX: number,
+  fromY: number,
+  dx: number,
+  dy: number,
+) => boolean;
 
 export function tileKey(x: number, y: number): string {
   return `${x},${y}`;
@@ -29,6 +35,7 @@ export function bfsFlood(
   maxCost: number,
   blocked: (tileX: number, tileY: number) => boolean,
   bounds: BfsBounds,
+  canTraverse?: BfsCanTraverse,
 ): Map<string, number> {
   const costs = new Map<string, number>([[tileKey(origin.x, origin.y), 0]]);
   const queue: Array<TilePoint & { cost: number }> = [{ ...origin, cost: 0 }];
@@ -46,6 +53,7 @@ export function bfsFlood(
       if (costs.has(key)) continue;
       if (nx < 0 || ny < 0 || nx >= bounds.mapWidth || ny >= bounds.mapHeight) continue;
       if (blocked(nx, ny)) continue;
+      if (canTraverse && !canTraverse(current.x, current.y, dx, dy)) continue;
 
       costs.set(key, newCost);
       queue.push({ x: nx, y: ny, cost: newCost });
@@ -73,11 +81,13 @@ export function getReachableTiles(
       .map((p) => `${p.tileX},${p.tileY}`),
   );
   const origin = { x: participant.tileX, y: participant.tileY };
+  const blocked = (x: number, y: number) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y));
   const costs = bfsFlood(
     origin,
     participant.mpRemaining,
-    (x, y) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y)),
+    blocked,
     tileCtx,
+    canTraverseCombatNeighbour(blocked),
   );
 
   return [...costs.keys()]
@@ -153,11 +163,13 @@ export function getMovePath(
       .map((p) => `${p.tileX},${p.tileY}`),
   );
   const startKey = tileKey(participant.tileX, participant.tileY);
+  const blocked = (x: number, y: number) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y));
   const costs = bfsFlood(
     { x: participant.tileX, y: participant.tileY },
     participant.mpRemaining,
-    (x, y) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y)),
+    blocked,
     tileCtx,
+    canTraverseCombatNeighbour(blocked),
   );
   if (!costs.has(targetKey)) return null;
   return rebuildPathFromCosts(costs, startKey, targetKey);
@@ -289,4 +301,16 @@ function rebuildPathFromCosts(
   }
 
   return reversed.reverse();
+}
+
+function canTraverseCombatNeighbour(
+  blocked: (tileX: number, tileY: number) => boolean,
+): BfsCanTraverse {
+  return (fromX, fromY, dx, dy) => {
+    if (dx === 0 || dy === 0) {
+      return true;
+    }
+
+    return !blocked(fromX + dx, fromY) && !blocked(fromX, fromY + dy);
+  };
 }

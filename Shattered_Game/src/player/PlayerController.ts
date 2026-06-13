@@ -237,6 +237,10 @@ export class PlayerController {
     this.clickMovement.setTarget(this.getFeetTile(), worldX, worldY, maxPathTiles);
   }
 
+  setClickMoveTilePath(path: Array<{ x: number; y: number }>): void {
+    this.clickMovement.setTilePath(this.getFeetTile(), path);
+  }
+
   resolveDodgeTarget(
     direction: { x: number; y: number },
     distance: number,

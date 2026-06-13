@@ -597,6 +597,62 @@ describe('attack action', () => {
     expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(0);
   });
 
+  it('provokes a reaction when moving around an adjacent enemy', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99);
+
+    const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 3 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      reactionRemaining: 1,
+      attacks: [{
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'slash',
+        hitChance: 100,
+      }],
+    });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'move', toTileX: 10, toTileY: 11 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({
+      kind: 'moved',
+      reactions: [{ kind: 'attacked', actorId: 'e1', targetId: 'player', reaction: true, hit: true, damage: 1 }],
+    });
+    expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(9);
+    expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(0);
+  });
+
+  it('does not let units cut diagonally through an occupied combat tile', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 2 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+    });
+
+    const { outcome } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'move', toTileX: 12, toTileY: 10 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({ kind: 'invalid', reason: 'Tile not reachable.' });
+  });
+
   it('lets the player react when an enemy leaves melee range', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0.5)   // attackRoll = 50 > 0 → hit

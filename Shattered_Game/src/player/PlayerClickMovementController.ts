@@ -65,6 +65,25 @@ export class PlayerClickMovementController {
       .map((point) => new Phaser.Math.Vector2(point.x, point.y));
   }
 
+  setTilePath(
+    startTile: { x: number; y: number },
+    path: Array<{ x: number; y: number }>,
+  ): void {
+    const tiles = path.filter((tile) => tile.x !== startTile.x || tile.y !== startTile.y);
+
+    if (tiles.length === 0) {
+      this.clear();
+      return;
+    }
+
+    const centers = tiles
+      .map((tile) => this.tilemap.getTileCenterWorld(tile.x, tile.y))
+      .map((point) => new Phaser.Math.Vector2(point.x, point.y));
+
+    this.clickMoveWaypoints = centers;
+    this.clickMoveTarget = centers[centers.length - 1].clone();
+  }
+
   getCurrentMoveDirection(feet: { x: number; y: number }): Phaser.Math.Vector2 | null {
     const currentWaypoint = this.clickMoveWaypoints[0] ?? this.clickMoveTarget;
 
