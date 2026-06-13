@@ -240,8 +240,8 @@ export class SkillDetailWindow {
     ));
     section.appendChild(this.buildInfoRow(
       'Accuracy',
-      '+0.4% per level',
-      `${skillName} level raises base accuracy before armour and facing modifiers are applied.`,
+      '+1 rating per level',
+      `${skillName} level is added to equipped weapon accuracy before enemy armour, facing, and height are applied.`,
       true,
     ));
     section.appendChild(this.buildInfoRow(

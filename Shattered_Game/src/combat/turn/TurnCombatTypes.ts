@@ -71,7 +71,7 @@ export type TurnAttack = {
   hitCount?: number;
   /** Prevents reusing this attack again until this actor's next turn. */
   oncePerTurn?: boolean;
-  /** Attack accuracy rating before level, target defence, position, and height. Defaults to 80. */
+  /** Attack accuracy rating before target defence, position, and height. Defaults to 80. */
   hitChance?: number;
   statusEffect?: {
     kind: StatusEffectKind;
@@ -133,10 +133,8 @@ export type TurnParticipant = {
   /** Lower initiative acts first. Rolled once at combat start. */
   initiative: number;
   attackPower: number;
-  /** Base weapon/attack accuracy before level, target defence, position, and height. */
+  /** Weapon/attack accuracy before target defence, position, and height. */
   hitChance?: number;
-  /** Relevant combat skill level used to add accuracy. */
-  attackLevel: number;
   /** Poise — reduces stagger build-up per hit. */
   poise?: number;
   slashDefence: number;

@@ -48,7 +48,6 @@ function makePlayer(overrides: Partial<TurnParticipant> = {}): TurnParticipant {
     secondaryActionRemaining: 1,
     initiative: 5,
     attackPower: 3,
-    attackLevel: 1,
     slashDefence: 0,
     pierceDefence: 0,
     crushDefence: 0,
@@ -79,7 +78,6 @@ function makeEnemy(id: string, overrides: Partial<TurnParticipant> = {}): TurnPa
     secondaryActionRemaining: 1,
     initiative: 8,
     attackPower: 1,
-    attackLevel: 1,
     slashDefence: 0,
     pierceDefence: 0,
     crushDefence: 0,
@@ -550,10 +548,10 @@ describe('attack action', () => {
     }, { kind: 'attack', targetId: 'diag-rear', attackId: 'punch' }, OPEN_CTX).outcome;
 
     expect(front).toMatchObject({ kind: 'attacked', positionalMultiplier: 1 });
-    expect(diagonalFront).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.05 });
-    expect(side).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.15 });
-    expect(diagonalRear).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.2 });
-    expect(rear).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.35 });
+    expect(diagonalFront).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.03 });
+    expect(side).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.08 });
+    expect(diagonalRear).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.12 });
+    expect(rear).toMatchObject({ kind: 'attacked', positionalMultiplier: 1.2 });
     // Rear attack should have the highest expected hit rate
     const rearHit  = (rear  as { hitChance?: number }).hitChance ?? 0;
     const frontHit = (front as { hitChance?: number }).hitChance ?? 0;

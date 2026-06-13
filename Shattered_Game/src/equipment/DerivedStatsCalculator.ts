@@ -23,13 +23,13 @@ const DEFAULT_ATTACK_SHAPE: WeaponAttackShape = { kind: 'thrust', lengthTiles: 1
 
 function getArchetypeBaseAccuracy(archetype: WeaponArchetype): number {
   switch (archetype) {
-    case 'fists':  return 40;
-    case 'dagger': return 55;
-    case 'sword':  return 65;
-    case 'axe':    return 60;
-    case 'spear':  return 70;
-    case 'hammer': return 55;
-    case 'bow':    return 65;
+    case 'fists':  return 6;
+    case 'dagger': return 9;
+    case 'sword':  return 8;
+    case 'axe':    return 7;
+    case 'spear':  return 8;
+    case 'hammer': return 7;
+    case 'bow':    return 8;
   }
 }
 
@@ -69,9 +69,12 @@ export function computeDerivedStats(
 
   const weaponArchetype: WeaponArchetype = weapon?.archetype ?? DEFAULT_ARCHETYPE;
   const combatStyleLevel = RANGED_ARCHETYPES.has(weaponArchetype) ? rangedLevel : meleeLevel;
-  const rankDamageBonus = levelToRankStage(combatStyleLevel).rank - 1;
-  const attack = (weapon?.damage ?? BASE_ATTACK) + rankDamageBonus;
-  const accuracy = weapon?.accuracyRating ?? getArchetypeBaseAccuracy(weaponArchetype);
+  const combatStyleRank = levelToRankStage(combatStyleLevel).rank;
+  const weaponDamageBonus = Math.max(0, (weapon?.damage ?? BASE_ATTACK) - BASE_ATTACK);
+  const attack = weapon
+    ? Math.max(BASE_ATTACK, combatStyleRank + weaponDamageBonus)
+    : getUnarmedMaxHit(combatStyleRank);
+  const accuracy = Math.max(0, Math.floor((weapon?.accuracyRating ?? getArchetypeBaseAccuracy(weaponArchetype)) + combatStyleLevel));
   const attackShape: WeaponAttackShape = weapon?.attackShape ?? DEFAULT_ATTACK_SHAPE;
   const damageType = weapon?.damageType ?? 'crush';
   const reachTiles = weapon?.reachTiles ?? BASE_REACH_TILES;
@@ -79,7 +82,6 @@ export function computeDerivedStats(
   const staggerImpact = weapon?.staggerImpact ?? BASE_STAGGER_IMPACT;
 
   // Accumulate armour stats from all slots
-  let physicalDefence = 0;
   let slashDefence = 0;
   let pierceDefence = 0;
   let crushDefence = 0;
@@ -95,10 +97,9 @@ export function computeDerivedStats(
     const def = registry.get(itemId);
     const a = def?.equipment?.armorStats;
     if (!a) continue;
-    physicalDefence += a.physicalDefence;
-    slashDefence    += a.physicalDefence + a.typeDefence.slash;
-    pierceDefence   += a.physicalDefence + a.typeDefence.pierce;
-    crushDefence    += a.physicalDefence + a.typeDefence.crush;
+    slashDefence    += a.typeDefence.slash;
+    pierceDefence   += a.typeDefence.pierce;
+    crushDefence    += a.typeDefence.crush;
     poisonResistance += a.elementalResistance.poison;
     fireResistance  += a.elementalResistance.fire;
     coldResistance  += a.elementalResistance.cold;
@@ -109,6 +110,9 @@ export function computeDerivedStats(
   }
 
   const dodgeChance = skillDodge + armorDodge;
+  slashDefence += meleeLevel;
+  pierceDefence += meleeLevel;
+  crushDefence += meleeLevel;
 
   // Stamina regen penalty from carry weight
   let staminaRegenMultiplier: number;
@@ -124,6 +128,7 @@ export function computeDerivedStats(
     maxHp,
     combatLevel,
     combatStyleLevel,
+    combatStyleRank,
     maxStamina: BASE_MAX_STAMINA,
     attack,
     accuracy,
@@ -134,7 +139,6 @@ export function computeDerivedStats(
     attackStaminaCost,
     staggerImpact,
     dodgeChance,
-    physicalDefence,
     slashDefence,
     pierceDefence,
     crushDefence,
@@ -151,4 +155,8 @@ export function computeDerivedStats(
     staggerThreshold,
     poise,
   };
+}
+
+function getUnarmedMaxHit(combatStyleRank: number): number {
+  return Math.max(BASE_ATTACK, combatStyleRank);
 }

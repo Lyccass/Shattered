@@ -32,7 +32,7 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
       maxRangeTiles: 4,
       damage: 1,
       damageType: 'lightning',
-      hitChance: 85,
+      hitChance: 9,
       cooldownTurns: 2,
     },
   },

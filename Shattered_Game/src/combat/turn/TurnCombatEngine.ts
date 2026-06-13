@@ -37,10 +37,10 @@ const DIRS_8 = [
 const COMBAT_POSITION_TUNING = {
   facingMultiplierCurve: [
     { alignment: 1,             multiplier: 1.0  },
-    { alignment: Math.SQRT1_2, multiplier: 1.05 },
-    { alignment: 0,             multiplier: 1.15 },
-    { alignment: -Math.SQRT1_2, multiplier: 1.2  },
-    { alignment: -1,            multiplier: 1.35 },
+    { alignment: Math.SQRT1_2, multiplier: 1.03 },
+    { alignment: 0,             multiplier: 1.08 },
+    { alignment: -Math.SQRT1_2, multiplier: 1.12 },
+    { alignment: -1,            multiplier: 1.2  },
   ],
   heightHitMultiplierPerStep: 0.1,
   maxHeightSteps: 3,
@@ -49,7 +49,6 @@ const COMBAT_POSITION_TUNING = {
 } as const;
 
 const HIT_CHANCE_TUNING = {
-  skillAccuracyPerLevel: 1.5,
   curvePower: 5.5,
   minChance: 0,
   maxChance: 0.99,
@@ -1404,9 +1403,7 @@ function getResolvedHitChance(
   const positionalMultiplier = getPositionalHitMultiplier(actor, target);
   const heightMultiplier     = getHeightHitMultiplier(actor, target, tileCtx);
   const maxDefenceRoll       = getTypedMaxDefenceRoll(target, damageType);
-  const maxAccuracyRoll      = Math.max(0, Math.floor(
-    baseHitChance + (actor.attackLevel ?? 0) * HIT_CHANCE_TUNING.skillAccuracyPerLevel,
-  ));
+  const maxAccuracyRoll      = Math.max(0, Math.floor(baseHitChance));
   const baseRate = expectedHitRate(maxAccuracyRoll, maxDefenceRoll);
   const rate = clampHitProbability(baseRate * positionalMultiplier * heightMultiplier);
   const hitChance = Math.round(rate * 100);

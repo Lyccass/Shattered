@@ -58,7 +58,6 @@ export type ElementalResistance = {
 };
 
 export type ArmorStats = {
-  physicalDefence: number;
   dodgeBonus: number;
   typeDefence: PhysicalTypeDefence;
   elementalResistance: ElementalResistance;
@@ -89,6 +88,7 @@ export type PlayerDerivedStats = {
   maxHp: number;
   combatLevel: number;
   combatStyleLevel: number;
+  combatStyleRank: number;
   maxStamina: number;
   attack: number;
   accuracy: number;
@@ -99,7 +99,6 @@ export type PlayerDerivedStats = {
   attackStaminaCost: number;
   staggerImpact: number;
   dodgeChance: number;
-  physicalDefence: number;
   slashDefence: number;
   pierceDefence: number;
   crushDefence: number;
@@ -127,6 +126,7 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     maxHp: 10,
     combatLevel: 1,
     combatStyleLevel: 0,
+    combatStyleRank: 1,
     maxStamina: 100,
     attack: 1,
     accuracy: 40,
@@ -137,7 +137,6 @@ export function emptyDerivedStats(): PlayerDerivedStats {
     attackStaminaCost: 12,
     staggerImpact: 1,
     dodgeChance: 0,
-    physicalDefence: 0,
     slashDefence: 0,
     pierceDefence: 0,
     crushDefence: 0,

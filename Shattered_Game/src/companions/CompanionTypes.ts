@@ -7,9 +7,7 @@ export type CompanionDefinition = {
   displayName: string;
   maxHp: number;
   attackPower: number;
-  /** Combat level used to add accuracy in hit resolution. */
-  attackLevel: number;
-  /** Base typed defences (pre-level-scaling). */
+  /** Typed defences used directly in hit resolution. */
   slashDefence: number;
   pierceDefence: number;
   crushDefence: number;

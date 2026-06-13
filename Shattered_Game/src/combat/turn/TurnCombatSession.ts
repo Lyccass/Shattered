@@ -61,11 +61,6 @@ type CombatLootDropSummary = {
   label: string;
 };
 
-const TIER_TO_LEVEL: Record<number, number> = {
-  1: 5, 2: 15, 3: 30, 4: 50, 5: 70, 6: 85, 7: 99, 8: 99, 9: 99, 10: 99,
-};
-
-
 const ENEMY_MOVE_TWEEN_MS  = 280;
 const ENEMY_ATTACK_WAIT_MS = 420;
 const ENEMY_TURN_DELAY_MS  = 180;
@@ -182,6 +177,7 @@ export class TurnCombatSession {
     else this.persistedMagicResource = Math.min(this.persistedMagicResource, this.magicResourceMax);
     if (this.persistedDevotionResource === null) this.persistedDevotionResource = this.devotionResourceMax;
     else this.persistedDevotionResource = Math.min(this.persistedDevotionResource, this.devotionResourceMax);
+    this.refreshLivePlayerStats();
   }
 
   setCombatSkillLevels(levels: { magic: number; devotion: number }): void {
@@ -209,6 +205,46 @@ export class TurnCombatSession {
 
   setEquippedTurnAbilities(abilities: TurnCombatAbility[]): void {
     this.equippedTurnAbilities = abilities.map((ability) => ({ ...ability }));
+  }
+
+  private refreshLivePlayerStats(): void {
+    if (!this.combatState || !this.derivedStats) return;
+
+    const attacks = buildPlayerTurnAttacks(this.derivedStats);
+    const attackIds = new Set(attacks.map((attack) => attack.id));
+    if (this.selectedPlayerAttackId && !attackIds.has(this.selectedPlayerAttackId)) {
+      this.selectedPlayerAttackId = null;
+      this._isAttackMode = false;
+    }
+
+    const nextMaxHp = this.derivedStats.maxHp;
+    this.combatState = {
+      ...this.combatState,
+      participants: this.combatState.participants.map((participant) => {
+        if (participant.id !== 'player') return participant;
+        const hpDelta = nextMaxHp - participant.maxHp;
+        return {
+          ...participant,
+          maxHp: nextMaxHp,
+          hp: Math.max(1, Math.min(nextMaxHp, participant.hp + Math.max(0, hpDelta))),
+          initiative: this.derivedStats?.combatLevel ?? participant.initiative,
+          attackPower: this.derivedStats?.attack ?? participant.attackPower,
+          hitChance: this.derivedStats?.accuracy ?? participant.hitChance,
+          poise: Math.floor((this.derivedStats?.poise ?? 0) / 10),
+          slashDefence: this.derivedStats?.slashDefence ?? participant.slashDefence,
+          pierceDefence: this.derivedStats?.pierceDefence ?? participant.pierceDefence,
+          crushDefence: this.derivedStats?.crushDefence ?? participant.crushDefence,
+          lightningDefence: this.derivedStats?.lightningDefence ?? participant.lightningDefence,
+          fireDefence: this.derivedStats?.fireDefence ?? participant.fireDefence,
+          coldDefence: this.derivedStats?.coldDefence ?? participant.coldDefence,
+          poisonDefence: this.derivedStats?.poisonDefence ?? participant.poisonDefence,
+          attackRangeTiles: Math.max(...attacks.map((attack) => attack.maxRangeTiles)),
+          attacks,
+          staggerThreshold: Math.max(10, Math.ceil((this.derivedStats?.staggerThreshold ?? 100) / 10)),
+          weaponId: this.derivedStats?.weaponArchetype ?? participant.weaponId,
+        };
+      }),
+    };
   }
 
   onEnd(cb: (evt: CombatEndEvent) => void): void {
@@ -727,7 +763,6 @@ export class TurnCombatSession {
       initiative:       this.derivedStats.combatLevel,
       attackPower:      this.derivedStats.attack,
       hitChance:        this.derivedStats.accuracy,
-      attackLevel:      this.derivedStats.combatStyleLevel,
       poise:            Math.floor(this.derivedStats.poise / 10),
       slashDefence:     this.derivedStats.slashDefence,
       pierceDefence:    this.derivedStats.pierceDefence,
@@ -815,7 +850,6 @@ export class TurnCombatSession {
       initiative:      def.initiative,
       attackPower:      def.attacks[0]?.damage ?? 1,
       hitChance:        def.attacks[0]?.hitChance,
-      attackLevel:      def.attackLevel ?? TIER_TO_LEVEL[def.tier] ?? 5,
       poise:            0,
       slashDefence:     def.slashDefence,
       pierceDefence:    def.pierceDefence,
@@ -920,7 +954,6 @@ export class TurnCombatSession {
         reactionRemaining: 1,
         initiative: def.initiative,
         attackPower:      def.attackPower,
-        attackLevel:      def.attackLevel,
         poise:            0,
         slashDefence:     def.slashDefence,
         pierceDefence:    def.pierceDefence,
@@ -1784,7 +1817,7 @@ function buildPlayerTurnAttacks(stats: PlayerDerivedStats): TurnAttack[] {
     damageType: style.damageType,
     hitCount: hitCount,
     oncePerTurn: true,
-    hitChance: Math.max(10, stats.accuracy + style.accuracyBonus),
+    hitChance: Math.max(1, stats.accuracy),
     staggerDamage: Math.max(0, stats.staggerImpact),
     statusEffect: style.statusEffect,
     forcedMovement: style.forcedMovement,
@@ -1810,7 +1843,7 @@ function buildWeaponSpecialAttack(
     maxRangeTiles,
     damage: Math.max(2, Math.round(stats.attack * 1.5)),
     damageType: style.damageType,
-    hitChance: Math.max(10, stats.accuracy - 15),
+    hitChance: Math.max(1, stats.accuracy - 2),
     staggerDamage: Math.max(0, stats.staggerImpact + 4),
     cooldownTurns: 1,
   };
@@ -1821,7 +1854,7 @@ function buildWeaponSpecialAttack(
         ...base,
         displayName: 'Knockback',
         damage: Math.max(1, stats.attack),
-        hitChance: Math.max(10, stats.accuracy - 10),
+        hitChance: Math.max(1, stats.accuracy - 1),
         staggerDamage: Math.max(0, stats.staggerImpact + 6),
         forcedMovement: { kind: 'push', distance: 1 },
       };
@@ -1831,7 +1864,7 @@ function buildWeaponSpecialAttack(
         displayName: 'Double Strike',
         damage: Math.max(1, stats.attack),
         hitCount: 2,
-        hitChance: Math.max(10, stats.accuracy - 5),
+        hitChance: Math.max(1, stats.accuracy - 2),
         staggerDamage: Math.max(0, stats.staggerImpact),
       };
     case 'spear':
@@ -1840,7 +1873,7 @@ function buildWeaponSpecialAttack(
         displayName: 'Lunging Thrust',
         damage: Math.max(1, stats.attack),
         maxRangeTiles: maxRangeTiles + 1,
-        hitChance: Math.max(10, stats.accuracy - 5),
+        hitChance: Math.max(1, stats.accuracy - 1),
         staggerDamage: Math.max(0, stats.staggerImpact + 2),
       };
     case 'axe':
@@ -1848,7 +1881,7 @@ function buildWeaponSpecialAttack(
         ...base,
         displayName: 'Rending Chop',
         damage: Math.max(1, stats.attack),
-        hitChance: Math.max(10, stats.accuracy - 5),
+        hitChance: Math.max(1, stats.accuracy - 1),
         staggerDamage: Math.max(0, stats.staggerImpact + 2),
         statusEffect: { kind: 'bleeding', turns: 2, value: 1 },
       };
@@ -1867,7 +1900,6 @@ function getPlayerMinRangeTiles(stats: PlayerDerivedStats): number {
 type WeaponStyle = {
   damageType: TurnDamageType;
   displayName: string;
-  accuracyBonus: number;
   damageBonus: number;
   rangeBonus: number;
   statusEffect?: TurnAttack['statusEffect'];
@@ -1877,18 +1909,18 @@ type WeaponStyle = {
 function getWeaponPrimaryStyle(archetype: PlayerDerivedStats['weaponArchetype']): WeaponStyle {
   switch (archetype) {
     case 'fists':
-      return { damageType: 'crush',  displayName: 'Punch', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0 };
+      return { damageType: 'crush',  displayName: 'Punch', damageBonus: 0, rangeBonus: 0 };
     case 'dagger':
-      return { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 8,  damageBonus: 0, rangeBonus: 0 };
+      return { damageType: 'pierce', displayName: 'Stab',  damageBonus: 0, rangeBonus: 0 };
     case 'spear':
-      return { damageType: 'pierce', displayName: 'Stab',  accuracyBonus: 5,  damageBonus: 0, rangeBonus: 0 };
+      return { damageType: 'pierce', displayName: 'Stab',  damageBonus: 0, rangeBonus: 0 };
     case 'axe':
-      return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0 };
+      return { damageType: 'slash',  displayName: 'Slash', damageBonus: 0, rangeBonus: 0 };
     case 'hammer':
-      return { damageType: 'crush',  displayName: 'Crush', accuracyBonus: -4, damageBonus: 0, rangeBonus: 0 };
+      return { damageType: 'crush',  displayName: 'Crush', damageBonus: 0, rangeBonus: 0 };
     case 'sword':
     default:
-      return { damageType: 'slash',  displayName: 'Slash', accuracyBonus: 0,  damageBonus: 0, rangeBonus: 0 };
+      return { damageType: 'slash',  displayName: 'Slash', damageBonus: 0, rangeBonus: 0 };
   }
 }
 

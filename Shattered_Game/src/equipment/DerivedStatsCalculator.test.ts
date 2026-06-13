@@ -37,6 +37,12 @@ describe('computeDerivedStats combat HP scaling', () => {
       magic: 1,
       devotion: 1,
     });
+    const rankOneStageTen = computeDerivedStats({}, registry, {
+      melee: 10,
+      ranged: 1,
+      magic: 1,
+      devotion: 1,
+    });
     const rankTen = computeDerivedStats({}, registry, {
       melee: 100,
       ranged: 1,
@@ -47,7 +53,51 @@ describe('computeDerivedStats combat HP scaling', () => {
     expect(rankOne.weaponArchetype).toBe('fists');
     expect(rankOne.damageType).toBe('crush');
     expect(rankOne.attack).toBe(1);
+    expect(rankOneStageTen.attack).toBe(1);
     expect(rankTen.attack).toBe(10);
+  });
+
+  it('adds weapon damage to the combat style rank for max hit', () => {
+    const tungstenSword: ItemDefinition = {
+      id: 'test_tungsten_sword',
+      name: 'Test Tungsten Sword',
+      examine: 'A weapon used by stat tests.',
+      icon: '',
+      category: 'equipment',
+      stackable: false,
+      weight: 1,
+      value: 1,
+      equipment: {
+        slot: 'main_hand',
+        requiredLevel: 1,
+        weaponStats: {
+          archetype: 'sword',
+          attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.5 },
+          damage: 11,
+          damageType: 'slash',
+          reachTiles: 1,
+          staminaCost: 10,
+          staggerImpact: 4,
+          weight: 1,
+          durability: 80,
+          maxDurability: 100,
+        },
+      },
+    };
+    const swordRegistry: EquipmentRegistry = {
+      has: (id: string) => id === tungstenSword.id,
+      get: (id: string) => id === tungstenSword.id ? tungstenSword : undefined,
+      getAll: () => [tungstenSword],
+    };
+
+    const stats = computeDerivedStats({ main_hand: tungstenSword.id }, swordRegistry, {
+      melee: 100,
+      ranged: 1,
+      magic: 1,
+      devotion: 1,
+    });
+
+    expect(stats.attack).toBe(20);
   });
 
   it('scales ranged weapon max hit by ranged rank instead of melee rank', () => {
@@ -92,7 +142,8 @@ describe('computeDerivedStats combat HP scaling', () => {
 
     expect(stats.weaponArchetype).toBe('bow');
     expect(stats.attack).toBe(10);
-    expect(stats.accuracy).toBe(65);  // bow archetype base accuracy (flat, skill goes into combatStyleLevel)
+    expect(stats.accuracy).toBe(108);  // bow archetype base accuracy plus ranged skill level
     expect(stats.combatStyleLevel).toBe(100); // ranged skill, not melee
+    expect(stats.combatStyleRank).toBe(10);
   });
 });

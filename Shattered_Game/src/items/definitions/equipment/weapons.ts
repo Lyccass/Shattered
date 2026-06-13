@@ -7,7 +7,7 @@ type MaterialTier = {
   rank: number;
   valueMultiplier: number;
   weightMultiplier: number;
-  accuracyBonus: number;
+  damageBonus: number;
 };
 
 type WeaponArchetypeConfig = {
@@ -28,13 +28,13 @@ type WeaponArchetypeConfig = {
 };
 
 const MATERIAL_TIERS: MaterialTier[] = [
-  { id: 'copper',   displayName: 'Copper',   rank: 1, valueMultiplier: 1,  weightMultiplier: 1.00, accuracyBonus: 0   },
-  { id: 'iron',     displayName: 'Iron',     rank: 2, valueMultiplier: 4,  weightMultiplier: 1.10, accuracyBonus: 36  },
-  { id: 'steel',    displayName: 'Steel',    rank: 3, valueMultiplier: 9,  weightMultiplier: 1.05, accuracyBonus: 90  },
-  { id: 'cobalt',   displayName: 'Cobalt',   rank: 4, valueMultiplier: 16, weightMultiplier: 0.95, accuracyBonus: 144 },
-  { id: 'tungsten', displayName: 'Tungsten', rank: 5, valueMultiplier: 25, weightMultiplier: 1.25, accuracyBonus: 216 },
-  { id: 'adamant',  displayName: 'Adamant',  rank: 6, valueMultiplier: 36, weightMultiplier: 1.15, accuracyBonus: 288 },
-  { id: 'titanite', displayName: 'Titanite', rank: 7, valueMultiplier: 49, weightMultiplier: 1.00, accuracyBonus: 378 },
+  { id: 'copper',   displayName: 'Copper',   rank: 1, valueMultiplier: 1,  weightMultiplier: 1.00, damageBonus: 0  },
+  { id: 'iron',     displayName: 'Iron',     rank: 2, valueMultiplier: 4,  weightMultiplier: 1.10, damageBonus: 1  },
+  { id: 'steel',    displayName: 'Steel',    rank: 3, valueMultiplier: 9,  weightMultiplier: 1.05, damageBonus: 3  },
+  { id: 'cobalt',   displayName: 'Cobalt',   rank: 4, valueMultiplier: 16, weightMultiplier: 0.95, damageBonus: 6  },
+  { id: 'tungsten', displayName: 'Tungsten', rank: 5, valueMultiplier: 25, weightMultiplier: 1.25, damageBonus: 10 },
+  { id: 'adamant',  displayName: 'Adamant',  rank: 6, valueMultiplier: 36, weightMultiplier: 1.15, damageBonus: 15 },
+  { id: 'titanite', displayName: 'Titanite', rank: 7, valueMultiplier: 49, weightMultiplier: 1.00, damageBonus: 21 },
 ];
 
 const ARCHETYPES: WeaponArchetypeConfig[] = [
@@ -45,7 +45,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     examine: 'A balanced blade with reliable reach and control.',
     damageType: 'slash',
     attackShape: { kind: 'arc', angleDeg: 120, rangeTiles: 1.5, minRangeTiles: 0.3 },
-    baseAccuracy: 82,
+    baseAccuracy: 8,
     baseDamage: 1,
     reachTiles: 1.0,
     staminaCost: 11,
@@ -60,7 +60,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     examine: 'A light stabbing weapon that rewards precision.',
     damageType: 'pierce',
     attackShape: { kind: 'thrust', lengthTiles: 1.2, widthTiles: 0.6 },
-    baseAccuracy: 95,
+    baseAccuracy: 11,
     baseDamage: 1,
     reachTiles: 1.0,
     staminaCost: 8,
@@ -75,7 +75,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     examine: 'A heavy chopping weapon with strong stagger pressure.',
     damageType: 'slash',
     attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.2, minRangeTiles: 0.5 },
-    baseAccuracy: 76,
+    baseAccuracy: 6,
     baseDamage: 1,
     reachTiles: 1.0,
     staminaCost: 13,
@@ -90,7 +90,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     examine: 'A slow-feeling crush weapon built to break guard and bone.',
     damageType: 'crush',
     attackShape: { kind: 'thrust', lengthTiles: 1.5, widthTiles: 2.0 },
-    baseAccuracy: 70,
+    baseAccuracy: 7,
     baseDamage: 1,
     reachTiles: 1.0,
     staminaCost: 16,
@@ -106,7 +106,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     examine: 'A long piercing weapon for holding enemies at distance.',
     damageType: 'pierce',
     attackShape: { kind: 'thrust', lengthTiles: 2.5, widthTiles: 0.7 },
-    baseAccuracy: 88,
+    baseAccuracy: 9,
     baseDamage: 1,
     reachTiles: 2.0,
     staminaCost: 10,
@@ -137,8 +137,8 @@ function makeWeaponDefinition(
   const materialIndex = material.rank - 1;
   const id = `${material.id}_${weapon.archetype}`;
   const requiredLevel = materialIndex * 10 + 1;
-  const damage = weapon.baseDamage + materialIndex;
-  const accuracyRating = weapon.baseAccuracy + material.accuracyBonus;
+  const damage = weapon.baseDamage + material.damageBonus;
+  const accuracyRating = weapon.baseAccuracy + getMaterialAccuracyBonus(material.rank);
   const staggerImpact = weapon.staggerImpact + materialIndex;
   const weight = roundTenth(weapon.weight * material.weightMultiplier);
 
@@ -174,4 +174,9 @@ function makeWeaponDefinition(
 
 function roundTenth(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function getMaterialAccuracyBonus(rank: number): number {
+  if (rank <= 1) return 0;
+  return Math.round(2.5 * (1.7 ** (rank - 1) - 1));
 }

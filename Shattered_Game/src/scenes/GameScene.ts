@@ -916,7 +916,7 @@ function formatItemInspectText(def: ItemDefinition): string {
 
     if (def.equipment.armorStats) {
       const a = def.equipment.armorStats;
-      parts.push(`Armour ${a.physicalDefence}, slash ${a.typeDefence.slash}, pierce ${a.typeDefence.pierce}, crush ${a.typeDefence.crush}`);
+      parts.push(`Slash ${a.typeDefence.slash}, pierce ${a.typeDefence.pierce}, crush ${a.typeDefence.crush}`);
       parts.push(`Dodge ${formatSigned(a.dodgeBonus)}, poise ${a.poise}, ${a.weight} kg`);
       const res = [
         a.elementalResistance.poison ? `poison ${a.elementalResistance.poison}` : '',

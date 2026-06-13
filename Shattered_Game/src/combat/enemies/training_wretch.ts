@@ -34,7 +34,7 @@ export const TRAINING_WRETCH: EnemyDefinition = {
       maxRangeTiles: 1,
       damage: 2,
       damageType: 'slash',
-      hitChance: 75,
+      hitChance: 7,
     },
     {
       id: 'wretch_slam',
@@ -44,7 +44,7 @@ export const TRAINING_WRETCH: EnemyDefinition = {
       maxRangeTiles: 1,
       damage: 3,
       damageType: 'crush',
-      hitChance: 60,
+      hitChance: 6,
       statusEffect: { kind: 'stunned', turns: 1, value: 0 },
       cooldownTurns: 3,
     },

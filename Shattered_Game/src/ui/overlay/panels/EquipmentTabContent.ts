@@ -140,13 +140,12 @@ export class EquipmentTabContent {
     this.appendGroup(wrap, 'Weapon Actions', [
       ['Basic Attack', `${s.attack} ${s.damageType}`,              'Always available if in range. No cooldown and no expedition charges.'],
       ['Special',      getWeaponSpecialSummary(s),                 'Weapon special attack. Costs a Main Action and has a short cooldown.'],
-      ['Accuracy',     String(s.accuracy),                          'Weapon accuracy rating before skill, enemy defence, position, and height are applied.'],
+      ['Accuracy',     String(s.accuracy),                          'Final weapon accuracy rating before enemy defence, position, and height are applied.'],
       ['Range',        formatAttackRange(s),                       'Usable tile range for the equipped weapon in turn combat.'],
       ['Stagger',      String(getWeaponStaggerEstimate(s)),         'Stagger pressure applied by weapon actions.'],
     ]);
 
     this.appendGroup(wrap, 'Defence', [
-      ['Armour',         String(s.physicalDefence),   'General armour from equipped gear. Used by combat to reduce incoming hit chance.'],
       ['Slash Armour',   String(s.slashDefence),      'Armour against slash attacks.'],
       ['Pierce Armour',  String(s.pierceDefence),     'Armour against pierce attacks.'],
       ['Crush Armour',   String(s.crushDefence),      'Armour against crush attacks.'],

@@ -8,7 +8,6 @@ type MaterialTier = {
   valueMultiplier: number;
   weightMultiplier: number;
   durabilityBonus: number;
-  defenceBonus: number;
 };
 
 type ArmorPieceConfig = {
@@ -17,7 +16,6 @@ type ArmorPieceConfig = {
   icon: string;
   slot: EquipmentSlot;
   examine: string;
-  physicalDefence: number;
   typeDefence: { slash: number; pierce: number; crush: number };
   elementalResistance: { poison: number; fire: number; cold: number; lightning: number };
   dodgeBonus: number;
@@ -28,13 +26,13 @@ type ArmorPieceConfig = {
 };
 
 const MATERIAL_TIERS: MaterialTier[] = [
-  { id: 'copper',   displayName: 'Copper',   rank: 1, valueMultiplier: 1,  weightMultiplier: 1.00, durabilityBonus: 0,  defenceBonus: 0  },
-  { id: 'iron',     displayName: 'Iron',     rank: 2, valueMultiplier: 4,  weightMultiplier: 1.12, durabilityBonus: 10, defenceBonus: 2  },
-  { id: 'steel',    displayName: 'Steel',    rank: 3, valueMultiplier: 9,  weightMultiplier: 1.08, durabilityBonus: 20, defenceBonus: 5  },
-  { id: 'cobalt',   displayName: 'Cobalt',   rank: 4, valueMultiplier: 16, weightMultiplier: 0.98, durabilityBonus: 30, defenceBonus: 8  },
-  { id: 'tungsten', displayName: 'Tungsten', rank: 5, valueMultiplier: 25, weightMultiplier: 1.28, durabilityBonus: 40, defenceBonus: 12 },
-  { id: 'adamant',  displayName: 'Adamant',  rank: 6, valueMultiplier: 36, weightMultiplier: 1.18, durabilityBonus: 50, defenceBonus: 16 },
-  { id: 'titanite', displayName: 'Titanite', rank: 7, valueMultiplier: 49, weightMultiplier: 1.05, durabilityBonus: 60, defenceBonus: 21 },
+  { id: 'copper',   displayName: 'Copper',   rank: 1, valueMultiplier: 1,  weightMultiplier: 1.00, durabilityBonus: 0  },
+  { id: 'iron',     displayName: 'Iron',     rank: 2, valueMultiplier: 4,  weightMultiplier: 1.12, durabilityBonus: 10 },
+  { id: 'steel',    displayName: 'Steel',    rank: 3, valueMultiplier: 9,  weightMultiplier: 1.08, durabilityBonus: 20 },
+  { id: 'cobalt',   displayName: 'Cobalt',   rank: 4, valueMultiplier: 16, weightMultiplier: 0.98, durabilityBonus: 30 },
+  { id: 'tungsten', displayName: 'Tungsten', rank: 5, valueMultiplier: 25, weightMultiplier: 1.28, durabilityBonus: 40 },
+  { id: 'adamant',  displayName: 'Adamant',  rank: 6, valueMultiplier: 36, weightMultiplier: 1.18, durabilityBonus: 50 },
+  { id: 'titanite', displayName: 'Titanite', rank: 7, valueMultiplier: 49, weightMultiplier: 1.05, durabilityBonus: 60 },
 ];
 
 const ARMOR_PIECES: ArmorPieceConfig[] = [
@@ -44,8 +42,7 @@ const ARMOR_PIECES: ArmorPieceConfig[] = [
     icon: '🪖',
     slot: 'head',
     examine: 'Head-slot protection against glancing blows.',
-    physicalDefence: 4,
-    typeDefence: { slash: 8, pierce: 6, crush: 4 },
+    typeDefence: { slash: 1, pierce: 1, crush: 1 },
     elementalResistance: { poison: 0, fire: 0, cold: 1, lightning: 0 },
     dodgeBonus: -1,
     poise: 1,
@@ -59,8 +56,7 @@ const ARMOR_PIECES: ArmorPieceConfig[] = [
     icon: '🧤',
     slot: 'gloves',
     examine: 'Gloves-slot armour for keeping a grip through impacts.',
-    physicalDefence: 2,
-    typeDefence: { slash: 6, pierce: 4, crush: 4 },
+    typeDefence: { slash: 1, pierce: 1, crush: 1 },
     elementalResistance: { poison: 0, fire: 0, cold: 0, lightning: 0 },
     dodgeBonus: -1,
     poise: 1,
@@ -74,8 +70,7 @@ const ARMOR_PIECES: ArmorPieceConfig[] = [
     icon: '🥋',
     slot: 'body',
     examine: 'Body-slot armour for surviving direct weapon hits.',
-    physicalDefence: 10,
-    typeDefence: { slash: 20, pierce: 16, crush: 12 },
+    typeDefence: { slash: 3, pierce: 3, crush: 2 },
     elementalResistance: { poison: 1, fire: 0, cold: 1, lightning: 1 },
     dodgeBonus: -3,
     poise: 4,
@@ -89,8 +84,7 @@ const ARMOR_PIECES: ArmorPieceConfig[] = [
     icon: '👖',
     slot: 'legs',
     examine: 'Leg-slot armour that keeps movement possible under pressure.',
-    physicalDefence: 6,
-    typeDefence: { slash: 14, pierce: 10, crush: 8 },
+    typeDefence: { slash: 2, pierce: 1, crush: 1 },
     elementalResistance: { poison: 0, fire: 0, cold: 1, lightning: 0 },
     dodgeBonus: -2,
     poise: 2,
@@ -104,8 +98,7 @@ const ARMOR_PIECES: ArmorPieceConfig[] = [
     icon: '👢',
     slot: 'feet',
     examine: 'Feet-slot armour for bracing against impact.',
-    physicalDefence: 2,
-    typeDefence: { slash: 6, pierce: 6, crush: 4 },
+    typeDefence: { slash: 1, pierce: 1, crush: 1 },
     elementalResistance: { poison: 0, fire: 0, cold: 1, lightning: 0 },
     dodgeBonus: -1,
     poise: 1,
@@ -122,10 +115,10 @@ export const ARMOR_ITEMS: ItemDefinition[] = MATERIAL_TIERS.flatMap((material) =
 function makeArmorDefinition(material: MaterialTier, piece: ArmorPieceConfig): ItemDefinition {
   const id = `${material.id}_${piece.id}`;
   const requiredLevel = (material.rank - 1) * 10 + 1;
-  const defenceMultiplier = 1 + material.defenceBonus * 0.28;
+  const defenceMultiplier = getMaterialDefenceMultiplier(material.rank);
   const weight = roundTenth(piece.weight * material.weightMultiplier);
   const dodgeBonus = Math.min(0, piece.dodgeBonus - Math.floor((material.rank - 1) / 2));
-  const poise = piece.poise + Math.floor(material.defenceBonus * 0.45);
+  const poise = piece.poise + Math.floor((material.rank - 1) * 1.1);
 
   return {
     id,
@@ -140,7 +133,6 @@ function makeArmorDefinition(material: MaterialTier, piece: ArmorPieceConfig): I
       slot: piece.slot,
       requiredLevel,
       armorStats: {
-        physicalDefence: scaleDefence(piece.physicalDefence, defenceMultiplier),
         dodgeBonus,
         typeDefence: {
           slash: scaleDefence(piece.typeDefence.slash, defenceMultiplier),
@@ -173,4 +165,9 @@ function scaleResistance(base: number, rank: number): number {
 
 function roundTenth(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function getMaterialDefenceMultiplier(rank: number): number {
+  if (rank <= 1) return 1;
+  return 1 + 0.25 * (1.75 ** (rank - 1) - 1);
 }

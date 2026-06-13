@@ -28,7 +28,7 @@ export type TurnAttackDefinition = {
   /** Max hit; landed damage is rolled 1–damage. Misses display as 0. */
   damage: number;
   damageType?: TurnDamageType;
-  /** Attack accuracy rating before skill level, target defence, position, and height. */
+  /** Attack accuracy rating before target defence, position, and height. */
   hitChance?: number;
   /** Optional status effect applied on hit. */
   statusEffect?: {
@@ -45,10 +45,8 @@ export type TurnAttackDefinition = {
 export type EnemyDefinition = {
   id: string;
   displayName: string;
-  /** 1–10 display/power band. Also supplies the default attack level when no explicit attack stat exists. */
+  /** 1–10 display/power band. This is descriptive; combat values come from explicit stats. */
   tier: number;
-  /** Optional offensive level override. If omitted, tier supplies a default. */
-  attackLevel?: number;
   maxHealth: number;
   /** Lower initiative acts first. Used as base before the 1–6 random roll. */
   initiative: number;
