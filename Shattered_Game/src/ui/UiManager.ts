@@ -175,6 +175,10 @@ export class UiManager {
     this.overlay.toggleMapWindow(playerTileX, playerTileY);
   }
 
+  setUtilityTargetingMode(active: boolean): void {
+    this.overlay.setUtilityTargetingMode(active);
+  }
+
   openShop(
     shopId: string,
     shopSnapshot: ShopSnapshot,

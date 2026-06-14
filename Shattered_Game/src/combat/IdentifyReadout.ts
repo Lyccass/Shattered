@@ -21,17 +21,19 @@ const DEFENCE_KEYS = [
   'poison',
 ] as const satisfies readonly TurnDamageType[];
 
+const PHYSICAL_KEYS = ['slash', 'pierce', 'crush'] as const satisfies readonly TurnDamageType[];
+
 export function formatEnemyIdentifyReadout(
   enemy: EnemyDefinition,
   currentHp: number,
   magicRank: number,
 ): string {
   const rank = Math.max(1, Math.floor(magicRank));
-  const weakest = getWeakestDefences(enemy);
+  const weakest = rank < 4 ? getWeakestFromKeys(enemy, PHYSICAL_KEYS) : getWeakestFromKeys(enemy, DEFENCE_KEYS);
   const lines = [
     `Identify: ${enemy.displayName}`,
     enemy.description ?? 'A hostile creature of the Wake.',
-    `Rank ${enemy.tier}. Weakest resistance: ${formatDefenceList(weakest)}.`,
+    `Rank ${enemy.tier}. Weakest ${rank < 4 ? 'physical ' : ''}resistance: ${formatDefenceList(weakest)}.`,
   ];
 
   if (rank >= 4) {
@@ -47,16 +49,14 @@ export function formatEnemyIdentifyReadout(
   return lines.join(' ');
 }
 
-function getWeakestDefences(enemy: EnemyDefinition): TurnDamageType[] {
-  const lowest = Math.min(...DEFENCE_KEYS.map((key) => getDefence(enemy, key)));
-  return DEFENCE_KEYS.filter((key) => getDefence(enemy, key) === lowest);
+function getWeakestFromKeys(enemy: EnemyDefinition, keys: readonly TurnDamageType[]): TurnDamageType[] {
+  const lowest = Math.min(...keys.map((key) => getDefence(enemy, key)));
+  return keys.filter((key) => getDefence(enemy, key) === lowest);
 }
 
 function getWeaknessBand(enemy: EnemyDefinition): TurnDamageType[] {
-  const values = DEFENCE_KEYS.map((key) => getDefence(enemy, key));
-  const lowest = Math.min(...values);
-  const threshold = lowest + 2;
-  return DEFENCE_KEYS.filter((key) => getDefence(enemy, key) <= threshold);
+  const lowest = Math.min(...DEFENCE_KEYS.map((key) => getDefence(enemy, key)));
+  return DEFENCE_KEYS.filter((key) => getDefence(enemy, key) <= lowest + 2);
 }
 
 function getDefence(enemy: EnemyDefinition, damageType: TurnDamageType): number {

@@ -25,7 +25,7 @@ const DEFINITIONS: Record<string, CompanionDefinition> = {
         apCost: 1,
         minRangeTiles: 2,
         maxRangeTiles: 5,
-        damage: 2,
+        damage: 1,
         damageType: 'crush',
         hitChance: 8,
         telegraph: { pattern: 'target_plus_adjacent', warningDamageMultiplier: 0.5 },

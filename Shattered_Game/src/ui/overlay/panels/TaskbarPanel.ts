@@ -273,6 +273,10 @@ export class TaskbarPanel {
     this.updateUtilityBar(spellbook, controlMode);
   }
 
+  setUtilityTargetingMode(active: boolean): void {
+    this.utilityBar.classList.toggle('is-targeting', active);
+  }
+
   destroy(): void {
     this.utilityBar.remove();
     this.root.remove();

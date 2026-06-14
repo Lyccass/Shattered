@@ -413,13 +413,16 @@ export function resolvePendingTelegraphsForActor(
   tileCtx: TurnTileContext,
 ): { outcomes: ActionOutcome[]; state: TurnCombatState } {
   const pendingTelegraphs = state.pendingTelegraphs ?? [];
-  const pending = pendingTelegraphs.filter((telegraph) => telegraph.actorId === actorId);
+  const pending = pendingTelegraphs.filter(
+    (t) => t.actorId === actorId && state.round >= t.resolveAfterRound,
+  );
   if (pending.length === 0) return { outcomes: [], state };
 
   const outcomes: ActionOutcome[] = [];
+  const pendingIds = new Set(pending.map((t) => t.id));
   let current: TurnCombatState = {
     ...cloneState(state),
-    pendingTelegraphs: pendingTelegraphs.filter((telegraph) => telegraph.actorId !== actorId),
+    pendingTelegraphs: pendingTelegraphs.filter((t) => !pendingIds.has(t.id)),
   };
 
   for (const telegraph of pending) {
@@ -881,6 +884,7 @@ function prepareTelegraphedAttack(
     originTile: { x: actor.tileX, y: actor.tileY },
     targetTile: { x: target.tileX, y: target.tileY },
     tiles: buildTelegraphTiles(actor.tileX, actor.tileY, target.tileX, target.tileY, telegraphConfig, tileCtx),
+    resolveAfterRound: state.round + 1,
   };
   const nextCooldowns = {
     ...(actor.attackCooldowns ?? {}),
@@ -1265,9 +1269,7 @@ function tickStatusEffects(
     if (effect.kind === 'bleeding' || effect.kind === 'damage_over_time') {
       const movedTiles = participant.bleedMovementTiles ?? 0;
       const rawDamage = effect.kind === 'bleeding'
-        ? movedTiles <= 0
-          ? 0
-          : effect.value * (movedTiles > 2 ? 2 : 1)
+        ? movedTiles <= 0 ? 0 : effect.value
         : effect.value;
       const damage = Math.min(nextHp, Math.max(0, rawDamage));
       nextHp = Math.max(0, nextHp - damage);

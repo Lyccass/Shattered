@@ -58,6 +58,8 @@ export type PendingTurnTelegraph = {
   originTile: { x: number; y: number };
   targetTile: { x: number; y: number };
   tiles: TurnTelegraphTile[];
+  /** First round on which this telegraph may resolve — prevents same-turn execution. */
+  resolveAfterRound: number;
 };
 
 export type TurnAttack = {

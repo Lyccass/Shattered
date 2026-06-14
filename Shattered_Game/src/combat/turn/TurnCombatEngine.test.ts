@@ -701,6 +701,7 @@ describe('attack action', () => {
         originTile: { x: 11, y: 10 },
         targetTile: { x: 10, y: 10 },
         tiles: [{ x: 10, y: 10, intensity: 'danger', damageMultiplier: 1 }],
+        resolveAfterRound: 1,
       }],
     }, { kind: 'move', toTileX: 10, toTileY: 11 }, OPEN_CTX);
 
@@ -1391,6 +1392,7 @@ describe('attack action', () => {
         originTile: { x: 12, y: 10 },
         targetTile: { x: 10, y: 10 },
         tiles: [{ x: 10, y: 10, intensity: 'danger' as const, damageMultiplier: 1 }],
+        resolveAfterRound: 1,
       }],
       turnOrderIds: ['e1', 'player'],
       activeIndex: 1,
@@ -1435,6 +1437,7 @@ describe('attack action', () => {
         originTile: { x: 12, y: 10 },
         targetTile: { x: 10, y: 10 },
         tiles: [{ x: 10, y: 10, intensity: 'danger' as const, damageMultiplier: 1 }],
+        resolveAfterRound: 1,
       }],
       turnOrderIds: ['e1', 'player'],
       activeIndex: 0,
@@ -1490,6 +1493,7 @@ describe('attack action', () => {
         originTile: { x: 12, y: 10 },
         targetTile: { x: 10, y: 10 },
         tiles: [{ x: 10, y: 10, intensity: 'danger' as const, damageMultiplier: 1 }],
+        resolveAfterRound: 1,
       }],
       turnOrderIds: ['e1', 'player'],
       activeIndex: 0,

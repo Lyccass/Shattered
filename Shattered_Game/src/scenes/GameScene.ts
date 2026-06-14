@@ -64,6 +64,7 @@ export class GameScene extends Phaser.Scene {
   private readonly encounterPopulation = new WorldEncounterPopulationTracker();
   private readonly playerCompanionState = new PlayerCompanionState();
   private lastFootstepSfxMs = 0;
+  private pendingIdentify = false;
 
   constructor() {
     super('GameScene');
@@ -163,13 +164,16 @@ export class GameScene extends Phaser.Scene {
           this.uiManager?.pushMessage('Utility spells can only be used out of combat.', 'error');
           return;
         }
-        const magicRank = this.worldRuntimeCoordinator
-          ? levelToRankStage(this.worldRuntimeCoordinator.getSkillLevel('magic')).rank
-          : 1;
+        if (abilityId === 'utility_identify') {
+          // Enter targeting mode — fire on the next world click.
+          this.pendingIdentify = !this.pendingIdentify;
+          this.uiManager?.setUtilityTargetingMode(this.pendingIdentify);
+          if (this.pendingIdentify) {
+            this.uiManager?.pushMessage('Identify — click an enemy. Right-click to cancel.', 'system');
+          }
+          return;
+        }
         const result = this.worldRuntimeCoordinator?.useUtilitySpell(abilityId, {
-          identifyReadout: abilityId === 'utility_identify'
-            ? this.turnCombatSession?.identifyNearestEnemy(magicRank) ?? null
-            : null,
           magicResource: this.turnCombatSession?.getMagicResourceSnapshot() ?? null,
           spendMagicResource: (cost) => this.turnCombatSession?.trySpendMagicResource(cost) ?? false,
         });
@@ -348,6 +352,24 @@ export class GameScene extends Phaser.Scene {
           return;
         }
 
+        // Identify targeting mode — click an enemy tile to identify it.
+        if (this.pendingIdentify && tilemap) {
+          const tile = tilemap.transform.worldToTile(worldX, worldY);
+          const magicRank = this.worldRuntimeCoordinator
+            ? levelToRankStage(this.worldRuntimeCoordinator.getSkillLevel('magic')).rank
+            : 1;
+          const readout = this.turnCombatSession?.identifyEnemyAtTile(tile.x, tile.y, magicRank) ?? null;
+          const result = this.worldRuntimeCoordinator?.useUtilitySpell('utility_identify', {
+            identifyReadout: readout,
+            magicResource: this.turnCombatSession?.getMagicResourceSnapshot() ?? null,
+            spendMagicResource: (cost) => this.turnCombatSession?.trySpendMagicResource(cost) ?? false,
+          });
+          this.pendingIdentify = false;
+          this.uiManager?.setUtilityTargetingMode(false);
+          if (result) this.handleGameplayResult(result, { allowAutosave: true });
+          return;
+        }
+
         // Combat stance: player can click enemies to start combat with passive mobs
         if (this.isCombatStance && tilemap) {
           const tile = tilemap.transform.worldToTile(worldX, worldY);
@@ -359,8 +381,15 @@ export class GameScene extends Phaser.Scene {
 
         this.interactionController?.pointerInteraction(worldX, worldY);
       },
-      onPointerContext: (worldX, worldY) =>
-        this.interactionController?.pointerContext(worldX, worldY),
+      onPointerContext: (worldX, worldY) => {
+        if (this.pendingIdentify) {
+          this.pendingIdentify = false;
+          this.uiManager?.setUtilityTargetingMode(false);
+          this.uiManager?.pushMessage('Identify cancelled.', 'system');
+          return;
+        }
+        this.interactionController?.pointerContext(worldX, worldY);
+      },
       onMenuMoveUp:   () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(-1),
       onMenuMoveDown: () => this.worldRuntimeCoordinator?.moveChoiceMenuSelection(1),
       onMenuConfirm:  () => this.tryConfirmChoiceMenu(),

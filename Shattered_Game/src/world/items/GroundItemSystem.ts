@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { RENDER_DEPTHS } from '../../render/RenderLayers';
+import { getDynamicDepth } from '../../render/RenderLayers';
 import { getInventoryItemMeta } from '../../ui/inventory/InventoryItemMeta';
 import type { EnemyLootTable, EnemyLootTableEntry } from '../../combat/EnemyTypes';
 import type { GroundItemDrop } from './GroundItemTypes';
@@ -132,14 +132,11 @@ export class GroundItemSystem {
     visible = true,
   ): void {
     const meta = getInventoryItemMeta(itemId);
-    const depth = RENDER_DEPTHS.GRID + 5;
+    const depth = getDynamicDepth(worldY, 100);
 
-    // Flat ground indicator — dark ellipse to suggest the item is lying on the tile
     const shadow = this.scene.add.graphics();
-    shadow.fillStyle(0x0a0500, 0.7);
-    shadow.fillEllipse(0, 0, 28, 14);
-    shadow.lineStyle(1, 0xffaa33, 0.55);
-    shadow.strokeEllipse(0, 0, 28, 14);
+    shadow.fillStyle(0x000000, 0.45);
+    shadow.fillEllipse(0, 0, 26, 10);
 
     const iconText = this.scene.add.text(0, -1, meta.icon, {
       fontSize: '11px',

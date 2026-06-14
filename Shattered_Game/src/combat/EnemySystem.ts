@@ -69,16 +69,19 @@ export class EnemySystem {
 
   // ─── Per-frame update (called by TurnCombatSession outside of combat) ─────
 
-  update(nowMs: number): void {
+  update(nowMs: number, blockRespawn = false): void {
     if (!this.record || !this.tilemap) return;
 
     const deltaMs = this.lastUpdateMs !== null ? nowMs - this.lastUpdateMs : 0;
     this.lastUpdateMs = nowMs;
 
     if (this.record.diedAtMs !== null) {
-      if (nowMs - this.record.diedAtMs >= this.record.respawnMs) {
+      if (!blockRespawn && nowMs - this.record.diedAtMs >= this.record.respawnMs) {
         this.respawn(nowMs);
       } else {
+        // When blocked, keep resetting the death timestamp so the full respawn
+        // delay is honoured after combat ends rather than firing immediately.
+        if (blockRespawn) this.record.diedAtMs = nowMs;
         this.visualController.applyTurnState(
           this.record.worldX, this.record.worldY,
           false, 0, this.record.maxHp, 'dead', nowMs,

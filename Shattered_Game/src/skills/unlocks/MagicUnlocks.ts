@@ -31,6 +31,15 @@ export const MAGIC_UNLOCKS: SkillUnlockEntry[] = [
   {
     skillId: 'magic',
     rankRequired: 1,
+    stageRequired: 3,
+    kind: 'combat_spell',
+    refId: 'spell_concuss',
+    displayName: 'Concuss',
+    description: 'Combat spell slot option. Stun an enemy for 1 turn.',
+  },
+  {
+    skillId: 'magic',
+    rankRequired: 1,
     stageRequired: 5,
     kind: 'combat_spell',
     refId: 'spell_barrier',

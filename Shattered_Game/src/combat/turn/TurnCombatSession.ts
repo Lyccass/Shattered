@@ -159,6 +159,16 @@ export class TurnCombatSession {
 
   setPlayerController(pc: PlayerController): void {
     this.playerController = pc;
+    // Block player from walking onto enemy tiles out of combat.
+    pc.setExternalOccupancyValidator((feetWorldX, feetWorldY) => {
+      if (!this.currentTilemap || this.combatState) return true;
+      const tile = this.currentTilemap.transform.worldToTile(feetWorldX, feetWorldY);
+      return !this.enemySystems.some((es) => {
+        if (!es.isAlive()) return false;
+        const t = es.getCurrentTile();
+        return t && t.x === tile.x && t.y === tile.y;
+      });
+    });
   }
 
   getEnemyTiles(): Array<{ tileX: number; tileY: number }> {
@@ -189,6 +199,19 @@ export class TurnCombatSession {
     return nearest
       ? formatEnemyIdentifyReadout(nearest.definition, nearest.record.hp, magicRank)
       : null;
+  }
+
+  identifyEnemyAtTile(tileX: number, tileY: number, magicRank: number): string | null {
+    const es = this.enemySystems.find((enemy) => {
+      if (!enemy.isAlive()) return false;
+      const t = enemy.getCurrentTile();
+      return t && t.x === tileX && t.y === tileY;
+    });
+    if (!es) return null;
+    const def = es.getDefinition();
+    const record = es.getRecord();
+    if (!def || !record) return null;
+    return formatEnemyIdentifyReadout(def, record.hp, magicRank);
   }
 
   setDerivedStats(stats: PlayerDerivedStats): void {
@@ -345,7 +368,7 @@ export class TurnCombatSession {
     for (const es of this.enemySystems) {
       if (!es.inCombat) {
         const wasDead = !es.isAlive();
-        es.update(nowMs);
+        es.update(nowMs, this.combatState !== null);
         if (wasDead && es.isAlive() && this.onEnemyRespawnedCb) {
           const spawnId = es.getSpawnId();
           const areaId  = es.getAreaId();
@@ -422,6 +445,9 @@ export class TurnCombatSession {
         const resolved = resolvePendingTelegraphsForActor(this.combatState, active.id, this.buildTileCtx());
         if (resolved.outcomes.length > 0) {
           this.combatState = resolved.state;
+          this._isAttackMode = false;
+          this.selectedPlayerAttackId = null;
+          this.selectedPlayerAbilityId = null;
           for (const outcome of resolved.outcomes) {
             this.handleOutcome(outcome);
             if (outcome.kind === 'combat_ended' || outcome.kind === 'fled') break;
@@ -433,6 +459,15 @@ export class TurnCombatSession {
         }
       }
 
+      // Stunned companion/player: auto-skip their turn
+      if (active && active.statusEffects.some((e) => e.kind === 'stunned')) {
+        this._isAttackMode = false;
+        this.selectedPlayerAttackId = null;
+        this.selectedPlayerAbilityId = null;
+        this.submitPlayerAction({ kind: 'end_turn' });
+        return;
+      }
+
       if (
         (active?.kind === 'player' || active?.kind === 'companion') &&
         active.apRemaining === 0 &&
@@ -440,6 +475,8 @@ export class TurnCombatSession {
         (active.secondaryActionRemaining ?? 0) === 0
       ) {
         this._isAttackMode = false;
+        this.selectedPlayerAttackId = null;
+        this.selectedPlayerAbilityId = null;
         this.submitPlayerAction({ kind: 'end_turn' });
         return;
       }

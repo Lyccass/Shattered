@@ -218,6 +218,10 @@ export class UIOverlayManager {
     this.popup.open(contentEl);
   }
 
+  setUtilityTargetingMode(active: boolean): void {
+    this.taskbarPanel.setUtilityTargetingMode(active);
+  }
+
   closePopup(): void {
     this.popup?.close();
     this.popup = null;
