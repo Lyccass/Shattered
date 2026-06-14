@@ -227,11 +227,22 @@ export class WorldInteractionHandlers {
 
 function describeResourceNode(resourceNodeType: ResourceNodeInteractionTarget['anchor']['resourceNodeType']): string {
   switch (resourceNodeType) {
-    case 'driftwood':
-      return 'A scatter of driftwood. Dry enough to carry off and use.';
-    case 'stone_pile':
-      return 'A loose stone pile with a few pieces worth prying free.';
-    case 'herb_patch':
-      return 'A herb patch. Useful if you know what to brew with it.';
+    case 'driftwood':     return 'A scatter of driftwood. Dry enough to carry off and use.';
+    case 'stone_pile':    return 'A loose stone pile with a few pieces worth prying free.';
+    case 'herb_patch':    return 'A herb patch. Useful if you know what to brew with it.';
+    case 'pine_tree':      return 'A young pine tree. Fell it with an axe for logs.';
+    case 'oak_tree':       return 'A sturdy oak. Good hardwood once chopped.';
+    case 'ash_tree':       return 'A tall ash tree. Lightweight but strong timber.';
+    case 'yew_tree':       return 'A twisted yew. Dense wood prized by craftsmen.';
+    case 'redwood_tree':   return 'A towering redwood. Ancient and hard to fell.';
+    case 'blackwood_tree': return 'A dark blackwood tree. Rare and prized for its density.';
+    case 'ebony_tree':     return 'An ebony tree. The rarest and hardest timber known.';
+    case 'copper_vein':   return 'A copper-streaked rock face. Mine it with a pickaxe.';
+    case 'iron_vein':     return 'An iron ore vein. Needs a sturdy pickaxe to crack open.';
+    case 'steel_vein':    return 'A hard steel-ore vein embedded in the rock.';
+    case 'cobalt_vein':   return 'Bright blue cobalt ore. Rare and valuable.';
+    case 'tungsten_vein': return 'A dense tungsten deposit. Heavy and hard to mine.';
+    case 'adamant_vein':  return 'Ancient adamant ore. Few can mine this.';
+    case 'titanite_vein': return 'Legendary titanite ore — the pinnacle of smithing material.';
   }
 }

@@ -9,6 +9,7 @@ import type {
   MapZoneTag,
   ResourceNodeType,
 } from '../maps/MapTypes';
+import { RESOURCE_NODE_DEF_MAP } from '../../interactions/resource-nodes/ResourceNodeDefinitions';
 
 export type RuntimeManualEnemySpawn = {
   id: string;
@@ -30,7 +31,6 @@ export type WorldChunkRuntimeLayers = {
   zones: MapZone[];
 };
 
-const RESOURCE_NODE_TYPES = ['driftwood', 'stone_pile', 'herb_patch'] as const;
 const MAP_ZONE_TAGS = [
   'personal_build',
   'wilderness_camp',
@@ -167,7 +167,7 @@ function synthesizeHabitatRuleSpawns(
 }
 
 function isResourceNodeType(value: unknown): value is ResourceNodeType {
-  return typeof value === 'string' && RESOURCE_NODE_TYPES.includes(value as ResourceNodeType);
+  return typeof value === 'string' && Object.hasOwn(RESOURCE_NODE_DEF_MAP, value);
 }
 
 function isMapZoneTag(value: unknown): value is MapZoneTag {

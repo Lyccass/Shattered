@@ -48,7 +48,27 @@ export type MapTransitionVisualAnchor = {
   label?: string;
 };
 
-export type ResourceNodeType = 'driftwood' | 'stone_pile' | 'herb_patch';
+export type ResourceNodeType =
+  // Woodworking
+  | 'driftwood'
+  | 'pine_tree'
+  | 'oak_tree'
+  | 'ash_tree'
+  | 'yew_tree'
+  | 'redwood_tree'
+  | 'blackwood_tree'
+  | 'ebony_tree'
+  // Metalworking
+  | 'stone_pile'
+  | 'copper_vein'
+  | 'iron_vein'
+  | 'steel_vein'
+  | 'cobalt_vein'
+  | 'tungsten_vein'
+  | 'adamant_vein'
+  | 'titanite_vein'
+  // Alchemy
+  | 'herb_patch';
 
 type BaseMapInteractionAnchor = {
   id: string;

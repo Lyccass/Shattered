@@ -25,6 +25,8 @@ type WeaponArchetypeConfig = {
   weight: number;
   durability: number;
   twoHanded?: boolean;
+  /** Skill IDs this weapon also serves as a tool for (e.g. axe → woodworking). */
+  toolFor?: string[];
 };
 
 const MATERIAL_TIERS: MaterialTier[] = [
@@ -72,7 +74,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     archetype: 'axe',
     displayName: 'Axe',
     icon: '🪓',
-    examine: 'A heavy chopping weapon with strong stagger pressure.',
+    examine: 'A heavy chopping weapon with strong stagger pressure. Also used to fell trees.',
     damageType: 'slash',
     attackShape: { kind: 'arc', angleDeg: 90, rangeTiles: 1.2, minRangeTiles: 0.5 },
     baseAccuracy: 6,
@@ -82,6 +84,7 @@ const ARCHETYPES: WeaponArchetypeConfig[] = [
     staggerImpact: 7,
     weight: 1.8,
     durability: 75,
+    toolFor: ['woodworking'],
   },
   {
     archetype: 'hammer',
@@ -151,6 +154,7 @@ function makeWeaponDefinition(
     stackable: false,
     weight,
     value: Math.round(10 * material.valueMultiplier * (1 + weapon.baseDamage * 0.2)),
+    ...(weapon.toolFor ? { toolFor: weapon.toolFor, gatherTier: material.rank } : {}),
     equipment: {
       slot: 'main_hand',
       requiredLevel,

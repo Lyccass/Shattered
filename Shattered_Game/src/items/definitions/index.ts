@@ -8,7 +8,9 @@ import { MATERIAL_ITEMS } from './materials';
 import { CONSUMABLE_ITEMS } from './consumables';
 import { TOOL_ITEMS } from './tools';
 import { WEAPON_ITEMS } from './equipment/weapons';
+import { RANGED_WEAPON_ITEMS } from './equipment/ranged';
 import { ARMOR_ITEMS } from './equipment/armor';
+import { LEATHER_ARMOR_ITEMS } from './equipment/leather-armor';
 import { ACCESSORY_ITEMS } from './equipment/accessories';
 import { COMPANION_ITEMS } from './companions';
 
@@ -17,7 +19,9 @@ const ALL_ITEMS = [
   ...CONSUMABLE_ITEMS,
   ...TOOL_ITEMS,
   ...WEAPON_ITEMS,
+  ...RANGED_WEAPON_ITEMS,
   ...ARMOR_ITEMS,
+  ...LEATHER_ARMOR_ITEMS,
   ...ACCESSORY_ITEMS,
   ...COMPANION_ITEMS,
 ];

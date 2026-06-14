@@ -1,6 +1,8 @@
 import type { ObjectPlacementSystem } from '../objects/ObjectPlacementSystem';
 import type { PlayerSessionState } from '../player/PlayerSessionState';
 import type { MapPlacedObject, MapResourceNodeAnchor } from '../world/maps/MapTypes';
+import type { ItemDefinition } from '../items/ItemTypes';
+import { getItem } from '../items/ItemRegistry';
 import { WorldSessionState } from '../world/session/WorldSessionState';
 import type { InteractionResult, ResourceNodeInteractionTarget } from './InteractionTypes';
 import { createSingleTileInteractionTiles } from './InteractionTypes';
@@ -128,7 +130,7 @@ export class ResourceNodeSystem {
 
     const def = RESOURCE_NODE_DEF_MAP[node.anchor.resourceNodeType];
 
-    // Level-gate check
+    // Skill level gate
     if (def.levelRequired) {
       const currentLevel = playerSessionState.getSkillProgressionSystem().getLevel(def.skill);
       if (currentLevel < def.levelRequired) {
@@ -142,8 +144,26 @@ export class ResourceNodeSystem {
       }
     }
 
-    const inventoryDelta: Record<string, number> = { [def.inventoryKey]: 1 };
-    playerSessionState.getInventoryState().add(def.inventoryKey, 1);
+    // Tool gate + yield calculation
+    let toolTier = 1;
+    if (def.toolRequired) {
+      const bestTool = findBestTool(def.toolRequired, playerSessionState);
+      if (!bestTool) {
+        return {
+          ok: false,
+          interactionType: 'resource_node',
+          targetId: nodeId,
+          message: getToolRequiredMessage(def.toolRequired),
+          toastKind: 'error',
+        };
+      }
+      toolTier = bestTool.gatherTier ?? 1;
+    }
+
+    const yieldAmount = (def.yieldBase ?? 1) + (def.toolTierBonus ?? 0) * Math.max(0, toolTier - 1);
+
+    const inventoryDelta: Record<string, number> = { [def.inventoryKey]: yieldAmount };
+    playerSessionState.getInventoryState().add(def.inventoryKey, yieldAmount);
     const xpDelta = { [def.skill]: def.xpReward };
     const levelUps = playerSessionState.getSkillProgressionSystem().addXpDelta(xpDelta);
     this.setRespawnAt(node.mapId, nodeId, nowMs + def.respawnMs);
@@ -157,7 +177,7 @@ export class ResourceNodeSystem {
       sfxId: 'gather_success',
       interactionType: 'resource_node',
       targetId: nodeId,
-      message: `Gathered 1 ${def.inventoryKey}.`,
+      message: `Gathered ${yieldAmount}x ${def.inventoryKey}.`,
       inventoryDelta,
       depleted: true,
       xpDelta,
@@ -176,4 +196,39 @@ export class ResourceNodeSystem {
   private clearRespawnAt(mapId: string, nodeId: string): void {
     this.sessionState.clearResourceRespawnAt(mapId, nodeId);
   }
+}
+
+// ── Tool helpers ──────────────────────────────────────────────────────────────
+
+/** Returns the highest-tier item in equipment or inventory that covers the given skillId. */
+function findBestTool(skillId: string, playerSessionState: PlayerSessionState): ItemDefinition | null {
+  let best: ItemDefinition | null = null;
+
+  const pickBetter = (item: ItemDefinition | undefined) => {
+    if (!item?.toolFor?.includes(skillId)) return;
+    if (!best || (item.gatherTier ?? 1) > (best.gatherTier ?? 1)) best = item;
+  };
+
+  // Check equipped weapon slots
+  const equipState = playerSessionState.getEquipmentState();
+  pickBetter(equipState.getEquipped('main_hand'));
+  pickBetter(equipState.getEquipped('off_hand'));
+
+  // Check inventory
+  for (const { id } of playerSessionState.getInventoryState().listOccupied()) {
+    pickBetter(getItem(id));
+  }
+
+  return best;
+}
+
+const TOOL_NAMES: Record<string, string> = {
+  woodworking:    'an axe',
+  metalworking:   'a pickaxe',
+  leatherworking: 'a skinning knife',
+};
+
+function getToolRequiredMessage(skillId: string): string {
+  const toolName = TOOL_NAMES[skillId] ?? `a ${skillId} tool`;
+  return `You need ${toolName} to gather this.`;
 }

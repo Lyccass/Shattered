@@ -6,6 +6,7 @@ export type SkillId =
   | 'devotion'
   | 'metalworking'
   | 'woodworking'
+  | 'leatherworking'
   | 'alchemy'
   | 'trade';
 // Future additions: 'survival' | 'fishing' | 'cooking' | ...

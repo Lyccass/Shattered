@@ -29,7 +29,8 @@ function getArchetypeBaseAccuracy(archetype: WeaponArchetype): number {
     case 'axe':    return 7;
     case 'spear':  return 8;
     case 'hammer': return 7;
-    case 'bow':    return 8;
+    case 'bow':      return 8;
+    case 'crossbow': return 7;
   }
 }
 

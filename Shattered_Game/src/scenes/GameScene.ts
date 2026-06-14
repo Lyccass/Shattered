@@ -867,6 +867,8 @@ export class GameScene extends Phaser.Scene {
         ...STARTING_COMPANION_IDS,
         bread: 3,
         health_potion: 1,
+        copper_pickaxe: 1,
+        copper_skinning_knife: 1,
       });
     }
   }
