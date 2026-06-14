@@ -26,7 +26,7 @@ type TreeConfig = {
 };
 
 const TREE_CONFIGS: TreeConfig[] = [
-  { type: 'pine_tree',      inventoryKey: 'pine_log',      levelRequired: 1,  xpReward: 40,  promptText: 'Press E: Chop Pine',      respawnMs: 60_000  },
+  { type: 'pine_tree',      inventoryKey: 'pine_log',      levelRequired: 1,  xpReward: 40,  promptText: 'Press E: Chop Pine',      respawnMs: 2_000   },
   { type: 'oak_tree',       inventoryKey: 'oak_log',       levelRequired: 15, xpReward: 70,  promptText: 'Press E: Chop Oak',       respawnMs: 90_000  },
   { type: 'ash_tree',       inventoryKey: 'ash_log',       levelRequired: 25, xpReward: 110, promptText: 'Press E: Chop Ash',       respawnMs: 110_000 },
   { type: 'yew_tree',       inventoryKey: 'yew_log',       levelRequired: 35, xpReward: 160, promptText: 'Press E: Chop Yew',       respawnMs: 130_000 },

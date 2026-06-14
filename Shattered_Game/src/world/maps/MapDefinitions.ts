@@ -6,13 +6,8 @@ import {
 import type { MapDefinition } from './MapTypes';
 import { validateMapDefinition } from './MapDefinitionValidator';
 import { MapRegistry } from './MapRegistry';
-import { TEST_MAPS } from './TestMaps';
 
 const MAP_REGISTRY = new MapRegistry();
-
-TEST_MAPS.forEach((registration) => {
-  MAP_REGISTRY.registerMapFactory(registration);
-});
 
 export function hasMapDefinition(mapId: string): boolean {
   return MAP_REGISTRY.hasMap(mapId) || (

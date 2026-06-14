@@ -125,6 +125,24 @@ export const INTERACTION_OBJECT_DEFINITIONS: ObjectDefinition[] = [
     debug: { color: 0x3b82f6, label: 'herbs' },
   },
   {
+    id: 'copper_vein_node',
+    displayName: 'Copper Vein',
+    category: 'resource',
+    collisionFootprint: FOOTPRINT_1x1,
+    blocksMovement: false,
+    visual: {
+      parts: [
+        { shape: 'ellipse', width: 22, height: 13, localOffsetX: -4, localOffsetY: 0, color: 0x78716c, alpha: 0.95 },
+        { shape: 'ellipse', width: 14, height: 9, localOffsetX: 7, localOffsetY: -3, color: 0x57534e, alpha: 0.95 },
+        { shape: 'ellipse', width: 9, height: 6, localOffsetX: -2, localOffsetY: -5, color: 0xb45309, alpha: 0.85 },
+        { shape: 'ellipse', width: 5, height: 4, localOffsetX: 9, localOffsetY: -2, color: 0xd97706, alpha: 0.8 },
+      ],
+    },
+    shadow: noShadow(),
+    depth: DEFAULT_DEPTH,
+    debug: { color: 0x3b82f6, label: 'copper vein' },
+  },
+  {
     id: 'placed_firestarter_set',
     displayName: 'Placed Firestarter Set',
     category: 'crafted',

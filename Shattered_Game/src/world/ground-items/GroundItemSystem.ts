@@ -136,14 +136,14 @@ export class GroundItemSystem {
 
     const shadow = this.scene.add.graphics();
     shadow.fillStyle(0x000000, 0.45);
-    shadow.fillEllipse(0, 0, 26, 10);
+    shadow.fillEllipse(0, 6, 26, 10);
 
-    const iconText = this.scene.add.text(0, -1, meta.icon, {
+    const iconText = this.scene.add.text(0, -13, meta.icon, {
       fontSize: '11px',
     }).setOrigin(0.5, 0.5);
 
     const label = count > 1 ? `${meta.label} ×${count}` : meta.label;
-    const labelText = this.scene.add.text(0, -18, label, {
+    const labelText = this.scene.add.text(0, -28, label, {
       fontSize: '7px',
       color: '#ffffcc',
       stroke: '#000000',

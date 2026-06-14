@@ -214,6 +214,12 @@ export class PlayerController {
     this.collision.setOccupancyValidator(validator);
   }
 
+  setExternalTileOccupancyValidator(
+    validator: ((tileX: number, tileY: number) => boolean) | null,
+  ): void {
+    this.clickMovement.setTileOccupancyValidator(validator);
+  }
+
   setWorldPosition(worldX: number, worldY: number): void {
     this.dodgeMotion.clear();
     this.clickMovement.clear();

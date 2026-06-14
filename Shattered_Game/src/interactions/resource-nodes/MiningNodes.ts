@@ -26,7 +26,7 @@ type OreVeinConfig = {
 };
 
 const ORE_VEIN_CONFIGS: OreVeinConfig[] = [
-  { type: 'copper_vein',   inventoryKey: 'copper_ore',   levelRequired: 1,  xpReward: 35,  promptText: 'Press E: Mine Copper',   respawnMs: 90_000  },
+  { type: 'copper_vein',   inventoryKey: 'copper_ore',   levelRequired: 1,  xpReward: 35,  promptText: 'Press E: Mine Copper',   respawnMs: 2_000   },
   { type: 'iron_vein',     inventoryKey: 'iron_ore',     levelRequired: 15, xpReward: 60,  promptText: 'Press E: Mine Iron',     respawnMs: 120_000 },
   { type: 'steel_vein',    inventoryKey: 'steel_ore',    levelRequired: 30, xpReward: 100, promptText: 'Press E: Mine Steel',    respawnMs: 150_000 },
   { type: 'cobalt_vein',   inventoryKey: 'cobalt_ore',   levelRequired: 45, xpReward: 160, promptText: 'Press E: Mine Cobalt',   respawnMs: 180_000 },

@@ -3,7 +3,7 @@ import type { CompanionSnapshot } from '../../../companions/CompanionTypes';
 import type { CurrencySnapshot } from '../../../player/PlayerCurrencyState';
 import type { PlayerInventorySnapshot } from '../../../player/PlayerInventoryState';
 import type { ReputationSnapshot } from '../../../player/PlayerReputationState';
-import type { SpellbookSnapshot } from '../../../player/PlayerSpellbookState';
+import type { SpellbookAbilityOptionSnapshot, SpellbookSnapshot } from '../../../player/PlayerSpellbookState';
 import type { SkillSnapshot } from '../../../skills/SkillTypes';
 import type { TaskJournalEntry } from '../../../tasks/TaskJournalTypes';
 import type { AbilitySlotType } from '../../../combat/abilities/CombatAbilityDefinitions';
@@ -290,27 +290,38 @@ export class TaskbarPanel {
       return;
     }
 
-    const options = new Map(spellbook.options.map((option) => [option.id, option]));
-    const prepared = spellbook.utilitySlots
-      .map((slot) => slot.abilityId ? options.get(slot.abilityId) : null)
-      .filter((option): option is NonNullable<typeof option> => !!option);
+    if (spellbook.utilitySlots.length === 0) {
+      this.utilityBar.classList.add('ui-hidden');
+      return;
+    }
 
-    if (prepared.length === 0) {
+    const options = new Map(spellbook.options.map((option) => [option.id, option]));
+    const hasPreparedUtility = spellbook.utilitySlots.some((slot) => !!slot.abilityId);
+    if (!hasPreparedUtility) {
       this.utilityBar.classList.add('ui-hidden');
       return;
     }
 
     this.utilityBar.classList.remove('ui-hidden');
-    for (const option of prepared) {
+    for (const slot of spellbook.utilitySlots) {
+      const option = slot.abilityId ? options.get(slot.abilityId) : null;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'utility-bar-btn';
-      const costLabel = formatUtilityCost(option);
-      button.title = costLabel ? `${option.displayName} (${costLabel})` : option.displayName;
+      const costLabel = option ? formatUtilityCost(option) : '';
+      button.title = option ? `${option.displayName} (${costLabel})` : 'Empty utility slot';
+      button.disabled = !option;
+      button.classList.toggle('is-empty', !option);
       button.innerHTML = `
-        <span class="utility-bar-name">${option.displayName}</span>
+        <span class="utility-bar-key">${slot.slotIndex + 1}</span>
+        <span class="utility-bar-icon">${option ? utilityIconFor(option.id) : ''}</span>
+        <span class="utility-bar-name">${option?.displayName ?? 'Empty'}</span>
         <span class="utility-bar-cost">${costLabel}</span>
       `;
+      if (!option) {
+        this.utilityBar.appendChild(button);
+        continue;
+      }
       // Use pointerdown instead of click: buttons are recreated every frame via innerHTML='',
       // so a click that spans more than one frame (>16ms) has its target destroyed before
       // mouseup fires — meaning click never reaches this element. pointerdown fires on press,
@@ -326,7 +337,17 @@ export class TaskbarPanel {
   }
 }
 
-function formatUtilityCost(option: { utilityMagicCost?: number }): string {
+function utilityIconFor(id: string): string {
+  switch (id) {
+    case 'utility_identify':      return 'ID';
+    case 'utility_homeward_mark': return 'HM';
+    case 'utility_waystep':       return 'WS';
+    case 'utility_camp_recall':   return 'CR';
+    default:                      return 'UT';
+  }
+}
+
+function formatUtilityCost(option: Pick<SpellbookAbilityOptionSnapshot, 'utilityMagicCost'>): string {
   const cost = option.utilityMagicCost ?? 0;
-  return cost > 0 ? `${cost} MP` : 'Free';
+  return cost > 0 ? `${cost} Mag` : 'Free';
 }

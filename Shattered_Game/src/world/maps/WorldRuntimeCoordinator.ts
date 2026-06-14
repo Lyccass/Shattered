@@ -1222,24 +1222,13 @@ export class WorldRuntimeCoordinator {
     };
   }
 
-  private useIdentify(abilityId: string, enemyReadout: string | null): InteractionResult {
-    if (enemyReadout) {
+  private useIdentify(abilityId: string, targetReadout: string | null): InteractionResult {
+    if (targetReadout) {
       return {
         ok: true,
         interactionType: 'utility_spell',
         targetId: abilityId,
-        message: enemyReadout,
-        toastKind: 'info',
-      };
-    }
-
-    const npcReadout = this.identifyNearestNpc();
-    if (npcReadout) {
-      return {
-        ok: true,
-        interactionType: 'utility_spell',
-        targetId: abilityId,
-        message: npcReadout,
+        message: targetReadout,
         toastKind: 'info',
       };
     }
@@ -1248,30 +1237,24 @@ export class WorldRuntimeCoordinator {
       ok: false,
       interactionType: 'utility_spell',
       targetId: abilityId,
-      message: 'Identify found no creature nearby.',
+      message: 'Identify needs a creature target.',
       toastKind: 'error',
     };
   }
 
-  private identifyNearestNpc(maxRangeTiles = 6): string | null {
+  identifyNpcAtTile(tileX: number, tileY: number): string | null {
     if (!this.bindings || !this.currentRuntime || !this.npcSystem) return null;
 
-    const playerTile = this.bindings.playerController.getFeetTile();
-    const candidates = this.npcSystem.getStates().flatMap((state) => {
+    for (const state of this.npcSystem.getStates()) {
       const tile = this.currentRuntime!.isoTilemap.transform.worldToTile(state.worldX, state.worldY);
-      const distance = Math.max(Math.abs(tile.x - playerTile.x), Math.abs(tile.y - playerTile.y));
-      if (distance > maxRangeTiles) return [];
+      if (tile.x !== tileX || tile.y !== tileY) continue;
       const definition = this.npcSystem!.getDefinition(state.definitionId);
-      if (!definition) return [];
-      return [{ definition, distance }];
-    });
+      if (!definition) continue;
 
-    candidates.sort((a, b) => a.distance - b.distance);
-    const nearest = candidates[0]?.definition;
-    if (!nearest) return null;
-
-    const description = nearest.dialogue[0]?.text ?? nearest.ambientLines[0] ?? 'Someone touched by the Wake.';
-    return `Identify: ${nearest.displayName}. ${description} No combat weaknesses detected.`;
+      const description = definition.dialogue[0]?.text ?? definition.ambientLines[0] ?? 'Someone touched by the Wake.';
+      return `Identify: ${definition.displayName}. ${description} No combat weaknesses detected.`;
+    }
+    return null;
   }
 
   private recenterCameraOnPlayer(): void {

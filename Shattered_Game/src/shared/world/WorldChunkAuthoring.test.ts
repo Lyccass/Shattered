@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createHomeIslandMap } from '../../world/maps/TestHomeIslandMap';
 import { ActiveWorldChunkWindow } from '../../world/streaming/ActiveWorldChunkWindow';
 import { materializeWorldChunkRuntimeLayers } from '../../world/streaming/WorldChunkRuntimeLayers';
 import {
   createChunkKey,
   parseChunkKey,
 } from './ChunkKey';
-import {
-  mapDefinitionToSingleWorldChunk,
-  worldChunkDefinitionToMapDefinition,
-} from './ChunkAdapters';
 import {
   createWorldRuntimeSnapshot,
   isResourceAvailableInRuntimeState,
@@ -322,23 +317,6 @@ describe('world chunk authoring', () => {
     });
   });
 
-  it('adapts existing prototype maps into one authored chunk and back', () => {
-    const map = createHomeIslandMap();
-    const chunk = mapDefinitionToSingleWorldChunk(map, {
-      worldId: 'prototype_world',
-      regionId: 'home_island_region',
-    });
-    const adaptedMap = worldChunkDefinitionToMapDefinition(chunk, {
-      mapId: map.id,
-      displayName: map.displayName,
-    });
-
-    expect(validateWorldChunkDefinition(chunk)).toEqual({ ok: true });
-    expect(adaptedMap.width).toBe(map.width);
-    expect(adaptedMap.height).toBe(map.height);
-    expect(adaptedMap.terrain).toEqual(map.terrain);
-    expect(adaptedMap.objects).toEqual(map.objects);
-  });
 });
 
 function makeChunk(overrides: Partial<WorldChunkDefinition> = {}): WorldChunkDefinition {

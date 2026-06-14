@@ -28,7 +28,7 @@ import {
 } from '../world/maps/WorldRuntimeCoordinator';
 import { createTerrainRenderTextures, preloadTerrainAssets } from '../world/TerrainAssets';
 import type { InteractionResult } from '../interactions/InteractionTypes';
-import { GroundItemSystem, type SpawnedLootDrop } from '../world/items/GroundItemSystem';
+import { GroundItemSystem, type SpawnedLootDrop } from '../world/ground-items/GroundItemSystem';
 import { ENEMY_DEFINITIONS } from '../combat/EnemyDefinitions';
 import { STARTING_WEAPON_IDS } from '../items/definitions/equipment/weapons';
 import { STARTING_COMPANION_IDS } from '../items/definitions/companions';
@@ -128,9 +128,8 @@ export class GameScene extends Phaser.Scene {
       ?? (publishedEditorMapId ? null : '/data/worlds/the_wake/world.manifest.json');
     if (worldManifestUrl) {
       this.initializeWorldManifestRuntime(worldManifestUrl, getRequestedSpawnId());
-    } else {
-      const initialMapId = publishedEditorMapId ?? 'test_home_island';
-      this.initializeWorldRuntime(initialMapId, 'default');
+    } else if (publishedEditorMapId) {
+      this.initializeWorldRuntime(publishedEditorMapId, 'default');
     }
     this.uiManager = new UiManager(this, {
       onCombatToggle:         () => this.toggleCombatStance(),
@@ -169,7 +168,7 @@ export class GameScene extends Phaser.Scene {
           this.pendingIdentify = !this.pendingIdentify;
           this.uiManager?.setUtilityTargetingMode(this.pendingIdentify);
           if (this.pendingIdentify) {
-            this.uiManager?.pushMessage('Identify — click an enemy. Right-click to cancel.', 'system');
+            this.uiManager?.pushMessage('Identify — click a creature. Right-click to cancel.', 'system');
           }
           return;
         }
@@ -352,13 +351,16 @@ export class GameScene extends Phaser.Scene {
           return;
         }
 
-        // Identify targeting mode — click an enemy tile to identify it.
+        // Identify targeting mode — click a creature tile to identify it.
         if (this.pendingIdentify && tilemap) {
           const tile = tilemap.transform.worldToTile(worldX, worldY);
           const magicRank = this.worldRuntimeCoordinator
             ? levelToRankStage(this.worldRuntimeCoordinator.getSkillLevel('magic')).rank
             : 1;
-          const readout = this.turnCombatSession?.identifyEnemyAtTile(tile.x, tile.y, magicRank) ?? null;
+          const readout =
+            this.turnCombatSession?.identifyEnemyAtTile(tile.x, tile.y, magicRank)
+            ?? this.worldRuntimeCoordinator?.identifyNpcAtTile(tile.x, tile.y)
+            ?? null;
           const result = this.worldRuntimeCoordinator?.useUtilitySpell('utility_identify', {
             identifyReadout: readout,
             magicResource: this.turnCombatSession?.getMagicResourceSnapshot() ?? null,
@@ -437,9 +439,6 @@ export class GameScene extends Phaser.Scene {
       coordinator.updatePlayerRuntimeState();
     } catch (error) {
       console.error(`[GameScene] Failed to load map "${mapId}":`, error);
-      if (mapId !== 'test_home_island') {
-        await this.initializeWorldRuntime('test_home_island', 'default');
-      }
     }
   }
 
@@ -556,6 +555,23 @@ export class GameScene extends Phaser.Scene {
     );
     this.turnCombatSession.setPlayerController(this.playerController);
     this.encounterPopulation.registerSpawns(runtime.enemySpawns);
+    this.bindPlayerDynamicOccupancy(runtime.isoTilemap);
+  }
+
+  private bindPlayerDynamicOccupancy(isoTilemap: LoadedMapRuntime['isoTilemap']): void {
+    if (!this.playerController) return;
+
+    const canOccupyTile = (tileX: number, tileY: number): boolean => {
+      const current = this.playerController?.getFeetTile();
+      if (current && current.x === tileX && current.y === tileY) return true;
+      return !(this.turnCombatSession?.hasEnemyAtTile(tileX, tileY) ?? false);
+    };
+
+    this.playerController.setExternalTileOccupancyValidator(canOccupyTile);
+    this.playerController.setExternalOccupancyValidator((feetWorldX, feetWorldY) => {
+      const tile = isoTilemap.transform.worldToTile(feetWorldX, feetWorldY);
+      return canOccupyTile(tile.x, tile.y);
+    });
   }
 
   private bindRuntimeSupportSystems(): void {

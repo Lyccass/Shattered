@@ -1616,7 +1616,7 @@ describe('bleeding status effect', () => {
     });
   });
 
-  it('doubles bleeding tick damage after moving more than two tiles', () => {
+  it('deals bleeding tick damage only after the target moved', () => {
     const player = makePlayer({
       initiative: 1,
       hp: 10,
@@ -1633,11 +1633,11 @@ describe('bleeding status effect', () => {
 
     const { outcome, state: next } = advanceTurn(state);
     const p = next.participants.find((pp) => pp.id === 'player')!;
-    expect(p.hp).toBe(6);
+    expect(p.hp).toBe(8);
     expect(p.bleedMovementTiles).toBe(0);
     expect(outcome).toMatchObject({
       kind: 'turn_ended',
-      statusTicks: [{ kind: 'status_tick', targetId: 'player', effectKind: 'bleeding', damage: 4 }],
+      statusTicks: [{ kind: 'status_tick', targetId: 'player', effectKind: 'bleeding', damage: 2 }],
     });
   });
 });

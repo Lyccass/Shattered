@@ -6,11 +6,19 @@ import { PLAYER_CONFIG } from './PlayerConfig';
 export class PlayerClickMovementController {
   private clickMoveTarget: Phaser.Math.Vector2 | null = null;
   private clickMoveWaypoints: Phaser.Math.Vector2[] = [];
+  private tileOccupancyValidator: ((tileX: number, tileY: number) => boolean) | null = null;
 
   constructor(private tilemap: IsoTilemap) {}
 
   setTilemap(tilemap: IsoTilemap): void {
     this.tilemap = tilemap;
+    this.clear();
+  }
+
+  setTileOccupancyValidator(
+    validator: ((tileX: number, tileY: number) => boolean) | null,
+  ): void {
+    this.tileOccupancyValidator = validator;
     this.clear();
   }
 
@@ -35,7 +43,7 @@ export class PlayerClickMovementController {
       height: this.tilemap.height,
       start: { x: startTile.x, y: startTile.y },
       goal: { x: goalTile.x, y: goalTile.y },
-      isWalkable: (tileX, tileY) => this.tilemap.isTileWalkable(tileX, tileY),
+      isWalkable: (tileX, tileY) => this.isTileReachable(tileX, tileY, startTile),
     });
 
     if (!path || path.length === 0) {
@@ -125,5 +133,15 @@ export class PlayerClickMovementController {
     }
 
     return new Phaser.Math.Vector2(deltaX, deltaY);
+  }
+
+  private isTileReachable(
+    tileX: number,
+    tileY: number,
+    startTile: { x: number; y: number },
+  ): boolean {
+    if (!this.tilemap.isTileWalkable(tileX, tileY)) return false;
+    if (tileX === startTile.x && tileY === startTile.y) return true;
+    return this.tileOccupancyValidator?.(tileX, tileY) ?? true;
   }
 }

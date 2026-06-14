@@ -8,7 +8,7 @@ describe('formatEnemyIdentifyReadout', () => {
 
     expect(readout).toContain('Identify: Wolf');
     expect(readout).toContain('Rank 1');
-    expect(readout).toContain('Weakest resistance: Fire.');
+    expect(readout).toContain('Weakest physical resistance: Crush.');
     expect(readout).not.toContain('Health:');
     expect(readout).not.toContain('Armour:');
   });
