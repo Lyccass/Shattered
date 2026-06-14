@@ -4,6 +4,7 @@ import type { EnemyDefinition } from '../EnemyTypes';
 export const WOLF_PASSIVE: EnemyDefinition = {
   id: 'wolf_passive',
   displayName: 'Wolf',
+  description: 'A wary island wolf. It avoids trouble until cornered.',
   tier: 1,
   maxHealth: 5,
   initiative: 8,

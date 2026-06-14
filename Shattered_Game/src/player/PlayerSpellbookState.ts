@@ -7,6 +7,7 @@ import {
 } from '../combat/abilities/CombatAbilityDefinitions';
 import type { TurnCombatAbility } from '../combat/turn/TurnCombatTypes';
 import type { SkillId } from '../skills/SkillTypes';
+import { levelToRankStage } from '../skills/SkillTypes';
 
 export type SpellbookLoadoutSaveState = {
   combatSpellIds?: Array<string | null>;
@@ -27,6 +28,7 @@ export type SpellbookAbilityOptionSnapshot = {
   slotType: AbilitySlotType;
   skillId: SkillId;
   levelRequired: number;
+  utilityMagicCost?: number;
   unlocked: boolean;
   equipped: boolean;
 };
@@ -47,23 +49,23 @@ export function emptySpellbookSnapshot(): SpellbookSnapshot {
   };
 }
 
-const COMBAT_SPELL_SLOTS = 2;
+const COMBAT_SPELL_SLOTS = 3;
 const UTILITY_SPELL_SLOTS = 3;
-const DEVOTION_SLOTS = 2;
+const DEVOTION_SLOTS = 3;
 
 export class PlayerSpellbookState {
-  private combatSpellIds: Array<string | null> = ['spell_spark', null];
-  private utilitySpellIds: Array<string | null> = ['utility_homeward_mark', null, null];
-  private devotionAbilityIds: Array<string | null> = ['devotion_mend', null];
+  private combatSpellIds: Array<string | null> = ['spell_spark', null, null];
+  private utilitySpellIds: Array<string | null> = ['utility_identify', null, null];
+  private devotionAbilityIds: Array<string | null> = ['devotion_mend', null, null];
 
   getSnapshot(getSkillLevel: (skillId: SkillId) => number): SpellbookSnapshot {
     this.pruneLocked(getSkillLevel);
-    const equipped = new Set(this.getEquippedIds());
+    const equipped = new Set(this.getActiveEquippedIds(getSkillLevel));
 
     return {
-      combatSlots: this.buildSlots('combat_spell', this.combatSpellIds),
-      utilitySlots: this.buildSlots('utility_spell', this.utilitySpellIds),
-      devotionSlots: this.buildSlots('devotion', this.devotionAbilityIds),
+      combatSlots: this.buildSlots('combat_spell', this.combatSpellIds, getAvailableSlotCount('combat_spell', getSkillLevel)),
+      utilitySlots: this.buildSlots('utility_spell', this.utilitySpellIds, getAvailableSlotCount('utility_spell', getSkillLevel)),
+      devotionSlots: this.buildSlots('devotion', this.devotionAbilityIds, getAvailableSlotCount('devotion', getSkillLevel)),
       options: ABILITY_DEFINITIONS.map((definition) => ({
         id: definition.id,
         displayName: definition.displayName,
@@ -71,6 +73,7 @@ export class PlayerSpellbookState {
         slotType: definition.slotType,
         skillId: definition.skillId,
         levelRequired: definition.levelRequired,
+        utilityMagicCost: definition.utilityMagicCost,
         unlocked: isAbilityUnlocked(definition, getSkillLevel),
         equipped: equipped.has(definition.id),
       })),
@@ -79,7 +82,10 @@ export class PlayerSpellbookState {
 
   getEquippedTurnAbilities(getSkillLevel: (skillId: SkillId) => number): TurnCombatAbility[] {
     this.pruneLocked(getSkillLevel);
-    return [...this.combatSpellIds, ...this.devotionAbilityIds]
+    return [
+      ...this.combatSpellIds.slice(0, getAvailableSlotCount('combat_spell', getSkillLevel)),
+      ...this.devotionAbilityIds.slice(0, getAvailableSlotCount('devotion', getSkillLevel)),
+    ]
       .map((id) => id ? getAbilityDefinition(id) : undefined)
       .filter((definition): definition is AbilityDefinition =>
         !!definition?.turnAbility && isAbilityUnlocked(definition, getSkillLevel),
@@ -95,6 +101,7 @@ export class PlayerSpellbookState {
   ): boolean {
     const slots = this.getSlots(slotType);
     if (!slots || slotIndex < 0 || slotIndex >= slots.length) return false;
+    if (slotIndex >= getAvailableSlotCount(slotType, getSkillLevel)) return false;
 
     if (abilityId === null) {
       slots[slotIndex] = null;
@@ -105,7 +112,7 @@ export class PlayerSpellbookState {
     if (!definition) return false;
     if (definition.slotType !== slotType) return false;
     if (!isAbilityUnlocked(definition, getSkillLevel)) return false;
-    if (this.getEquippedIds().includes(abilityId)) return false;
+    if (this.getActiveEquippedIds(getSkillLevel).includes(abilityId)) return false;
 
     slots[slotIndex] = abilityId;
     return true;
@@ -142,8 +149,14 @@ export class PlayerSpellbookState {
     return !!definition && definition.slotType === slotType && isAbilityUnlocked(definition, getSkillLevel);
   }
 
-  private buildSlots(slotType: AbilitySlotType, ids: Array<string | null>): SpellbookSlotSnapshot[] {
-    return ids.map((abilityId, slotIndex) => ({ slotType, slotIndex, abilityId }));
+  private buildSlots(
+    slotType: AbilitySlotType,
+    ids: Array<string | null>,
+    availableSlotCount: number,
+  ): SpellbookSlotSnapshot[] {
+    return ids
+      .slice(0, availableSlotCount)
+      .map((abilityId, slotIndex) => ({ slotType, slotIndex, abilityId }));
   }
 
   private getSlots(slotType: AbilitySlotType): Array<string | null> | null {
@@ -154,10 +167,24 @@ export class PlayerSpellbookState {
     }
   }
 
-  private getEquippedIds(): string[] {
-    return [...this.combatSpellIds, ...this.utilitySpellIds, ...this.devotionAbilityIds]
-      .filter((id): id is string => !!id);
+  private getActiveEquippedIds(getSkillLevel: (skillId: SkillId) => number): string[] {
+    return [
+      ...this.combatSpellIds.slice(0, getAvailableSlotCount('combat_spell', getSkillLevel)),
+      ...this.utilitySpellIds.slice(0, getAvailableSlotCount('utility_spell', getSkillLevel)),
+      ...this.devotionAbilityIds.slice(0, getAvailableSlotCount('devotion', getSkillLevel)),
+    ].filter((id): id is string => !!id);
   }
+}
+
+function getAvailableSlotCount(
+  slotType: AbilitySlotType,
+  getSkillLevel: (skillId: SkillId) => number,
+): number {
+  const skillId: SkillId = slotType === 'devotion' ? 'devotion' : 'magic';
+  const rank = levelToRankStage(getSkillLevel(skillId)).rank;
+  if (rank >= 7) return 3;
+  if (rank >= 4) return 2;
+  return 1;
 }
 
 function sanitizeSlots(ids: Array<string | null> | undefined, length: number): Array<string | null> {

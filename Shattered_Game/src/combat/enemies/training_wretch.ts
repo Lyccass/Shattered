@@ -4,6 +4,7 @@ import type { EnemyDefinition } from '../EnemyTypes';
 export const TRAINING_WRETCH: EnemyDefinition = {
   id: 'training_wretch',
   displayName: 'Training Wretch',
+  description: 'A crude practice foe used to test basic combat forms.',
   tier: 1,
   maxHealth: 5,
   initiative: 10,

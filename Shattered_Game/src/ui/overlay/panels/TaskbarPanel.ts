@@ -41,6 +41,7 @@ const TABS_BOTTOM: TabDef[] = [
 export class TaskbarPanel {
   private readonly root: HTMLElement;
   private readonly panelArea: HTMLElement;
+  private readonly utilityBar: HTMLElement;
   private readonly tabButtons: Map<TabId, HTMLElement> = new Map();
   private readonly combatBtn: HTMLElement;
   private readonly sprintBtn: HTMLElement;
@@ -80,6 +81,10 @@ export class TaskbarPanel {
 
     this.panelArea = document.createElement('div');
     this.panelArea.className = 'ui-panel-area ui-hidden';
+
+    this.utilityBar = document.createElement('div');
+    this.utilityBar.id = 'ui-utility-bar';
+    this.utilityBar.className = 'ui-hidden';
 
     // Taskbar icon row
     const taskbar = document.createElement('div');
@@ -123,6 +128,7 @@ export class TaskbarPanel {
 
     this.root.appendChild(this.panelArea);
     this.root.appendChild(taskbar);
+    overlay.appendChild(this.utilityBar);
     overlay.appendChild(this.root);
 
     // Build tab content instances
@@ -255,6 +261,7 @@ export class TaskbarPanel {
     equipment: EquipmentSnapshot,
     companions: CompanionSnapshot,
     spellbook: SpellbookSnapshot,
+    controlMode: 'explore' | 'combat',
   ): void {
     this.inventoryContent.update(inventory, currency);
     this.skillsContent.update(skills);
@@ -263,9 +270,59 @@ export class TaskbarPanel {
     this.magicContent.update(spellbook);
     this.devotionContent.update(spellbook);
     this.settingsContent.update();
+    this.updateUtilityBar(spellbook, controlMode);
   }
 
   destroy(): void {
+    this.utilityBar.remove();
     this.root.remove();
   }
+
+  private updateUtilityBar(spellbook: SpellbookSnapshot, controlMode: 'explore' | 'combat'): void {
+    this.utilityBar.innerHTML = '';
+
+    if (controlMode === 'combat') {
+      this.utilityBar.classList.add('ui-hidden');
+      return;
+    }
+
+    const options = new Map(spellbook.options.map((option) => [option.id, option]));
+    const prepared = spellbook.utilitySlots
+      .map((slot) => slot.abilityId ? options.get(slot.abilityId) : null)
+      .filter((option): option is NonNullable<typeof option> => !!option);
+
+    if (prepared.length === 0) {
+      this.utilityBar.classList.add('ui-hidden');
+      return;
+    }
+
+    this.utilityBar.classList.remove('ui-hidden');
+    for (const option of prepared) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'utility-bar-btn';
+      const costLabel = formatUtilityCost(option);
+      button.title = costLabel ? `${option.displayName} (${costLabel})` : option.displayName;
+      button.innerHTML = `
+        <span class="utility-bar-name">${option.displayName}</span>
+        <span class="utility-bar-cost">${costLabel}</span>
+      `;
+      // Use pointerdown instead of click: buttons are recreated every frame via innerHTML='',
+      // so a click that spans more than one frame (>16ms) has its target destroyed before
+      // mouseup fires — meaning click never reaches this element. pointerdown fires on press,
+      // before the next frame can recreate the DOM.
+      button.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.onUiSfx('ui_button');
+        this.onUtilitySpellUse(option.id);
+      });
+      this.utilityBar.appendChild(button);
+    }
+  }
+}
+
+function formatUtilityCost(option: { utilityMagicCost?: number }): string {
+  const cost = option.utilityMagicCost ?? 0;
+  return cost > 0 ? `${cost} MP` : 'Free';
 }

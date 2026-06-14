@@ -38,6 +38,7 @@ import { PlayerCompanionState } from '../companions/PlayerCompanionState';
 import type { CompanionSlot } from '../companions/CompanionTypes';
 import { getCompanionDefinition } from '../companions/CompanionRegistry';
 import type { ItemDefinition } from '../items/ItemTypes';
+import { levelToRankStage } from '../skills/SkillTypes';
 
 export class GameScene extends Phaser.Scene {
   private readonly gameEventBus = new GameEventBus();
@@ -146,6 +147,14 @@ export class GameScene extends Phaser.Scene {
         if (result) this.uiManager?.handleResult(result);
       },
       onSpellbookEquip: (slotType, slotIndex, abilityId) => {
+        if (this.turnCombatSession?.isInCombat()) {
+          this.uiManager?.showInfo('Prepared abilities can only be changed out of combat.');
+          return;
+        }
+        if (!this.worldRuntimeCoordinator?.canPrepareAbilitiesHere()) {
+          this.uiManager?.showInfo('Prepared abilities can only be changed at a workbench.');
+          return;
+        }
         const ok = this.worldRuntimeCoordinator?.equipSpellbookAbility(slotType, slotIndex, abilityId) ?? false;
         this.uiManager?.showInfo(ok ? 'Spellbook updated.' : 'That ability is not unlocked.');
       },
@@ -154,7 +163,16 @@ export class GameScene extends Phaser.Scene {
           this.uiManager?.pushMessage('Utility spells can only be used out of combat.', 'error');
           return;
         }
-        const result = this.worldRuntimeCoordinator?.useUtilitySpell(abilityId);
+        const magicRank = this.worldRuntimeCoordinator
+          ? levelToRankStage(this.worldRuntimeCoordinator.getSkillLevel('magic')).rank
+          : 1;
+        const result = this.worldRuntimeCoordinator?.useUtilitySpell(abilityId, {
+          identifyReadout: abilityId === 'utility_identify'
+            ? this.turnCombatSession?.identifyNearestEnemy(magicRank) ?? null
+            : null,
+          magicResource: this.turnCombatSession?.getMagicResourceSnapshot() ?? null,
+          spendMagicResource: (cost) => this.turnCombatSession?.trySpendMagicResource(cost) ?? false,
+        });
         if (result) this.handleGameplayResult(result, { allowAutosave: true });
       },
       onCompanionEquip: (slot, definitionId) => {

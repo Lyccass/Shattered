@@ -77,6 +77,11 @@ import { WorldPlacementController } from './WorldPlacementController';
 export type { DeferredInteractionAction } from './WorldInteractionOrchestrator';
 
 type InteractionTargetType = InteractionTarget['definition']['interactionType'];
+type UtilitySpellUseContext = {
+  identifyReadout?: string | null;
+  magicResource?: { current: number; max: number } | null;
+  spendMagicResource?: (cost: number) => boolean;
+};
 
 export class WorldRuntimeCoordinator {
   private readonly mapLoader: MapLoader;
@@ -706,7 +711,14 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.equipSpellbookAbility(slotType, slotIndex, abilityId);
   }
 
-  useUtilitySpell(abilityId: string): InteractionResult {
+  canPrepareAbilitiesHere(): boolean {
+    return this.interactionSystem.getActiveInteraction()?.target.definition.interactionType === 'workbench';
+  }
+
+  useUtilitySpell(
+    abilityId: string,
+    context: UtilitySpellUseContext = {},
+  ): InteractionResult {
     const ability = getAbilityDefinition(abilityId);
     if (!ability || ability.slotType !== 'utility_spell') {
       return {
@@ -730,21 +742,51 @@ export class WorldRuntimeCoordinator {
       };
     }
 
-    switch (abilityId) {
-      case 'utility_homeward_mark':
-        return this.useHomewardMark(abilityId);
-      case 'utility_waystep':
-        return this.useWaystep(abilityId);
-      case 'utility_camp_recall':
+    const magicCost = ability.utilityMagicCost ?? 0;
+    if (magicCost > 0) {
+      const currentMagic = context.magicResource?.current;
+      if (currentMagic === undefined) {
         return {
+          ok: false,
+          interactionType: 'utility_spell',
+          targetId: abilityId,
+          message: 'Magic resource is unavailable right now.',
+          toastKind: 'error',
+        };
+      }
+      if (currentMagic < magicCost) {
+        return {
+          ok: false,
+          interactionType: 'utility_spell',
+          targetId: abilityId,
+          message: `${ability.displayName} needs ${magicCost} Magic point${magicCost === 1 ? '' : 's'}.`,
+          toastKind: 'error',
+        };
+      }
+    }
+
+    let result: InteractionResult;
+    switch (abilityId) {
+      case 'utility_identify':
+        result = this.useIdentify(abilityId, context.identifyReadout ?? null);
+        break;
+      case 'utility_homeward_mark':
+        result = this.useHomewardMark(abilityId);
+        break;
+      case 'utility_waystep':
+        result = this.useWaystep(abilityId);
+        break;
+      case 'utility_camp_recall':
+        result = {
           ok: false,
           interactionType: 'utility_spell',
           targetId: abilityId,
           message: 'No camp recall point is prepared yet.',
           toastKind: 'error',
         };
+        break;
       default:
-        return {
+        result = {
           ok: false,
           interactionType: 'utility_spell',
           targetId: abilityId,
@@ -752,6 +794,25 @@ export class WorldRuntimeCoordinator {
           toastKind: 'error',
         };
     }
+
+    if (result.ok && magicCost > 0) {
+      const spent = context.spendMagicResource?.(magicCost) ?? false;
+      if (!spent) {
+        return {
+          ok: false,
+          interactionType: 'utility_spell',
+          targetId: abilityId,
+          message: `${ability.displayName} fizzles. Not enough Magic points.`,
+          toastKind: 'error',
+        };
+      }
+      return {
+        ...result,
+        message: `${result.message} (-${magicCost} Magic)`,
+      };
+    }
+
+    return result;
   }
 
   getCurrentMapId(): string {
@@ -1159,6 +1220,58 @@ export class WorldRuntimeCoordinator {
       message: 'No clear tile ahead for Waystep.',
       toastKind: 'error',
     };
+  }
+
+  private useIdentify(abilityId: string, enemyReadout: string | null): InteractionResult {
+    if (enemyReadout) {
+      return {
+        ok: true,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: enemyReadout,
+        toastKind: 'info',
+      };
+    }
+
+    const npcReadout = this.identifyNearestNpc();
+    if (npcReadout) {
+      return {
+        ok: true,
+        interactionType: 'utility_spell',
+        targetId: abilityId,
+        message: npcReadout,
+        toastKind: 'info',
+      };
+    }
+
+    return {
+      ok: false,
+      interactionType: 'utility_spell',
+      targetId: abilityId,
+      message: 'Identify found no creature nearby.',
+      toastKind: 'error',
+    };
+  }
+
+  private identifyNearestNpc(maxRangeTiles = 6): string | null {
+    if (!this.bindings || !this.currentRuntime || !this.npcSystem) return null;
+
+    const playerTile = this.bindings.playerController.getFeetTile();
+    const candidates = this.npcSystem.getStates().flatMap((state) => {
+      const tile = this.currentRuntime!.isoTilemap.transform.worldToTile(state.worldX, state.worldY);
+      const distance = Math.max(Math.abs(tile.x - playerTile.x), Math.abs(tile.y - playerTile.y));
+      if (distance > maxRangeTiles) return [];
+      const definition = this.npcSystem!.getDefinition(state.definitionId);
+      if (!definition) return [];
+      return [{ definition, distance }];
+    });
+
+    candidates.sort((a, b) => a.distance - b.distance);
+    const nearest = candidates[0]?.definition;
+    if (!nearest) return null;
+
+    const description = nearest.dialogue[0]?.text ?? nearest.ambientLines[0] ?? 'Someone touched by the Wake.';
+    return `Identify: ${nearest.displayName}. ${description} No combat weaknesses detected.`;
   }
 
   private recenterCameraOnPlayer(): void {

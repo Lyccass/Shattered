@@ -7,6 +7,8 @@ import {
   getAttackableTargets,
   getParticipantAttacks,
   getReachableTiles,
+  isSameSide,
+  selectReactionAttack,
   type TurnTileContext,
 } from './TurnActionValidator';
 import { calculateTurnHitChance, getActiveParticipant } from './TurnCombatEngine';
@@ -14,10 +16,14 @@ import { calculateTurnHitChance, getActiveParticipant } from './TurnCombatEngine
 const MOVE_FILL   = 0x3b82f6; // blue
 const ATTACK_FILL = 0xef4444; // red
 const ABILITY_FILL = 0x8cb8e8; // spell blue
+const THREAT_FILL = 0xf59e0b; // reaction risk
+const BLOCKED_FILL = 0x7f1d1d; // occupied body
 const DANGER_FILL = 0xdc2626; // strong telegraph
 const WARNING_FILL = 0xf97316; // weak telegraph
 const ALPHA_FILL  = 0.22;
 const ALPHA_LINE  = 0.70;
+const ALPHA_THREAT_ZONE_FILL = 0.12;
+const ALPHA_BLOCKED_FILL = 0.42;
 const ALPHA_DANGER_FILL = 0.34;
 
 export class TurnActionPreviewRenderer {
@@ -69,9 +75,23 @@ export class TurnActionPreviewRenderer {
     if (!attackMode) {
       // Normal mode: show reachable movement tiles in blue
       const moveTiles = getReachableTiles(active, state, tileCtx);
+      const enemyBodyTiles = this.getEnemyBodyTiles(active, state);
+
       this.previewGraphics.fillStyle(MOVE_FILL, ALPHA_FILL);
       this.previewGraphics.lineStyle(1, MOVE_FILL, ALPHA_LINE);
       for (const tile of moveTiles) {
+        this.drawDiamond(this.previewGraphics, tile.x, tile.y);
+      }
+
+      this.previewGraphics.fillStyle(THREAT_FILL, ALPHA_THREAT_ZONE_FILL);
+      this.previewGraphics.lineStyle(2, THREAT_FILL, 0.70);
+      for (const tile of this.getEnemyThreatZoneTiles(active, state, tileCtx)) {
+        this.drawDiamond(this.previewGraphics, tile.x, tile.y);
+      }
+
+      this.previewGraphics.fillStyle(BLOCKED_FILL, ALPHA_BLOCKED_FILL);
+      this.previewGraphics.lineStyle(2, BLOCKED_FILL, 0.86);
+      for (const tile of enemyBodyTiles) {
         this.drawDiamond(this.previewGraphics, tile.x, tile.y);
       }
     }
@@ -125,6 +145,59 @@ export class TurnActionPreviewRenderer {
     const pts = this.getTileDiamondPoints(tileX, tileY);
     graphics.fillPoints(pts, true);
     graphics.strokePoints(pts, true);
+  }
+
+  private getEnemyThreatZoneTiles(
+    active: NonNullable<ReturnType<typeof getActiveParticipant>>,
+    state: TurnCombatState,
+    tileCtx: TurnTileContext,
+  ): Array<{ x: number; y: number }> {
+    const occupied = new Set(
+      state.participants
+        .filter((participant) => participant.hp > 0)
+        .map((participant) => `${participant.tileX},${participant.tileY}`),
+    );
+    const tiles = new Map<string, { x: number; y: number }>();
+    const telegraphActorIds = new Set((state.pendingTelegraphs ?? []).map((telegraph) => telegraph.actorId));
+
+    for (const enemy of state.participants) {
+      if (
+        enemy.id === active.id
+        || enemy.hp <= 0
+        || isSameSide(enemy, active)
+        || telegraphActorIds.has(enemy.id)
+        || chebyshevDist(active.tileX, active.tileY, enemy.tileX, enemy.tileY) > 1
+        || (enemy.reactionRemaining ?? 1) <= 0
+        || selectReactionAttack(enemy, 1) === null
+      ) {
+        continue;
+      }
+
+      for (let y = enemy.tileY - 1; y <= enemy.tileY + 1; y += 1) {
+        for (let x = enemy.tileX - 1; x <= enemy.tileX + 1; x += 1) {
+          if (x === enemy.tileX && y === enemy.tileY) continue;
+          if (x < 0 || y < 0 || x >= tileCtx.mapWidth || y >= tileCtx.mapHeight) continue;
+          if (!tileCtx.isTileWalkable(x, y)) continue;
+          if (occupied.has(`${x},${y}`)) continue;
+          tiles.set(`${x},${y}`, { x, y });
+        }
+      }
+    }
+
+    return [...tiles.values()];
+  }
+
+  private getEnemyBodyTiles(
+    active: NonNullable<ReturnType<typeof getActiveParticipant>>,
+    state: TurnCombatState,
+  ): Array<{ x: number; y: number }> {
+    return state.participants
+      .filter((participant) => (
+        participant.id !== active.id
+        && participant.hp > 0
+        && !isSameSide(participant, active)
+      ))
+      .map((participant) => ({ x: participant.tileX, y: participant.tileY }));
   }
 
   private getSelectedActionRange(

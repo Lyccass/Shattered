@@ -14,6 +14,65 @@
 #ui-overlay *, #ui-overlay *::before, #ui-overlay *::after { box-sizing: border-box; }
 .ui-hidden { display: none !important; }
 
+/* ── Out-of-combat utility bar ───────────────────────── */
+#ui-utility-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(70, 109, 147, 0.55);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 13, 12, 0.82);
+  box-shadow: var(--shadow), inset 0 1px 0 rgba(255,252,195,0.06);
+  pointer-events: auto;
+}
+
+.utility-bar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(70, 109, 147, 0.72);
+  border-radius: var(--radius-sm);
+  background: var(--c-slot-bg);
+  color: #a0c4ff;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 11px;
+  letter-spacing: 0;
+  line-height: 1.05;
+  overflow: hidden;
+  transition: background var(--tr), border-color var(--tr), color var(--tr), transform var(--tr);
+  white-space: nowrap;
+}
+
+.utility-bar-btn:hover {
+  border-color: var(--c-primary-dim);
+  background: var(--c-slot-hover);
+  color: var(--c-text);
+}
+
+.utility-bar-btn:active {
+  transform: translateY(1px);
+}
+
+.utility-bar-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.utility-bar-cost {
+  color: var(--c-text-muted);
+  font-size: 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 
 /* ═══════════════════════════════════════════════════════
    TOP-LEFT: ENEMY NAMEPLATE

@@ -4,6 +4,7 @@ import type { SpellbookAbilityOptionSnapshot, SpellbookSnapshot } from '../../..
 const SPELL_ICONS: Record<string, string> = {
   spell_spark: 'SP',
   spell_barrier: 'BR',
+  utility_identify: 'ID',
   utility_homeward_mark: 'HM',
   utility_waystep: 'WS',
   utility_camp_recall: 'CR',
@@ -70,14 +71,14 @@ export class MagicTabContent {
       button.title = option.unlocked
         ? option.equipped
           ? slotType === 'utility_spell'
-            ? `${option.displayName} - click to use`
+            ? `${option.displayName} - click to use${formatUtilityCost(option)}`
             : `${option.displayName} - click to clear`
-          : `${option.displayName} - click to equip`
+          : `${option.displayName} - click to equip${formatUtilityCost(option)}`
         : `${option.displayName} - requires Magic level ${option.levelRequired}`;
       button.innerHTML = `
         <span class="spellbook-rune-icon">${iconFor(option.id)}</span>
         <span class="spellbook-rune-name">${option.displayName}</span>
-        <span class="spellbook-rune-meta">${option.equipped ? 'Set' : option.unlocked ? '' : `Lv ${option.levelRequired}`}</span>
+        <span class="spellbook-rune-meta">${formatMeta(option)}</span>
       `;
       button.addEventListener('click', () => this.toggle(option.id, slotType));
       grid.appendChild(button);
@@ -122,4 +123,17 @@ export class MagicTabContent {
 
 function iconFor(abilityId: string): string {
   return SPELL_ICONS[abilityId] ?? '?';
+}
+
+function formatMeta(option: SpellbookAbilityOptionSnapshot): string {
+  if (!option.unlocked) return `Lv ${option.levelRequired}`;
+  if (option.equipped) return 'Set';
+  if (option.slotType === 'utility_spell') return formatUtilityCost(option).trim();
+  return '';
+}
+
+function formatUtilityCost(option: SpellbookAbilityOptionSnapshot): string {
+  if (option.slotType !== 'utility_spell') return '';
+  const cost = option.utilityMagicCost ?? 0;
+  return cost > 0 ? ` ${cost} MP` : ' Free';
 }

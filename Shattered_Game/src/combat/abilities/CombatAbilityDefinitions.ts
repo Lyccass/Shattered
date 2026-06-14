@@ -10,6 +10,7 @@ export type AbilityDefinition = {
   skillId: 'magic' | 'devotion';
   levelRequired: number;
   slotType: AbilitySlotType;
+  utilityMagicCost?: number;
   turnAbility?: TurnCombatAbility;
 };
 
@@ -59,12 +60,22 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     },
   },
   {
+    id: 'utility_identify',
+    displayName: 'Identify',
+    description: 'Out-of-combat utility spell. Reveals creature rank, weakness, and more as Magic ranks up.',
+    skillId: 'magic',
+    levelRequired: 1,
+    slotType: 'utility_spell',
+    utilityMagicCost: 0,
+  },
+  {
     id: 'utility_homeward_mark',
     displayName: 'Homeward Mark',
     description: 'Out-of-combat utility spell. Marks a safe return point.',
     skillId: 'magic',
     levelRequired: 1,
     slotType: 'utility_spell',
+    utilityMagicCost: 0,
   },
   {
     id: 'utility_waystep',
@@ -73,6 +84,7 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     skillId: 'magic',
     levelRequired: 8,
     slotType: 'utility_spell',
+    utilityMagicCost: 1,
   },
   {
     id: 'utility_camp_recall',
@@ -81,6 +93,7 @@ export const ABILITY_DEFINITIONS: AbilityDefinition[] = [
     skillId: 'magic',
     levelRequired: 15,
     slotType: 'utility_spell',
+    utilityMagicCost: 2,
   },
   {
     id: 'devotion_mend',

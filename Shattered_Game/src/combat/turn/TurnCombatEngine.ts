@@ -19,13 +19,16 @@ import type {
   TurnPhase,
 } from './TurnCombatTypes';
 import {
+  buildMovementSteps,
   chebyshevDist,
+  findReactionStep,
   getElevationDelta,
   getMovePath,
-  getParticipantAttacks,
   getUsableAttacks,
+  isSameSide,
   isValidAttack,
   isValidMove,
+  selectReactionAttack,
   type TurnTileContext,
 } from './TurnActionValidator';
 
@@ -541,12 +544,9 @@ function applyMove(
   const fromTile = { x: actor.tileX, y: actor.tileY };
   const toTile   = { x: toTileX,     y: toTileY };
   const path = getMovePath(actor, toTileX, toTileY, state, tileCtx) ?? [toTile];
-  const moveFacing = getFacingFromDelta(toTileX - actor.tileX, toTileY - actor.tileY);
-
-  const stepCost = Math.max(
-    Math.abs(toTileX - actor.tileX),
-    Math.abs(toTileY - actor.tileY),
-  );
+  const previousFacingTile = path.length > 1 ? path[path.length - 2] : fromTile;
+  const moveFacing = getFacingFromDelta(toTileX - previousFacingTile.x, toTileY - previousFacingTile.y);
+  const stepCost = path.length;
 
   let next = updateParticipant(state, actor.id, {
     tileX: toTileX,
@@ -1538,7 +1538,9 @@ function resolveDisengageReactions(
     if (previousReactor.id === moverBefore.id) continue;
     if (previousReactor.hp <= 0) continue;
     if (isSameSide(previousReactor, moverBefore)) continue;
+    if (chebyshevDist(previousReactor.tileX, previousReactor.tileY, fromTile.x, fromTile.y) > 1) continue;
     if ((previousReactor.reactionRemaining ?? 1) <= 0) continue;
+    if ((previous.pendingTelegraphs ?? []).some((telegraph) => telegraph.actorId === previousReactor.id)) continue;
 
     const threatenedStep = findReactionStep(previousReactor, movementSteps);
     if (!threatenedStep) continue;
@@ -1615,57 +1617,6 @@ function resolveDisengageReactions(
   }
 
   return { outcomes, state: next };
-}
-
-function buildMovementSteps(
-  fromTile: { x: number; y: number },
-  path: { x: number; y: number }[],
-): Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> {
-  const steps: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> = [];
-  let current = fromTile;
-  for (const to of path) {
-    steps.push({ from: current, to });
-    current = to;
-  }
-  return steps;
-}
-
-function findReactionStep(
-  reactor: TurnParticipant,
-  steps: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }>,
-): { from: { x: number; y: number }; to: { x: number; y: number }; fromDist: number } | null {
-  for (const step of steps) {
-    const reaction = doesStepProvokeReaction(reactor, step.from, step.to);
-    if (reaction) return { ...step, fromDist: reaction.fromDist };
-  }
-  return null;
-}
-
-function doesStepProvokeReaction(
-  reactor: TurnParticipant,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): { fromDist: number } | null {
-  const fromDist = chebyshevDist(reactor.tileX, reactor.tileY, from.x, from.y);
-  if (fromDist > 1) return null;
-
-  const toDist = chebyshevDist(reactor.tileX, reactor.tileY, to.x, to.y);
-  if (toDist < fromDist) return null;
-
-  return { fromDist };
-}
-
-function selectReactionAttack(actor: TurnParticipant, distance: number): TurnAttack | null {
-  if (actor.kind === 'player' && actor.weaponId === 'bow') return null;
-  return getParticipantAttacks(actor).find((attack) => {
-    if (attack.telegraph) return false;
-    if ((actor.attackCooldowns?.[attack.id] ?? 0) > 0) return false;
-    return distance >= attack.minRangeTiles && distance <= Math.min(1, attack.maxRangeTiles);
-  }) ?? null;
-}
-
-function isSameSide(a: TurnParticipant, b: TurnParticipant): boolean {
-  return (a.kind === 'enemy') === (b.kind === 'enemy');
 }
 
 function tickAttackCooldowns(cooldowns: Record<string, number> | undefined): Record<string, number> {

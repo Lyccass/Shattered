@@ -10,7 +10,7 @@ import {
 } from './TurnCombatEngine';
 import { chooseEnemyAction, resolveEnemyTurn, resolveEnemyTurnStep } from './TurnEnemyAi';
 import type { TurnParticipant } from './TurnCombatTypes';
-import type { TurnTileContext } from './TurnActionValidator';
+import { getMovePath, type TurnTileContext } from './TurnActionValidator';
 
 // ─── Test fixtures ─────────────────────────────────────────────────────────
 
@@ -635,6 +635,81 @@ describe('attack action', () => {
     expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(0);
   });
 
+  it('does not provoke when entering melee and continuing to an adjacent tile in the same move', () => {
+    const player = makePlayer({ tileX: 9, tileY: 11, mpRemaining: 2 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      reactionRemaining: 1,
+      attacks: [{
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'slash',
+        hitChance: 100,
+      }],
+    });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'move', toTileX: 10, toTileY: 9 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({ kind: 'moved' });
+    expect((outcome as { reactions?: unknown[] }).reactions).toBeUndefined();
+    expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(10);
+    expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(1);
+  });
+
+  it('does not let an actor with a pending telegraph make movement reactions', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 3 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      reactionRemaining: 1,
+      attacks: [{
+        id: 'bite',
+        displayName: 'Bite',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        damageType: 'slash',
+        hitChance: 100,
+      }],
+    });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+      pendingTelegraphs: [{
+        id: 'telegraph-1',
+        actorId: 'e1',
+        targetId: 'player',
+        attackId: 'pounce',
+        attackName: 'Pounce',
+        damage: 1,
+        originTile: { x: 11, y: 10 },
+        targetTile: { x: 10, y: 10 },
+        tiles: [{ x: 10, y: 10, intensity: 'danger', damageMultiplier: 1 }],
+      }],
+    }, { kind: 'move', toTileX: 10, toTileY: 11 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({ kind: 'moved' });
+    expect((outcome as { reactions?: unknown[] }).reactions).toBeUndefined();
+    expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(10);
+    expect(next.participants.find((p) => p.id === 'e1')?.reactionRemaining).toBe(1);
+  });
+
   it('does not let units cut diagonally through an occupied combat tile', () => {
     const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 2 });
     const enemy = makeEnemy('e1', {
@@ -651,6 +726,50 @@ describe('attack action', () => {
     }, { kind: 'move', toTileX: 12, toTileY: 10 }, OPEN_CTX);
 
     expect(outcome).toMatchObject({ kind: 'invalid', reason: 'Tile not reachable.' });
+  });
+
+  it('returns a combat movement path that also respects occupied tile corners', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 4 });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10 });
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const path = getMovePath(player, 12, 11, state, OPEN_CTX);
+
+    expect(path).toEqual([
+      { x: 10, y: 11 },
+      { x: 11, y: 11 },
+      { x: 12, y: 11 },
+    ]);
+  });
+
+  it('charges movement by actual combat path length after detouring around units', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10, mpRemaining: 3 });
+    const enemy = makeEnemy('e1', { tileX: 11, tileY: 10 });
+
+    const { outcome, state: next } = applyAction({
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    }, { kind: 'move', toTileX: 12, toTileY: 11 }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({
+      kind: 'moved',
+      path: [
+        { x: 10, y: 11 },
+        { x: 11, y: 11 },
+        { x: 12, y: 11 },
+      ],
+    });
+    expect(next.participants.find((p) => p.id === 'player')?.mpRemaining).toBe(0);
+    expect(next.participants.find((p) => p.id === 'player')?.bleedMovementTiles).toBe(3);
   });
 
   it('lets the player react when an enemy leaves melee range', () => {

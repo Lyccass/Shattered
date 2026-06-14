@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { formatEnemyIdentifyReadout } from '../IdentifyReadout';
 import { EnemySystem } from '../EnemySystem';
 import { HitsplatRenderer } from '../HitsplatRenderer';
 import type { EnemySpawnDefinition } from '../EnemyTypes';
@@ -69,8 +70,8 @@ const PLAYER_SECONDARY_ACTIONS_PER_TURN = 1;
 const PLAYER_MOVE_POINTS_PER_TURN       = 5;
 const PLAYER_HP_REGEN_INTERVAL_MS       = 60_000;
 const AUTO_FLEE_DISTANCE = 12;
-const PLAYER_BASE_MAGIC_RESOURCE_MAX = 4;
-const PLAYER_BASE_DEVOTION_RESOURCE_MAX = 4;
+const PLAYER_BASE_MAGIC_RESOURCE_MAX = 1;
+const PLAYER_BASE_DEVOTION_RESOURCE_MAX = 1;
 
 export class TurnCombatSession {
   // ─── State ───────────────────────────────────────────────────────────────
@@ -168,6 +169,28 @@ export class TurnCombatSession {
     });
   }
 
+  identifyNearestEnemy(magicRank: number, maxRangeTiles = 6): string | null {
+    if (!this.playerController || !this.currentTilemap) return null;
+
+    const playerTile = this.playerController.getFeetTile();
+    const candidates = this.enemySystems.flatMap((enemySystem) => {
+      if (!enemySystem.isAlive()) return [];
+      const definition = enemySystem.getDefinition();
+      const record = enemySystem.getRecord();
+      const tile = enemySystem.getCurrentTile();
+      if (!definition || !record || !tile) return [];
+      const distance = Math.max(Math.abs(tile.x - playerTile.x), Math.abs(tile.y - playerTile.y));
+      if (distance > maxRangeTiles) return [];
+      return [{ definition, record, distance }];
+    });
+
+    candidates.sort((a, b) => a.distance - b.distance);
+    const nearest = candidates[0];
+    return nearest
+      ? formatEnemyIdentifyReadout(nearest.definition, nearest.record.hp, magicRank)
+      : null;
+  }
+
   setDerivedStats(stats: PlayerDerivedStats): void {
     this.derivedStats = stats;
     this.persistedPlayerMaxHp = stats.maxHp;
@@ -205,6 +228,28 @@ export class TurnCombatSession {
 
   setEquippedTurnAbilities(abilities: TurnCombatAbility[]): void {
     this.equippedTurnAbilities = abilities.map((ability) => ({ ...ability }));
+  }
+
+  getMagicResourceSnapshot(): { current: number; max: number } {
+    if (this.persistedMagicResource === null) {
+      this.persistedMagicResource = this.magicResourceMax;
+    }
+    return {
+      current: this.persistedMagicResource,
+      max: this.magicResourceMax,
+    };
+  }
+
+  trySpendMagicResource(cost: number): boolean {
+    const resolvedCost = Math.max(0, Math.floor(cost));
+    if (resolvedCost <= 0) return true;
+    if (this.persistedMagicResource === null) {
+      this.persistedMagicResource = this.magicResourceMax;
+    }
+    if (this.persistedMagicResource < resolvedCost) return false;
+    this.persistedMagicResource -= resolvedCost;
+    this.refreshLivePlayerStats();
+    return true;
   }
 
   private refreshLivePlayerStats(): void {

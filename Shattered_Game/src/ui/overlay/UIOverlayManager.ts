@@ -131,6 +131,7 @@ export class UIOverlayManager {
       state.equipment,
       state.companions,
       state.spellbook,
+      controlMode,
     );
 
     // Live-update the open skill detail popup

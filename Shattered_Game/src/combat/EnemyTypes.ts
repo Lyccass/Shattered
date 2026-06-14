@@ -45,6 +45,7 @@ export type TurnAttackDefinition = {
 export type EnemyDefinition = {
   id: string;
   displayName: string;
+  description?: string;
   /** 1–10 display/power band. This is descriptive; combat values come from explicit stats. */
   tier: number;
   maxHealth: number;

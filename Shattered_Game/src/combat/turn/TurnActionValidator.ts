@@ -14,6 +14,7 @@ const DIRS_8 = [
 
 type TilePoint = { x: number; y: number };
 type BfsBounds = { mapWidth: number; mapHeight: number };
+export type TurnMovementStep = { from: TilePoint; to: TilePoint };
 type BfsCanTraverse = (
   fromX: number,
   fromY: number,
@@ -172,7 +173,7 @@ export function getMovePath(
     canTraverseCombatNeighbour(blocked),
   );
   if (!costs.has(targetKey)) return null;
-  return rebuildPathFromCosts(costs, startKey, targetKey);
+  return rebuildPathFromCosts(costs, startKey, targetKey, canTraverseCombatNeighbour(blocked));
 }
 
 /** Returns true if the participant can attack the given target right now. */
@@ -280,10 +281,62 @@ export function getBestApproachTile(
   return best;
 }
 
+export function buildMovementSteps(
+  fromTile: TilePoint,
+  path: TilePoint[],
+): TurnMovementStep[] {
+  const steps: TurnMovementStep[] = [];
+  let current = fromTile;
+  for (const to of path) {
+    steps.push({ from: current, to });
+    current = to;
+  }
+  return steps;
+}
+
+export function findReactionStep(
+  reactor: TurnParticipant,
+  steps: TurnMovementStep[],
+): (TurnMovementStep & { fromDist: number }) | null {
+  for (const step of steps) {
+    const reaction = doesStepProvokeReaction(reactor, step.from, step.to);
+    if (reaction) return { ...step, fromDist: reaction.fromDist };
+  }
+  return null;
+}
+
+export function doesStepProvokeReaction(
+  reactor: TurnParticipant,
+  from: TilePoint,
+  to: TilePoint,
+): { fromDist: number } | null {
+  const fromDist = chebyshevDist(reactor.tileX, reactor.tileY, from.x, from.y);
+  if (fromDist > 1) return null;
+
+  const toDist = chebyshevDist(reactor.tileX, reactor.tileY, to.x, to.y);
+  if (toDist < fromDist) return null;
+
+  return { fromDist };
+}
+
+export function selectReactionAttack(actor: TurnParticipant, distance: number): TurnAttack | null {
+  if (actor.kind === 'player' && actor.weaponId === 'bow') return null;
+  return getParticipantAttacks(actor).find((attack) => {
+    if (attack.telegraph) return false;
+    if ((actor.attackCooldowns?.[attack.id] ?? 0) > 0) return false;
+    return distance >= attack.minRangeTiles && distance <= Math.min(1, attack.maxRangeTiles);
+  }) ?? null;
+}
+
+export function isSameSide(a: TurnParticipant, b: TurnParticipant): boolean {
+  return (a.kind === 'enemy') === (b.kind === 'enemy');
+}
+
 function rebuildPathFromCosts(
   costs: Map<string, number>,
   startKey: string,
   targetKey: string,
+  canTraverse?: BfsCanTraverse,
 ): { x: number; y: number }[] {
   const reversed: { x: number; y: number }[] = [];
   let currentKey = targetKey;
@@ -293,11 +346,14 @@ function rebuildPathFromCosts(
     if (currentCost === undefined || currentCost <= 0) break;
     const current = parseTileKey(currentKey);
     reversed.push(current);
-    const previous = DIRS_8
-      .map(([dx, dy]) => tileKey(current.x - dx, current.y - dy))
-      .find((key) => costs.get(key) === currentCost - 1);
+    const previous = DIRS_8.find(([dx, dy]) => {
+      const previousX = current.x - dx;
+      const previousY = current.y - dy;
+      return costs.get(tileKey(previousX, previousY)) === currentCost - 1
+        && (!canTraverse || canTraverse(previousX, previousY, dx, dy));
+    });
     if (!previous) break;
-    currentKey = previous;
+    currentKey = tileKey(current.x - previous[0], current.y - previous[1]);
   }
 
   return reversed.reverse();
