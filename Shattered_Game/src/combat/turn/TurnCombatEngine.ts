@@ -31,7 +31,7 @@ import {
   selectReactionAttack,
   type TurnTileContext,
 } from './TurnActionValidator';
-
+//TODO: Fix bug where directions sometimes break - no clue why
 const DIRS_8 = [
   [0, -1], [1, 0], [0, 1], [-1, 0],
   [1, -1], [1, 1], [-1, 1], [-1, -1],
@@ -50,7 +50,7 @@ const COMBAT_POSITION_TUNING = {
   maxHitBonusPerHeightStep: 0.5,
   maxHeightMaxHitBonus: 2,
 } as const;
-
+//TODO: tune the above values based on playtesting and desired game feel
 const HIT_CHANCE_TUNING = {
   curvePower: 5.5,
   minChance: 0,
@@ -61,7 +61,7 @@ type FacingValue = -1 | 0 | 1;
 type FacingVector = { x: FacingValue; y: FacingValue };
 type FacingPatch = Pick<TurnParticipant, 'facingX' | 'facingY'>;
 
-// ─── Combat creation ──────────────────────────────────────────────────────────
+// Combat creation
 
 /**
  * Builds the initial TurnCombatState from a list of participants.
@@ -156,7 +156,7 @@ export function addParticipantsToCombatState(
   };
 }
 
-// ─── Action application ───────────────────────────────────────────────────────
+// Action application
 
 export function applyAction(
   state: TurnCombatState,
@@ -196,7 +196,7 @@ export function applyAction(
   }
 }
 
-// ─── Turn advancement ─────────────────────────────────────────────────────────
+// Turn advancement
 
 /**
  * Ends the current participant's turn and moves to the next.
@@ -269,7 +269,7 @@ export function advanceTurn(
   };
 }
 
-// ─── Query helpers ────────────────────────────────────────────────────────────
+// Query helpers
 
 export function getActiveParticipant(state: TurnCombatState): TurnParticipant | null {
   return (
@@ -528,7 +528,7 @@ export function resolvePendingTelegraphsForActor(
   return { outcomes, state: current };
 }
 
-// ─── Private helpers ──────────────────────────────────────────────────────────
+// Private helpers
 
 function applyMove(
   state: TurnCombatState,
@@ -1175,7 +1175,7 @@ function getForcedMovementResult(
   if (toTile.x === fromTile.x && toTile.y === fromTile.y) return null;
   return { targetId: target.id, fromTile, toTile };
 }
-
+//TODO
 function resolveStaggerHit(
   target: TurnParticipant,
   staggerDamage: number,
@@ -1679,7 +1679,7 @@ function rollAttackHit(
   return { hit, damage };
 }
 
-// ─── Immutable state helpers ──────────────────────────────────────────────────
+// Immutable state helpers
 
 function updateParticipant(
   state: TurnCombatState,

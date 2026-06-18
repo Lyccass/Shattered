@@ -1,6 +1,6 @@
 import type { ItemDefinition } from './ItemTypes';
 
-// ─── Module-level singleton ───────────────────────────────────────────────────
+// Module-level singleton
 // All item definitions are registered here at startup via src/items/ItemDefinitions.ts.
 // New items: add a definition to the appropriate definitions/category file.
 
@@ -31,7 +31,7 @@ export function getItemsByCategory(category: ItemDefinition['category']): ItemDe
   return getAllItems().filter((d) => d.category === category);
 }
 
-// ─── Class wrapper (dependency-injection compatibility) ───────────────────────
+// Class wrapper (dependency-injection compatibility)
 // Systems that receive an ItemRegistry instance via constructor can still use this.
 
 export class ItemRegistry {

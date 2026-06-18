@@ -198,7 +198,7 @@ export class ResourceNodeSystem {
   }
 }
 
-// ── Tool helpers ──────────────────────────────────────────────────────────────
+// Tool helpers
 
 /** Returns the highest-tier item in equipment or inventory that covers the given skillId. */
 function findBestTool(skillId: string, playerSessionState: PlayerSessionState): ItemDefinition | null {

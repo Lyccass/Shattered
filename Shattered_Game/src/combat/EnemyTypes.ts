@@ -76,7 +76,7 @@ export type EnemyDefinition = {
   lootTables?: EnemyLootTable[];
 };
 
-// ─── Spawn / runtime types ────────────────────────────────────────────────────
+// Spawn / runtime types
 
 export type EnemySpawnDefinition = {
   id: string;

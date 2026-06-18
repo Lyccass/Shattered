@@ -88,28 +88,143 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
     dialogue: [
       { text: 'You have that look — someone new to the Wake.' },
     ],
-    options: [
-      {
-        id: 'ask_wake',
-        label: 'What is the Wake?',
-        outcome: {
-          kind: 'reply',
-          npcText: 'The archipelago. Gods died here long ago. Their remains became the islands. Every rock, reef, and forest — once alive.',
+    dialogueTree: {
+      startNodeId: 'intro',
+      nodes: {
+        intro: {
+          npcText: 'You have that look - someone new to the Wake.',
+          options: [
+            {
+              id: 'ask_wake',
+              label: 'What is the Wake?',
+              nextNodeId: 'explain_wake',
+            },
+            {
+              id: 'ask_island',
+              label: 'Tell me about my island.',
+              nextNodeId: 'explain_island',
+            },
+            {
+              id: 'first_mark_intro',
+              label: 'What mark are you carving?',
+              conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'not_started' }],
+              nextNodeId: 'first_mark_offer',
+            },
+            {
+              id: 'first_mark_continue',
+              label: 'About the first mark...',
+              conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'active' }],
+              questAction: { kind: 'continue_quest', questId: 'the_first_mark' },
+              end: true,
+            },
+            {
+              id: 'first_mark_done',
+              label: 'How is the first mark holding?',
+              conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'completed' }],
+              nextNodeId: 'first_mark_after',
+            },
+            {
+              id: 'bye',
+              label: 'I\'ll leave you in peace.',
+              end: true,
+            },
+          ],
+        },
+        explain_wake: {
+          npcText: 'The archipelago. Gods died here long ago. Their remains became the islands. Every rock, reef, and forest - once alive.',
+          options: [
+            {
+              id: 'ask_mark_from_wake',
+              label: 'And the marks?',
+              conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'not_started' }],
+              nextNodeId: 'first_mark_offer',
+            },
+            {
+              id: 'back',
+              label: 'I had another question.',
+              nextNodeId: 'intro',
+            },
+            {
+              id: 'bye',
+              label: 'That is enough for now.',
+              end: true,
+            },
+          ],
+        },
+        explain_island: {
+          npcText: 'Yours is young - unclaimed land. Rare. Shape it carefully. What you build there will outlast you.',
+          options: [
+            {
+              id: 'ask_practical_lesson',
+              label: 'Teach me something practical.',
+              conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'not_started' }],
+              nextNodeId: 'first_mark_offer',
+            },
+            {
+              id: 'back',
+              label: 'I had another question.',
+              nextNodeId: 'intro',
+            },
+            {
+              id: 'bye',
+              label: 'I will remember that.',
+              end: true,
+            },
+          ],
+        },
+        first_mark_offer: {
+          npcText: 'A mark is not a monument. It is proof that someone passed through and wanted the next soul to fare better.',
+          options: [
+            {
+              id: 'ask_materials',
+              label: 'What do I need?',
+              nextNodeId: 'first_mark_materials',
+            },
+            {
+              id: 'start_direct',
+              label: 'I can help.',
+              questAction: { kind: 'start_quest', questId: 'the_first_mark' },
+              end: true,
+            },
+            {
+              id: 'not_now',
+              label: 'Not right now.',
+              end: true,
+            },
+          ],
+        },
+        first_mark_materials: {
+          npcText: 'Driftwood. Stone. A little patience. Strike one against the other and bring the spark back to me.',
+          options: [
+            {
+              id: 'start_after_materials',
+              label: 'I will make the firestarter.',
+              questAction: { kind: 'start_quest', questId: 'the_first_mark' },
+              end: true,
+            },
+            {
+              id: 'back',
+              label: 'Let me ask something else first.',
+              nextNodeId: 'intro',
+            },
+          ],
+        },
+        first_mark_after: {
+          npcText: 'Still there, if the rain has manners. If not, make another. Useful things should be repeatable.',
+          options: [
+            {
+              id: 'back',
+              label: 'I had another question.',
+              nextNodeId: 'intro',
+            },
+            {
+              id: 'bye',
+              label: 'Safe paths, then.',
+              end: true,
+            },
+          ],
         },
       },
-      {
-        id: 'ask_island',
-        label: 'Tell me about my island.',
-        outcome: {
-          kind: 'reply',
-          npcText: 'Yours is young — unclaimed land. Rare. Shape it carefully. What you build there will outlast you.',
-        },
-      },
-      {
-        id: 'bye',
-        label: 'I\'ll leave you in peace.',
-        outcome: { kind: 'close' },
-      },
-    ],
+    },
   },
 ];

@@ -559,7 +559,7 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getCurrencySnapshot();
   }
 
-  // ─── Shop ────────────────────────────────────────────────────────────────────
+  // Shop  -- Refractor later
 
   getShopSnapshot(shopId: string): ShopSnapshot | null {
     return this.shopSystem.getSnapshot(shopId);

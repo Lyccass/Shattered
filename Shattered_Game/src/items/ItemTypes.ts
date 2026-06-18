@@ -2,7 +2,7 @@ import type { EquipmentSlot, WeaponStats, ArmorStats } from '../equipment/Equipm
 import type { EffectId } from '../effects/EffectTypes';
 import type { MapSpaceType, MapZoneTag } from '../world/maps/MapTypes';
 
-// ─── Categories ───────────────────────────────────────────────────────────────
+// Categories
 // Used for bank tab grouping and inventory filtering.
 // One item belongs to exactly one category.
 
@@ -15,7 +15,7 @@ export type ItemCategory =
   | 'readable'    // books and scrolls with text content
   | 'misc';       // markers, trade goods, low-value drops
 
-// ─── Capability sub-types ─────────────────────────────────────────────────────
+// Capability sub-types
 // Presence of a capability field determines which interactions are available.
 // All items support: examine, use (routes to relevant action), drop.
 
@@ -52,7 +52,7 @@ export type PlacementRules = {
   minTransitionDistanceTiles?: number;
 };
 
-// ─── Core item definition ─────────────────────────────────────────────────────
+// Core item definition
 
 export type ItemDefinition = {
   id: string;

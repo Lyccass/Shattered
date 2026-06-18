@@ -1,7 +1,7 @@
 import type { RecipeDefinition } from './RecipeTypes';
 
 export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
-  // ─── Workbench ────────────────────────────────────────────────────────────
+  // Workbench
   {
     id: 'workbench_firestarter_set',
     displayName: 'Firestarter Set',
@@ -34,7 +34,7 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     levelRequirements: { woodworking: 3 },
   },
 
-  // ─── Campfire ─────────────────────────────────────────────────────────────
+  // Campfire
   {
     id: 'campfire_warm_tea',
     displayName: 'Warm Tea',
@@ -46,7 +46,7 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     xpRewards: { alchemy: 30 },
   },
 
-  // ─── By hand ──────────────────────────────────────────────────────────────
+  // By hand
   {
     id: 'hand_firestarter_set',
     displayName: 'Firestarter Set',

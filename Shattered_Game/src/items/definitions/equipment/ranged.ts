@@ -1,6 +1,6 @@
 import type { ItemDefinition } from '../../ItemTypes';
 
-// ── Ranged weapons (bows & crossbows) ────────────────────────────────────────
+// Ranged weapons (bows & crossbows)
 // Crafted via Woodworking skill; equip gate is the Ranged skill.
 // Each wood tier produces one bow and one crossbow.
 // Bows: lighter, longer range, lower damage.

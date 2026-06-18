@@ -137,7 +137,7 @@ export type InteractionHandlers = {
   onGroundItem: (target: GroundItemInteractionTarget) => InteractionResult;
 };
 
-// ─── Type predicates ─────────────────────────────────────────────────────────
+// Type predicates
 
 export function isMapTransitionTarget(t: InteractionTarget): t is MapTransitionInteractionTarget {
   return t.definition.interactionType === 'map_transition';
@@ -171,7 +171,7 @@ export function isGroundItemTarget(t: InteractionTarget): t is GroundItemInterac
   return t.definition.interactionType === 'ground_item';
 }
 
-// ─── Tile helpers ─────────────────────────────────────────────────────────────
+// Tile helpers
 
 export function createSingleTileInteractionTiles(tileX: number, tileY: number): InteractionTile[] {
   return [{ x: tileX, y: tileY }];

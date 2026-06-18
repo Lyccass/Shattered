@@ -133,7 +133,7 @@ export class ShopSystem {
     return { ok: true, message: `Sold ${label} for ${formatCopper(totalGain)}.` };
   }
 
-  // ─── Price calculations ───────────────────────────────────────────────────────
+  // Price calculations
 
   private calcBuyPrice(def: ShopDefinition, entry: ShopRuntimeEntry): number {
     const stockFraction = entry.maxStock > 0 ? Math.min(entry.stock / entry.maxStock, 1) : 0;

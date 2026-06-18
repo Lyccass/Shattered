@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shattered.local/schemas/quest.schema.json",
+  "title": "Shattered Quest Definition",
+  "type": "object",
+  "required": ["id", "displayName", "description", "start", "phases"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "displayName": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "start": {
+      "type": "object",
+      "required": ["dialogue"],
+      "additionalProperties": false,
+      "properties": {
+        "npcId": { "type": "string", "minLength": 1 },
+        "dialogue": { "type": "string", "minLength": 1 }
+      }
+    },
+    "prerequisites": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/prerequisite" }
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/phase" }
+    },
+    "rewards": { "$ref": "#/$defs/reward" },
+    "repeatable": { "type": "boolean" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "required": ["id", "title", "journalHint", "completedLog", "objectives"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "journalHint": { "type": "string", "minLength": 1 },
+        "completedLog": { "type": "string", "minLength": 1 },
+        "objectives": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/objective" }
+        },
+        "turnInNpcId": { "type": "string", "minLength": 1 },
+        "startDialogue": { "type": "string", "minLength": 1 },
+        "completeDialogue": { "type": "string", "minLength": 1 }
+      }
+    },
+    "baseObjectiveFields": {
+      "type": "object",
+      "required": ["id", "journalHint", "completedLog"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "journalHint": { "type": "string", "minLength": 1 },
+        "completedLog": { "type": "string", "minLength": 1 }
+      }
+    },
+    "objective": {
+      "oneOf": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "enemyId", "count"],
+              "properties": {
+                "kind": { "const": "kill" },
+                "enemyId": { "type": "string", "minLength": 1 },
+                "count": { "$ref": "#/$defs/positiveInteger" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "enemyId", "itemId", "count"],
+              "properties": {
+                "kind": { "const": "kill_with_item" },
+                "enemyId": { "type": "string", "minLength": 1 },
+                "itemId": { "type": "string", "minLength": 1 },
+                "count": { "$ref": "#/$defs/positiveInteger" },
+                "itemSource": { "enum": ["inventory", "equipment", "either"] }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "count", "mapId"],
+              "properties": {
+                "kind": { "const": "kill_count_at" },
+                "count": { "$ref": "#/$defs/positiveInteger" },
+                "enemyId": { "type": "string", "minLength": 1 },
+                "mapId": { "type": "string", "minLength": 1 },
+                "areaId": { "type": "string", "minLength": 1 }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "itemId", "count"],
+              "properties": {
+                "kind": { "const": "fetch" },
+                "itemId": { "type": "string", "minLength": 1 },
+                "count": { "$ref": "#/$defs/positiveInteger" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "target"],
+              "properties": {
+                "kind": { "const": "interact" },
+                "target": { "$ref": "#/$defs/target" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "npcId", "itemId"],
+              "properties": {
+                "kind": { "const": "talk_with_item" },
+                "npcId": { "type": "string", "minLength": 1 },
+                "itemId": { "type": "string", "minLength": 1 },
+                "count": { "$ref": "#/$defs/positiveInteger" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "npcId", "itemId", "count"],
+              "properties": {
+                "kind": { "const": "deliver_item_to" },
+                "npcId": { "type": "string", "minLength": 1 },
+                "itemId": { "type": "string", "minLength": 1 },
+                "count": { "$ref": "#/$defs/positiveInteger" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "npcId", "copper"],
+              "properties": {
+                "kind": { "const": "pay_currency_to" },
+                "npcId": { "type": "string", "minLength": 1 },
+                "copper": { "$ref": "#/$defs/positiveInteger" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "mapId"],
+              "properties": {
+                "kind": { "const": "visit" },
+                "mapId": { "type": "string", "minLength": 1 },
+                "areaId": { "type": "string", "minLength": 1 }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "actionId", "mapId"],
+              "properties": {
+                "kind": { "const": "do_action_at" },
+                "actionId": { "type": "string", "minLength": 1 },
+                "mapId": { "type": "string", "minLength": 1 },
+                "areaId": { "type": "string", "minLength": 1 },
+                "tile": { "$ref": "#/$defs/tile" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "itemId", "target"],
+              "properties": {
+                "kind": { "const": "use_item_on" },
+                "itemId": { "type": "string", "minLength": 1 },
+                "target": { "$ref": "#/$defs/target" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "spellId"],
+              "properties": {
+                "kind": { "const": "cast_spell" },
+                "spellId": { "type": "string", "minLength": 1 }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "spellId", "mapId"],
+              "properties": {
+                "kind": { "const": "cast_spell_at" },
+                "spellId": { "type": "string", "minLength": 1 },
+                "mapId": { "type": "string", "minLength": 1 },
+                "areaId": { "type": "string", "minLength": 1 },
+                "tile": { "$ref": "#/$defs/tile" }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "steps"],
+              "properties": {
+                "kind": { "const": "sequence" },
+                "steps": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/objective" }
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/baseObjectiveFields" },
+            {
+              "type": "object",
+              "required": ["kind", "options"],
+              "properties": {
+                "kind": { "const": "any_of" },
+                "options": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": { "$ref": "#/$defs/objective" }
+                }
+              }
+            }
+          ],
+          "unevaluatedProperties": false
+        }
+      ]
+    },
+    "target": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "npcId"],
+          "properties": {
+            "kind": { "const": "npc" },
+            "npcId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "objectId"],
+          "properties": {
+            "kind": { "const": "object" },
+            "objectId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "objectDefinitionId"],
+          "properties": {
+            "kind": { "const": "object_definition" },
+            "objectDefinitionId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "itemId"],
+          "properties": {
+            "kind": { "const": "item" },
+            "itemId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "prerequisite": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "questId"],
+          "properties": {
+            "kind": { "const": "quest_complete" },
+            "questId": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "skillId", "level"],
+          "properties": {
+            "kind": { "const": "skill_level" },
+            "skillId": { "type": "string", "minLength": 1 },
+            "level": { "$ref": "#/$defs/positiveInteger" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "itemId"],
+          "properties": {
+            "kind": { "const": "item_owned" },
+            "itemId": { "type": "string", "minLength": 1 },
+            "count": { "$ref": "#/$defs/positiveInteger" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "faction", "minimum"],
+          "properties": {
+            "kind": { "const": "reputation" },
+            "faction": { "type": "string", "minLength": 1 },
+            "minimum": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "reward": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "copper": { "type": "integer", "minimum": 0 },
+        "harborReputation": { "type": "integer", "minimum": 0 },
+        "itemDelta": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/positiveInteger" }
+        },
+        "xpRewards": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "unlocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "unlockId"],
+            "additionalProperties": false,
+            "properties": {
+              "kind": { "enum": ["recipe", "place", "activity"] },
+              "unlockId": { "type": "string", "minLength": 1 },
+              "displayName": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "tile": {
+      "type": "object",
+      "required": ["tileX", "tileY"],
+      "additionalProperties": false,
+      "properties": {
+        "tileX": { "type": "integer" },
+        "tileY": { "type": "integer" }
+      }
+    },
+    "positiveInteger": { "type": "integer", "minimum": 1 }
+  }
+}

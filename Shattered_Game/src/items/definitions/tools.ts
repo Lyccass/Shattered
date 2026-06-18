@@ -1,6 +1,6 @@
 import type { ItemDefinition } from '../ItemTypes';
 
-// ── Shared material tiers ──────────────────────────────────────────────────────
+// Shared material tiers
 // Matches the 7-tier weapon/armour progression: copper → titanite.
 
 type ToolTier = {
@@ -20,7 +20,7 @@ const TOOL_TIERS: ToolTier[] = [
   { id: 'titanite', displayName: 'Titanite', rank: 7, value: 1600 },
 ];
 
-// ── Pickaxes (metalworking) ────────────────────────────────────────────────────
+// Pickaxes (metalworking)
 
 const PICKAXE_ITEMS: ItemDefinition[] = TOOL_TIERS.map((t) => ({
   id: `${t.id}_pickaxe`,
@@ -35,7 +35,7 @@ const PICKAXE_ITEMS: ItemDefinition[] = TOOL_TIERS.map((t) => ({
   gatherTier: t.rank,
 }));
 
-// ── Skinning knives (leatherworking) ─────────────────────────────────────────
+// Skinning knives (leatherworking)
 
 const SKINNING_KNIFE_ITEMS: ItemDefinition[] = TOOL_TIERS.map((t) => ({
   id: `${t.id}_skinning_knife`,
@@ -50,7 +50,7 @@ const SKINNING_KNIFE_ITEMS: ItemDefinition[] = TOOL_TIERS.map((t) => ({
   gatherTier: t.rank,
 }));
 
-// ── Placeable utility tools ────────────────────────────────────────────────────
+// Placeable utility tools
 
 const UTILITY_ITEMS: ItemDefinition[] = [
   {

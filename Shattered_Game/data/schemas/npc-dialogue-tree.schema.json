@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shattered.local/schemas/npc-dialogue-tree.schema.json",
+  "title": "Shattered NPC Dialogue Tree",
+  "type": "object",
+  "required": ["startNodeId", "nodes"],
+  "additionalProperties": false,
+  "properties": {
+    "startNodeId": { "type": "string", "minLength": 1 },
+    "nodes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/node" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["npcText", "options"],
+      "additionalProperties": false,
+      "properties": {
+        "npcText": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/option" }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/condition" }
+        },
+        "unavailableMode": { "enum": ["disabled", "hidden"] },
+        "unavailableReason": { "type": "string", "minLength": 1 },
+        "nextNodeId": { "type": "string", "minLength": 1 },
+        "outcome": { "$ref": "#/$defs/outcome" },
+        "questAction": { "$ref": "#/$defs/questAction" },
+        "end": { "type": "boolean" }
+      },
+      "anyOf": [
+        { "required": ["nextNodeId"] },
+        { "required": ["outcome"] },
+        { "required": ["questAction"] },
+        { "required": ["end"] }
+      ]
+    },
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "questId", "state"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "quest_state" },
+            "questId": { "type": "string", "minLength": 1 },
+            "state": { "enum": ["not_started", "active", "completed"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "questId", "phaseId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "quest_phase" },
+            "questId": { "type": "string", "minLength": 1 },
+            "phaseId": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "skillId", "level"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "skill_level" },
+            "skillId": { "type": "string", "minLength": 1 },
+            "level": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "itemId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "item_owned" },
+            "itemId": { "type": "string", "minLength": 1 },
+            "count": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "faction", "minimum"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "reputation" },
+            "faction": { "type": "string", "minLength": 1 },
+            "minimum": { "type": "integer", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "questAction": {
+      "type": "object",
+      "required": ["kind", "questId"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["start_quest", "continue_quest"] },
+        "questId": { "type": "string", "minLength": 1 }
+      }
+    },
+    "outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "close" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "shopId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "shop" },
+            "shopId": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "npcText"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "reply" },
+            "npcText": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "boardId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "contract_board" },
+            "boardId": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "questId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "quest" },
+            "questId": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    }
+  }
+}

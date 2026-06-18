@@ -26,7 +26,7 @@ const ARMOUR_CRAFT_UNLOCKS: SkillUnlockEntry[] = ARMOUR_TIERS.map((t) => ({
 }));
 
 export const LEATHERWORKING_UNLOCKS: SkillUnlockEntry[] = [
-  // ── Skinning ───────────────────────────────────────────────────────────────
+  // Skinning
   {
     skillId: 'leatherworking', rankRequired: 1, stageRequired: 1,
     kind: 'misc', refId: 'skin_basic',
@@ -58,7 +58,7 @@ export const LEATHERWORKING_UNLOCKS: SkillUnlockEntry[] = [
     description: 'Harvest wyrmhide from legendary wyrms. Master knife required.',
   },
 
-  // ── Tanning (raw → processed leather) ─────────────────────────────────────
+  // Tanning (raw → processed leather)
   {
     skillId: 'leatherworking', rankRequired: 1, stageRequired: 3,
     kind: 'recipe', refId: 'tan_rawhide',
@@ -78,6 +78,6 @@ export const LEATHERWORKING_UNLOCKS: SkillUnlockEntry[] = [
     description: 'Treat and cure scaled skin into workable scalehide.',
   },
 
-  // ── Armour crafting (one entry per tier unlocks the full set) ─────────────
+  // Armour crafting (one entry per tier unlocks the full set)
   ...ARMOUR_CRAFT_UNLOCKS,
 ];

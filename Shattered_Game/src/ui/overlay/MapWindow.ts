@@ -132,7 +132,7 @@ export class MapWindow {
     document.removeEventListener('mouseup',   this.onMouseUp);
   }
 
-  // ── Private ────────────────────────────────────────────────────────────────
+  // Private
 
   /** Convert a world tile coordinate to canvas pixel position (isometric). */
   private toScreen(tileX: number, tileY: number): { x: number; y: number } {
@@ -232,7 +232,8 @@ export class MapWindow {
     return px >= 0 && px <= CANVAS_W && py >= 0 && py <= CANVAS_H;
   }
 }
-
+//TODO: consider adding a "fog of war" effect for unexplored areas, if we can get that info from the minimap snapshot (would require tracking explored tiles in the main game state and including that in the snapshot)
+//TODO: Adjut Colors
 function getMapColor(terrain: string | null, walkable: boolean): string {
   if (!walkable) {
     switch (terrain) {

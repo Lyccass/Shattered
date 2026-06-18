@@ -518,7 +518,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-// ── Compact terrain format helpers ───────────────────────────────────────────
+// Compact terrain format helpers
 
 /** Collects only the unique brush definitions referenced by the tile map. */
 function buildEditorBrushCatalog(

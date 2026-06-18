@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PlayerSessionState } from '../player/PlayerSessionState';
+import { QUEST_DEFINITIONS } from './QuestDefinitions';
+import { validateQuestDefinitions } from './QuestDefinitionValidation';
 import { QuestRegistry } from './QuestRegistry';
 import { QuestSystem } from './QuestSystem';
 import type { QuestDefinition } from './QuestTypes';
@@ -160,6 +162,76 @@ const SPELL_QUEST: QuestDefinition = {
 };
 
 describe('QuestSystem', () => {
+  it('ships valid cloneable quest definitions', () => {
+    expect(validateQuestDefinitions(QUEST_DEFINITIONS)).toEqual({ ok: true });
+    expect(new QuestRegistry(QUEST_DEFINITIONS).get('the_first_mark')).toMatchObject({
+      displayName: 'The First Mark',
+      phases: [
+        expect.objectContaining({ id: 'make_a_spark' }),
+        expect.objectContaining({ id: 'settle_the_lesson' }),
+      ],
+    });
+  });
+
+  it('plays the first example quest through the warm tea branch', () => {
+    const player = new PlayerSessionState();
+    const system = new QuestSystem(new QuestRegistry(QUEST_DEFINITIONS));
+
+    player.getInventoryState().add('warm_tea', 1);
+
+    expect(system.acceptQuest('the_first_mark', player, 'island_hermit')).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('Quest started: The First Mark'),
+    });
+
+    expect(system.recordUseItemOn({
+      itemId: 'wood',
+      target: { kind: 'item', itemId: 'stone' },
+    }, player)).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('Return to island hermit'),
+    });
+
+    expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('Bring Old Hermit warm tea'),
+    });
+
+    expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('Quest complete: The First Mark'),
+      currencyDelta: { copper: 20 },
+      reputationDelta: { harborReputation: 1 },
+      itemDelta: { wooden_marker: 1 },
+      xpDelta: { woodworking: 45, alchemy: 15, trade: 10 },
+    });
+
+    expect(player.isQuestCompleted('the_first_mark')).toBe(true);
+    expect(player.getInventoryState().hasAtLeast('warm_tea', 1)).toBe(false);
+    expect(player.getInventoryState().hasAtLeast('wooden_marker', 1)).toBe(true);
+    expect(player.getCurrencyState().getTotalCopperValue()).toBe(20);
+    expect(player.getReputationSnapshot().harborReputation).toBe(1);
+  });
+
+  it('plays the first example quest through the copper branch', () => {
+    const player = new PlayerSessionState();
+    const system = new QuestSystem(new QuestRegistry(QUEST_DEFINITIONS));
+
+    player.getCurrencyState().addCopper(10);
+    system.acceptQuest('the_first_mark', player, 'island_hermit');
+    system.recordUseItemOn({
+      itemId: 'wood',
+      target: { kind: 'item', itemId: 'stone' },
+    }, player);
+    system.recordNpcInteraction('island_hermit', player);
+
+    expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
+      ok: true,
+      message: expect.stringContaining('Quest complete: The First Mark'),
+    });
+    expect(player.getCurrencyState().getTotalCopperValue()).toBe(20);
+  });
+
   it('tracks phased objectives and grants end rewards', () => {
     const player = new PlayerSessionState();
     const system = new QuestSystem(new QuestRegistry([TEST_QUEST]));

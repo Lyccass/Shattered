@@ -53,7 +53,7 @@ export class ShopPopupContent {
     this.el = document.createElement('div');
     this.el.className = 'shp-root';
 
-    // ── Two-pane grid area ─────────────────────────────────────────────────────
+    // Two-pane grid area
     const panes = document.createElement('div');
     panes.className = 'shp-panes';
 
@@ -82,7 +82,7 @@ export class ShopPopupContent {
     panes.appendChild(invPane);
     this.el.appendChild(panes);
 
-    // ── Info bar ───────────────────────────────────────────────────────────────
+    // Info bar
     this.infoBar = document.createElement('div');
     this.infoBar.className = 'shp-info';
     this.el.appendChild(this.infoBar);
@@ -109,7 +109,7 @@ export class ShopPopupContent {
     this.renderInfoBar();
   }
 
-  // ─── Store grid ───────────────────────────────────────────────────────────────
+  // Store grid
 
   private renderStoreGrid(): void {
     this.storeGrid.innerHTML = '';
@@ -139,7 +139,7 @@ export class ShopPopupContent {
     }
   }
 
-  // ─── Inventory grid ───────────────────────────────────────────────────────────
+  // Inventory grid
 
   private renderInvGrid(): void {
     this.invGrid.innerHTML = '';
@@ -176,7 +176,7 @@ export class ShopPopupContent {
     }
   }
 
-  // ─── Info bar ─────────────────────────────────────────────────────────────────
+  // Info bar
 
   private renderInfoBar(): void {
     this.infoBar.innerHTML = '';
@@ -245,7 +245,7 @@ export class ShopPopupContent {
     this.infoBar.appendChild(actions);
   }
 
-  // ─── Transactions ─────────────────────────────────────────────────────────────
+  // Transactions
 
   private executeBuy(item: ShopItemSnapshot, qty: number): void {
     const actualQty = Math.min(qty, item.stock);
@@ -273,7 +273,7 @@ export class ShopPopupContent {
     this.update(fresh.shop, fresh.inventory, fresh.currency);
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────────
+  // Helpers
 
   private makeSlot(): HTMLElement {
     const el = document.createElement('div');
@@ -291,7 +291,7 @@ export class ShopPopupContent {
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 
 function makeIcon(icon: string): HTMLElement {
   const el = document.createElement('span');

@@ -1,9 +1,12 @@
 import type { QuestDefinition, QuestId } from './QuestTypes';
+import { assertValidQuestDefinitions } from './QuestDefinitionValidation';
 
 export class QuestRegistry {
   private readonly byId = new Map<QuestId, QuestDefinition>();
 
   constructor(definitions: readonly QuestDefinition[]) {
+    assertValidQuestDefinitions(definitions);
+
     definitions.forEach((definition) => {
       if (this.byId.has(definition.id)) {
         throw new Error(`QuestRegistry: duplicate quest "${definition.id}"`);

@@ -59,7 +59,7 @@ export class SkillDetailWindow {
     this.renderTab(this.getDefaultTab());
   }
 
-  // ── Live update ─────────────────────────────────────────────────────────────
+  // Live update
 
   update(skill: SkillSnapshot): void {
     if (skill.xp === this.skill.xp) return;
@@ -67,7 +67,7 @@ export class SkillDetailWindow {
     this.refreshProgress();
   }
 
-  // ── Progress bar ────────────────────────────────────────────────────────────
+  // Progress bar
 
   private buildProgress(): {
     el: HTMLElement;
@@ -151,7 +151,7 @@ export class SkillDetailWindow {
     return 'skd-pip';
   }
 
-  // ── Tab bar ─────────────────────────────────────────────────────────────────
+  // Tab bar
 
   private buildTabBar(): HTMLElement | null {
     const availableTabs = this.getAvailableTabs();
@@ -172,7 +172,7 @@ export class SkillDetailWindow {
     return bar;
   }
 
-  // ── Tab content ─────────────────────────────────────────────────────────────
+  // Tab content
 
   private renderTab(kind: UnlockKind | null): void {
     if (this.activeTab) this.tabBtns.get(this.activeTab)?.classList.remove('skd-tab--active');

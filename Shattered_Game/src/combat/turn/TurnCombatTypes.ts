@@ -239,7 +239,7 @@ export type TurnCombatState = {
   endReason?: CombatEndReason;
 };
 
-// ─── UI snapshot types ────────────────────────────────────────────────────────
+// UI snapshot types
 
 export type TurnParticipantUiSnapshot = {
   id: string;

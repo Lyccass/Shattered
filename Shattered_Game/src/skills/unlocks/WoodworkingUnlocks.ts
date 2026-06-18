@@ -21,7 +21,7 @@ const BOW_UNLOCKS: SkillUnlockEntry[] = BOW_TIERS.map((t) => ({
 }));
 
 export const WOODWORKING_UNLOCKS: SkillUnlockEntry[] = [
-  // ── Gathering ──────────────────────────────────────────────────────────────
+  // Gathering
   {
     skillId: 'woodworking', rankRequired: 1, stageRequired: 1,
     kind: 'resource_node', refId: 'driftwood',
@@ -71,10 +71,10 @@ export const WOODWORKING_UNLOCKS: SkillUnlockEntry[] = [
     description: 'Fell ancient ebony trees — the rarest timber known.',
   },
 
-  // ── Ranged weapon crafting ─────────────────────────────────────────────────
+  // Ranged weapon crafting
   ...BOW_UNLOCKS,
 
-  // ── Processing & crafting ──────────────────────────────────────────────────
+  // Processing & crafting
   {
     skillId: 'woodworking', rankRequired: 1, stageRequired: 1,
     kind: 'recipe', refId: 'hand_firestarter_set',

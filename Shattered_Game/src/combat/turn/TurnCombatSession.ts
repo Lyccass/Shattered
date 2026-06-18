@@ -74,7 +74,7 @@ const PLAYER_BASE_MAGIC_RESOURCE_MAX = 1;
 const PLAYER_BASE_DEVOTION_RESOURCE_MAX = 1;
 
 export class TurnCombatSession {
-  // ─── State ───────────────────────────────────────────────────────────────
+  // State
   private combatState: TurnCombatState | null = null;
   private enemySystems: EnemySystem[] = [];
   private currentTilemap: IsoTilemap | null = null;
@@ -136,7 +136,7 @@ export class TurnCombatSession {
     this.hitsplatRenderer = new HitsplatRenderer(scene);
   }
 
-  // ─── Configuration ────────────────────────────────────────────────────────
+  // Configuration
 
   setMapContext(mapId: string, tilemap: IsoTilemap, extraSpawns: EnemySpawnDefinition[] = []): void {
     this.endCombatImmediately();
@@ -361,7 +361,7 @@ export class TurnCombatSession {
     this.persistedPlayerHp = Math.min(this.persistedPlayerMaxHp, this.persistedPlayerHp + amount);
   }
 
-  // ─── Per-frame update ─────────────────────────────────────────────────────
+  // Per-frame update
 
   update(nowMs: number): void {
     // Update idle / dead enemy visuals outside of combat; detect respawns
@@ -489,7 +489,7 @@ export class TurnCombatSession {
     }
   }
 
-  // ─── Player actions ───────────────────────────────────────────────────────
+  // Player actions
 
   isInCombat(): boolean { return this.combatState !== null; }
   isPlayerTurn(): boolean { return this.combatState?.phase === 'player_turn'; }
@@ -673,7 +673,7 @@ export class TurnCombatSession {
     return this.tryPlayerMove(tileX, tileY);
   }
 
-  // ─── UI ───────────────────────────────────────────────────────────────────
+  // UI
 
   setSprinting(sprinting: boolean): void {
     this._isSprinting = sprinting;
@@ -704,7 +704,7 @@ export class TurnCombatSession {
     return getReachableTiles(active, this.combatState, this.buildTileCtx());
   }
 
-  // ─── Private: combat trigger ──────────────────────────────────────────────
+  // Private: combat trigger
 
   private checkAggroTrigger(nowMs: number): void {
     if (!this.playerController || !this.currentTilemap) return;
@@ -793,7 +793,7 @@ export class TurnCombatSession {
     this.enterCombat(playerTile.x, playerTile.y, [es], nowMs);
   }
 
-  // ─── Private: combat setup ────────────────────────────────────────────────
+  // Private: combat setup
 
   private enterCombat(
     playerTileX: number,
@@ -1057,7 +1057,7 @@ export class TurnCombatSession {
     return result;
   }
 
-  // ─── Private: action submission ───────────────────────────────────────────
+  // Private: action submission
 
   private submitPlayerAction(action: TurnAction): ActionOutcome | null {
     if (!this.combatState) return null;
@@ -1457,7 +1457,7 @@ export class TurnCombatSession {
     this.scene.cameras.main.shake(durationMs, intensity);
   }
 
-  // ─── Private: enemy turn execution ───────────────────────────────────────
+  // Private: enemy turn execution
 
   private runEnemyTurn(_nowMs: number): void {
     if (!this.combatState) return;
@@ -1490,7 +1490,7 @@ export class TurnCombatSession {
     }
   }
 
-  // ─── Private: animation processing ───────────────────────────────────────
+  // Private: animation processing
 
   private processAnimQueue(nowMs: number): void {
     if (this.animQueue.length === 0) {
@@ -1603,7 +1603,7 @@ export class TurnCombatSession {
     }
   }
 
-  // ─── Private: combat end ──────────────────────────────────────────────────
+  // Private: combat end
 
   private finalizeCombat(reason: CombatEndReason): void {
     const killedIds: string[] = [];
@@ -1671,7 +1671,7 @@ export class TurnCombatSession {
     this.recordedDefeats.clear();
   }
 
-  // ─── Private: helpers ─────────────────────────────────────────────────────
+  // Private: helpers
 
   private canAcceptPlayerInput(): boolean {
     if (!this.combatState || this.combatState.phase !== 'player_turn') return false;

@@ -1,7 +1,7 @@
 import type { EquipmentSlot } from '../../../equipment/EquipmentTypes';
 import type { ItemDefinition } from '../../ItemTypes';
 
-// ── Leather armour ────────────────────────────────────────────────────────────
+// Leather armour
 // Crafted via Leatherworking; equip gate is the Ranged skill.
 // Stat profile vs metal: lighter, more dodge, better crush + lightning resistance,
 // weaker slash/pierce defence, minimal poise.

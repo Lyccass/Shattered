@@ -1,6 +1,6 @@
 import type { ResourceNodeDefinition } from './ResourceNodeDefinition';
 
-// ── Woodworking resource nodes ────────────────────────────────────────────────
+// Woodworking resource nodes
 // driftwood: no tool required (shore/fallen debris, no chopping needed).
 // Trees: require an axe equipped in main_hand (toolRequired: 'woodworking').
 // Tool gatherTier (= axe material rank) adds bonus logs per chop.

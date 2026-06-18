@@ -1,6 +1,6 @@
 import type { ResourceNodeDefinition } from './ResourceNodeDefinition';
 
-// ── Alchemy resource nodes ────────────────────────────────────────────────────
+// Alchemy resource nodes
 // Add new herb / mushroom / reagent nodes here as alchemy expands.
 
 export const HERB_PATCH_NODE: ResourceNodeDefinition = {

@@ -115,7 +115,7 @@ export class EditorTilePaletteController {
     this.buildObjectGrid(selectedObjectId);
   }
 
-  // ── Terrain ──────────────────────────────────────────────────────────────
+  // Terrain
 
   private buildTerrainTabs(): void {
     this.tabContainer.innerHTML = '';
@@ -165,7 +165,7 @@ export class EditorTilePaletteController {
     }
   }
 
-  // ── Objects ───────────────────────────────────────────────────────────────
+  // Objects
 
   private buildObjectGrid(selectedObjectId?: string): void {
     this.grid.innerHTML = '';
@@ -225,7 +225,7 @@ export class EditorTilePaletteController {
     }
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Helpers
 
   private makeCell(id: string, title: string): HTMLButtonElement {
     const cell = document.createElement('button');

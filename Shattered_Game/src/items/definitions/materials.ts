@@ -1,6 +1,6 @@
 import type { ItemDefinition } from '../ItemTypes';
 
-// ── Base materials (gathered/dropped) ────────────────────────────────────────
+// Base materials (gathered/dropped)
 
 const BASE_MATERIALS: ItemDefinition[] = [
   {
@@ -65,7 +65,7 @@ const BASE_MATERIALS: ItemDefinition[] = [
   },
 ];
 
-// ── Ores (mined from veins, smelted into bars) ────────────────────────────────
+// Ores (mined from veins, smelted into bars)
 
 type MetalTier = { id: string; displayName: string; oreValue: number; barValue: number };
 
@@ -101,7 +101,7 @@ const BAR_ITEMS: ItemDefinition[] = METAL_TIERS.map((m) => ({
   value: m.barValue,
 }));
 
-// ── Logs (cut from trees) ─────────────────────────────────────────────────────
+// Logs (cut from trees)
 
 type WoodTier = { id: string; displayName: string; value: number };
 
@@ -126,7 +126,7 @@ const LOG_ITEMS: ItemDefinition[] = WOOD_TIERS.map((w) => ({
   value: w.value,
 }));
 
-// ── Leather (skinned from enemies, processed at tanning rack) ─────────────────
+// Leather (skinned from enemies, processed at tanning rack)
 // Tier 1–7 progression: common beasts → apex predators → legendary creatures.
 
 const LEATHER_ITEMS: ItemDefinition[] = [

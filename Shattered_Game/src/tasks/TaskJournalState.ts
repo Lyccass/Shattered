@@ -1,4 +1,5 @@
 import type { TaskJournalSaveState } from '../persistence/SaveTypes';
+import { sanitizeCount } from '../persistence/saveNumbers';
 import { QuestState } from '../quests/QuestState';
 
 export class TaskJournalState {
@@ -75,10 +76,3 @@ export class TaskJournalState {
   }
 }
 
-function sanitizeCount(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.floor(value));
-}

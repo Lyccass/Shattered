@@ -12,7 +12,7 @@ export type PlayerInventorySaveSnapshot = Record<string, number>;
 export class PlayerInventoryState {
   private readonly stacks: Record<string, number> = {};
 
-  // ─── Read ──────────────────────────────────────────────────────────────────
+  // Read
 
   getCount(id: string): number {
     return this.stacks[id] ?? 0;
@@ -32,7 +32,7 @@ export class PlayerInventoryState {
       .map(([id, count]) => ({ id, count }));
   }
 
-  // ─── Capacity ──────────────────────────────────────────────────────────────
+  // Capacity
 
   usedSlots(isStackable: (id: string) => boolean): number {
     let count = 0;
@@ -53,7 +53,7 @@ export class PlayerInventoryState {
     return this.usedSlots(isStackable) + newSlots <= capacity;
   }
 
-  // ─── Write ─────────────────────────────────────────────────────────────────
+  // Write
 
   add(id: string, amount = 1): void {
     if (amount <= 0) return;
@@ -86,7 +86,7 @@ export class PlayerInventoryState {
     for (const key of Object.keys(this.stacks)) delete this.stacks[key];
   }
 
-  // ─── Snapshot ──────────────────────────────────────────────────────────────
+  // Snapshot
 
   getSnapshot(): PlayerInventorySnapshot {
     return { stacks: { ...this.stacks } };
@@ -113,7 +113,7 @@ function sanitizeCount(value: number): number {
   return Math.max(0, Math.floor(value));
 }
 
-// ─── Snapshot utilities ────────────────────────────────────────────────────────
+// Snapshot utilities
 
 export function snapshotGetCount(snapshot: PlayerInventorySnapshot, id: string): number {
   return snapshot.stacks[id] ?? 0;

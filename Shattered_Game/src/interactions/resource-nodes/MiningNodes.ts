@@ -1,6 +1,6 @@
 import type { ResourceNodeDefinition } from './ResourceNodeDefinition';
 
-// ── Metalworking resource nodes ───────────────────────────────────────────────
+// Metalworking resource nodes
 // stone_pile: no tool required (loose surface rock).
 // Ore veins: require a pickaxe (toolRequired: 'metalworking').
 // Tool gatherTier determines bonus yield: +1 ore per tier above 1.

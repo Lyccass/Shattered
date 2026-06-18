@@ -33,7 +33,7 @@ export class EnemySystem {
     this.visualController = new EnemyVisualController(scene);
   }
 
-  // ─── Lifecycle ────────────────────────────────────────────────────────────
+  // Lifecycle
 
   setMapContext(mapId: string, tilemap: IsoTilemap, spawn: EnemySpawnDefinition | null): void {
     this.clearRuntime();
@@ -67,7 +67,7 @@ export class EnemySystem {
     this.visualController.spawn(origin.x, origin.y);
   }
 
-  // ─── Per-frame update (called by TurnCombatSession outside of combat) ─────
+  // Per-frame update (called by TurnCombatSession outside of combat)
 
   update(nowMs: number, blockRespawn = false): void {
     if (!this.record || !this.tilemap) return;
@@ -102,7 +102,7 @@ export class EnemySystem {
     }
   }
 
-  // ─── Combat integration ───────────────────────────────────────────────────
+  // Combat integration
 
   setInCombat(inCombat: boolean): void {
     this._inCombat = inCombat;
@@ -171,7 +171,7 @@ export class EnemySystem {
     this.record.wanderTarget = null;
   }
 
-  // ─── Queries ──────────────────────────────────────────────────────────────
+  // Queries
 
   isAlive(): boolean {
     return !!this.record && this.record.diedAtMs === null && this.record.hp > 0;
@@ -216,7 +216,7 @@ export class EnemySystem {
     this.lastUpdateMs = null;
   }
 
-  // ─── Private ──────────────────────────────────────────────────────────────
+  // Private
 
   private clearRuntime(): void {
     this.visualController.destroy();

@@ -14,7 +14,7 @@ const METAL_TIERS = [
 const WEAPON_ARCHETYPES = ['sword', 'dagger', 'axe', 'hammer', 'spear'] as const;
 const ARMOUR_SLOTS      = ['head', 'body', 'legs', 'gloves', 'feet']    as const;
 
-// ── Mining unlocks ────────────────────────────────────────────────────────────
+// Mining unlocks
 
 const MINING_UNLOCKS: SkillUnlockEntry[] = [
   {
@@ -67,7 +67,7 @@ const MINING_UNLOCKS: SkillUnlockEntry[] = [
   },
 ];
 
-// ── Smelting unlocks (ore → bar) ──────────────────────────────────────────────
+// Smelting unlocks (ore → bar)
 
 const SMELTING_UNLOCKS: SkillUnlockEntry[] = METAL_TIERS.map((m) => ({
   skillId:       'metalworking' as const,
@@ -79,7 +79,7 @@ const SMELTING_UNLOCKS: SkillUnlockEntry[] = METAL_TIERS.map((m) => ({
   description:   `Smelt ${m.displayName.toLowerCase()} ore into a usable bar at a forge.`,
 }));
 
-// ── Smithing unlocks (bars → tools) ──────────────────────────────────────────
+// Smithing unlocks (bars → tools)
 // stone_pickaxe is the starter tool; copper+ are forged from bars.
 
 // Pickaxes and skinning knives share the same 7 material tiers as weapons.
@@ -116,7 +116,7 @@ const SKINNING_KNIFE_UNLOCKS: SkillUnlockEntry[] = TOOL_FORGE_TIERS.map((t) => (
   description:   `Smith a ${t.metal} skinning knife from ${t.metal} bars.`,
 }));
 
-// ── Smithing unlocks (bars → weapons) ────────────────────────────────────────
+// Smithing unlocks (bars → weapons)
 // Weapons unlock at the rank matching the material tier, stage 5.
 
 const WEAPON_SMITH_UNLOCKS: SkillUnlockEntry[] = METAL_TIERS.flatMap((m) =>
@@ -131,7 +131,7 @@ const WEAPON_SMITH_UNLOCKS: SkillUnlockEntry[] = METAL_TIERS.flatMap((m) =>
   })),
 );
 
-// ── Smithing unlocks (bars → armour) ─────────────────────────────────────────
+// Smithing unlocks (bars → armour)
 // Armour unlocks one stage later than weapons of the same tier.
 
 const ARMOUR_SMITH_UNLOCKS: SkillUnlockEntry[] = METAL_TIERS.flatMap((m) =>

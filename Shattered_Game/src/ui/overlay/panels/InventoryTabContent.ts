@@ -100,7 +100,7 @@ export class InventoryTabContent {
     this.contextMenu.destroy();
   }
 
-  // ─── Slot order sync ──────────────────────────────────────────────────────
+  // Slot order sync
 
   private syncSlotOrder(snapshot: PlayerInventorySnapshot): void {
     const active = snapshotActiveEntries(snapshot);
@@ -142,7 +142,7 @@ export class InventoryTabContent {
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  // Render
 
   private renderSlots(snapshot: PlayerInventorySnapshot): void {
     this.slotEls.forEach((el, i) => {
@@ -175,7 +175,7 @@ export class InventoryTabContent {
     });
   }
 
-  // ─── Left-click: primary action ──────────────────────────────────────────
+  // Left-click: primary action
   // • Another slot selected + different item → combine
   // • Consumable / placeable → immediately use
   // • Anything else → toggle selection (for combining)
@@ -216,7 +216,7 @@ export class InventoryTabContent {
     this.slotEls[index]?.classList.toggle('is-selected', !isSelected);
   }
 
-  // ─── Right-click: context menu ───────────────────────────────────────────
+  // Right-click: context menu
 
   private handleRightClick(e: MouseEvent, index: number): void {
     e.preventDefault();
@@ -248,7 +248,7 @@ export class InventoryTabContent {
     this.contextMenu.show(e.clientX, e.clientY, opts);
   }
 
-  // ─── Drag & drop ─────────────────────────────────────────────────────────
+  // Drag & drop
 
   private handleDragStart(e: DragEvent, index: number): void {
     const itemId = this.slotOrder[index];
@@ -289,7 +289,7 @@ export class InventoryTabContent {
     this.slotEls.forEach((el) => el.classList.remove('dragging', 'drag-over'));
   }
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
+  // Helpers
 
   private clearSelection(): void {
     if (this.selectedSlot !== null) {

@@ -169,7 +169,7 @@ export class MinimapPanel {
     ctx.fillStyle = '#0a1410';
     ctx.fillRect(0, 0, cw, ch);
 
-    // ── Batch terrain tiles by color (isometric diamond per tile) ─────────────
+    // Batch terrain tiles by color (isometric diamond per tile)
     const diam = vp.radius * 2 + 1;
     const colorPaths = new Map<string, Path2D>();
 
@@ -198,7 +198,7 @@ export class MinimapPanel {
       ctx.fill(path);
     }
 
-    // ── Entity dots ───────────────────────────────────────────────────────────
+    // Entity dots
     const dotR = Math.max(2, sw * 0.6);
 
     ctx.fillStyle = '#38bdf8';
@@ -215,7 +215,7 @@ export class MinimapPanel {
       ctx.fill();
     }
 
-    // ── Player dot — always at canvas centre ──────────────────────────────────
+    // Player dot — always at canvas centre
     ctx.fillStyle = '#fde047';
     ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 1;
