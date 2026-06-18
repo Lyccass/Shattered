@@ -194,7 +194,7 @@ describe('QuestSystem', () => {
 
     expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
       ok: true,
-      message: expect.stringContaining('Bring Old Hermit warm tea'),
+      message: expect.stringContaining('Settle the lesson'),
     });
 
     expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
@@ -218,6 +218,7 @@ describe('QuestSystem', () => {
     const system = new QuestSystem(new QuestRegistry(QUEST_DEFINITIONS));
 
     player.getCurrencyState().addCopper(10);
+    player.getInventoryState().add('warm_tea', 1);
     system.acceptQuest('the_first_mark', player, 'island_hermit');
     system.recordUseItemOn({
       itemId: 'wood',
@@ -225,11 +226,12 @@ describe('QuestSystem', () => {
     }, player);
     system.recordNpcInteraction('island_hermit', player);
 
-    expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
+    expect(system.recordNpcInteraction('island_hermit', player, 'the_first_mark', 'pay_small_offering')).toMatchObject({
       ok: true,
       message: expect.stringContaining('Quest complete: The First Mark'),
     });
     expect(player.getCurrencyState().getTotalCopperValue()).toBe(20);
+    expect(player.getInventoryState().hasAtLeast('warm_tea', 1)).toBe(true);
   });
 
   it('tracks phased objectives and grants end rewards', () => {

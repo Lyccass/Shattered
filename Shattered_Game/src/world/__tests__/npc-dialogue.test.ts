@@ -182,6 +182,20 @@ describe('NpcDialogueMenuHandler', () => {
                 nextNodeId: 'seal_route',
               },
               {
+                id: 'hidden_skill_route',
+                label: 'I know a cleaner rite.',
+                conditions: [{ kind: 'skill_level', skillId: 'magic', level: 2 }],
+                unavailableMode: 'hidden',
+                nextNodeId: 'rite_route',
+              },
+              {
+                id: 'hidden_currency_route',
+                label: 'I can settle this.',
+                conditions: [{ kind: 'currency', copper: 10 }],
+                unavailableMode: 'hidden',
+                nextNodeId: 'settlement_route',
+              },
+              {
                 id: 'disabled_skill_route',
                 label: 'I know the old rite.',
                 conditions: [{ kind: 'skill_level', skillId: 'magic', level: 10 }],
@@ -193,6 +207,7 @@ describe('NpcDialogueMenuHandler', () => {
           },
           seal_route: { npcText: 'Then we begin.', options: [] },
           rite_route: { npcText: 'Speak the rite.', options: [] },
+          settlement_route: { npcText: 'Fair enough.', options: [] },
         },
       },
     });
@@ -208,9 +223,13 @@ describe('NpcDialogueMenuHandler', () => {
     ]);
 
     player.getInventoryState().add('shattered_seal', 1);
+    player.getCurrencyState().addCopper(10);
+    player.getSkillProgressionSystem().addXp('magic', 100);
 
     expect(handler.getOptions(player).map((option) => option.id)).toEqual([
       'hidden_item_route',
+      'hidden_skill_route',
+      'hidden_currency_route',
       'disabled_skill_route',
       'bye',
     ]);
@@ -245,6 +264,7 @@ describe('NpcDialogueMenuHandler', () => {
       'shattered_seal',
       'test_npc',
       player,
+      undefined,
     );
   });
 });
@@ -293,17 +313,63 @@ describe('NPC_DEFINITIONS dialogue options', () => {
 
     player.startQuest('the_first_mark');
 
+    const phaseQuestSystem = {
+      ...mockQuestSystem,
+      getActivePhaseId: vi.fn(() => 'make_a_spark'),
+    } as unknown as QuestSystem;
     const activeHandler = new NpcDialogueMenuHandler(
       hermit as NpcDefinition,
       'hermit_anchor',
       mockContractBoardSystem,
-      mockQuestSystem,
+      phaseQuestSystem,
     );
 
     expect(activeHandler.getOptions(player).map((option) => option.id)).toEqual([
       'ask_wake',
       'ask_island',
-      'first_mark_continue',
+      'first_mark_make_spark',
+      'bye',
+    ]);
+  });
+
+  it('old hermit quietly reveals item and currency settlement routes when met', () => {
+    const hermit = NPC_DEFINITIONS.find((d) => d.id === 'island_hermit');
+    const player = new RealPlayerSessionState();
+    const phaseQuestSystem = {
+      ...mockQuestSystem,
+      getActivePhaseId: vi.fn(() => 'settle_the_lesson'),
+    } as unknown as QuestSystem;
+
+    player.startQuest('the_first_mark');
+
+    const noRequirementHandler = new NpcDialogueMenuHandler(
+      hermit as NpcDefinition,
+      'hermit_anchor',
+      mockContractBoardSystem,
+      phaseQuestSystem,
+    );
+
+    expect(noRequirementHandler.getOptions(player).map((option) => option.id)).toEqual([
+      'ask_wake',
+      'ask_island',
+      'bye',
+    ]);
+
+    player.getInventoryState().add('warm_tea', 1);
+    player.getCurrencyState().addCopper(10);
+
+    const readyHandler = new NpcDialogueMenuHandler(
+      hermit as NpcDefinition,
+      'hermit_anchor',
+      mockContractBoardSystem,
+      phaseQuestSystem,
+    );
+
+    expect(readyHandler.getOptions(player).map((option) => option.id)).toEqual([
+      'ask_wake',
+      'ask_island',
+      'first_mark_brought_tea',
+      'first_mark_small_offering',
       'bye',
     ]);
   });
