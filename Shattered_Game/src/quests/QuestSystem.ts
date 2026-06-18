@@ -95,6 +95,7 @@ export class QuestSystem {
     questId: QuestId,
     npcId: string,
     playerSessionState: PlayerSessionState,
+    objectiveId?: string,
   ): InteractionResult {
     const quest = this.questRegistry.get(questId);
 
@@ -102,7 +103,7 @@ export class QuestSystem {
       return this.acceptQuest(quest.id, playerSessionState, npcId);
     }
 
-    const progress = this.recordNpcInteraction(npcId, playerSessionState, quest.id);
+    const progress = this.recordNpcInteraction(npcId, playerSessionState, quest.id, objectiveId);
     if (progress) {
       return progress;
     }
@@ -185,11 +186,13 @@ export class QuestSystem {
     npcId: string,
     playerSessionState: PlayerSessionState,
     onlyQuestId?: QuestId,
+    onlyObjectiveId?: string,
   ): InteractionResult | null {
     return this.recordInteraction(
       { target: { kind: 'npc', npcId } },
       playerSessionState,
       onlyQuestId,
+      onlyObjectiveId,
     );
   }
 
@@ -197,8 +200,13 @@ export class QuestSystem {
     event: QuestInteractionEvent,
     playerSessionState: PlayerSessionState,
     onlyQuestId?: QuestId,
+    onlyObjectiveId?: string,
   ): InteractionResult | null {
     return this.recordProgress(playerSessionState, (objective) => {
+      if (onlyObjectiveId && objective.id !== onlyObjectiveId) {
+        return false;
+      }
+
       if (objective.kind === 'interact') {
         return targetsMatch(objective.target, event.target);
       }

@@ -173,15 +173,18 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
         };
       }
 
-      return {
-        kind: 'result',
-        result: this.questSystem.handleQuestNpcInteraction(
-          option.questAction.questId,
-          this.definition.id,
-          playerState,
-        ),
-        closeMenu: option.end === true,
-      };
+        return {
+          kind: 'result',
+          result: this.questSystem.handleQuestNpcInteraction(
+            option.questAction.questId,
+            this.definition.id,
+            playerState,
+            option.questAction.kind === 'continue_quest'
+              ? option.questAction.objectiveId
+              : undefined,
+          ),
+          closeMenu: option.end === true,
+        };
     }
 
     if (option.outcome) {
@@ -244,6 +247,8 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
           return playerState.getSkillLevel(condition.skillId) >= condition.level;
         case 'item_owned':
           return playerState.getInventoryState().hasAtLeast(condition.itemId, condition.count ?? 1);
+        case 'currency':
+          return playerState.getCurrencyState().getTotalCopperValue() >= condition.copper;
         case 'reputation':
           return (playerState.getReputationSnapshot()[condition.faction] ?? 0) >= condition.minimum;
       }

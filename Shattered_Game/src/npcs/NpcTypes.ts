@@ -1,5 +1,5 @@
 import type { ReputationSnapshot } from '../player/PlayerReputationState';
-import type { QuestId, QuestPhaseId } from '../quests/QuestTypes';
+import type { QuestId, QuestObjectiveId, QuestPhaseId } from '../quests/QuestTypes';
 import type { SkillId } from '../skills/SkillTypes';
 
 export type NpcBehavior = 'stationary' | 'patrol';
@@ -21,11 +21,12 @@ export type NpcDialogueCondition =
   | { kind: 'quest_phase'; questId: QuestId; phaseId: QuestPhaseId }
   | { kind: 'skill_level'; skillId: SkillId; level: number }
   | { kind: 'item_owned'; itemId: string; count?: number }
+  | { kind: 'currency'; copper: number }
   | { kind: 'reputation'; faction: keyof ReputationSnapshot; minimum: number };
 
 export type NpcDialogueQuestAction =
   | { kind: 'start_quest'; questId: QuestId }
-  | { kind: 'continue_quest'; questId: QuestId };
+  | { kind: 'continue_quest'; questId: QuestId; objectiveId?: QuestObjectiveId };
 
 export type NpcDialogueOption = {
   id: string;

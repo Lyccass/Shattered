@@ -95,6 +95,15 @@
         },
         {
           "type": "object",
+          "required": ["kind", "copper"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "currency" },
+            "copper": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
           "required": ["kind", "faction", "minimum"],
           "additionalProperties": false,
           "properties": {
@@ -111,7 +120,8 @@
       "additionalProperties": false,
       "properties": {
         "kind": { "enum": ["start_quest", "continue_quest"] },
-        "questId": { "type": "string", "minLength": 1 }
+        "questId": { "type": "string", "minLength": 1 },
+        "objectiveId": { "type": "string", "minLength": 1 }
       }
     },
     "outcome": {

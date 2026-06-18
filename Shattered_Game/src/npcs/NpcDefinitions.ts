@@ -108,19 +108,52 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
               id: 'first_mark_intro',
               label: 'What mark are you carving?',
               conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'not_started' }],
+              unavailableMode: 'hidden',
               nextNodeId: 'first_mark_offer',
             },
             {
-              id: 'first_mark_continue',
+              id: 'first_mark_make_spark',
               label: 'About the first mark...',
-              conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'active' }],
+              conditions: [{ kind: 'quest_phase', questId: 'the_first_mark', phaseId: 'make_a_spark' }],
+              unavailableMode: 'hidden',
               questAction: { kind: 'continue_quest', questId: 'the_first_mark' },
+              end: true,
+            },
+            {
+              id: 'first_mark_brought_tea',
+              label: 'I brought something warm.',
+              conditions: [
+                { kind: 'quest_phase', questId: 'the_first_mark', phaseId: 'settle_the_lesson' },
+                { kind: 'item_owned', itemId: 'warm_tea' },
+              ],
+              unavailableMode: 'hidden',
+              questAction: {
+                kind: 'continue_quest',
+                questId: 'the_first_mark',
+                objectiveId: 'bring_warm_tea',
+              },
+              end: true,
+            },
+            {
+              id: 'first_mark_small_offering',
+              label: 'I can make a small offering.',
+              conditions: [
+                { kind: 'quest_phase', questId: 'the_first_mark', phaseId: 'settle_the_lesson' },
+                { kind: 'currency', copper: 10 },
+              ],
+              unavailableMode: 'hidden',
+              questAction: {
+                kind: 'continue_quest',
+                questId: 'the_first_mark',
+                objectiveId: 'pay_small_offering',
+              },
               end: true,
             },
             {
               id: 'first_mark_done',
               label: 'How is the first mark holding?',
               conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'completed' }],
+              unavailableMode: 'hidden',
               nextNodeId: 'first_mark_after',
             },
             {
@@ -137,6 +170,7 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
               id: 'ask_mark_from_wake',
               label: 'And the marks?',
               conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'not_started' }],
+              unavailableMode: 'hidden',
               nextNodeId: 'first_mark_offer',
             },
             {
@@ -158,6 +192,7 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
               id: 'ask_practical_lesson',
               label: 'Teach me something practical.',
               conditions: [{ kind: 'quest_state', questId: 'the_first_mark', state: 'not_started' }],
+              unavailableMode: 'hidden',
               nextNodeId: 'first_mark_offer',
             },
             {

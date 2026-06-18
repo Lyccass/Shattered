@@ -31,14 +31,14 @@ export const QUEST_DEFINITIONS: QuestDefinition[] = [
       {
         id: 'settle_the_lesson',
         title: 'Settle the Lesson',
-        journalHint: 'Bring Old Hermit warm tea, or offer 10 copper for the lesson.',
+        journalHint: 'Settle the lesson with Old Hermit when you have something fitting to offer.',
         completedLog: 'I settled the lesson with Old Hermit and learned why small marks matter.',
         completeDialogue: 'A fair exchange. The Wake remembers people who leave useful signs behind them.',
         objectives: [
           {
             id: 'tea_or_copper',
             kind: 'any_of',
-            journalHint: 'Bring warm tea to Old Hermit, or offer 10 copper.',
+            journalHint: 'Find a fitting way to settle the lesson with Old Hermit.',
             completedLog: 'I settled the lesson one way or another.',
             options: [
               {
