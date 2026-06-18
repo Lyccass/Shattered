@@ -44,6 +44,21 @@ export class JournalTabContent {
       const div = document.createElement('div');
       div.className = 'journal-entry';
 
+      if (entry.kind === 'quest') {
+        div.classList.toggle('is-completed', entry.status === 'completed');
+        div.innerHTML = `
+          <div class="journal-entry-name">${entry.displayName}</div>
+          ${entry.completedLogs.map((log) => `<div class="journal-entry-line">${log}</div>`).join('')}
+          ${entry.activeHint ? `<div class="journal-entry-line">${entry.activeHint}</div>` : ''}
+          <div class="journal-entry-line">Reward: ${entry.rewardSummary}</div>
+          <div class="journal-entry-status ${entry.status === 'ready' ? 'ready' : 'in-progress'}">
+            ${entry.status === 'completed' ? '✓ Done' : entry.status === 'ready' ? '✓ Ready to continue' : '· In progress'}
+          </div>
+        `;
+        this.entriesContainer.appendChild(div);
+        return;
+      }
+
       const ready = entry.requirementsMet;
       div.innerHTML = `
         <div class="journal-entry-name">${entry.displayName}</div>

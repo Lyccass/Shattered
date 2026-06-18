@@ -42,6 +42,27 @@ export function createStaticWorldResourceNodeChunkLocator(): ResourceNodeChunkLo
   });
 
   return (mapId: string, nodeId: string): ResourceNodeChunkLocation | null => {
+    const streamedLocation = parseStreamedResourceNodeLocation(mapId, nodeId);
+    if (streamedLocation) {
+      return streamedLocation;
+    }
+
     return locationIndex.get(mapId)?.get(nodeId) ?? null;
+  };
+}
+
+function parseStreamedResourceNodeLocation(
+  mapId: string,
+  nodeId: string,
+): ResourceNodeChunkLocation | null {
+  const parts = nodeId.split(':');
+
+  if (parts.length !== 4 || parts[0] !== mapId || parts[2] !== 'resource') {
+    return null;
+  }
+
+  return {
+    regionId: mapId,
+    chunkKey: parts[1],
   };
 }

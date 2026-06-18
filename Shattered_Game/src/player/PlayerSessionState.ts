@@ -14,6 +14,7 @@ import type { SkillId, SkillSnapshot } from '../skills/SkillTypes';
 import { TaskJournalState } from '../tasks/TaskJournalState';
 import type { TurnCombatAbility } from '../combat/turn/TurnCombatTypes';
 import type { AbilitySlotType } from '../combat/abilities/CombatAbilityDefinitions';
+import type { QuestRuntimeState } from '../quests/QuestTypes';
 
 type CombatCooldownSnapshot = {
   attackCooldowns: Record<string, number>;
@@ -128,6 +129,45 @@ export class PlayerSessionState {
 
   completeContract(contractId: string, repeatable: boolean): number {
     return this.taskJournalState.completeContract(contractId, repeatable);
+  }
+
+  startQuest(questId: string): boolean {
+    return this.taskJournalState.getQuestState().startQuest(questId);
+  }
+
+  isQuestActive(questId: string): boolean {
+    return this.taskJournalState.getQuestState().isQuestActive(questId);
+  }
+
+  isQuestCompleted(questId: string): boolean {
+    return this.taskJournalState.getQuestState().isQuestCompleted(questId);
+  }
+
+  getQuestCompletionCount(questId: string): number {
+    return this.taskJournalState.getQuestState().getQuestCompletionCount(questId);
+  }
+
+  getActiveQuestIds(): string[] {
+    return this.taskJournalState.getQuestState().getActiveQuestIds();
+  }
+
+  getCompletedQuestIds(): string[] {
+    return this.taskJournalState.getQuestState().getCompletedQuestIds();
+  }
+
+  getQuestRuntimeState(questId: string): QuestRuntimeState | null {
+    return this.taskJournalState.getQuestState().getQuestRuntimeState(questId);
+  }
+
+  mutateQuestRuntimeState(
+    questId: string,
+    mutate: (state: QuestRuntimeState) => void,
+  ): boolean {
+    return this.taskJournalState.getQuestState().mutateQuestRuntimeState(questId, mutate);
+  }
+
+  completeQuest(questId: string, repeatable: boolean): number {
+    return this.taskJournalState.getQuestState().completeQuest(questId, repeatable);
   }
 
   getEquipmentState(): PlayerEquipmentState {

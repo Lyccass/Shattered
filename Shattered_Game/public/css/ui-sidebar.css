@@ -750,6 +750,7 @@
 }
 
 .journal-entry:last-child   { border-bottom: none; margin-bottom: 0; }
+.journal-entry.is-completed { opacity: 0.62; }
 .journal-entry-name         { font-size: var(--fs-sm); color: var(--c-text); margin-bottom: var(--sp-1); }
 .journal-entry-line         { font-size: var(--fs-xs); color: var(--c-text-dim); line-height: 1.4; }
 .journal-entry-status       { font-size: var(--fs-xs); margin-top: 3px; }

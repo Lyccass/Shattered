@@ -28,6 +28,7 @@ import type { ResourceNodeSystem } from '../../interactions/ResourceNodeSystem';
 import type { WorkbenchSystem } from '../../interactions/WorkbenchSystem';
 import type { ObjectPlacementSystem } from '../../objects/ObjectPlacementSystem';
 import type { PlayerSessionState } from '../../player/PlayerSessionState';
+import type { QuestSystem } from '../../quests/QuestSystem';
 import type { NpcRegistry } from '../../npcs/NpcRegistry';
 import type { NpcSystem } from '../../npcs/NpcSystem';
 import { NpcDialogueMenuHandler } from '../../npcs/NpcDialogueMenuHandler';
@@ -42,6 +43,7 @@ export class WorldInteractionHandlers {
     private readonly workbenchSystem: WorkbenchSystem,
     private readonly contractBoardSystem: ContractBoardSystem,
     private readonly placedStructureSystem: PlacedStructureSystem,
+    private readonly questSystem: QuestSystem,
     private readonly getPlacementSystem: () => ObjectPlacementSystem | undefined,
     private readonly npcRegistry?: NpcRegistry,
     private readonly getNpcSystem?: () => NpcSystem | null,
@@ -52,14 +54,20 @@ export class WorldInteractionHandlers {
     if (!npcDefId || !this.npcRegistry?.has(npcDefId)) return null;
 
     const def = this.npcRegistry.get(npcDefId);
-    if (!def.options?.length) return null;
+    if (!def.options?.length && !def.dialogueTree) return null;
 
-    const greetingLine = def.dialogue[0]?.text;
+    const handler = new NpcDialogueMenuHandler(
+      def,
+      target.definition.id,
+      this.contractBoardSystem,
+      this.questSystem,
+    );
+    const greetingLine = handler.getCurrentNpcText() ?? def.dialogue[0]?.text;
     if (greetingLine) {
       this.getNpcSystem?.()?.showBubble(target.definition.id, greetingLine, this.scene.time.now);
     }
 
-    return new NpcDialogueMenuHandler(def, target.definition.id, this.contractBoardSystem);
+    return handler;
   }
 
   build(): InteractionHandlers {
@@ -159,6 +167,12 @@ export class WorldInteractionHandlers {
       const def = this.npcRegistry.get(npcDefId);
       const dialogueLine = def.dialogue[0]?.text ?? target.anchor.text;
       this.getNpcSystem?.()?.showBubble(target.definition.id, dialogueLine, nowMs);
+      const questResult = this.questSystem.recordNpcInteraction(npcDefId, this.playerSessionState);
+
+      if (questResult) {
+        this.getNpcSystem?.()?.showBubble(target.definition.id, questResult.message, nowMs);
+        return questResult;
+      }
 
       if (def.shopId) {
         return {
@@ -207,12 +221,24 @@ export class WorldInteractionHandlers {
       };
     }
 
-    return this.placedStructureSystem.interactWithPlacedObject(
+    const result = this.placedStructureSystem.interactWithPlacedObject(
       target.placedObjectId,
       this.scene.time.now,
       this.playerSessionState,
       placementSystem,
     );
+
+    if (!result.ok) {
+      return result;
+    }
+
+    return this.questSystem.recordInteraction(
+      { target: { kind: 'object', objectId: target.placedObjectId } },
+      this.playerSessionState,
+    ) ?? this.questSystem.recordInteraction(
+      { target: { kind: 'object_definition', objectDefinitionId: target.placedObjectKind } },
+      this.playerSessionState,
+    ) ?? result;
   }
 
   private handleGenericDebug(target: GenericDebugInteractionTarget): InteractionResult {

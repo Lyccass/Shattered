@@ -119,6 +119,11 @@ describe('Persistence Prep v0', () => {
           acceptedContractIds: [],
           completedNonRepeatableContractIds: [],
           contractCompletionCounts: {},
+          quests: {
+            activeQuests: {},
+            completedQuestIds: [],
+            questCompletionCounts: {},
+          },
         },
         activeEffects: [
           { effectId: 'warm_tea_warmth', remainingMs: 0 },
@@ -154,9 +159,9 @@ describe('Persistence Prep v0', () => {
       playerSessionState: new PlayerSessionState(),
       worldSessionState: (() => {
         const state = new WorldSessionState();
-        state.setResourceRespawnAt('test_harbor', 'harbor_driftwood_gather_01', 5_000);
-        state.setResourceRespawnAt('test_harbor', 'harbor_stone_gather_01', 8_000);
-        state.setResourceRespawnAt('test_wild_island', 'wild_herb_gather_01', 500);
+        state.setResourceRespawnAt('the_wake', 'the_wake:0,0:resource:pine_01', 5_000);
+        state.setResourceRespawnAt('the_wake', 'the_wake:0,0:resource:stone_01', 8_000);
+        state.setResourceRespawnAt('the_wake', 'the_wake:0,0:resource:copper_01', 500);
         state.addPlacedObject({
           id: 'temp_firestarter_01',
           mapId: 'test_home_island',
@@ -182,15 +187,15 @@ describe('Persistence Prep v0', () => {
       nowMs: 1_000,
     });
 
-    expect(Object.keys(save.worldMapSnapshot.changedRegions)).toEqual(['test_harbor']);
-    expect(Object.keys(save.worldMapSnapshot.changedRegions.test_harbor.changedChunks)).toEqual([
+    expect(Object.keys(save.worldMapSnapshot.changedRegions)).toEqual(['the_wake']);
+    expect(Object.keys(save.worldMapSnapshot.changedRegions.the_wake.changedChunks)).toEqual([
       '0,0',
     ]);
     expect(
-      save.worldMapSnapshot.changedRegions.test_harbor.changedChunks['0,0'].depletedResources,
+      save.worldMapSnapshot.changedRegions.the_wake.changedChunks['0,0'].depletedResources,
     ).toEqual({
-      harbor_driftwood_gather_01: { respawnAt: 5_000 },
-      harbor_stone_gather_01: { respawnAt: 8_000 },
+      'the_wake:0,0:resource:pine_01': { respawnAt: 5_000 },
+      'the_wake:0,0:resource:stone_01': { respawnAt: 8_000 },
     });
     expect(JSON.stringify(save.worldMapSnapshot)).not.toContain('temp_firestarter_01');
     expect(JSON.stringify(save.worldMapSnapshot)).not.toContain('temp_campfire_01');
@@ -214,6 +219,11 @@ describe('Persistence Prep v0', () => {
           acceptedContractIds: [],
           completedNonRepeatableContractIds: [],
           contractCompletionCounts: {},
+          quests: {
+            activeQuests: {},
+            completedQuestIds: [],
+            questCompletionCounts: {},
+          },
         },
         activeEffects: [],
       },
@@ -227,24 +237,24 @@ describe('Persistence Prep v0', () => {
       worldMapSnapshot: {
         worldId: DEFAULT_WORLD_ID,
         changedRegions: {
-          test_harbor: {
-            regionId: 'test_harbor',
+          the_wake: {
+            regionId: 'the_wake',
             changedChunks: {
               '0,0': {
                 chunkKey: '0,0',
                 depletedResources: {
-                  harbor_driftwood_gather_01: { respawnAt: 7_000 },
+                  'the_wake:0,0:resource:pine_01': { respawnAt: 7_000 },
                 },
               },
             },
           },
-          test_wild_island: {
-            regionId: 'test_wild_island',
+          expired_region: {
+            regionId: 'expired_region',
             changedChunks: {
               '0,0': {
                 chunkKey: '0,0',
                 depletedResources: {
-                  wild_herb_gather_01: { respawnAt: 500 },
+                  'expired_region:0,0:resource:herb_01': { respawnAt: 500 },
                 },
               },
             },
@@ -260,8 +270,8 @@ describe('Persistence Prep v0', () => {
     });
 
     expect(restoreResult.ok).toBe(true);
-    expect(worldSessionState.getResourceRespawnAt('test_harbor', 'harbor_driftwood_gather_01')).toBe(7_000);
-    expect(worldSessionState.getResourceRespawnAt('test_wild_island', 'wild_herb_gather_01')).toBeNull();
+    expect(worldSessionState.getResourceRespawnAt('the_wake', 'the_wake:0,0:resource:pine_01')).toBe(7_000);
+    expect(worldSessionState.getResourceRespawnAt('expired_region', 'expired_region:0,0:resource:herb_01')).toBeNull();
     expect(worldSessionState.getPlacedObjectsSnapshot('test_home_island')).toEqual([]);
   });
 

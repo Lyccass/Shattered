@@ -666,6 +666,12 @@ export class GameScene extends Phaser.Scene {
     if (!this.worldRuntimeCoordinator) return;
     const result = this.worldRuntimeCoordinator.tryHandCraft(sourceId, targetId);
     this.uiManager?.handleResult(result);
+    if (result.ok) {
+      this.worldRuntimeCoordinator.recordItemUsedOnItemForQuests(sourceId, targetId);
+      this.worldRuntimeCoordinator
+        .consumePendingUiResults()
+        .forEach((questResult) => this.handleGameplayResult(questResult, { allowAutosave: true }));
+    }
   }
 
   private toggleCombatStance(): void {
@@ -815,6 +821,8 @@ export class GameScene extends Phaser.Scene {
     worldX: number,
     worldY: number,
   ): SpawnedLootDrop[] {
+    this.worldRuntimeCoordinator?.recordEnemyKilledForQuests(definitionId, areaId);
+
     if (areaId) {
       this.encounterPopulation.recordKill(spawnId, areaId);
       if (this.encounterPopulation.isAreaCleared(areaId)) {

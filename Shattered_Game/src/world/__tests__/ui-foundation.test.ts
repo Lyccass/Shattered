@@ -91,6 +91,25 @@ describe('UiFormatters', () => {
     expect(text).toContain('Status: Ready to turn in');
   });
 
+  it('formats quest journal entries as prose plus active hint', () => {
+    const text = formatJournalPanelText([
+      {
+        id: 'the_shattered_seal',
+        kind: 'quest',
+        displayName: 'The Shattered Seal',
+        status: 'active',
+        completedLogs: ['I found the cracked seal beneath the harbor.'],
+        activeHint: 'Bring the seal to the Old Hermit.',
+        rewardSummary: '25 copper + unlock Seal Lantern',
+      },
+    ], { harborReputation: 4 }, 1);
+
+    expect(text).toContain('The Shattered Seal');
+    expect(text).toContain('I found the cracked seal beneath the harbor.');
+    expect(text).toContain('Bring the seal to the Old Hermit.');
+    expect(text).toContain('Status: In progress');
+  });
+
   it('formats skill panel data from XP snapshots', () => {
     const snap = (id: string, displayName: string, xp: number) => ({
       id, displayName, xp, level: 1, rank: 1, stage: 1, xpIntoStage: xp, xpForStage: 50,

@@ -181,6 +181,19 @@ export function formatJournalPanelText(
   }
 
   entries.forEach((entry) => {
+    if (entry.kind === 'quest') {
+      lines.push(`- ${entry.displayName}`);
+      entry.completedLogs.forEach((log) => {
+        lines.push(`  ${log}`);
+      });
+      if (entry.activeHint) {
+        lines.push(`  ${entry.activeHint}`);
+      }
+      lines.push(`  Reward: ${entry.rewardSummary}`);
+      lines.push(`  Status: ${formatQuestStatus(entry.status)}`);
+      return;
+    }
+
     lines.push(`- ${entry.displayName}`);
     lines.push(`  Need: ${entry.requirementSummary}`);
     lines.push(`  Reward: ${entry.rewardSummary}`);
@@ -188,6 +201,14 @@ export function formatJournalPanelText(
   });
 
   return lines.join('\n');
+}
+
+function formatQuestStatus(status: 'active' | 'ready' | 'completed'): string {
+  switch (status) {
+    case 'active': return 'In progress';
+    case 'ready': return 'Ready to continue';
+    case 'completed': return 'Done';
+  }
 }
 
 export function formatSkillPanelText(skills: SkillSnapshot[]): string {

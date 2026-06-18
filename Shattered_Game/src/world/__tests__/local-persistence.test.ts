@@ -102,6 +102,58 @@ describe('Local Persistence v0', () => {
     });
   });
 
+  it('loads older journal saves without quest progress fields as empty quests', () => {
+    const storage = new MemoryStorage();
+    const service = new LocalSaveService(LOCAL_SAVE_STORAGE_KEY, storage);
+
+    storage.setItem(LOCAL_SAVE_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      savedAt: 100,
+      playerState: {
+        currentWorldId: 'the_wake',
+        currentMapId: 'test_home_island',
+        playerTile: { tileX: 5, tileY: 5 },
+        resources: {},
+        items: {},
+        currency: {},
+        reputation: {},
+        skillXp: {},
+        journal: {
+          acceptedContractIds: [],
+          completedNonRepeatableContractIds: [],
+          contractCompletionCounts: {},
+        },
+        activeEffects: [],
+      },
+      personalIslandState: {
+        islandId: 'player_home_island',
+        persistentPlacedObjects: [],
+        terrainEdits: [],
+        buildings: [],
+        storage: {},
+      },
+      worldMapSnapshot: {
+        worldId: 'the_wake',
+        changedRegions: {},
+      },
+    }));
+
+    expect(service.load()).toEqual({
+      status: 'success',
+      saveGame: expect.objectContaining({
+        playerState: expect.objectContaining({
+          journal: expect.objectContaining({
+            quests: {
+              activeQuests: {},
+              completedQuestIds: [],
+              questCompletionCounts: {},
+            },
+          }),
+        }),
+      }),
+    });
+  });
+
   it('clears the stored save and reports no_save afterwards', () => {
     const storage = new MemoryStorage();
     const service = new LocalSaveService(LOCAL_SAVE_STORAGE_KEY, storage);
@@ -121,6 +173,11 @@ describe('Local Persistence v0', () => {
           acceptedContractIds: [],
           completedNonRepeatableContractIds: [],
           contractCompletionCounts: {},
+          quests: {
+            activeQuests: {},
+            completedQuestIds: [],
+            questCompletionCounts: {},
+          },
         },
         activeEffects: [],
       },

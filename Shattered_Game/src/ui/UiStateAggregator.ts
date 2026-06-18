@@ -4,6 +4,7 @@ import type { ChoiceMenuCoordinator } from '../interactions/ChoiceMenuCoordinato
 import type { InteractionSystem } from '../interactions/InteractionSystem';
 import type { PlacementModeSystem } from '../interactions/PlacementModeSystem';
 import type { PlayerSessionState } from '../player/PlayerSessionState';
+import type { QuestSystem } from '../quests/QuestSystem';
 import type { UiStateSnapshot } from './UiTypes';
 
 // Collects UI state from all relevant subsystems into a single snapshot.
@@ -16,6 +17,7 @@ export class UiStateAggregator {
     private readonly choiceMenuCoordinator: ChoiceMenuCoordinator,
     private readonly placementModeSystem: PlacementModeSystem,
     private readonly contractBoardSystem: ContractBoardSystem,
+    private readonly questSystem: QuestSystem,
     private readonly getNowMs: () => number,
   ) {}
 
@@ -27,8 +29,12 @@ export class UiStateAggregator {
       currency: this.playerSessionState.getCurrencySnapshot(),
       reputation: this.playerSessionState.getReputationSnapshot(),
       skills: this.playerSessionState.getSkillSnapshots(),
-      activeTaskCount: this.playerSessionState.getAcceptedContractIds().length,
-      journalEntries: this.contractBoardSystem.getJournalEntries(this.playerSessionState),
+      activeTaskCount: this.playerSessionState.getAcceptedContractIds().length
+        + this.playerSessionState.getActiveQuestIds().length,
+      journalEntries: [
+        ...this.contractBoardSystem.getJournalEntries(this.playerSessionState),
+        ...this.questSystem.getJournalEntries(this.playerSessionState),
+      ],
       activeEffects: this.playerSessionState.getActiveEffects(this.getNowMs()),
       placementState: this.placementModeSystem.getState(),
       actionProgress: this.actionProgressSystem.getSnapshot(),

@@ -1,9 +1,11 @@
 import type { TaskJournalSaveState } from '../persistence/SaveTypes';
+import { QuestState } from '../quests/QuestState';
 
 export class TaskJournalState {
   private readonly acceptedContractIds = new Set<string>();
   private readonly completedNonRepeatableContractIds = new Set<string>();
   private readonly contractCompletionCounts = new Map<string, number>();
+  private readonly questState = new QuestState();
 
   acceptContract(contractId: string): boolean {
     const wasAdded = !this.acceptedContractIds.has(contractId);
@@ -39,11 +41,16 @@ export class TaskJournalState {
     return Array.from(this.acceptedContractIds);
   }
 
+  getQuestState(): QuestState {
+    return this.questState;
+  }
+
   createSaveSnapshot(): TaskJournalSaveState {
     return {
       acceptedContractIds: Array.from(this.acceptedContractIds),
       completedNonRepeatableContractIds: Array.from(this.completedNonRepeatableContractIds),
       contractCompletionCounts: Object.fromEntries(this.contractCompletionCounts.entries()),
+      quests: this.questState.createSaveSnapshot(),
     };
   }
 
@@ -63,6 +70,8 @@ export class TaskJournalState {
     Object.entries(snapshot.contractCompletionCounts).forEach(([contractId, amount]) => {
       this.contractCompletionCounts.set(contractId, sanitizeCount(amount));
     });
+
+    this.questState.restoreSaveSnapshot(snapshot.quests);
   }
 }
 

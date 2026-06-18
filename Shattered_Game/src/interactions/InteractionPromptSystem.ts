@@ -208,6 +208,15 @@ export class InteractionPromptSystem {
     }
 
     entries.forEach((entry) => {
+      if (entry.kind === 'quest') {
+        lines.push(`- ${entry.displayName}`);
+        entry.completedLogs.forEach((log) => lines.push(`  ${log}`));
+        if (entry.activeHint) lines.push(`  ${entry.activeHint}`);
+        lines.push(`  Reward: ${entry.rewardSummary}`);
+        lines.push(`  Status: ${entry.status === 'completed' ? 'Done' : entry.status === 'ready' ? 'Ready' : 'In progress'}`);
+        return;
+      }
+
       lines.push(`- ${entry.displayName}`);
       lines.push(`  Need: ${entry.requirementSummary}`);
       lines.push(`  Reward: ${entry.rewardSummary}`);

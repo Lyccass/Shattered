@@ -4,6 +4,8 @@ import {
   type PersonalIslandPlacedObjectSaveState,
   type PersonalIslandSaveState,
   type PlayerSaveState,
+  type QuestJournalSaveState,
+  type QuestRuntimeSaveState,
   type SaveGameV1,
   type SaveValidationResult,
   type TaskJournalSaveState,
@@ -185,12 +187,125 @@ function validateTaskJournalSaveState(input: unknown): SaveValidationResult<Task
   );
   if (!contractCompletionCounts.ok) return contractCompletionCounts;
 
+  const quests = validateQuestJournalSaveStateOrEmpty(record.value.quests);
+  if (!quests.ok) return quests;
+
   return {
     ok: true,
     value: {
       acceptedContractIds: acceptedContractIds.value,
       completedNonRepeatableContractIds: completedNonRepeatableContractIds.value,
       contractCompletionCounts: contractCompletionCounts.value,
+      quests: quests.value,
+    },
+  };
+}
+
+function validateQuestJournalSaveStateOrEmpty(input: unknown): SaveValidationResult<QuestJournalSaveState> {
+  if (input === undefined) {
+    return {
+      ok: true,
+      value: {
+        activeQuests: {},
+        completedQuestIds: [],
+        questCompletionCounts: {},
+      },
+    };
+  }
+
+  const record = asRecord(input, 'TaskJournalSaveState.quests');
+  if (!record.ok) return record;
+
+  const activeQuestsRecord = asRecord(
+    record.value.activeQuests,
+    'TaskJournalSaveState.quests.activeQuests',
+  );
+  if (!activeQuestsRecord.ok) return activeQuestsRecord;
+
+  const activeQuests: Record<string, QuestRuntimeSaveState> = {};
+  for (const [questId, rawState] of Object.entries(activeQuestsRecord.value)) {
+    const state = validateQuestRuntimeSaveState(rawState, questId);
+    if (!state.ok) return state;
+    activeQuests[questId] = state.value;
+  }
+
+  const completedQuestIds = readStringArray(
+    record.value.completedQuestIds,
+    'TaskJournalSaveState.quests.completedQuestIds',
+  );
+  if (!completedQuestIds.ok) return completedQuestIds;
+
+  const questCompletionCounts = readNumberRecord(
+    record.value.questCompletionCounts,
+    'TaskJournalSaveState.quests.questCompletionCounts',
+  );
+  if (!questCompletionCounts.ok) return questCompletionCounts;
+
+  return {
+    ok: true,
+    value: {
+      activeQuests,
+      completedQuestIds: completedQuestIds.value,
+      questCompletionCounts: questCompletionCounts.value,
+    },
+  };
+}
+
+function validateQuestRuntimeSaveState(
+  input: unknown,
+  questId: string,
+): SaveValidationResult<QuestRuntimeSaveState> {
+  const record = asRecord(input, `TaskJournalSaveState.quests.activeQuests.${questId}`);
+  if (!record.ok) return record;
+
+  const phaseIndex = readInteger(
+    record.value.phaseIndex,
+    `TaskJournalSaveState.quests.activeQuests.${questId}.phaseIndex`,
+  );
+  if (!phaseIndex.ok) return phaseIndex;
+
+  const progressRecord = asRecord(
+    record.value.objectiveProgress,
+    `TaskJournalSaveState.quests.activeQuests.${questId}.objectiveProgress`,
+  );
+  if (!progressRecord.ok) return progressRecord;
+
+  const objectiveProgress: QuestRuntimeSaveState['objectiveProgress'] = {};
+  for (const [objectiveKey, rawProgress] of Object.entries(progressRecord.value)) {
+    const progress = asRecord(
+      rawProgress,
+      `TaskJournalSaveState.quests.activeQuests.${questId}.objectiveProgress.${objectiveKey}`,
+    );
+    if (!progress.ok) return progress;
+
+    const count = progress.value.count === undefined
+      ? undefined
+      : readInteger(
+        progress.value.count,
+        `TaskJournalSaveState.quests.activeQuests.${questId}.objectiveProgress.${objectiveKey}.count`,
+      );
+    if (count && !count.ok) return count;
+
+    const sequenceIndex = progress.value.sequenceIndex === undefined
+      ? undefined
+      : readInteger(
+        progress.value.sequenceIndex,
+        `TaskJournalSaveState.quests.activeQuests.${questId}.objectiveProgress.${objectiveKey}.sequenceIndex`,
+      );
+    if (sequenceIndex && !sequenceIndex.ok) return sequenceIndex;
+
+    objectiveProgress[objectiveKey] = {
+      ...(count ? { count: Math.max(0, count.value) } : {}),
+      completed: progress.value.completed === true,
+      ...(sequenceIndex ? { sequenceIndex: Math.max(0, sequenceIndex.value) } : {}),
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      phaseIndex: Math.max(0, phaseIndex.value),
+      objectiveProgress,
     },
   };
 }

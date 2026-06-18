@@ -19,6 +19,9 @@ import '../../items/ItemDefinitions';
 import { ItemRegistry } from '../../items/ItemRegistry';
 import { ItemUseSystem } from '../../items/ItemUseSystem';
 import type { PlayerTileSaveState, SaveGameV1 } from '../../persistence/SaveTypes';
+import { QUEST_DEFINITIONS } from '../../quests/QuestDefinitions';
+import { QuestRegistry } from '../../quests/QuestRegistry';
+import { QuestSystem } from '../../quests/QuestSystem';
 import { ChoiceMenuCoordinator } from '../../interactions/ChoiceMenuCoordinator';
 import { InteractionActionFactory } from '../../interactions/InteractionActionFactory';
 import { InteractionSystem } from '../../interactions/InteractionSystem';
@@ -88,6 +91,7 @@ export class WorldRuntimeCoordinator {
   private readonly objectRegistry: ObjectRegistry;
   private readonly itemRegistry = new ItemRegistry();
   private readonly contractRegistry = new ContractRegistry(CONTRACT_DEFINITIONS);
+  private readonly questRegistry = new QuestRegistry(QUEST_DEFINITIONS);
   private readonly recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
   private readonly worldSessionState = new WorldSessionState();
   private readonly playerSessionState = new PlayerSessionState();
@@ -96,6 +100,7 @@ export class WorldRuntimeCoordinator {
   private readonly resourceNodeSystem = new ResourceNodeSystem(this.worldSessionState);
   private readonly workbenchSystem = new WorkbenchSystem(this.recipeRegistry);
   private readonly contractBoardSystem = new ContractBoardSystem(this.contractRegistry);
+  private readonly questSystem = new QuestSystem(this.questRegistry);
   private readonly placedStructureSystem = new PlacedStructureSystem(
     this.worldSessionState,
     this.recipeRegistry,
@@ -153,6 +158,7 @@ export class WorldRuntimeCoordinator {
       this.workbenchSystem,
       this.contractBoardSystem,
       this.placedStructureSystem,
+      this.questSystem,
       () => this.objectManager.getPlacementSystem(),
       this.npcRegistry,
       () => this.npcSystem,
@@ -233,6 +239,7 @@ export class WorldRuntimeCoordinator {
       this.choiceMenuCoordinator,
       this.placementModeSystem,
       this.contractBoardSystem,
+      this.questSystem,
       () => this.scene.time.now,
     );
 
@@ -334,6 +341,7 @@ export class WorldRuntimeCoordinator {
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
     this.streamingReconciler.reconcile(runtime);
+    this.queueQuestResult(this.questSystem.recordVisit({ mapId: runtime.definition.id }, this.playerSessionState));
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -360,6 +368,7 @@ export class WorldRuntimeCoordinator {
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
     this.streamingReconciler.reconcile(runtime);
     this.applyRegionEnvironment(runtime);
+    this.queueQuestResult(this.questSystem.recordVisit({ mapId: runtime.definition.id }, this.playerSessionState));
 
     if (this.bindings) {
       this.rebindSceneSystems();
@@ -518,6 +527,13 @@ export class WorldRuntimeCoordinator {
       this.playerSessionState.getInventoryState(),
       this.scene.time.now,
     );
+
+    if (result.ok) {
+      this.queueQuestResult(this.questSystem.recordActionAt({
+        actionId: `use_item:${itemId}`,
+        mapId: this.getCurrentMapId(),
+      }, this.playerSessionState));
+    }
 
     this.actionBroker.emitResultSfx(result);
     return result;
@@ -806,10 +822,16 @@ export class WorldRuntimeCoordinator {
           toastKind: 'error',
         };
       }
-      return {
+      const finalResult = {
         ...result,
         message: `${result.message} (-${magicCost} Magic)`,
       };
+      this.recordUtilitySpellQuestProgress(abilityId);
+      return finalResult;
+    }
+
+    if (result.ok) {
+      this.recordUtilitySpellQuestProgress(abilityId);
     }
 
     return result;
@@ -852,7 +874,10 @@ export class WorldRuntimeCoordinator {
   }
 
   getTaskJournalEntries(): TaskJournalEntry[] {
-    return this.contractBoardSystem.getJournalEntries(this.playerSessionState);
+    return [
+      ...this.contractBoardSystem.getJournalEntries(this.playerSessionState),
+      ...this.questSystem.getJournalEntries(this.playerSessionState),
+    ];
   }
 
   getPlayerSkillSnapshots(): SkillSnapshot[] {
@@ -867,6 +892,26 @@ export class WorldRuntimeCoordinator {
     return this.playerSessionState.getSkillProgressionSystem().addXpDelta(delta);
   }
 
+  recordEnemyKilledForQuests(enemyId: string | undefined, areaId?: string): void {
+    if (!enemyId) return;
+    this.queueQuestResult(this.questSystem.recordEnemyKilled({
+      enemyId,
+      mapId: this.getCurrentMapId(),
+      areaId,
+    }, this.playerSessionState));
+  }
+
+  recordItemUsedOnItemForQuests(itemId: string, targetItemId: string): void {
+    this.queueQuestResult(this.questSystem.recordUseItemOn({
+      itemId,
+      target: { kind: 'item', itemId: targetItemId },
+    }, this.playerSessionState));
+    this.queueQuestResult(this.questSystem.recordUseItemOn({
+      itemId: targetItemId,
+      target: { kind: 'item', itemId },
+    }, this.playerSessionState));
+  }
+
   drainAllInventoryItems(): Array<{ id: string; count: number }> {
     const inventory = this.playerSessionState.getInventoryState();
     const items = inventory.listOccupied();
@@ -876,6 +921,23 @@ export class WorldRuntimeCoordinator {
 
   consumePendingUiResults(): InteractionResult[] {
     return this.pendingUiResults.splice(0);
+  }
+
+  private queueQuestResult(result: InteractionResult | null): void {
+    if (!result) return;
+
+    this.actionBroker.emitResultSfx(result);
+    this.pendingUiResults.push(result);
+  }
+
+  private recordUtilitySpellQuestProgress(spellId: string): void {
+    const tile = this.bindings?.playerController.getFeetTile();
+
+    this.queueQuestResult(this.questSystem.recordSpellCast({
+      spellId,
+      mapId: this.currentRuntime?.definition.id,
+      tile: tile ? { tileX: tile.x, tileY: tile.y } : undefined,
+    }, this.playerSessionState));
   }
 
   isPlacementModeActive(): boolean {

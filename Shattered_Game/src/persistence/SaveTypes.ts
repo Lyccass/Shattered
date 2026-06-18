@@ -20,6 +20,24 @@ export type TaskJournalSaveState = {
   acceptedContractIds: string[];
   completedNonRepeatableContractIds: string[];
   contractCompletionCounts: Record<string, number>;
+  quests: QuestJournalSaveState;
+};
+
+export type QuestObjectiveProgressSaveState = {
+  count?: number;
+  completed?: boolean;
+  sequenceIndex?: number;
+};
+
+export type QuestRuntimeSaveState = {
+  phaseIndex: number;
+  objectiveProgress: Record<string, QuestObjectiveProgressSaveState>;
+};
+
+export type QuestJournalSaveState = {
+  activeQuests: Record<string, QuestRuntimeSaveState>;
+  completedQuestIds: string[];
+  questCompletionCounts: Record<string, number>;
 };
 
 export type PlayerSaveState = {
