@@ -19,6 +19,7 @@ export const BADGER_PASSIVE: EnemyDefinition = {
   coldDefence: 6,
   poisonDefence: 12,
   behavior: 'passive',
+  aiProfile: 'defensive',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.60,
   collisionRadiusTiles: 0.42,
   aggroRangeTiles: 0,

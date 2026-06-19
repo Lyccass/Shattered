@@ -1936,6 +1936,80 @@ describe('enemy AI', () => {
     expect(chooseEnemyAction(state, OPEN_CTX)).toMatchObject({ kind: 'attack', attackId: 'bite' });
   });
 
+  it('charger enemies make space for their telegraphed charge instead of always jabbing', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      aiProfile: 'charger',
+      attacks: [
+        {
+          id: 'jab',
+          displayName: 'Jab',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 1,
+        },
+        {
+          id: 'charge',
+          displayName: 'Charge',
+          apCost: 1,
+          minRangeTiles: 2,
+          maxRangeTiles: 4,
+          damage: 3,
+          telegraph: { pattern: 'line', length: 4 },
+        },
+      ],
+      attackCooldowns: {},
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    expect(chooseEnemyAction(state, OPEN_CTX).kind).toBe('move');
+  });
+
+  it('skirmisher enemies make space for ranged status pressure', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      aiProfile: 'skirmisher',
+      attacks: [
+        {
+          id: 'nip',
+          displayName: 'Nip',
+          apCost: 1,
+          minRangeTiles: 0,
+          maxRangeTiles: 1,
+          damage: 1,
+        },
+        {
+          id: 'burrow_bite',
+          displayName: 'Burrow Bite',
+          apCost: 1,
+          minRangeTiles: 2,
+          maxRangeTiles: 3,
+          damage: 2,
+          statusEffect: { kind: 'damage_over_time', turns: 2, value: 1 },
+        },
+      ],
+      attackCooldowns: {},
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['e1', 'player'],
+      activeIndex: 0,
+      phase: 'enemy_turn' as const,
+    };
+
+    expect(chooseEnemyAction(state, OPEN_CTX).kind).toBe('move');
+  });
+
   it('can choose a telegraphed lunge after spending movement into range', () => {
     const player = makePlayer({ tileX: 10, tileY: 10 });
     const enemy = makeEnemy('e1', {

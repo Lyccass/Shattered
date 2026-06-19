@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import type { PlayerAnimationStateId } from './PlayerAnimationState';
+import type { PlayerAnimationDirection } from './PlayerAssets';
 import { IsoTilemap } from '../world/IsoTilemap';
 import { PlayerClickMovementController } from './PlayerClickMovementController';
 import { PlayerCollisionSystem } from './PlayerCollisionSystem';
 import { PlayerDodgeMotionController } from './PlayerDodgeMotionController';
-import { resolveFacingFromIntent, type PlayerFacingDirection } from './PlayerFacing';
+import { resolveFacingFromIntent, worldIntentToAnimationDirection, type PlayerFacingDirection } from './PlayerFacing';
 import { PlayerMovementSystem } from './PlayerMovementSystem';
 import { PlayerPositionSystem } from './PlayerPositionSystem';
 import { PlayerVisualSystem } from './PlayerVisualSystem';
@@ -21,7 +22,7 @@ export class PlayerController {
   private readonly visuals: PlayerVisualSystem;
   private tilemap: IsoTilemap;
   private facingDirection: PlayerFacingDirection = 'down';
-  private horizontalFacing: 'left' | 'right' = 'right';
+  private animationDirection: PlayerAnimationDirection = 'down';
   private movementSpeedMultiplier = 1;
   private readonly lastMovementDirection = new Phaser.Math.Vector2(0, 1);
   private lastSafeSpriteX: number;
@@ -44,7 +45,7 @@ export class PlayerController {
     this.recoverIfBlocked();
 
     if (this.dodgeMotion.isDodging()) {
-      const dodgeStep = this.dodgeMotion.update(delta, this.sprite, this.movement);
+      this.dodgeMotion.update(delta, this.sprite, this.movement);
       this.recoverIfBlocked();
       this.captureSafePosition();
       this.visuals.update(
@@ -52,9 +53,7 @@ export class PlayerController {
         nowMs,
         true,
         false,
-        this.facingDirection,
-        this.horizontalFacing,
-        dodgeStep.lateralIntentX,
+        this.animationDirection,
       );
       return;
     }
@@ -79,9 +78,7 @@ export class PlayerController {
       nowMs,
       this.movementIntent.lengthSq() > 0,
       this.movementIntent.lengthSq() > 0 && movementSpeedMultiplier > 1.01,
-      this.facingDirection,
-      this.horizontalFacing,
-      this.movementIntent.x,
+      this.animationDirection,
     );
   }
 
@@ -126,9 +123,9 @@ export class PlayerController {
     }
 
     if (targetWorldX < this.sprite.x - 2) {
-      this.horizontalFacing = 'left';
+      this.animationDirection = 'left_down';
     } else if (targetWorldX > this.sprite.x + 2) {
-      this.horizontalFacing = 'right';
+      this.animationDirection = 'right_down';
     }
   }
 
@@ -185,7 +182,11 @@ export class PlayerController {
       this.facingDirection = deltaX < 0 ? 'left' : 'right';
     }
 
-    this.setHorizontalFacingFromTarget(targetWorldX);
+    this.animationDirection = worldIntentToAnimationDirection(
+      new Phaser.Math.Vector2(deltaX, deltaY),
+      this.tilemap.tileWidth,
+      this.tilemap.tileHeight,
+    );
   }
 
   isDodging(): boolean {
@@ -322,12 +323,11 @@ export class PlayerController {
 
       if (!attackFacingLocked) {
         this.facingDirection = resolveFacingFromIntent(this.movementIntent, this.facingDirection);
-
-        if (this.movementIntent.x < 0) {
-          this.horizontalFacing = 'left';
-        } else if (this.movementIntent.x > 0) {
-          this.horizontalFacing = 'right';
-        }
+        this.animationDirection = worldIntentToAnimationDirection(
+          this.movementIntent,
+          this.tilemap.tileWidth,
+          this.tilemap.tileHeight,
+        );
       }
     }
 

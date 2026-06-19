@@ -120,6 +120,10 @@ export class GameScene extends Phaser.Scene {
     );
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
+    this.worldRuntimeCoordinator.setRuntimeReconciledCallback(() => {
+      if (this.turnCombatSession?.isInCombat()) return;
+      this.bindTurnCombatToRuntime();
+    });
     this.worldRuntimeCoordinator.setGroundItemCollector(
       (id) => this.groundItemSystem?.collectDrop(id) ?? null,
     );
@@ -769,6 +773,7 @@ export class GameScene extends Phaser.Scene {
     if (!playerPos) return null;
 
     const tile = isoTilemap.transform.worldToTile(playerPos.x, playerPos.y);
+    const markerBounds = getEntityMarkerChunkBounds(runtime, tile.x, tile.y);
 
     const RADIUS = this.minimapRadius;
     const diam = RADIUS * 2 + 1;
@@ -786,18 +791,35 @@ export class GameScene extends Phaser.Scene {
     });
 
     const npcWorldPositions = this.worldRuntimeCoordinator.getNpcWorldPositions();
-    const vpNpcs = npcWorldPositions.flatMap(({ worldX, worldY }) => {
+    const npcs = npcWorldPositions.flatMap(({ worldX, worldY }) => {
       const npcTile = isoTilemap.transform.worldToTile(worldX, worldY);
-      const dx = npcTile.x - tile.x;
-      const dy = npcTile.y - tile.y;
+      if (!isTileInBounds(npcTile.x, npcTile.y, markerBounds)) return [];
+      return [{
+        tileX: npcTile.x,
+        tileY: npcTile.y,
+        dx: npcTile.x - tile.x,
+        dy: npcTile.y - tile.y,
+      }];
+    });
+    const vpNpcs = npcs.flatMap((npc) => {
+      const { dx, dy } = npc;
       return Math.abs(dx) <= RADIUS && Math.abs(dy) <= RADIUS ? [{ dx, dy }] : [];
     });
 
-    const enemyTiles = this.turnCombatSession?.getEnemyTiles() ?? [];
-    const vpEnemies = enemyTiles.flatMap(({ tileX, tileY }) => {
-      const dx = tileX - tile.x;
-      const dy = tileY - tile.y;
-      return Math.abs(dx) <= RADIUS && Math.abs(dy) <= RADIUS ? [{ dx, dy }] : [];
+    const enemyMarkers = this.turnCombatSession?.getEnemyMapMarkers() ?? [];
+    const enemies = enemyMarkers.flatMap(({ tileX, tileY, attitude }) => {
+      if (!isTileInBounds(tileX, tileY, markerBounds)) return [];
+      return [{
+        tileX,
+        tileY,
+        dx: tileX - tile.x,
+        dy: tileY - tile.y,
+        attitude,
+      }];
+    });
+    const vpEnemies = enemies.flatMap((enemy) => {
+      const { dx, dy } = enemy;
+      return Math.abs(dx) <= RADIUS && Math.abs(dy) <= RADIUS ? [enemy] : [];
     });
 
     return {
@@ -808,6 +830,8 @@ export class GameScene extends Phaser.Scene {
       mapWidth: runtime.definition.width,
       mapHeight: runtime.definition.height,
       terrain: runtime.definition.terrain,
+      npcs,
+      enemies,
       viewport: { radius: RADIUS, tiles: vpTiles, npcs: vpNpcs, enemies: vpEnemies },
     };
   }
@@ -1081,6 +1105,42 @@ function findNearestWalkableTile(
     }
   }
   return null;
+}
+
+function getEntityMarkerChunkBounds(
+  runtime: LoadedMapRuntime,
+  playerTileX: number,
+  playerTileY: number,
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const chunkSize = runtime.streamedWorld?.provider.getManifest().chunkSize;
+  if (!chunkSize || chunkSize <= 0) {
+    return {
+      minX: 0,
+      maxX: runtime.definition.width - 1,
+      minY: 0,
+      maxY: runtime.definition.height - 1,
+    };
+  }
+
+  const minX = Math.floor(playerTileX / chunkSize) * chunkSize;
+  const minY = Math.floor(playerTileY / chunkSize) * chunkSize;
+  return {
+    minX,
+    maxX: minX + chunkSize - 1,
+    minY,
+    maxY: minY + chunkSize - 1,
+  };
+}
+
+function isTileInBounds(
+  tileX: number,
+  tileY: number,
+  bounds: { minX: number; maxX: number; minY: number; maxY: number },
+): boolean {
+  return tileX >= bounds.minX &&
+    tileX <= bounds.maxX &&
+    tileY >= bounds.minY &&
+    tileY <= bounds.maxY;
 }
 
 function isDeferredInteractionAction(

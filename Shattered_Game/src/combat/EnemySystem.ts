@@ -3,7 +3,7 @@ import { EnemyRegistry } from './EnemyRegistry';
 import { ENEMY_DEFINITIONS } from './EnemyDefinitions';
 import { EnemyVisualController } from './EnemyVisualController';
 import type { EnemyTurnVisualState } from './EnemyVisualController';
-import type { EnemyDefinition, EnemyRuntimeRecord, EnemySpawnDefinition } from './EnemyTypes';
+import type { EnemyBehavior, EnemyDefinition, EnemyRuntimeRecord, EnemySpawnDefinition } from './EnemyTypes';
 import type { IsoTilemap } from '../world/IsoTilemap';
 
 const DEFAULT_RESPAWN_MS = 60_000;
@@ -181,6 +181,9 @@ export class EnemySystem {
   getDefinition(): EnemyDefinition | null { return this.definition; }
   getSpawnId(): string | null { return this.record?.id ?? null; }
   getDefinitionId(): string | null { return this.definition?.id ?? null; }
+  getBehavior(): EnemyBehavior {
+    return this.definition?.behavior ?? 'aggressive';
+  }
   getAreaId(): string | undefined { return this.record?.areaId; }
 
   getWorldPosition(): { x: number; y: number } | null {

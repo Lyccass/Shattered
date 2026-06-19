@@ -123,6 +123,7 @@ export class WorldRuntimeCoordinator {
   private readonly npcRegistry = new NpcRegistry();
   private npcSystem: NpcSystem | null = null;
   private npcVisualController: NpcVisualController | null = null;
+  private onRuntimeReconciled: (() => void) | null = null;
   private readonly shopSystem = new ShopSystem();
   private readonly worldEnv = new WorldEnvironmentState();
   private readonly streamingReconciler: WorldChunkStreamingReconciler;
@@ -269,7 +270,10 @@ export class WorldRuntimeCoordinator {
       getNpcSystem: () => this.npcSystem,
       getNpcVisualController: () => this.npcVisualController,
       getCurrentRuntime: () => this.currentRuntime,
-      onReconciled: () => this.rebuildInteractionTargets(),
+      onReconciled: () => {
+        this.rebuildInteractionTargets();
+        this.onRuntimeReconciled?.();
+      },
     });
 
     this.worldEnv.onChange((vars) => {
@@ -291,6 +295,10 @@ export class WorldRuntimeCoordinator {
         rebuildInteractionTargets: () => this.rebuildInteractionTargets(),
       },
     );
+  }
+
+  setRuntimeReconciledCallback(callback: (() => void) | null): void {
+    this.onRuntimeReconciled = callback;
   }
 
   applyAreaCleared(clearedCount: number): void {

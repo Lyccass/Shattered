@@ -58,7 +58,8 @@ export class MapWindow {
       '<span><span class="map-legend-swatch" style="background:#1a2a17"></span>Blocked</span>' +
       '<span style="color:#fde047">● Player</span>' +
       '<span style="color:#38bdf8">● NPC</span>' +
-      '<span style="color:#f87171">● Enemy</span>';
+      '<span style="color:#f8fafc">● Passive</span>' +
+      '<span style="color:#ef4444">● Aggressive</span>';
 
     this.el.append(toolbar, this.canvas, legend);
 
@@ -159,17 +160,16 @@ export class MapWindow {
     const { x: px, y: py } = this.toScreen(this.playerTileX, this.playerTileY);
     this.drawDot(ctx, px, py, 5, '#fde047', '#1a1a1a');
 
-    // Entity dots from snapshot viewport (radius-limited)
-    const vp = this.lastSnapshot?.viewport;
-    if (vp) {
-      for (const { dx, dy } of vp.npcs) {
-        const { x: ex, y: ey } = this.toScreen(this.playerTileX + dx, this.playerTileY + dy);
-        if (this.inView(ex, ey)) this.drawDot(ctx, ex, ey, 3, '#38bdf8');
+    for (const npc of this.lastSnapshot?.npcs ?? []) {
+      const { x: ex, y: ey } = this.toScreen(npc.tileX, npc.tileY);
+      if (this.inView(ex, ey)) {
+        this.drawDot(ctx, ex, ey, 3, '#38bdf8');
       }
-      for (const { dx, dy } of vp.enemies) {
-        const { x: ex, y: ey } = this.toScreen(this.playerTileX + dx, this.playerTileY + dy);
-        if (this.inView(ex, ey)) this.drawDot(ctx, ex, ey, 3, '#f87171');
-      }
+    }
+
+    for (const enemy of this.lastSnapshot?.enemies ?? []) {
+      const { x: ex, y: ey } = this.toScreen(enemy.tileX, enemy.tileY);
+      if (this.inView(ex, ey)) this.drawDot(ctx, ex, ey, 3, getEnemyMarkerColor(enemy.attitude));
     }
   }
 
@@ -231,6 +231,10 @@ export class MapWindow {
   private inView(px: number, py: number): boolean {
     return px >= 0 && px <= CANVAS_W && py >= 0 && py <= CANVAS_H;
   }
+}
+
+function getEnemyMarkerColor(attitude: 'passive' | 'aggressive'): string {
+  return attitude === 'passive' ? '#f8fafc' : '#ef4444';
 }
 //TODO: consider adding a "fog of war" effect for unexplored areas, if we can get that info from the minimap snapshot (would require tracking explored tiles in the main game state and including that in the snapshot)
 //TODO: Adjut Colors

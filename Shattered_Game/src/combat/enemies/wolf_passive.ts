@@ -19,6 +19,7 @@ export const WOLF_PASSIVE: EnemyDefinition = {
   coldDefence: 7,
   poisonDefence: 6,
   behavior: 'passive',
+  aiProfile: 'defensive',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.70,
   collisionRadiusTiles: 0.55,
   aggroRangeTiles: 0,

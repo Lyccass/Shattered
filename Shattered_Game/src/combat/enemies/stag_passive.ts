@@ -19,6 +19,7 @@ export const STAG_PASSIVE: EnemyDefinition = {
   coldDefence: 7,
   poisonDefence: 5,
   behavior: 'passive',
+  aiProfile: 'defensive',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.68,
   collisionRadiusTiles: 0.45,
   aggroRangeTiles: 0,

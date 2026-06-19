@@ -7,16 +7,11 @@ import {
   PLAYER_HURT_ANIMATION_KEY,
   PLAYER_IDLE_ANIMATION_KEY,
   PLAYER_SPRINT_ANIMATION_KEY,
-  PLAYER_SPRINT_UP_ANIMATION_KEY,
   PLAYER_WALK_ANIMATION_KEY,
-  PLAYER_WALK_UP_ANIMATION_KEY,
   type PlayerAnimationDirection,
 } from './PlayerAssets';
 import { PLAYER_CONFIG } from './PlayerConfig';
 import { getDynamicDepth } from '../render/RenderLayers';
-import type { PlayerFacingDirection } from './PlayerFacing';
-
-type HorizontalFacing = 'left' | 'right';
 
 export class PlayerVisualSystem {
   private readonly animationState = new PlayerAnimationStateController();
@@ -31,18 +26,14 @@ export class PlayerVisualSystem {
     nowMs: number,
     isMoving: boolean,
     isSprinting: boolean,
-    facingDirection: PlayerFacingDirection,
-    horizontalFacing: HorizontalFacing,
-    lateralIntentX = 0,
+    animationDirection: PlayerAnimationDirection,
   ): void {
     this.animationState.syncMovementState(isMoving, nowMs);
     this.applyVisualState(
       this.animationState.getState(nowMs),
       isMoving,
       isSprinting,
-      facingDirection,
-      horizontalFacing,
-      lateralIntentX,
+      animationDirection,
     );
     this.sprite.setDepth(getDynamicDepth(feetWorldY, PLAYER_CONFIG.depthTieBreaker));
   }
@@ -63,22 +54,13 @@ export class PlayerVisualSystem {
     state: PlayerAnimationStateId,
     isMoving: boolean,
     isSprinting: boolean,
-    facingDirection: PlayerFacingDirection,
-    horizontalFacing: HorizontalFacing,
-    lateralIntentX: number,
+    animationDirection: PlayerAnimationDirection,
   ): void {
     this.sprite.clearTint();
     this.sprite.setScale(PLAYER_CONFIG.visualScale);
     this.sprite.setFlipX(false);
 
-    const animationKey = resolveAnimationKey(
-      state,
-      isMoving,
-      isSprinting,
-      facingDirection,
-      horizontalFacing,
-      lateralIntentX,
-    );
+    const animationKey = resolveAnimationKey(state, isMoving, isSprinting, animationDirection);
     const ignoreIfPlaying = animationKey === this.currentAnimationKey;
 
     if (!ignoreIfPlaying) {
@@ -104,51 +86,22 @@ function resolveAnimationKey(
   state: PlayerAnimationStateId,
   _isMoving: boolean,
   isSprinting: boolean,
-  facingDirection: PlayerFacingDirection,
-  horizontalFacing: HorizontalFacing,
-  lateralIntentX: number,
+  animationDirection: PlayerAnimationDirection,
 ): string {
-  const direction = resolveAnimationDirection(facingDirection, horizontalFacing, lateralIntentX);
-
   switch (state) {
     case 'move':
-      if (isSprinting) {
-        return getPlayerDirectionalAnimationKey(
-          facingDirection === 'up' ? PLAYER_SPRINT_UP_ANIMATION_KEY : PLAYER_SPRINT_ANIMATION_KEY,
-          direction,
-        );
-      }
       return getPlayerDirectionalAnimationKey(
-        facingDirection === 'up' ? PLAYER_WALK_UP_ANIMATION_KEY : PLAYER_WALK_ANIMATION_KEY,
-        direction,
+        isSprinting ? PLAYER_SPRINT_ANIMATION_KEY : PLAYER_WALK_ANIMATION_KEY,
+        animationDirection,
       );
     case 'dodge':
-      return getPlayerDirectionalAnimationKey(PLAYER_DASH_ANIMATION_KEY, direction);
+      return getPlayerDirectionalAnimationKey(PLAYER_DASH_ANIMATION_KEY, animationDirection);
     case 'hurt':
-      return getPlayerDirectionalAnimationKey(PLAYER_HURT_ANIMATION_KEY, direction);
+      return getPlayerDirectionalAnimationKey(PLAYER_HURT_ANIMATION_KEY, animationDirection);
     case 'dead':
-      return getPlayerDirectionalAnimationKey(PLAYER_DEAD_ANIMATION_KEY, direction);
+      return getPlayerDirectionalAnimationKey(PLAYER_DEAD_ANIMATION_KEY, animationDirection);
     case 'idle':
     default:
-      return getPlayerDirectionalAnimationKey(PLAYER_IDLE_ANIMATION_KEY, direction);
+      return getPlayerDirectionalAnimationKey(PLAYER_IDLE_ANIMATION_KEY, animationDirection);
   }
-}
-
-function resolveAnimationDirection(
-  facingDirection: PlayerFacingDirection,
-  horizontalFacing: HorizontalFacing,
-  lateralIntentX: number,
-): PlayerAnimationDirection {
-  if (facingDirection === 'up') {
-    if (Math.abs(lateralIntentX) <= 0.001) {
-      return 'up';
-    }
-    return horizontalFacing === 'left' ? 'left_up' : 'right_up';
-  }
-
-  if (facingDirection === 'down') {
-    return 'down';
-  }
-
-  return horizontalFacing === 'left' ? 'left_down' : 'right_down';
 }

@@ -129,6 +129,9 @@ export function chooseEnemyAction(
   const actor = getActiveParticipant(state);
   if (!actor || actor.kind !== 'enemy') return { kind: 'end_turn' };
 
+  const profiledAction = chooseProfiledEnemyAction(actor, state, tileCtx);
+  if (profiledAction) return profiledAction;
+
   // 1. Can we attack right now?
   const attackChoice = chooseBestTargetAttack(actor, state, tileCtx);
   if (attackChoice) {
@@ -163,6 +166,119 @@ export function chooseEnemyAction(
 
   // 5. Nothing useful — end turn
   return { kind: 'end_turn' };
+}
+
+function chooseProfiledEnemyAction(
+  actor: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): TurnAction | null {
+  switch (actor.aiProfile ?? 'direct') {
+    case 'charger':
+      return chooseRangedPressureMove(actor, state, tileCtx, 'telegraph') ??
+        chooseBestAttackAction(actor, state, tileCtx);
+    case 'skirmisher':
+      return chooseRangedPressureMove(actor, state, tileCtx, 'status') ??
+        chooseBestAttackAction(actor, state, tileCtx);
+    case 'defensive':
+      return chooseDefensiveAction(actor, state, tileCtx);
+    case 'herd':
+    case 'direct':
+    default:
+      return null;
+  }
+}
+
+function chooseBestAttackAction(
+  actor: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): TurnAction | null {
+  const attackChoice = chooseBestTargetAttack(actor, state, tileCtx);
+  if (!attackChoice) return null;
+  return {
+    kind: 'attack',
+    targetId: attackChoice.target.id,
+    attackId: attackChoice.attack.id,
+  };
+}
+
+function chooseDefensiveAction(
+  actor: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+): TurnAction | null {
+  const attack = chooseBestAttackAction(actor, state, tileCtx);
+  if (attack) return attack;
+
+  if (actor.mpRemaining > 0 && actor.maxHp > 0 && actor.hp / actor.maxHp < 0.6) {
+    const retreatTile = findRetreatTile(actor, state, tileCtx);
+    if (retreatTile) return { kind: 'move', toTileX: retreatTile.x, toTileY: retreatTile.y };
+  }
+
+  return { kind: 'end_turn' };
+}
+
+function chooseRangedPressureMove(
+  actor: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+  pressure: 'status' | 'telegraph',
+): TurnAction | null {
+  if (actor.mpRemaining <= 0) return null;
+
+  const pressureAttack = findReadyRangedPressureAttack(actor, pressure);
+  if (!pressureAttack) return null;
+
+  const target = pickMoveTarget(actor, state);
+  if (!target) return null;
+
+  const distance = chebyshevDist(actor.tileX, actor.tileY, target.tileX, target.tileY);
+  if (distance >= pressureAttack.minRangeTiles && distance <= pressureAttack.maxRangeTiles) {
+    return null;
+  }
+
+  const tile = findTileForAttackRange(actor, target, state, tileCtx, pressureAttack);
+  return tile ? { kind: 'move', toTileX: tile.x, toTileY: tile.y } : null;
+}
+
+function findReadyRangedPressureAttack(
+  actor: TurnParticipant,
+  pressure: 'status' | 'telegraph',
+): TurnAttack | null {
+  return (actor.attacks ?? []).find((attack) =>
+    attack.minRangeTiles > 1 &&
+    (actor.attackCooldowns?.[attack.id] ?? 0) <= 0 &&
+    (pressure === 'status' ? !!attack.statusEffect : !!attack.telegraph)
+  ) ?? null;
+}
+
+function findTileForAttackRange(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  state: TurnCombatState,
+  tileCtx: TurnTileContext,
+  attack: TurnAttack,
+): { x: number; y: number } | null {
+  const reachable = getReachableTiles(actor, state, tileCtx);
+  let bestTile: { x: number; y: number } | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const tile of reachable) {
+    const dist = chebyshevDist(tile.x, tile.y, target.tileX, target.tileY);
+    if (dist < attack.minRangeTiles || dist > attack.maxRangeTiles) continue;
+
+    const currentDist = chebyshevDist(actor.tileX, actor.tileY, target.tileX, target.tileY);
+    const distanceGain = dist - currentDist;
+    const flankScore = getFlankScore(tile, target);
+    const score = distanceGain + flankScore * 0.25;
+    if (score > bestScore) {
+      bestScore = score;
+      bestTile = tile;
+    }
+  }
+
+  return bestTile;
 }
 
 function pickMoveTarget(actor: TurnParticipant, state: TurnCombatState): TurnParticipant | null {

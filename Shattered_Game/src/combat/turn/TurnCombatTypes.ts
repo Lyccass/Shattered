@@ -1,6 +1,7 @@
 export type TurnDamageType = 'slash' | 'pierce' | 'crush' | 'lightning' | 'fire' | 'cold' | 'poison';
 export type TurnAbilityKind = 'combat_spell' | 'devotion';
 export type TurnAbilityTarget = 'enemy' | 'self';
+export type TurnEnemyAiProfile = 'direct' | 'charger' | 'skirmisher' | 'herd' | 'defensive';
 
 export type StatusEffectKind =
   | 'stunned'
@@ -158,6 +159,7 @@ export type TurnParticipant = {
   weaponId?: string;
   /** Enemy definition ID for enemy participants */
   definitionId?: string;
+  aiProfile?: TurnEnemyAiProfile;
   spawnId?: string;
   areaId?: string;
   lootTableId?: string;

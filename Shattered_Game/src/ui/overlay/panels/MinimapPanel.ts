@@ -208,8 +208,8 @@ export class MinimapPanel {
       ctx.fill();
     }
 
-    ctx.fillStyle = '#f87171';
-    for (const { dx, dy } of vp.enemies) {
+    for (const { dx, dy, attitude } of vp.enemies) {
+      ctx.fillStyle = getEnemyMarkerColor(attitude);
       ctx.beginPath();
       ctx.arc(cx + (dx - dy) * sw, cy + (dx + dy) * sh, dotR, 0, Math.PI * 2);
       ctx.fill();
@@ -265,6 +265,10 @@ export class MinimapPanel {
   destroy(): void {
     this.root.remove();
   }
+}
+
+function getEnemyMarkerColor(attitude: 'passive' | 'aggressive'): string {
+  return attitude === 'passive' ? '#f8fafc' : '#ef4444';
 }
 
 function getViewportTileColor(terrain: string | null, walkable: boolean): string {

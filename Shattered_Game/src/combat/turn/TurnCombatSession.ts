@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { formatEnemyIdentifyReadout } from '../IdentifyReadout';
 import { EnemySystem } from '../EnemySystem';
 import { HitsplatRenderer } from '../HitsplatRenderer';
-import type { EnemySpawnDefinition } from '../EnemyTypes';
+import type { EnemyBehavior, EnemySpawnDefinition } from '../EnemyTypes';
 import type { IsoTilemap } from '../../world/IsoTilemap';
 import type { PlayerController } from '../../player/PlayerController';
 import type { PlayerFacingDirection } from '../../player/PlayerFacing';
@@ -13,7 +13,6 @@ import type { PlayerDerivedStats, WeaponArchetype } from '../../equipment/Equipm
 import { RANGED_ARCHETYPES } from '../../equipment/EquipmentTypes';
 import { TurnActionPreviewRenderer } from './TurnActionPreviewRenderer';
 import {
-  addParticipantsToCombatState,
   applyAction,
   buildUiSnapshot,
   createCombatState,
@@ -37,11 +36,17 @@ import type {
   TurnDamageType,
 } from './TurnCombatTypes';
 import type { TurnTileContext } from './TurnActionValidator';
-import { getBestApproachTile, getReachableTiles } from './TurnActionValidator';
+import { chebyshevDist, getBestApproachTile, getReachableTiles } from './TurnActionValidator';
 
 export type CombatEndEvent = {
   reason: CombatEndReason;
   killedSpawnIds: string[];
+};
+
+export type EnemyMapMarker = {
+  tileX: number;
+  tileY: number;
+  attitude: EnemyBehavior;
 };
 
 // Animation step types for visual sequencing
@@ -176,6 +181,14 @@ export class TurnCombatSession {
       if (!es.isAlive()) return [];
       const t = es.getCurrentTile();
       return t ? [{ tileX: t.x, tileY: t.y }] : [];
+    });
+  }
+
+  getEnemyMapMarkers(): EnemyMapMarker[] {
+    return this.enemySystems.flatMap((es) => {
+      if (!es.isAlive()) return [];
+      const t = es.getCurrentTile();
+      return t ? [{ tileX: t.x, tileY: t.y, attitude: es.getBehavior() }] : [];
     });
   }
 
@@ -718,39 +731,13 @@ export class TurnCombatSession {
 
     if (aggroEnemies.length === 0) return;
 
-    this.enterCombat(playerTile.x, playerTile.y, aggroEnemies, nowMs);
+    this.enterCombat(playerTile.x, playerTile.y, this.expandHerdEnemies(aggroEnemies), nowMs);
   }
 
   private checkAggroJoinCombat(_nowMs: number): void {
-    if (!this.combatState || this.combatState.phase === 'combat_ended') return;
-
-    const playerSide = this.combatState.participants.filter(
-      (participant) =>
-        participant.hp > 0 &&
-        (participant.kind === 'player' || participant.kind === 'companion'),
-    );
-    if (playerSide.length === 0) return;
-
-    const joiners = this.enemySystems.filter(
-      (es) =>
-        es.isAlive() &&
-        !es.inCombat &&
-        es.wouldAggro() &&
-        playerSide.some((participant) => es.isInAggroRange(participant.tileX, participant.tileY)),
-    );
-    if (joiners.length === 0) return;
-
-    const focus = playerSide[0];
-    const participants = joiners
-      .map((es) => this.buildEnemyParticipant(es, focus.tileX, focus.tileY))
-      .filter(Boolean) as TurnParticipant[];
-    if (participants.length === 0) return;
-
-    this.combatState = addParticipantsToCombatState(this.combatState, participants);
-    for (const participant of participants) {
-      this.emitCombatLog(`${participant.name} joins the fight.`);
-    }
-    this.eventBus.emitSfx('combat_start');
+    // Ambient aggro joining is intentionally disabled for now. It was too easy
+    // for nearby aggressive mobs to dogpile the player before mitigation skills
+    // exist. Pack starts still happen through expandHerdEnemies() at combat entry.
   }
 
   /**
@@ -770,7 +757,7 @@ export class TurnCombatSession {
 
     const playerPos  = this.playerController.getFeetPoint();
     const playerTile = this.currentTilemap.transform.worldToTile(playerPos.x, playerPos.y);
-    this.enterCombat(playerTile.x, playerTile.y, [target], nowMs);
+    this.enterCombat(playerTile.x, playerTile.y, this.expandHerdEnemies([target]), nowMs);
     return true;
   }
 
@@ -790,7 +777,33 @@ export class TurnCombatSession {
 
     const playerPos  = this.playerController.getFeetPoint();
     const playerTile = this.currentTilemap.transform.worldToTile(playerPos.x, playerPos.y);
-    this.enterCombat(playerTile.x, playerTile.y, [es], nowMs);
+    this.enterCombat(playerTile.x, playerTile.y, this.expandHerdEnemies([es]), nowMs);
+  }
+
+  private expandHerdEnemies(seedEnemies: EnemySystem[]): EnemySystem[] {
+    const expanded = new Map<string, EnemySystem>();
+
+    for (const seed of seedEnemies) {
+      const seedRecord = seed.getRecord();
+      if (seedRecord) expanded.set(seedRecord.id, seed);
+
+      const seedDef = seed.getDefinition();
+      const seedTile = seed.getCurrentTile();
+      if (!seedDef || seedDef.aiProfile !== 'herd' || !seedTile) continue;
+
+      for (const candidate of this.enemySystems) {
+        if (!candidate.isAlive() || candidate.inCombat) continue;
+        const candidateDef = candidate.getDefinition();
+        const candidateRecord = candidate.getRecord();
+        const candidateTile = candidate.getCurrentTile();
+        if (!candidateDef || !candidateRecord || !candidateTile) continue;
+        if (candidateDef.id !== seedDef.id) continue;
+        if (chebyshevDist(seedTile.x, seedTile.y, candidateTile.x, candidateTile.y) > 8) continue;
+        expanded.set(candidateRecord.id, candidate);
+      }
+    }
+
+    return [...expanded.values()];
   }
 
   // Private: combat setup
@@ -963,6 +976,7 @@ export class TurnCombatSession {
       stagger:         0,
       staggerThreshold: 10,
       definitionId:    def.id,
+      aiProfile:       def.aiProfile ?? 'direct',
       spawnId:         record.id,
       areaId:          undefined,
       lootTableId:     undefined,

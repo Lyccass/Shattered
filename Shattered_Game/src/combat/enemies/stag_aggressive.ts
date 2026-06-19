@@ -19,6 +19,7 @@ export const STAG_AGGRESSIVE: EnemyDefinition = {
   coldDefence: 7,
   poisonDefence: 5,
   behavior: 'aggressive',
+  aiProfile: 'herd',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.74,
   collisionRadiusTiles: 0.45,
   aggroRangeTiles: 5,

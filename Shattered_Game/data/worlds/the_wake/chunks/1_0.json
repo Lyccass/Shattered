@@ -1131,39 +1131,114 @@
   "habitatLayer": {
     "habitats": [
       {
-        "id": "encounter_1779894714080_ieleb7",
-        "name": "New Encounter",
+        "id": "wake_boar_thicket_01",
+        "name": "Boar Thicket",
         "tileX": 5,
         "tileY": 21,
-        "width": 3,
-        "height": 4,
-        "tags": [],
+        "width": 5,
+        "height": 5,
+        "tags": [
+          "wilds",
+          "boar"
+        ],
         "spawnRules": [
           {
-            "id": "rule_1779894714080_1gug6l",
-            "creatureFamilyId": "wolf_passive",
-            "enemyDefinitionId": "wolf_passive",
+            "id": "wake_boar_thicket_passive",
+            "creatureFamilyId": "boar",
+            "enemyDefinitionId": "boar_passive",
             "maxPopulation": 2,
             "respawnMs": 60000,
+            "weight": 1
+          },
+          {
+            "id": "wake_boar_thicket_aggressive",
+            "creatureFamilyId": "boar",
+            "enemyDefinitionId": "boar_aggressive",
+            "maxPopulation": 1,
+            "respawnMs": 90000,
             "weight": 1
           }
         ]
       },
       {
-        "id": "encounter_1779902389951_owyahl",
-        "name": "New Encounter",
+        "id": "wake_badger_burrows_01",
+        "name": "Badger Burrows",
         "tileX": 1,
         "tileY": 8,
         "width": 5,
-        "height": 7,
-        "tags": [],
+        "height": 6,
+        "tags": [
+          "wilds",
+          "badger"
+        ],
         "spawnRules": [
           {
-            "id": "rule_1779902389951_n70y7e",
-            "creatureFamilyId": "wolf_passive",
-            "enemyDefinitionId": "wolf_passive",
-            "maxPopulation": 3,
+            "id": "wake_badger_burrows_passive",
+            "creatureFamilyId": "badger",
+            "enemyDefinitionId": "badger_passive",
+            "maxPopulation": 2,
             "respawnMs": 60000,
+            "weight": 1
+          },
+          {
+            "id": "wake_badger_burrows_aggressive",
+            "creatureFamilyId": "badger",
+            "enemyDefinitionId": "badger_aggressive",
+            "maxPopulation": 1,
+            "respawnMs": 90000,
+            "weight": 1
+          }
+        ]
+      },
+      {
+        "id": "wake_stag_copse_01",
+        "name": "Stag Copse",
+        "tileX": 15,
+        "tileY": 10,
+        "width": 5,
+        "height": 5,
+        "tags": [
+          "wilds",
+          "stag",
+          "herd"
+        ],
+        "spawnRules": [
+          {
+            "id": "wake_stag_copse_herd",
+            "creatureFamilyId": "stag",
+            "enemyDefinitionId": "stag_aggressive",
+            "maxPopulation": 3,
+            "respawnMs": 90000,
+            "weight": 1
+          }
+        ]
+      },
+      {
+        "id": "wake_wolf_scrub_01",
+        "name": "Wolf Scrub",
+        "tileX": 23,
+        "tileY": 20,
+        "width": 5,
+        "height": 5,
+        "tags": [
+          "wilds",
+          "wolf"
+        ],
+        "spawnRules": [
+          {
+            "id": "wake_wolf_scrub_passive",
+            "creatureFamilyId": "wolf",
+            "enemyDefinitionId": "wolf_passive",
+            "maxPopulation": 2,
+            "respawnMs": 60000,
+            "weight": 1
+          },
+          {
+            "id": "wake_wolf_scrub_aggressive",
+            "creatureFamilyId": "wolf",
+            "enemyDefinitionId": "wolf_aggressive",
+            "maxPopulation": 1,
+            "respawnMs": 90000,
             "weight": 1
           }
         ]

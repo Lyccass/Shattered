@@ -1,12 +1,14 @@
 import type {
   StatusEffectKind,
   TurnDamageType,
+  TurnEnemyAiProfile,
   TurnForcedMovement,
   TurnTelegraphConfig,
 } from './turn/TurnCombatTypes';
 
 export type EnemyBehavior = 'aggressive' | 'passive';
 export type EnemyVisualId = 'wolf' | 'boar' | 'badger' | 'stag';
+export type EnemyAiProfile = TurnEnemyAiProfile;
 
 export type EnemyLootTableEntry = {
   itemId: string;
@@ -74,6 +76,7 @@ export type EnemyDefinition = {
   leashRangeTiles: number;
   /** 'aggressive' attacks on sight; 'passive' only reacts when combat is triggered. */
   behavior?: EnemyBehavior;
+  aiProfile?: EnemyAiProfile;
   attacks: TurnAttackDefinition[];
   lootTables?: EnemyLootTable[];
 };

@@ -19,6 +19,7 @@ export const BOAR_AGGRESSIVE: EnemyDefinition = {
   coldDefence: 8,
   poisonDefence: 9,
   behavior: 'aggressive',
+  aiProfile: 'charger',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.58,
   collisionRadiusTiles: 0.45,
   aggroRangeTiles: 6,

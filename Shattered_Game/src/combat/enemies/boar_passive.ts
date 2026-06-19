@@ -19,6 +19,7 @@ export const BOAR_PASSIVE: EnemyDefinition = {
   coldDefence: 8,
   poisonDefence: 9,
   behavior: 'passive',
+  aiProfile: 'defensive',
   moveSpeed: PLAYER_CONFIG.movementSpeed * 0.50,
   collisionRadiusTiles: 0.45,
   aggroRangeTiles: 0,

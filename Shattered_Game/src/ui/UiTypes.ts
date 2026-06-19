@@ -36,12 +36,27 @@ export type MinimapTileInfo = {
   walkable: boolean;
 };
 
+export type EnemyMapMarkerSnapshot = {
+  tileX: number;
+  tileY: number;
+  dx: number;
+  dy: number;
+  attitude: 'passive' | 'aggressive';
+};
+
+export type NpcMapMarkerSnapshot = {
+  tileX: number;
+  tileY: number;
+  dx: number;
+  dy: number;
+};
+
 export type MinimapViewport = {
   radius: number;
   /** [row = dy + radius][col = dx + radius], origin = player tile */
   tiles: MinimapTileInfo[][];
   npcs: Array<{ dx: number; dy: number }>;
-  enemies: Array<{ dx: number; dy: number }>;
+  enemies: EnemyMapMarkerSnapshot[];
 };
 
 export type MinimapSnapshot = {
@@ -52,6 +67,8 @@ export type MinimapSnapshot = {
   mapWidth: number;
   mapHeight: number;
   terrain: TerrainFamily[][];
+  npcs: NpcMapMarkerSnapshot[];
+  enemies: EnemyMapMarkerSnapshot[];
   viewport: MinimapViewport | null;
 };
 

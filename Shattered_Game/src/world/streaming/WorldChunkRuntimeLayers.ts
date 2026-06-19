@@ -152,7 +152,7 @@ function synthesizeHabitatRuleSpawns(
     const count = Math.min(rule.maxPopulation ?? 1, totalTiles);
     const stride = Math.max(1, Math.floor(totalTiles / count));
     return Array.from({ length: count }, (_, i) => {
-      const index = (i * stride) % totalTiles;
+      const index = (i * stride + ruleIndex) % totalTiles;
       return {
         id: createChunkScopedId(chunk, chunkKey, 'spawn', `${habitat.id}_r${ruleIndex}_${i}`),
         enemyDefinitionId: defId,

@@ -29,7 +29,7 @@ function synthesizeAreaRuleSpawns(
     const count = Math.min(rule.maxPopulation, totalTiles);
     const stride = Math.max(1, Math.floor(totalTiles / count));
     return Array.from({ length: count }, (_, i) => {
-      const index = (i * stride) % totalTiles;
+      const index = (i * stride + ruleIndex) % totalTiles;
       return {
         id: `editor_rule_${area.id}_${ruleIndex}_${i}`,
         definitionId: rule.enemyDefinitionId,

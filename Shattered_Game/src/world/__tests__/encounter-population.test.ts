@@ -78,4 +78,34 @@ describe('areaId flows through synthesizeEditorAreaSpawns', () => {
     expect(spawns.every((s) => s.areaId === 'zone_wolf_cave')).toBe(true);
     expect(spawns.length).toBe(2);
   });
+
+  it('offsets spawns from multiple rules so variants do not stack on the first tile', () => {
+    const area = createEditorEncounterArea(10, 20, 'boar_passive');
+    area.width = 4;
+    area.height = 4;
+    area.spawnRules = [
+      {
+        id: 'passive_boars',
+        enemyDefinitionId: 'boar_passive',
+        creatureFamilyId: 'boar',
+        maxPopulation: 2,
+        respawnMs: 60_000,
+        weight: 1,
+      },
+      {
+        id: 'aggressive_boar',
+        enemyDefinitionId: 'boar_aggressive',
+        creatureFamilyId: 'boar',
+        maxPopulation: 1,
+        respawnMs: 60_000,
+        weight: 1,
+      },
+    ];
+
+    const spawns = synthesizeEditorAreaSpawns([area], 'test_map');
+    const occupiedTiles = new Set(spawns.map((spawn) => `${spawn.tileX},${spawn.tileY}`));
+
+    expect(spawns).toHaveLength(3);
+    expect(occupiedTiles.size).toBe(spawns.length);
+  });
 });
