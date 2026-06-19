@@ -142,20 +142,19 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
               conditions: [{ kind: 'quest_phase', questId: 'the_first_mark', phaseId: 'make_a_spark' }],
               unavailableMode: 'hidden',
               questAction: { kind: 'continue_quest', questId: 'the_first_mark' },
-              end: true,
             },
             {
-              id: 'first_mark_brought_tea',
-              label: 'I brought something warm.',
+              id: 'first_mark_brought_firestarter',
+              label: 'I brought the firestarter set.',
               conditions: [
                 { kind: 'quest_phase', questId: 'the_first_mark', phaseId: 'settle_the_lesson' },
-                { kind: 'item_owned', itemId: 'warm_tea' },
+                { kind: 'item_owned', itemId: 'firestarter_set' },
               ],
               unavailableMode: 'hidden',
               questAction: {
                 kind: 'continue_quest',
                 questId: 'the_first_mark',
-                objectiveId: 'bring_warm_tea',
+                objectiveId: 'bring_firestarter_set',
               },
               end: true,
             },
@@ -254,7 +253,7 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
           ],
         },
         first_mark_materials: {
-          npcText: 'Driftwood. Stone. A little patience. Strike one against the other and bring the spark back to me.',
+          npcText: 'Bring me a firestarter set. Pine log and stone will do if you make it yourself, but I care that you have it, not where it came from.',
           options: [
             {
               id: 'start_after_materials',

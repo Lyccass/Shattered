@@ -182,18 +182,21 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
         };
       }
 
-        return {
-          kind: 'result',
-          result: this.questSystem.handleQuestNpcInteraction(
-            option.questAction.questId,
-            this.definition.id,
-            playerState,
-            option.questAction.kind === 'continue_quest'
-              ? option.questAction.objectiveId
-              : undefined,
-          ),
-          closeMenu: option.end === true,
-        };
+      const result = this.questSystem.handleQuestNpcInteraction(
+        option.questAction.questId,
+        this.definition.id,
+        playerState,
+        option.questAction.kind === 'continue_quest'
+          ? option.questAction.objectiveId
+          : undefined,
+      );
+      this.currentPromptText = result.message;
+
+      return {
+        kind: 'result',
+        result,
+        closeMenu: option.end === true,
+      };
     }
 
     if (option.outcome) {

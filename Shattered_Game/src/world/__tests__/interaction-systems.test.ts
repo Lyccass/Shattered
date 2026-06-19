@@ -359,6 +359,13 @@ describe('ResourceNodeSystem', () => {
 describe('WorkbenchSystem', () => {
   const recipeRegistry = new RecipeRegistry(RECIPE_DEFINITIONS);
 
+  it('allows Wake pine logs to be hand-crafted with stone into a firestarter set', () => {
+    expect(recipeRegistry.findHandRecipeForItems('pine_log', 'stone')).toMatchObject({
+      id: 'hand_firestarter_set_pine',
+      outputs: [{ id: 'firestarter_set', amount: 1 }],
+    });
+  });
+
   it('consumes wood and crafts a firestarter set item', () => {
     const playerSessionState = new PlayerSessionState();
     playerSessionState.getInventoryState().add('wood', 1);

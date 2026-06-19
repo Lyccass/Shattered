@@ -173,23 +173,15 @@ describe('QuestSystem', () => {
     });
   });
 
-  it('plays the first example quest through the warm tea branch', () => {
+  it('plays the first example quest through the firestarter branch', () => {
     const player = new PlayerSessionState();
     const system = new QuestSystem(new QuestRegistry(QUEST_DEFINITIONS));
 
-    player.getInventoryState().add('warm_tea', 1);
+    player.getInventoryState().add('firestarter_set', 1);
 
     expect(system.acceptQuest('the_first_mark', player, 'island_hermit')).toMatchObject({
       ok: true,
       message: expect.stringContaining('Quest started: The First Mark'),
-    });
-
-    expect(system.recordUseItemOn({
-      itemId: 'wood',
-      target: { kind: 'item', itemId: 'stone' },
-    }, player)).toMatchObject({
-      ok: true,
-      message: expect.stringContaining('Return to island hermit'),
     });
 
     expect(system.recordNpcInteraction('island_hermit', player)).toMatchObject({
@@ -203,11 +195,11 @@ describe('QuestSystem', () => {
       currencyDelta: { copper: 20 },
       reputationDelta: { harborReputation: 1 },
       itemDelta: { wooden_marker: 1 },
-      xpDelta: { woodworking: 45, alchemy: 15, trade: 10 },
+      xpDelta: { woodworking: 45, trade: 10 },
     });
 
     expect(player.isQuestCompleted('the_first_mark')).toBe(true);
-    expect(player.getInventoryState().hasAtLeast('warm_tea', 1)).toBe(false);
+    expect(player.getInventoryState().hasAtLeast('firestarter_set', 1)).toBe(false);
     expect(player.getInventoryState().hasAtLeast('wooden_marker', 1)).toBe(true);
     expect(player.getCurrencyState().getTotalCopperValue()).toBe(20);
     expect(player.getReputationSnapshot().harborReputation).toBe(1);
@@ -217,21 +209,17 @@ describe('QuestSystem', () => {
     const player = new PlayerSessionState();
     const system = new QuestSystem(new QuestRegistry(QUEST_DEFINITIONS));
 
-    player.getCurrencyState().addCopper(10);
-    player.getInventoryState().add('warm_tea', 1);
+    player.getCurrencyState().restoreSaveSnapshot({ silver: 2 });
+    player.getInventoryState().add('firestarter_set', 1);
     system.acceptQuest('the_first_mark', player, 'island_hermit');
-    system.recordUseItemOn({
-      itemId: 'wood',
-      target: { kind: 'item', itemId: 'stone' },
-    }, player);
     system.recordNpcInteraction('island_hermit', player);
 
     expect(system.recordNpcInteraction('island_hermit', player, 'the_first_mark', 'pay_small_offering')).toMatchObject({
       ok: true,
       message: expect.stringContaining('Quest complete: The First Mark'),
     });
-    expect(player.getCurrencyState().getTotalCopperValue()).toBe(20);
-    expect(player.getInventoryState().hasAtLeast('warm_tea', 1)).toBe(true);
+    expect(player.getCurrencyState().getTotalCopperValue()).toBe(210);
+    expect(player.getInventoryState().hasAtLeast('firestarter_set', 1)).toBe(true);
   });
 
   it('tracks phased objectives and grants end rewards', () => {

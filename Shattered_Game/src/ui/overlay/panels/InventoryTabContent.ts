@@ -164,13 +164,13 @@ export class InventoryTabContent {
         iconEl.textContent = meta.icon;
         // Only show count badge for stackable items
         countEl.textContent = (stackable && totalCount > 1) ? String(totalCount) : '';
-        el.title = meta.label + (stackable && totalCount > 1 ? ` (${totalCount})` : '');
+        el.setAttribute('aria-label', meta.label + (stackable && totalCount > 1 ? ` (${totalCount})` : ''));
       } else {
         el.classList.remove('has-item', 'is-selected');
         el.setAttribute('draggable', 'false');
         iconEl.textContent  = '';
         countEl.textContent = '';
-        el.title = '';
+        el.removeAttribute('aria-label');
       }
     });
   }

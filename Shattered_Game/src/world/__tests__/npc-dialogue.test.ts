@@ -4,7 +4,9 @@ import type { NpcDefinition } from '../../npcs/NpcTypes';
 import type { ContractBoardSystem } from '../../contracts/ContractBoardSystem';
 import type { PlayerSessionState } from '../../player/PlayerSessionState';
 import { PlayerSessionState as RealPlayerSessionState } from '../../player/PlayerSessionState';
-import type { QuestSystem } from '../../quests/QuestSystem';
+import { QuestSystem } from '../../quests/QuestSystem';
+import { QuestRegistry } from '../../quests/QuestRegistry';
+import { QUEST_DEFINITIONS } from '../../quests/QuestDefinitions';
 import { NPC_DEFINITIONS } from '../../npcs/NpcDefinitions';
 import { validateNpcDefinitions } from '../../npcs/NpcDefinitionValidation';
 
@@ -376,7 +378,43 @@ describe('NPC_DEFINITIONS dialogue options', () => {
     ]);
   });
 
-  it('old hermit quietly reveals item and currency settlement routes when met', () => {
+  it('old hermit keeps the menu open and reveals settlement routes after the firestarter check', () => {
+    const hermit = NPC_DEFINITIONS.find((d) => d.id === 'island_hermit');
+    const player = new RealPlayerSessionState();
+    const questSystem = new QuestSystem(new QuestRegistry(QUEST_DEFINITIONS));
+    const handler = new NpcDialogueMenuHandler(
+      hermit as NpcDefinition,
+      'hermit_anchor',
+      mockContractBoardSystem,
+      questSystem,
+    );
+
+    player.getInventoryState().add('firestarter_set', 1);
+    player.getCurrencyState().restoreSaveSnapshot({ silver: 2 });
+    questSystem.acceptQuest('the_first_mark', player, 'island_hermit');
+
+    const outcome = handler.onConfirm('first_mark_make_spark', player);
+
+    expect(outcome).toMatchObject({
+      kind: 'result',
+      result: expect.objectContaining({
+        ok: true,
+        message: expect.stringContaining('Settle the lesson'),
+      }),
+    });
+    expect((outcome as { closeMenu?: boolean }).closeMenu).not.toBe(true);
+    expect(handler.getPromptText()).toContain('Settle the lesson');
+    expect(questSystem.getActivePhaseId('the_first_mark', player)).toBe('settle_the_lesson');
+    expect(handler.getOptions(player).map((option) => option.id)).toEqual([
+      'ask_wake',
+      'ask_island',
+      'first_mark_brought_firestarter',
+      'first_mark_small_offering',
+      'bye',
+    ]);
+  });
+
+  it('old hermit quietly reveals firestarter and total-currency settlement routes when met', () => {
     const hermit = NPC_DEFINITIONS.find((d) => d.id === 'island_hermit');
     const player = new RealPlayerSessionState();
     const phaseQuestSystem = {
@@ -399,8 +437,8 @@ describe('NPC_DEFINITIONS dialogue options', () => {
       'bye',
     ]);
 
-    player.getInventoryState().add('warm_tea', 1);
-    player.getCurrencyState().addCopper(10);
+    player.getInventoryState().add('firestarter_set', 1);
+    player.getCurrencyState().restoreSaveSnapshot({ silver: 2 });
 
     const readyHandler = new NpcDialogueMenuHandler(
       hermit as NpcDefinition,
@@ -412,7 +450,7 @@ describe('NPC_DEFINITIONS dialogue options', () => {
     expect(readyHandler.getOptions(player).map((option) => option.id)).toEqual([
       'ask_wake',
       'ask_island',
-      'first_mark_brought_tea',
+      'first_mark_brought_firestarter',
       'first_mark_small_offering',
       'bye',
     ]);

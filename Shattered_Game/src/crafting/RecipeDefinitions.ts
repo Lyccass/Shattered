@@ -60,6 +60,18 @@ export const RECIPE_DEFINITIONS: RecipeDefinition[] = [
     xpRewards: { woodworking: 35 },
   },
   {
+    id: 'hand_firestarter_set_pine',
+    displayName: 'Firestarter Set',
+    stationType: 'hand',
+    description: 'Strike stone against a pine log to make a firestarter.',
+    inputs: [
+      { id: 'pine_log', amount: 1 },
+      { id: 'stone',    amount: 1 },
+    ],
+    outputs: [{ id: 'firestarter_set', amount: 1 }],
+    xpRewards: { woodworking: 35 },
+  },
+  {
     id: 'hand_warm_tea',
     displayName: 'Herbal Pouch',
     stationType: 'hand',
