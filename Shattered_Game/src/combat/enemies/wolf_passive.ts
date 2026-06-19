@@ -5,6 +5,7 @@ export const WOLF_PASSIVE: EnemyDefinition = {
   id: 'wolf_passive',
   displayName: 'Wolf',
   description: 'A wary island wolf. It avoids trouble until cornered.',
+  visualId: 'wolf',
   tier: 1,
   maxHealth: 5,
   initiative: 8,

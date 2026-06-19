@@ -1,25 +1,18 @@
 import Phaser from 'phaser';
 import { getDynamicDepth } from '../render/RenderLayers';
+import type { EnemyVisualId } from './EnemyTypes';
 import {
-  ENEMY_WOLF_ATTACK_ANIMATION_KEY,
-  ENEMY_WOLF_DEATH_ANIMATION_KEY,
-  ENEMY_WOLF_IDLE_ANIMATION_KEY,
-  ENEMY_WOLF_IDLE_SHEET_KEY,
-  ENEMY_WOLF_RUN_ANIMATION_KEY,
-  ENEMY_WOLF_WINDUP_ANIMATION_KEY,
-} from './EnemyAssets';
+  getEnemyAnimationKey,
+  getEnemyVisualDefinition,
+  type EnemyVisualDefinition,
+} from './EnemyVisualDefinitions';
 
 export type EnemyTurnVisualState = 'idle' | 'moving' | 'windup' | 'attacking' | 'hurt' | 'dead';
 
 const HIT_FLASH_MS = 120;
 
-const SHADOW = { offsetY: 0, radiusX: 28, radiusY: 12, color: 0x020617, alpha: 0.2 };
-const BAR    = { width: 40, height: 4, offsetY: 52 };
-const WOLF = {
-  originX: 0.5,
-  originY: 0.68,
-  scale: 2,
-};
+const SHADOW = { color: 0x020617, alpha: 0.2 };
+const BAR    = { width: 40, height: 4 };
 
 export class EnemyVisualController {
   private shadow:           Phaser.GameObjects.Ellipse  | null = null;
@@ -27,18 +20,29 @@ export class EnemyVisualController {
   private healthBarGfx:     Phaser.GameObjects.Graphics | null = null;
   private currentAnimKey:   string | null = null;
   private hitFlashUntilMs = 0;
+  private visualDefinition: EnemyVisualDefinition = getEnemyVisualDefinition('wolf');
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  spawn(worldX: number, worldY: number): void {
+  spawn(worldX: number, worldY: number, visualId: EnemyVisualId): void {
     this.destroy();
-    this.shadow   = this.scene.add.ellipse(worldX, worldY + SHADOW.offsetY, SHADOW.radiusX, SHADOW.radiusY, SHADOW.color, SHADOW.alpha);
-    this.visual   = this.scene.add.sprite(worldX, worldY, ENEMY_WOLF_IDLE_SHEET_KEY, 0);
+    this.visualDefinition = getEnemyVisualDefinition(visualId);
+    const idleAnimation = this.visualDefinition.animations.idle;
+    const shadow = this.visualDefinition.shadow;
+    this.shadow = this.scene.add.ellipse(
+      worldX,
+      worldY + shadow.offsetY,
+      shadow.radiusX,
+      shadow.radiusY,
+      SHADOW.color,
+      SHADOW.alpha,
+    );
+    this.visual = this.scene.add.sprite(worldX, worldY, idleAnimation.sheetKey, 0);
     this.healthBarGfx = this.scene.add.graphics();
-    this.visual.setOrigin(WOLF.originX, WOLF.originY);
-    this.visual.setScale(WOLF.scale);
-    this.visual.play(ENEMY_WOLF_IDLE_ANIMATION_KEY);
-    this.currentAnimKey = ENEMY_WOLF_IDLE_ANIMATION_KEY;
+    this.visual.setOrigin(this.visualDefinition.originX, this.visualDefinition.originY);
+    this.visual.setScale(this.visualDefinition.scale);
+    this.currentAnimKey = getEnemyAnimationKey(this.visualDefinition.id, 'idle');
+    this.visual.play(this.currentAnimKey);
   }
 
   flashHit(nowMs: number): void {
@@ -61,16 +65,17 @@ export class EnemyVisualController {
   ): void {
     if (!this.visual) return;
 
-    this.shadow?.setPosition(worldX, worldY + SHADOW.offsetY);
+    const shadow = this.visualDefinition.shadow;
+    this.shadow?.setPosition(worldX, worldY + shadow.offsetY);
     this.shadow?.setDepth(getDynamicDepth(worldY, 4));
 
     this.visual.setPosition(worldX, worldY);
     this.visual.setFlipX(facingRightward);
-    this.visual.setScale(WOLF.scale);
+    this.visual.setScale(this.visualDefinition.scale);
     this.visual.setDepth(getDynamicDepth(worldY, 8));
     this.visual.clearTint();
 
-    const animKey = resolveAnimKey(visualState);
+    const animKey = getEnemyAnimationKey(this.visualDefinition.id, visualState);
     if (animKey !== this.currentAnimKey) {
       this.visual.play(animKey);
       this.currentAnimKey = animKey;
@@ -97,7 +102,7 @@ export class EnemyVisualController {
     if (nowMs < this.hitFlashUntilMs) {
       this.visual.setTint(0xffffff);
       const t = (this.hitFlashUntilMs - nowMs) / HIT_FLASH_MS;
-      this.visual.setScale(WOLF.scale * (1 + 0.12 * t));
+      this.visual.setScale(this.visualDefinition.scale * (1 + 0.12 * t));
     }
 
     this.updateHealthBar(hp, maxHp, worldX, worldY, visualState, showHealthBar);
@@ -145,7 +150,7 @@ export class EnemyVisualController {
 
     const pct = maxHp > 0 ? Math.max(0, hp / maxHp) : 0;
     const x = worldX - BAR.width / 2;
-    const y = worldY - BAR.offsetY;
+    const y = worldY - this.visualDefinition.healthBarOffsetY;
 
     this.healthBarGfx.clear();
     this.healthBarGfx.fillStyle(0x7f1d1d, 0.92);
@@ -159,15 +164,5 @@ export class EnemyVisualController {
     this.healthBarGfx.lineStyle(1, 0x000000, 0.55);
     this.healthBarGfx.strokeRect(x, y, BAR.width, BAR.height);
     this.healthBarGfx.setVisible(true);
-  }
-}
-
-function resolveAnimKey(state: EnemyTurnVisualState): string {
-  switch (state) {
-    case 'moving':    return ENEMY_WOLF_RUN_ANIMATION_KEY;
-    case 'windup':    return ENEMY_WOLF_WINDUP_ANIMATION_KEY;
-    case 'attacking': return ENEMY_WOLF_ATTACK_ANIMATION_KEY;
-    case 'dead':      return ENEMY_WOLF_DEATH_ANIMATION_KEY;
-    default:          return ENEMY_WOLF_IDLE_ANIMATION_KEY;
   }
 }

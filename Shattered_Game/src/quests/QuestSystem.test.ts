@@ -25,7 +25,7 @@ const TEST_QUEST: QuestDefinition = {
         {
           id: 'kill_wretches',
           kind: 'kill_with_item',
-          enemyId: 'training_wretch',
+          enemyId: 'boar_aggressive',
           itemId: 'sealed_blade',
           count: 2,
           journalHint: 'Kill training wretches with the sealed blade nearby.',
@@ -111,7 +111,7 @@ const BRANCHING_QUEST: QuestDefinition = {
             {
               id: 'clear_cave',
               kind: 'kill_count_at',
-              enemyId: 'training_wretch',
+              enemyId: 'boar_aggressive',
               mapId: 'cave_map',
               areaId: 'wormbrain_cave',
               count: 2,
@@ -234,12 +234,12 @@ describe('QuestSystem', () => {
       message: expect.stringContaining('Quest started: The Shattered Seal'),
     });
 
-    expect(system.recordEnemyKilled({ enemyId: 'training_wretch' }, player)).toMatchObject({
+    expect(system.recordEnemyKilled({ enemyId: 'boar_aggressive' }, player)).toMatchObject({
       ok: true,
       message: expect.stringContaining('Quest updated: The Shattered Seal'),
     });
 
-    expect(system.recordEnemyKilled({ enemyId: 'training_wretch' }, player)).toMatchObject({
+    expect(system.recordEnemyKilled({ enemyId: 'boar_aggressive' }, player)).toMatchObject({
       ok: true,
       message: expect.stringContaining('Return to island hermit'),
     });
@@ -283,11 +283,11 @@ describe('QuestSystem', () => {
 
     system.acceptQuest('test_shattered_seal', player, 'island_hermit');
 
-    expect(system.recordEnemyKilled({ enemyId: 'training_wretch' }, player)).toBeNull();
+    expect(system.recordEnemyKilled({ enemyId: 'boar_aggressive' }, player)).toBeNull();
 
     player.getInventoryState().add('sealed_blade', 1);
 
-    expect(system.recordEnemyKilled({ enemyId: 'training_wretch' }, player)).toMatchObject({
+    expect(system.recordEnemyKilled({ enemyId: 'boar_aggressive' }, player)).toMatchObject({
       ok: true,
     });
   });
@@ -307,13 +307,13 @@ describe('QuestSystem', () => {
     });
 
     expect(system.recordEnemyKilled({
-      enemyId: 'training_wretch',
+      enemyId: 'boar_aggressive',
       mapId: 'wrong_map',
       areaId: 'wormbrain_cave',
     }, player)).toBeNull();
 
     expect(system.recordEnemyKilled({
-      enemyId: 'training_wretch',
+      enemyId: 'boar_aggressive',
       mapId: 'cave_map',
       areaId: 'wormbrain_cave',
     }, player)).toMatchObject({ ok: true });
@@ -321,7 +321,7 @@ describe('QuestSystem', () => {
     expect(player.isQuestCompleted('test_branching_quest')).toBe(false);
 
     expect(system.recordEnemyKilled({
-      enemyId: 'training_wretch',
+      enemyId: 'boar_aggressive',
       mapId: 'cave_map',
       areaId: 'wormbrain_cave',
     }, player)).toMatchObject({

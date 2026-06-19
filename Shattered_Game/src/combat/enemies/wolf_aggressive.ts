@@ -5,6 +5,7 @@ export const WOLF_AGGRESSIVE: EnemyDefinition = {
   id: 'wolf_aggressive',
   displayName: 'Wolf',
   description: 'A lean island wolf with quick feet and a punishing lunge.',
+  visualId: 'wolf',
   tier: 1,
   maxHealth: 5,
   initiative: 6,

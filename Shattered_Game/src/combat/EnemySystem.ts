@@ -64,7 +64,7 @@ export class EnemySystem {
       nextWanderMs: 0,
     };
 
-    this.visualController.spawn(origin.x, origin.y);
+    this.visualController.spawn(origin.x, origin.y, this.definition.visualId);
   }
 
   // Per-frame update (called by TurnCombatSession outside of combat)
@@ -239,7 +239,7 @@ export class EnemySystem {
     this._inCombat           = false;
     this.record.wanderTarget = null;
     this.record.nextWanderMs = nowMs + randomBetween(WANDER_MIN_WAIT_MS, WANDER_MAX_WAIT_MS);
-    this.visualController.spawn(origin.x, origin.y);
+    this.visualController.spawn(origin.x, origin.y, this.definition.visualId);
   }
 
   private updateWander(nowMs: number, deltaMs: number): void {

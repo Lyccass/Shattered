@@ -6,6 +6,7 @@ import type {
 } from './turn/TurnCombatTypes';
 
 export type EnemyBehavior = 'aggressive' | 'passive';
+export type EnemyVisualId = 'wolf' | 'boar' | 'badger' | 'stag';
 
 export type EnemyLootTableEntry = {
   itemId: string;
@@ -46,6 +47,7 @@ export type EnemyDefinition = {
   id: string;
   displayName: string;
   description?: string;
+  visualId: EnemyVisualId;
   /** 1–10 display/power band. This is descriptive; combat values come from explicit stats. */
   tier: number;
   maxHealth: number;

@@ -1,10 +1,20 @@
 import type { EnemyDefinition } from './EnemyTypes';
-import { TRAINING_WRETCH } from './enemies/training_wretch';
+import { BADGER_AGGRESSIVE } from './enemies/badger_aggressive';
+import { BADGER_PASSIVE } from './enemies/badger_passive';
+import { BOAR_AGGRESSIVE } from './enemies/boar_aggressive';
+import { BOAR_PASSIVE } from './enemies/boar_passive';
+import { STAG_AGGRESSIVE } from './enemies/stag_aggressive';
+import { STAG_PASSIVE } from './enemies/stag_passive';
 import { WOLF_AGGRESSIVE } from './enemies/wolf_aggressive';
 import { WOLF_PASSIVE } from './enemies/wolf_passive';
 
 export const ENEMY_DEFINITIONS: EnemyDefinition[] = [
-  TRAINING_WRETCH,
+  BADGER_AGGRESSIVE,
+  BADGER_PASSIVE,
+  BOAR_AGGRESSIVE,
+  BOAR_PASSIVE,
+  STAG_AGGRESSIVE,
+  STAG_PASSIVE,
   WOLF_AGGRESSIVE,
   WOLF_PASSIVE,
 ];
