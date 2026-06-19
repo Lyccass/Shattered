@@ -7,6 +7,7 @@ export type ChoiceMenuOption = {
 
 export type ChoiceMenuStateSnapshot = {
   title: string;
+  promptText?: string;
   options: ChoiceMenuOption[];
   selectedIndex: number;
 };

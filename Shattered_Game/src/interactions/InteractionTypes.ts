@@ -122,6 +122,8 @@ export type InteractionResult = {
   xpDelta?: SkillXpDelta;
   levelUps?: LevelUpEvent[];
   toastKind?: ToastKind;
+  /** Set false for transient UI-only messages such as in-panel NPC dialogue. */
+  logToChat?: boolean;
   /** If set, the game should open the shop popup for this shop ID. */
   openShopId?: string;
 };

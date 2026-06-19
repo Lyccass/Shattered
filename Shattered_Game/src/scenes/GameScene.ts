@@ -193,8 +193,7 @@ export class GameScene extends Phaser.Scene {
       onChoiceMenuSelect:     (i) => this.worldRuntimeCoordinator?.setChoiceMenuSelection(i),
       onChoiceMenuConfirm:    () => this.tryConfirmChoiceMenu(),
       onChoiceMenuCancel:     () => {
-        const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
-        if (msg) this.uiManager?.showInfo(msg);
+        this.worldRuntimeCoordinator?.cancelChoiceMenu();
       },
       onMinimapClick: () => {
         const snap = this.buildMinimapSnapshot();
@@ -397,8 +396,7 @@ export class GameScene extends Phaser.Scene {
       onMenuConfirm:  () => this.tryConfirmChoiceMenu(),
       onMenuPointer:  () => { /* handled by HTML popup click events */ },
       onMenuCancel:   () => {
-        const msg = this.worldRuntimeCoordinator?.cancelChoiceMenu();
-        if (msg) this.uiManager?.showInfo(msg);
+        this.worldRuntimeCoordinator?.cancelChoiceMenu();
       },
       onPlacementConfirm: () => this.interactionController?.confirmPlacementMode(),
       onPlacementCancel: () => {

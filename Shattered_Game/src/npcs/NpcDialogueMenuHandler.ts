@@ -16,6 +16,7 @@ import type {
 export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
   readonly title: string;
   private currentNodeId: string | null;
+  private currentPromptText: string | null = null;
 
   constructor(
     private readonly definition: NpcDefinition,
@@ -25,10 +26,15 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
   ) {
     this.title = definition.displayName;
     this.currentNodeId = definition.dialogueTree?.startNodeId ?? null;
+    this.currentPromptText = this.getCurrentNpcText() ?? definition.dialogue[0]?.text ?? null;
   }
 
   getCurrentNpcText(): string | null {
     return this.getCurrentTreeNode()?.npcText ?? null;
+  }
+
+  getPromptText(): string | null {
+    return this.currentPromptText;
   }
 
   getOptions(playerState: PlayerSessionState): ChoiceMenuOption[] {
@@ -94,6 +100,7 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
             interactionType: 'npc',
             targetId: this.anchorId,
             message: 'Farewell.',
+            logToChat: false,
           },
           closeMenu: true,
         };
@@ -112,6 +119,7 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
         };
 
       case 'reply':
+        this.currentPromptText = outcome.npcText;
         return {
           kind: 'result',
           result: {
@@ -119,6 +127,7 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
             interactionType: 'npc',
             targetId: this.anchorId,
             message: outcome.npcText,
+            logToChat: false,
           },
         };
 
@@ -193,6 +202,7 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
 
     if (option.nextNodeId) {
       this.currentNodeId = option.nextNodeId;
+      this.currentPromptText = this.getCurrentTreeNode()?.npcText ?? '';
       return {
         kind: 'result',
         result: {
@@ -200,6 +210,7 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
           interactionType: 'npc',
           targetId: this.anchorId,
           message: this.getCurrentTreeNode()?.npcText ?? '',
+          logToChat: false,
         },
       };
     }
@@ -212,6 +223,7 @@ export class NpcDialogueMenuHandler implements ChoiceMenuHandler {
           interactionType: 'npc',
           targetId: this.anchorId,
           message: 'Farewell.',
+          logToChat: false,
         },
         closeMenu: true,
       };

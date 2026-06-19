@@ -21,6 +21,12 @@ export class CameraSystem {
     this.snapCameraToPixelGrid();
   };
 
+  private readonly handleResize = (gameSize: Phaser.Structs.Size): void => {
+    this.camera.setViewport(0, 0, gameSize.width, gameSize.height);
+    this.clampCameraScroll();
+    this.snapCameraToPixelGrid();
+  };
+
   private readonly handleWheel = (
     _pointer: Phaser.Input.Pointer,
     _objects: Phaser.GameObjects.GameObject[],
@@ -62,6 +68,7 @@ export class CameraSystem {
   destroy(): void {
     this.zoomTween?.stop();
     this.scene.input.off('wheel', this.handleWheel);
+    this.scene.scale.off('resize', this.handleResize);
     this.scene.events.off(Phaser.Scenes.Events.POST_UPDATE, this.handlePostUpdate);
   }
 
@@ -123,6 +130,7 @@ export class CameraSystem {
 
   private registerPixelSnap(): void {
     this.scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.handlePostUpdate);
+    this.scene.scale.on('resize', this.handleResize);
   }
 
   private registerWheelZoom(): void {

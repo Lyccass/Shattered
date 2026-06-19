@@ -1,4 +1,4 @@
-import type { NpcDefinition, NpcDialogueTree, NpcDialogueTreeOption } from './NpcTypes';
+import type { NpcDefinition, NpcDialogueOption, NpcDialogueTree, NpcDialogueTreeOption } from './NpcTypes';
 
 export type NpcDefinitionValidationResult =
   | { ok: true }
@@ -19,7 +19,7 @@ export function validateNpcDefinitions(definitions: readonly NpcDefinition[]): N
     if (!definition.dialogue.length) errors.push(`${label} should have at least one dialogue line.`);
 
     if (definition.options?.length) {
-      validateFlatOptions(definition.options.map((option) => option.id), `${label} options`, errors);
+      validateFlatOptions(definition.options, `${label} options`, errors);
     }
 
     if (definition.dialogueTree) {
@@ -50,7 +50,7 @@ function validateDialogueTree(
     const nodeLabel = `${label} dialogueTree node ${nodeId}`;
 
     if (!node.npcText) errors.push(`${nodeLabel} is missing npcText.`);
-    validateFlatOptions(node.options.map((option) => option.id), `${nodeLabel} options`, errors);
+    validateTreeOptions(node.options, `${nodeLabel} options`, errors);
 
     node.options.forEach((option) => validateTreeOption(option, nodeLabel, nodes, errors));
   });
@@ -72,7 +72,25 @@ function validateTreeOption(
   }
 }
 
-function validateFlatOptions(optionIds: readonly string[], path: string, errors: string[]): void {
+function validateFlatOptions(options: readonly NpcDialogueOption[], path: string, errors: string[]): void {
+  validateOptionIds(options.map((option) => option.id), path, errors);
+
+  const lastOption = options.at(-1);
+  if (lastOption?.outcome.kind !== 'close') {
+    errors.push(`${path} must end with a close option.`);
+  }
+}
+
+function validateTreeOptions(options: readonly NpcDialogueTreeOption[], path: string, errors: string[]): void {
+  validateOptionIds(options.map((option) => option.id), path, errors);
+
+  const lastOption = options.at(-1);
+  if (!lastOption || !isTreeExitOption(lastOption)) {
+    errors.push(`${path} must end with an exit option.`);
+  }
+}
+
+function validateOptionIds(optionIds: readonly string[], path: string, errors: string[]): void {
   const ids = new Set<string>();
 
   optionIds.forEach((id, index) => {
@@ -80,4 +98,8 @@ function validateFlatOptions(optionIds: readonly string[], path: string, errors:
     if (ids.has(id)) errors.push(`${path} has duplicate option id "${id}".`);
     ids.add(id);
   });
+}
+
+function isTreeExitOption(option: NpcDialogueTreeOption): boolean {
+  return option.end === true || option.outcome?.kind === 'close';
 }

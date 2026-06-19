@@ -20,6 +20,7 @@ export type ChoiceMenuHandlerOutcome =
 // new ChoiceMenuHandler, not editing the coordinator.
 export type ChoiceMenuHandler = {
   readonly title: string;
+  getPromptText?(playerState: PlayerSessionState): string | null;
   getOptions(playerState: PlayerSessionState): ChoiceMenuOption[];
   onConfirm(optionId: string, playerState: PlayerSessionState): ChoiceMenuHandlerOutcome;
 };
@@ -49,7 +50,7 @@ export class ChoiceMenuCoordinator {
     }
 
     this.handler = handler;
-    this.state.open(handler.title, options);
+    this.state.open(handler.title, options, handler.getPromptText?.(playerState) ?? '');
     this.eventBus.emitSfx('menu_open');
     return true;
   }
@@ -102,7 +103,11 @@ export class ChoiceMenuCoordinator {
         return { kind: 'none' };
       }
       this.handler = outcome.handler;
-      this.state.open(outcome.handler.title, options);
+      this.state.open(
+        outcome.handler.title,
+        options,
+        outcome.handler.getPromptText?.(playerState) ?? '',
+      );
       return { kind: 'none' };
     }
 
@@ -167,6 +172,10 @@ export class ChoiceMenuCoordinator {
       return;
     }
 
-    this.state.open(this.handler.title, options);
+    this.state.open(
+      this.handler.title,
+      options,
+      this.handler.getPromptText?.(playerState) ?? '',
+    );
   }
 }

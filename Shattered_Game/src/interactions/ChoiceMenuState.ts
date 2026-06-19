@@ -2,11 +2,13 @@ import type { ChoiceMenuOption, ChoiceMenuStateSnapshot } from './ChoiceMenuType
 
 export class ChoiceMenuState {
   private title = '';
+  private promptText = '';
   private options: ChoiceMenuOption[] = [];
   private selectedIndex = 0;
 
-  open(title: string, options: ChoiceMenuOption[]): ChoiceMenuStateSnapshot | null {
+  open(title: string, options: ChoiceMenuOption[], promptText = ''): ChoiceMenuStateSnapshot | null {
     this.title = title;
+    this.promptText = promptText;
     this.options = [...options];
     this.selectedIndex = this.getFirstSelectableIndex();
     return this.getSnapshot();
@@ -64,6 +66,7 @@ export class ChoiceMenuState {
 
   cancel(): void {
     this.title = '';
+    this.promptText = '';
     this.options = [];
     this.selectedIndex = 0;
   }
@@ -75,6 +78,7 @@ export class ChoiceMenuState {
 
     return {
       title: this.title,
+      promptText: this.promptText || undefined,
       options: [...this.options],
       selectedIndex: this.selectedIndex,
     };

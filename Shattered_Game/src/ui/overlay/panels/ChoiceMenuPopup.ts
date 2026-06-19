@@ -1,20 +1,42 @@
 import type { ChoiceMenuStateSnapshot } from '../../../interactions/ChoiceMenuTypes';
-import { PopupWindow } from '../PopupWindow';
 
 export class ChoiceMenuPopup {
-  private readonly popup: PopupWindow;
+  private readonly root: HTMLElement;
+  private readonly titleEl: HTMLElement;
+  private readonly promptEl: HTMLElement;
   private readonly listEl: HTMLElement;
   private readonly detailsEl: HTMLElement;
   private optionEls: HTMLButtonElement[] = [];
 
   constructor(
-    overlay: HTMLElement,
+    private readonly overlay: HTMLElement,
     private readonly onSelect: (index: number) => void,
     private readonly onConfirm: () => void,
-    onCancel: () => void,
+    private readonly onCancel: () => void,
   ) {
+    this.root = document.createElement('div');
+    this.root.className = 'choice-menu-shell';
+
+    const header = document.createElement('div');
+    header.className = 'choice-menu-header';
+
+    this.titleEl = document.createElement('span');
+    this.titleEl.className = 'choice-menu-title';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'choice-menu-close';
+    closeBtn.setAttribute('aria-label', 'Close dialogue');
+    closeBtn.addEventListener('click', () => this.onCancel());
+
+    header.appendChild(this.titleEl);
+    header.appendChild(closeBtn);
+
     const content = document.createElement('div');
-    content.className = 'choice-menu';
+    content.className = 'choice-menu-body';
+
+    this.promptEl = document.createElement('div');
+    this.promptEl.className = 'choice-menu-prompt';
+    this.promptEl.setAttribute('aria-live', 'polite');
 
     this.listEl = document.createElement('div');
     this.listEl.className = 'choice-menu-list';
@@ -23,40 +45,34 @@ export class ChoiceMenuPopup {
     this.detailsEl.className = 'choice-menu-details';
     this.detailsEl.setAttribute('aria-live', 'polite');
 
-    const footer = document.createElement('div');
-    footer.className = 'choice-menu-footer';
-    footer.innerHTML =
-      '<kbd>W / S</kbd><span>Navigate</span>' +
-      '<kbd>E</kbd><span>Confirm</span>' +
-      '<kbd>Esc</kbd><span>Cancel</span>';
-
+    content.appendChild(this.promptEl);
     content.appendChild(this.listEl);
     content.appendChild(this.detailsEl);
-    content.appendChild(footer);
 
-    this.popup = new PopupWindow(overlay, '', onCancel);
-    this.popup.setContent(content);
+    this.root.appendChild(header);
+    this.root.appendChild(content);
   }
 
   update(state: ChoiceMenuStateSnapshot | null): void {
     if (!state) {
-      if (this.popup.isOpen()) this.popup.close();
+      this.root.remove();
       return;
     }
 
-    this.popup.setTitle(state.title);
-    if (!this.popup.isOpen()) this.popup.open();
+    this.titleEl.textContent = state.title;
+    if (!this.root.isConnected) this.overlay.appendChild(this.root);
 
+    this.renderPrompt(state);
     this.rebuildList(state);
     this.renderDetails(state);
   }
 
   isOpen(): boolean {
-    return this.popup.isOpen();
+    return this.root.isConnected;
   }
 
   getOptionIndexAt(screenX: number, screenY: number): number | null {
-    if (!this.popup.isOpen()) {
+    if (!this.root.isConnected) {
       return null;
     }
 
@@ -72,7 +88,7 @@ export class ChoiceMenuPopup {
   }
 
   destroy(): void {
-    this.popup.destroy();
+    this.root.remove();
   }
 
   private rebuildList(state: ChoiceMenuStateSnapshot): void {
@@ -131,6 +147,18 @@ export class ChoiceMenuPopup {
       btn.classList.toggle('is-selected', i === state.selectedIndex);
       btn.classList.toggle('is-disabled', !!state.options[i]?.disabledReason);
     });
+  }
+
+  private renderPrompt(state: ChoiceMenuStateSnapshot): void {
+    const promptText = state.promptText?.trim();
+    if (!promptText) {
+      this.promptEl.textContent = '';
+      this.promptEl.classList.remove('has-content');
+      return;
+    }
+
+    this.promptEl.textContent = promptText;
+    this.promptEl.classList.add('has-content');
   }
 
   private renderDetails(state: ChoiceMenuStateSnapshot): void {

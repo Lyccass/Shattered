@@ -15,31 +15,56 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
     dialogue: [
       { text: 'Welcome. Browse my wares — good stock, fair prices.' },
     ],
-    options: [
-      {
-        id: 'shop',
-        label: 'Show me your wares.',
-        outcome: { kind: 'shop', shopId: 'maren_general' },
-      },
-      {
-        id: 'contracts',
-        label: 'Any work going?',
-        outcome: { kind: 'contract_board', boardId: 'harbor_contract_board_01' },
-      },
-      {
-        id: 'ask_place',
-        label: "What is this place?",
-        outcome: {
-          kind: 'reply',
-          npcText: 'Harbour Cove — crossroads of the archipelago. Everything passes through here eventually.',
+    dialogueTree: {
+      startNodeId: 'intro',
+      nodes: {
+        intro: {
+          npcText: 'Welcome. Browse my wares - good stock, fair prices.',
+          options: [
+            {
+              id: 'shop',
+              label: 'Show me your wares.',
+              outcome: { kind: 'shop', shopId: 'maren_general' },
+            },
+            {
+              id: 'contracts',
+              label: 'Any work going?',
+              outcome: { kind: 'contract_board', boardId: 'harbor_contract_board_01' },
+            },
+            {
+              id: 'ask_place',
+              label: 'What is this place?',
+              nextNodeId: 'explain_place',
+            },
+            {
+              id: 'bye',
+              label: 'Fair winds.',
+              end: true,
+            },
+          ],
+        },
+        explain_place: {
+          npcText: 'Harbour Cove is the crossing point. Salvagers come in from the outer islands, builders come looking for nails, and everyone pretends the sea is predictable.',
+          options: [
+            {
+              id: 'ask_work_after_place',
+              label: 'What sort of work passes through?',
+              outcome: { kind: 'contract_board', boardId: 'harbor_contract_board_01' },
+            },
+            {
+              id: 'back',
+              label: 'I wanted something else.',
+              nextNodeId: 'intro',
+            },
+            {
+              id: 'bye',
+              label: 'I should get moving.',
+              end: true,
+            },
+          ],
         },
       },
-      {
-        id: 'bye',
-        label: 'Farewell.',
-        outcome: { kind: 'close' },
-      },
-    ],
+    },
   },
   {
     id: 'harbor_warden',
@@ -241,6 +266,11 @@ export const NPC_DEFINITIONS: NpcDefinition[] = [
               id: 'back',
               label: 'Let me ask something else first.',
               nextNodeId: 'intro',
+            },
+            {
+              id: 'bye',
+              label: 'I will gather what I need.',
+              end: true,
             },
           ],
         },

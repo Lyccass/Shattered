@@ -12,12 +12,11 @@ export class ChatPanel {
   constructor(overlay: HTMLElement) {
     this.root = document.createElement('div');
     this.root.id = 'ui-chat';
-    this.root.classList.add('is-collapsed');
 
     this.root.innerHTML = `
       <div class="chat-log"></div>
       <div class="chat-tabs-row">
-        <button class="chat-toggle" title="Toggle log">Log</button>
+        <button class="chat-toggle" title="Toggle log">Hide</button>
         <button class="chat-tab is-active" data-channel="all">All</button>
         <button class="chat-tab" data-channel="game">Game</button>
         <button class="chat-tab" data-channel="combat">Combat</button>

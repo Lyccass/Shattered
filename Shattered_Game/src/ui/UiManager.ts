@@ -119,11 +119,13 @@ export class UiManager {
       this.overlay.pushMessage(result.combatLog, 'combat');
     }
 
-    // Primary message → chat
-    const channel = result.toastKind === 'reward'
-      ? 'reward'
-      : result.ok ? 'game' : 'error';
-    this.overlay.pushMessage(result.message, channel);
+    // Primary message → chat unless the interaction renders it in a richer UI.
+    if (result.logToChat !== false) {
+      const channel = result.toastKind === 'reward'
+        ? 'reward'
+        : result.ok ? 'game' : 'error';
+      this.overlay.pushMessage(result.message, channel);
+    }
 
     // XP lines → chat as reward
     formatSkillXpToastLines(result.xpDelta).forEach((line) => {

@@ -98,6 +98,7 @@ describe('NpcDialogueMenuHandler', () => {
     const handler = new NpcDialogueMenuHandler(npc, 'anchor_01', mockContractBoardSystem);
     const outcome = handler.onConfirm('ask', mockPlayerState);
 
+    expect(handler.getPromptText()).toBe('The archipelago of the Wake.');
     expect(outcome).toMatchObject({
       kind: 'result',
       result: expect.objectContaining({ message: 'The archipelago of the Wake.' }),
@@ -161,6 +162,7 @@ describe('NpcDialogueMenuHandler', () => {
       kind: 'result',
       result: { message: 'It appears where old gods are still dreaming.' },
     });
+    expect(handler.getPromptText()).toBe('It appears where old gods are still dreaming.');
     expect((next as { closeMenu?: boolean }).closeMenu).not.toBe(true);
     expect(handler.getOptions(player).map((option) => option.label)).toEqual(['I can help.']);
   });
@@ -274,16 +276,58 @@ describe('NPC_DEFINITIONS dialogue options', () => {
     expect(validateNpcDefinitions(NPC_DEFINITIONS)).toEqual({ ok: true });
   });
 
-  it('trader_maren has shop, contracts, a reply, and a close option', () => {
+  it('requires branching dialogue nodes to end with an exit option', () => {
+    const result = validateNpcDefinitions([
+      makeNpc({
+        dialogueTree: {
+          startNodeId: 'intro',
+          nodes: {
+            intro: {
+              npcText: 'Stay awhile.',
+              options: [
+                { id: 'ask', label: 'Tell me more.', nextNodeId: 'intro' },
+              ],
+            },
+          },
+        },
+      }),
+    ]);
+
+    expect(result).toEqual({
+      ok: false,
+      errors: ['NPC test_npc dialogueTree node intro options must end with an exit option.'],
+    });
+  });
+
+  it('trader_maren uses a responsive dialogue tree with exit at the bottom', () => {
     const maren = NPC_DEFINITIONS.find((d) => d.id === 'trader_maren');
-    expect(maren?.options).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ outcome: expect.objectContaining({ kind: 'shop' }) }),
-        expect.objectContaining({ outcome: expect.objectContaining({ kind: 'contract_board' }) }),
-        expect.objectContaining({ outcome: expect.objectContaining({ kind: 'reply' }) }),
-        expect.objectContaining({ outcome: expect.objectContaining({ kind: 'close' }) }),
-      ]),
+    const handler = new NpcDialogueMenuHandler(
+      maren as NpcDefinition,
+      'maren_anchor',
+      mockContractBoardSystem,
     );
+
+    expect(handler.getOptions(new RealPlayerSessionState()).map((option) => option.id)).toEqual([
+      'shop',
+      'contracts',
+      'ask_place',
+      'bye',
+    ]);
+
+    const outcome = handler.onConfirm('ask_place', new RealPlayerSessionState());
+    expect(outcome).toMatchObject({
+      kind: 'result',
+      result: expect.objectContaining({
+        ok: true,
+        message: expect.stringContaining('Harbour Cove is the crossing point'),
+      }),
+    });
+    expect(handler.getPromptText()).toContain('Harbour Cove is the crossing point');
+    expect(handler.getOptions(new RealPlayerSessionState()).map((option) => option.id)).toEqual([
+      'ask_work_after_place',
+      'back',
+      'bye',
+    ]);
   });
 
   it('every NPC definition with options has a close option', () => {

@@ -55,6 +55,11 @@ export class PopupWindow {
     this.el.classList.add(cls);
   }
 
+  /** Add a class to the backdrop when a popup needs non-modal behaviour. */
+  addBackdropModifier(cls: string): void {
+    this.backdrop.classList.add(cls);
+  }
+
   open(contentEl?: HTMLElement): void {
     if (contentEl) this.setContent(contentEl);
     if (this._isOpen) return;

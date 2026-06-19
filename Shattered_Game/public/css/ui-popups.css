@@ -425,18 +425,117 @@
    CHOICE MENU POPUP — workbench, contracts, npc menus
    ═══════════════════════════════════════════════════════ */
 
-.choice-menu {
+.choice-menu-shell {
+  position: absolute;
+  z-index: 202;
+  left: calc(var(--chat-w) + 16px);
+  right: calc(var(--panel-w) + var(--icon-col-w) + 16px);
+  bottom: 92px;
+  width: auto;
+  max-width: 680px;
+  height: 252px;
+  margin-left: auto;
+  margin-right: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-width: 340px;
+  background: rgba(18, 24, 10, 0.9);
+  backdrop-filter: blur(var(--glass-blur-popup));
+  -webkit-backdrop-filter: blur(var(--glass-blur-popup));
+  border: 1px solid var(--c-panel-border);
+  border-radius: var(--radius-md);
+  color: var(--c-text);
+  font-family: var(--font);
+  pointer-events: auto;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 252, 195, 0.08);
+}
+
+.choice-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 6px 8px 6px 12px;
+  border-bottom: 1px solid var(--c-panel-border);
+  background: rgba(97, 60, 24, 0.16);
+  flex-shrink: 0;
+}
+
+.choice-menu-title {
+  color: var(--c-primary);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.choice-menu-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--c-text-muted);
+  cursor: pointer;
+}
+
+.choice-menu-close::before {
+  content: 'X';
+  font-size: var(--fs-sm);
+}
+
+.choice-menu-close:hover {
+  color: var(--c-text);
+  background: var(--c-slot-hover);
+  border-color: var(--c-secondary);
+}
+
+.choice-menu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px 12px;
+}
+
+.choice-menu-prompt {
+  display: none;
+  flex-shrink: 0;
+  height: 76px;
+  padding: 8px 10px;
+  background: rgba(255, 252, 195, 0.05);
+  border: 1px solid rgba(126, 83, 36, 0.48);
+  border-left: 3px solid var(--c-secondary);
+  color: var(--c-text);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+.choice-menu-prompt.has-content {
+  display: block;
 }
 
 /* ── Option list ──────────────────────────────────────── */
 .choice-menu-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: none;
+  padding-right: 2px;
+}
+
+@media (max-width: 1320px) {
+  .choice-menu-shell {
+    left: 16px;
+    right: calc(var(--icon-col-w) + 16px);
+    width: auto;
+  }
 }
 
 .choice-option {
@@ -444,7 +543,7 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 6px 9px;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 2px;
@@ -524,9 +623,10 @@
 /* ── Details card ─────────────────────────────────────── */
 .choice-menu-details {
   display: none;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 14px;
+  padding: 8px 10px;
   background: var(--c-surface-alt);
   border: 1px solid var(--c-secondary-dark);
   border-radius: 2px;
@@ -561,9 +661,10 @@
 /* ── Footer key hints ─────────────────────────────────── */
 .choice-menu-footer {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  padding-top: 4px;
+  padding-top: 2px;
   border-top: 1px solid var(--c-secondary-dark);
   font-size: var(--fs-xs);
   color: var(--c-text-muted);

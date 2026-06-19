@@ -146,6 +146,7 @@ export function formatChoiceMenuText(state: ChoiceMenuStateSnapshot | null): str
   const lines = [
     `[${state.title}]`,
     '',
+    ...(state.promptText ? [state.promptText, ''] : []),
     ...state.options.map((option, index) => {
       const prefix = index === state.selectedIndex ? '> ' : '  ';
       const statusSuffix = option.disabledReason ? ` [${option.disabledReason}]` : '';
