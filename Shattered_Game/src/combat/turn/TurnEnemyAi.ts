@@ -2,12 +2,15 @@ import {
   advanceTurn,
   applyAction,
   getActiveParticipant,
+  resolveActiveParticipantMechanics,
   resolvePendingTelegraphsForActor,
 } from './TurnCombatEngine';
 import type { ActionOutcome, TurnAction, TurnAttack, TurnCombatState, TurnParticipant } from './TurnCombatTypes';
 import {
-  chebyshevDist,
   getBestApproachTile,
+  getFootprintDistance,
+  getParticipantDistance,
+  getParticipantFootprintSize,
   getAttackableTargets,
   getReachableTiles,
   getUsableAttacks,
@@ -78,6 +81,11 @@ export function resolveEnemyTurnStep(
       return { outcomes: resolved.outcomes, state: resolved.state, turnComplete: true };
     }
     return { outcomes: resolved.outcomes, state: resolved.state, turnComplete: false };
+  }
+
+  const mechanics = resolveActiveParticipantMechanics(state, actor.id, tileCtx);
+  if (mechanics.outcomes.length > 0) {
+    return { outcomes: mechanics.outcomes, state: mechanics.state, turnComplete: false };
   }
 
   const action = chooseEnemyAction(state, tileCtx);
@@ -233,7 +241,7 @@ function chooseRangedPressureMove(
   const target = pickMoveTarget(actor, state);
   if (!target) return null;
 
-  const distance = chebyshevDist(actor.tileX, actor.tileY, target.tileX, target.tileY);
+  const distance = getParticipantDistance(actor, target);
   if (distance >= pressureAttack.minRangeTiles && distance <= pressureAttack.maxRangeTiles) {
     return null;
   }
@@ -265,10 +273,13 @@ function findTileForAttackRange(
   let bestScore = Number.NEGATIVE_INFINITY;
 
   for (const tile of reachable) {
-    const dist = chebyshevDist(tile.x, tile.y, target.tileX, target.tileY);
+    const dist = getFootprintDistance(
+      { x: tile.x, y: tile.y, size: getParticipantFootprintSize(actor) },
+      { x: target.tileX, y: target.tileY, size: getParticipantFootprintSize(target) },
+    );
     if (dist < attack.minRangeTiles || dist > attack.maxRangeTiles) continue;
 
-    const currentDist = chebyshevDist(actor.tileX, actor.tileY, target.tileX, target.tileY);
+    const currentDist = getParticipantDistance(actor, target);
     const distanceGain = dist - currentDist;
     const flankScore = getFlankScore(tile, target);
     const score = distanceGain + flankScore * 0.25;
@@ -287,8 +298,8 @@ function pickMoveTarget(actor: TurnParticipant, state: TurnCombatState): TurnPar
   );
   if (threats.length === 0) return null;
   return threats.reduce<TurnParticipant>((best, p) => {
-    const distP    = chebyshevDist(actor.tileX, actor.tileY, p.tileX, p.tileY);
-    const distBest = chebyshevDist(actor.tileX, actor.tileY, best.tileX, best.tileY);
+    const distP    = getParticipantDistance(actor, p);
+    const distBest = getParticipantDistance(actor, best);
     if (distP < distBest) return p;
     // prefer player at equal distance
     if (distP === distBest && p.kind === 'player') return p;
@@ -309,14 +320,20 @@ function getFlankOrBestApproachTile(
   const best = getBestApproachTile(actor, moveTarget.tileX, moveTarget.tileY, state, tileCtx);
   if (!best) return null;
 
-  const bestDist = chebyshevDist(best.x, best.y, moveTarget.tileX, moveTarget.tileY);
+  const bestDist = getFootprintDistance(
+    { x: best.x, y: best.y, size: getParticipantFootprintSize(actor) },
+    { x: moveTarget.tileX, y: moveTarget.tileY, size: getParticipantFootprintSize(moveTarget) },
+  );
   const reachable = getReachableTiles(actor, state, tileCtx);
 
   let topScore = getFlankScore(best, moveTarget);
   let topTile = best;
 
   for (const tile of reachable) {
-    const distToTarget = chebyshevDist(tile.x, tile.y, moveTarget.tileX, moveTarget.tileY);
+    const distToTarget = getFootprintDistance(
+      { x: tile.x, y: tile.y, size: getParticipantFootprintSize(actor) },
+      { x: moveTarget.tileX, y: moveTarget.tileY, size: getParticipantFootprintSize(moveTarget) },
+    );
     // Accept tiles up to 1 further than the optimal approach distance
     if (distToTarget > bestDist + 1) continue;
     const score = getFlankScore(tile, moveTarget);
@@ -364,7 +381,7 @@ function findRetreatTile(
   if (reachable.length === 0) return null;
 
   const currentMinDist = Math.min(
-    ...threats.map((t) => chebyshevDist(actor.tileX, actor.tileY, t.tileX, t.tileY)),
+    ...threats.map((t) => getParticipantDistance(actor, t)),
   );
 
   let bestMinDist = currentMinDist;
@@ -372,7 +389,10 @@ function findRetreatTile(
 
   for (const tile of reachable) {
     const minDist = Math.min(
-      ...threats.map((t) => chebyshevDist(tile.x, tile.y, t.tileX, t.tileY)),
+      ...threats.map((t) => getFootprintDistance(
+        { x: tile.x, y: tile.y, size: getParticipantFootprintSize(actor) },
+        { x: t.tileX, y: t.tileY, size: getParticipantFootprintSize(t) },
+      )),
     );
     if (minDist > bestMinDist) {
       bestMinDist = minDist;

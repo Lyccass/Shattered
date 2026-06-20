@@ -1,6 +1,8 @@
 import type { EnemyTurnVisualState } from './EnemyVisualController';
 import type { EnemyVisualId } from './EnemyTypes';
 
+export type EnemyVisualDirection = 'NE' | 'NW' | 'SE' | 'SW';
+
 export type EnemyVisualAnimationDefinition = {
   sheetKey: string;
   path: string;
@@ -11,6 +13,16 @@ export type EnemyVisualAnimationDefinition = {
   frameRate: number;
   repeat: number;
 };
+
+export type EnemyVisualAnimationSet =
+  | { kind: 'single'; animation: EnemyVisualAnimationDefinition }
+  | { kind: 'directional'; animations: Record<EnemyVisualDirection, EnemyVisualAnimationDefinition> };
+
+type DirectionalFrameSize =
+  | { width: number; height: number }
+  | Record<EnemyVisualDirection, { width: number; height: number }>;
+
+const DIRECTIONS: EnemyVisualDirection[] = ['NE', 'NW', 'SE', 'SW'];
 
 export type EnemyVisualDefinition = {
   id: EnemyVisualId;
@@ -23,7 +35,7 @@ export type EnemyVisualDefinition = {
     radiusY: number;
   };
   healthBarOffsetY: number;
-  animations: Record<EnemyTurnVisualState, EnemyVisualAnimationDefinition>;
+  animations: Record<EnemyTurnVisualState, EnemyVisualAnimationSet>;
 };
 
 const wolfIdle = animation('wolf', 'idle', ['Wolf', 'wolf-idle.png'], 64, 64, 0, 3, 6, -1);
@@ -32,17 +44,27 @@ const wolfHowl = animation('wolf', 'windup', ['Wolf', 'wolf-howl.png'], 64, 64, 
 const wolfBite = animation('wolf', 'attack', ['Wolf', 'wolf-bite.png'], 64, 64, 0, 14, 14, 0);
 const wolfDeath = animation('wolf', 'death', ['Wolf', 'wolf-death.png'], 64, 64, 0, 11, 10, 0);
 
-const boarIdle = animation('boar', 'idle', ['boar', 'boar_NE_idle_strip.png'], 41, 30, 0, 6, 7, -1);
-const boarRun = animation('boar', 'run', ['boar', 'boar_NE_run_strip.png'], 41, 30, 0, 3, 10, -1);
+const boarIdle = directional('boar', 'idle', 'boar_{dir}_idle_strip.png', {
+  NE: { width: 41, height: 30 },
+  NW: { width: 40, height: 30 },
+  SE: { width: 41, height: 25 },
+  SW: { width: 41, height: 25 },
+}, 0, 6, 7, -1);
+const boarRun = directional('boar', 'run', 'boar_{dir}_run_strip.png', {
+  NE: { width: 41, height: 30 },
+  NW: { width: 40, height: 30 },
+  SE: { width: 41, height: 25 },
+  SW: { width: 41, height: 25 },
+}, 0, 3, 10, -1);
 
-const badgerIdle = animation('badger', 'idle', ['badger', 'critter_badger_NE_idle.png'], 42, 32, 0, 21, 7, -1);
-const badgerWalk = animation('badger', 'walk', ['badger', 'critter_badger_NE_walk.png'], 42, 32, 0, 8, 9, -1);
-const badgerBurrow = animation('badger', 'burrow', ['badger', 'critter_badger_NE_burrow.png'], 42, 32, 0, 24, 14, 0);
-const badgerTunnel = animation('badger', 'tunnel', ['badger', 'critter_badger_NE_tunnel.png'], 42, 32, 0, 4, 10, -1);
+const badgerIdle = directional('badger', 'idle', 'critter_badger_{dir}_idle.png', { width: 42, height: 32 }, 0, 21, 7, -1);
+const badgerWalk = directional('badger', 'walk', 'critter_badger_{dir}_walk.png', { width: 42, height: 32 }, 0, 8, 9, -1);
+const badgerBurrow = directional('badger', 'burrow', 'critter_badger_{dir}_burrow.png', { width: 42, height: 32 }, 0, 24, 14, 0);
+const badgerTunnel = directional('badger', 'tunnel', 'critter_badger_{dir}_tunnel.png', { width: 42, height: 32 }, 0, 4, 10, -1);
 
-const stagIdle = animation('stag', 'idle', ['stag', 'critter_stag_NE_idle.png'], 32, 41, 0, 23, 7, -1);
-const stagWalk = animation('stag', 'walk', ['stag', 'critter_stag_NE_walk.png'], 32, 41, 0, 10, 8, -1);
-const stagRun = animation('stag', 'run', ['stag', 'critter_stag_NE_run.png'], 32, 41, 0, 9, 11, -1);
+const stagIdle = directional('stag', 'idle', 'critter_stag_{dir}_idle.png', { width: 32, height: 41 }, 0, 23, 7, -1);
+const stagWalk = directional('stag', 'walk', 'critter_stag_{dir}_walk.png', { width: 32, height: 41 }, 0, 10, 8, -1);
+const stagRun = directional('stag', 'run', 'critter_stag_{dir}_run.png', { width: 32, height: 41 }, 0, 9, 11, -1);
 
 export const ENEMY_VISUAL_DEFINITIONS: Record<EnemyVisualId, EnemyVisualDefinition> = {
   wolf: {
@@ -53,12 +75,12 @@ export const ENEMY_VISUAL_DEFINITIONS: Record<EnemyVisualId, EnemyVisualDefiniti
     shadow: { offsetY: 0, radiusX: 22, radiusY: 9 },
     healthBarOffsetY: 38,
     animations: {
-      idle: wolfIdle,
-      moving: wolfRun,
-      windup: wolfHowl,
-      attacking: wolfBite,
-      hurt: wolfIdle,
-      dead: wolfDeath,
+      idle: single(wolfIdle),
+      moving: single(wolfRun),
+      windup: single(wolfHowl),
+      attacking: single(wolfBite),
+      hurt: single(wolfIdle),
+      dead: single(wolfDeath),
     },
   },
   boar: {
@@ -118,8 +140,50 @@ export function getEnemyVisualDefinition(id: EnemyVisualId): EnemyVisualDefiniti
 export function getEnemyAnimationKey(
   visualId: EnemyVisualId,
   state: EnemyTurnVisualState,
+  direction?: EnemyVisualDirection,
 ): string {
-  return `enemy-${visualId}-${state}`;
+  return direction ? `enemy-${visualId}-${state}-${direction}` : `enemy-${visualId}-${state}`;
+}
+
+export function resolveEnemyAnimation(
+  visual: EnemyVisualDefinition,
+  state: EnemyTurnVisualState,
+  direction: EnemyVisualDirection,
+): { key: string; animation: EnemyVisualAnimationDefinition; directional: boolean } {
+  const set = visual.animations[state];
+  if (set.kind === 'single') {
+    return {
+      key: getEnemyAnimationKey(visual.id, state),
+      animation: set.animation,
+      directional: false,
+    };
+  }
+
+  return {
+    key: getEnemyAnimationKey(visual.id, state, direction),
+    animation: set.animations[direction],
+    directional: true,
+  };
+}
+
+export function listEnemyVisualAnimations(
+  visual: EnemyVisualDefinition,
+): Array<{ key: string; animation: EnemyVisualAnimationDefinition }> {
+  const results: Array<{ key: string; animation: EnemyVisualAnimationDefinition }> = [];
+  for (const [state, set] of Object.entries(visual.animations) as Array<[EnemyTurnVisualState, EnemyVisualAnimationSet]>) {
+    if (set.kind === 'single') {
+      results.push({ key: getEnemyAnimationKey(visual.id, state), animation: set.animation });
+      continue;
+    }
+
+    for (const [direction, animationDefinition] of Object.entries(set.animations) as Array<[EnemyVisualDirection, EnemyVisualAnimationDefinition]>) {
+      results.push({
+        key: getEnemyAnimationKey(visual.id, state, direction),
+        animation: animationDefinition,
+      });
+    }
+  }
+  return results;
 }
 
 function animation(
@@ -143,6 +207,43 @@ function animation(
     frameRate,
     repeat,
   };
+}
+
+function single(animationDefinition: EnemyVisualAnimationDefinition): EnemyVisualAnimationSet {
+  return { kind: 'single', animation: animationDefinition };
+}
+
+function directional(
+  visualId: EnemyVisualId,
+  id: string,
+  filenamePattern: string,
+  frameSize: DirectionalFrameSize,
+  start: number,
+  end: number,
+  frameRate: number,
+  repeat: number,
+): EnemyVisualAnimationSet {
+  const animations = DIRECTIONS.reduce((acc, direction) => {
+    const size = isPerDirectionSize(frameSize) ? frameSize[direction] : frameSize;
+    acc[direction] = animation(
+      visualId,
+      `${id}-${direction}`,
+      [visualId, filenamePattern.replace('{dir}', direction)],
+      size.width,
+      size.height,
+      start,
+      end,
+      frameRate,
+      repeat,
+    );
+    return acc;
+  }, {} as Record<EnemyVisualDirection, EnemyVisualAnimationDefinition>);
+
+  return { kind: 'directional', animations };
+}
+
+function isPerDirectionSize(frameSize: DirectionalFrameSize): frameSize is Record<EnemyVisualDirection, { width: number; height: number }> {
+  return 'NE' in frameSize;
 }
 
 function buildAssetPath(parts: string[]): string {

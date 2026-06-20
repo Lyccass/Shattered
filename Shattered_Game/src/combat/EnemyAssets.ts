@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   ENEMY_VISUAL_DEFINITIONS,
-  getEnemyAnimationKey,
+  listEnemyVisualAnimations,
 } from './EnemyVisualDefinitions';
 
 export const ENEMY_WOLF_IDLE_SHEET_KEY = 'enemy-wolf-idle-sheet';
@@ -17,10 +17,10 @@ export const ENEMY_WOLF_ATTACK_ANIMATION_KEY = 'enemy-wolf-attack';
 export const ENEMY_WOLF_DEATH_ANIMATION_KEY = 'enemy-wolf-death';
 
 export function preloadEnemyAssets(scene: Phaser.Scene): void {
-  for (const visual of Object.values(ENEMY_VISUAL_DEFINITIONS)) {
-    const loadedSheets = new Set<string>();
+  const loadedSheets = new Set<string>();
 
-    for (const animation of Object.values(visual.animations)) {
+  for (const visual of Object.values(ENEMY_VISUAL_DEFINITIONS)) {
+    for (const { animation } of listEnemyVisualAnimations(visual)) {
       if (loadedSheets.has(animation.sheetKey) || scene.textures.exists(animation.sheetKey)) {
         continue;
       }
@@ -36,11 +36,10 @@ export function preloadEnemyAssets(scene: Phaser.Scene): void {
 
 export function createEnemyAnimations(scene: Phaser.Scene): void {
   for (const visual of Object.values(ENEMY_VISUAL_DEFINITIONS)) {
-    for (const state of Object.keys(visual.animations) as Array<keyof typeof visual.animations>) {
-      const animation = visual.animations[state];
+    for (const { key, animation } of listEnemyVisualAnimations(visual)) {
       createAnimation(
         scene,
-        getEnemyAnimationKey(visual.id, state),
+        key,
         animation.sheetKey,
         animation.start,
         animation.end,

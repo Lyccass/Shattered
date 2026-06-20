@@ -1122,13 +1122,18 @@ function getEntityMarkerChunkBounds(
     };
   }
 
-  const minX = Math.floor(playerTileX / chunkSize) * chunkSize;
-  const minY = Math.floor(playerTileY / chunkSize) * chunkSize;
+  const centerChunkX = Math.floor(playerTileX / chunkSize);
+  const centerChunkY = Math.floor(playerTileY / chunkSize);
+  const minX = Math.max(0, (centerChunkX - 1) * chunkSize);
+  const minY = Math.max(0, (centerChunkY - 1) * chunkSize);
+  const maxX = Math.min(runtime.definition.width - 1, (centerChunkX + 2) * chunkSize - 1);
+  const maxY = Math.min(runtime.definition.height - 1, (centerChunkY + 2) * chunkSize - 1);
+
   return {
     minX,
-    maxX: minX + chunkSize - 1,
+    maxX,
     minY,
-    maxY: minY + chunkSize - 1,
+    maxY,
   };
 }
 

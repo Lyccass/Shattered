@@ -6,6 +6,7 @@ import {
   calculateTurnHitChance,
   createCombatState,
   buildUiSnapshot,
+  resolveActiveParticipantMechanics,
   resolvePendingTelegraphsForActor,
 } from './TurnCombatEngine';
 import { chooseEnemyAction, resolveEnemyTurn, resolveEnemyTurnStep } from './TurnEnemyAi';
@@ -135,6 +136,198 @@ describe('addParticipantsToCombatState', () => {
     expect(joined.participants.some((p) => p.id === 'e2')).toBe(true);
     expect(joined.turnOrderIds).toContain('e2');
     expect(joined.turnOrderIds[joined.activeIndex]).toBe('player');
+  });
+});
+
+describe('combat objects and footprints', () => {
+  it('keeps combat objects out of the turn order', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const player = makePlayer({ initiative: 1 });
+    const enemy = makeEnemy('e1', { initiative: 10 });
+    const pillar = makeEnemy('pillar', {
+      kind: 'object',
+      name: 'Earth Pillar',
+      tileX: 11,
+      tileY: 10,
+      hp: 6,
+      maxHp: 6,
+      apMax: 0,
+      mpMax: 0,
+      apRemaining: 0,
+      mpRemaining: 0,
+      combatObjectKind: 'earth_pillar',
+      protectsParticipantId: 'e1',
+    });
+
+    const state = createCombatState([pillar, enemy, player]);
+
+    expect(state.participants.some((participant) => participant.id === 'pillar')).toBe(true);
+    expect(state.turnOrderIds).toEqual(['player', 'e1']);
+  });
+
+  it('treats every tile of a 2x2 footprint as occupied', () => {
+    const player = makePlayer({ initiative: 1, tileX: 9, tileY: 10, mpRemaining: 3 });
+    const boss = makeEnemy('boss', {
+      tileX: 11,
+      tileY: 10,
+      footprintSize: 2,
+      initiative: 10,
+    });
+    const state = {
+      ...createCombatState([player, boss]),
+      turnOrderIds: ['player', 'boss'],
+      activeIndex: 0,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome } = applyAction(state, { kind: 'move', toTileX: 12, toTileY: 11 }, OPEN_CTX);
+
+    expect(outcome.kind).toBe('invalid');
+  });
+
+  it('allows attacks against any adjacent edge of a 2x2 target', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 11,
+      attackRangeTiles: 1,
+      attacks: [{
+        id: 'strike',
+        displayName: 'Strike',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        hitChance: 100,
+      }],
+    });
+    const boss = makeEnemy('boss', {
+      tileX: 11,
+      tileY: 10,
+      footprintSize: 2,
+      hp: 10,
+      maxHp: 10,
+    });
+    const state = {
+      participants: [player, boss],
+      turnOrderIds: ['player', 'boss'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome } = applyAction(state, { kind: 'attack', targetId: 'boss', attackId: 'strike' }, OPEN_CTX);
+
+    expect(outcome).toMatchObject({ kind: 'attacked', targetId: 'boss' });
+  });
+
+  it('spawns earth pillars around a wounded protected enemy', () => {
+    const player = makePlayer({ tileX: 10, tileY: 10 });
+    const boss = makeEnemy('boss', {
+      tileX: 13,
+      tileY: 10,
+      footprintSize: 2,
+      hp: 12,
+      maxHp: 30,
+      earthPillarPhase: {
+        id: 'rootbound_shell',
+        hpRatio: 0.6,
+        pillarCount: 4,
+        pillarHp: 6,
+        healPerTurn: 3,
+        magicImmuneWhileActive: true,
+      },
+    });
+    const state = {
+      participants: [player, boss],
+      turnOrderIds: ['boss', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const resolved = resolveActiveParticipantMechanics(state, 'boss', OPEN_CTX);
+
+    expect(resolved.outcomes).toEqual([
+      { kind: 'combat_objects_spawned', actorId: 'boss', objectIds: expect.arrayContaining([
+        'boss_earth_pillar_1',
+        'boss_earth_pillar_2',
+        'boss_earth_pillar_3',
+        'boss_earth_pillar_4',
+      ]) },
+    ]);
+    expect(resolved.state.participants.filter((participant) => participant.kind === 'object')).toHaveLength(4);
+    expect(resolved.state.turnOrderIds).toEqual(['boss', 'player']);
+  });
+
+  it('blocks combat spells against protected enemies until pillars are destroyed', () => {
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      magicResourceMax: 2,
+      magicResourceRemaining: 2,
+      abilities: [{
+        id: 'spark',
+        displayName: 'Spark',
+        kind: 'combat_spell',
+        target: 'enemy',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 6,
+        damage: 3,
+        magicCost: 1,
+        hitChance: 100,
+      }],
+    });
+    const boss = makeEnemy('boss', {
+      tileX: 13,
+      tileY: 10,
+      footprintSize: 2,
+      hp: 12,
+      maxHp: 30,
+      earthPillarPhase: {
+        id: 'rootbound_shell',
+        hpRatio: 0.6,
+        pillarCount: 4,
+        pillarHp: 6,
+        healPerTurn: 3,
+        magicImmuneWhileActive: true,
+      },
+    });
+    const pillar = makeEnemy('pillar', {
+      kind: 'object',
+      name: 'Earth Pillar',
+      tileX: 12,
+      tileY: 10,
+      hp: 6,
+      maxHp: 6,
+      combatObjectKind: 'earth_pillar',
+      protectsParticipantId: 'boss',
+    });
+    const state = {
+      participants: [player, boss, pillar],
+      turnOrderIds: ['player', 'boss'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const blocked = applyAction(state, { kind: 'use_ability', abilityId: 'spark', targetId: 'boss' }, OPEN_CTX);
+
+    expect(blocked.outcome).toMatchObject({
+      kind: 'invalid',
+      reason: 'Target is protected by earth pillars.',
+    });
+    expect(blocked.state.participants.find((participant) => participant.id === 'player')?.magicResourceRemaining).toBe(2);
+
+    const opened = applyAction({
+      ...state,
+      participants: state.participants.map((participant) =>
+        participant.id === 'pillar' ? { ...participant, hp: 0 } : participant,
+      ),
+    }, { kind: 'use_ability', abilityId: 'spark', targetId: 'boss' }, OPEN_CTX);
+
+    expect(opened.outcome.kind).toBe('ability_used');
   });
 });
 
@@ -1200,6 +1393,59 @@ describe('attack action', () => {
     expect(next.turnOrderIds).toEqual(['player', 'e2', 'e1']);
   });
 
+  it('stuns a pushed target when forced into blocked terrain', () => {
+    vi.spyOn(Math, 'random')
+      .mockReturnValueOnce(0.5)
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99);
+
+    const player = makePlayer({
+      tileX: 10,
+      tileY: 10,
+      attacks: [{
+        id: 'shield_bash',
+        displayName: 'Shield Bash',
+        apCost: 1,
+        minRangeTiles: 0,
+        maxRangeTiles: 1,
+        damage: 1,
+        hitChance: 100,
+        forcedMovement: { kind: 'push', distance: 1 },
+      }],
+    });
+    const enemy = makeEnemy('e1', {
+      tileX: 11,
+      tileY: 10,
+      hp: 10,
+    });
+    const blockedCtx: TurnTileContext = {
+      ...OPEN_CTX,
+      isTileWalkable: (x, y) => !(x === 12 && y === 10),
+    };
+    const state = {
+      participants: [player, enemy],
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'player_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'e1', attackId: 'shield_bash' },
+      blockedCtx,
+    );
+
+    expect(outcome).toMatchObject({
+      kind: 'attacked',
+      pushed: { collisionStun: true },
+      statusApplied: { kind: 'stunned', turnsRemaining: 2 },
+    });
+    const pushed = next.participants.find((p) => p.id === 'e1')!;
+    expect({ x: pushed.tileX, y: pushed.tileY }).toEqual({ x: 11, y: 10 });
+    expect(pushed.statusEffects.some((effect) => effect.kind === 'stunned')).toBe(true);
+  });
+
   it('defaults to the first usable attack and spends that main action cost', () => {
     vi.spyOn(Math, 'random')
       .mockReturnValueOnce(0)
@@ -1335,6 +1581,51 @@ describe('attack action', () => {
     expect(next.participants.find((p) => p.id === 'player')?.hp).toBe(10);
     expect(next.pendingTelegraphs).toHaveLength(1);
     expect(next.pendingTelegraphs?.[0].tiles.some((tile) => tile.x === 10 && tile.y === 10)).toBe(true);
+  });
+
+  it('draws wide line telegraphs from the front of a 2x2 actor footprint', () => {
+    const player = makePlayer({ tileX: 16, tileY: 10, hp: 10 });
+    const boss = makeEnemy('boss', {
+      tileX: 10,
+      tileY: 10,
+      footprintSize: 2,
+      attacks: [{
+        id: 'charge',
+        displayName: 'Charge',
+        apCost: 1,
+        minRangeTiles: 2,
+        maxRangeTiles: 6,
+        damage: 3,
+        hitChance: 100,
+        telegraph: { pattern: 'line', length: 4, widthTiles: 2, warningDamageMultiplier: 0.5 },
+      }],
+    });
+    const state = {
+      participants: [boss, player],
+      pendingTelegraphs: [],
+      turnOrderIds: ['boss', 'player'],
+      activeIndex: 0,
+      round: 1,
+      phase: 'enemy_turn' as const,
+    };
+
+    const { outcome, state: next } = applyAction(
+      state,
+      { kind: 'attack', targetId: 'player', attackId: 'charge' },
+      OPEN_CTX,
+    );
+
+    expect(outcome).toMatchObject({ kind: 'telegraph_prepared', attackId: 'charge' });
+    expect(next.pendingTelegraphs?.[0].tiles).toEqual([
+      { x: 12, y: 10, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 12, y: 11, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 13, y: 10, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 13, y: 11, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 14, y: 10, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 14, y: 11, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 15, y: 10, intensity: 'warning', damageMultiplier: 0.5 },
+      { x: 15, y: 11, intensity: 'warning', damageMultiplier: 0.5 },
+    ]);
   });
 
   it('keeps newly prepared enemy telegraphs pending until that enemy acts again', () => {
@@ -1566,6 +1857,27 @@ describe('turn advancement', () => {
     const p = next.participants.find((pp) => pp.id === 'player')!;
     expect(p.apRemaining).toBe(p.apMax);
     expect(p.mpRemaining).toBe(p.mpMax);
+  });
+
+  it('restores bonus AP for enemies below their enrage threshold', () => {
+    const player = makePlayer({ initiative: 1 });
+    const enemy = makeEnemy('e1', {
+      initiative: 10,
+      hp: 3,
+      maxHp: 10,
+      apRemaining: 0,
+      enrage: { hpRatio: 0.35, apBonus: 1, hitChanceMultiplier: 0.65 },
+    });
+    const state = {
+      ...createCombatState([player, enemy]),
+      turnOrderIds: ['player', 'e1'],
+      activeIndex: 0,
+      phase: 'player_turn' as const,
+    };
+
+    const { state: next } = advanceTurn(state);
+    const enraged = next.participants.find((pp) => pp.id === 'e1')!;
+    expect(enraged.apRemaining).toBe(2);
   });
 
   it('skips dead participants in the turn order', () => {

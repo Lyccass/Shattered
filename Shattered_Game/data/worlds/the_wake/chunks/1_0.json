@@ -1158,6 +1158,15 @@
             "respawnMs": 90000,
             "weight": 1
           }
+        ],
+        "manualSpawns": [
+          {
+            "id": "wake_boar_thicket_tuskuss",
+            "enemyDefinitionId": "boar_boss",
+            "tileX": 7,
+            "tileY": 23,
+            "respawnMs": 180000
+          }
         ]
       },
       {

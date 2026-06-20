@@ -2,12 +2,18 @@ import Phaser from 'phaser';
 import { getDynamicDepth } from '../render/RenderLayers';
 import type { EnemyVisualId } from './EnemyTypes';
 import {
-  getEnemyAnimationKey,
   getEnemyVisualDefinition,
+  resolveEnemyAnimation,
   type EnemyVisualDefinition,
+  type EnemyVisualDirection,
 } from './EnemyVisualDefinitions';
 
 export type EnemyTurnVisualState = 'idle' | 'moving' | 'windup' | 'attacking' | 'hurt' | 'dead';
+export type EnemyFacingVector = { x: -1 | 0 | 1; y: -1 | 0 | 1 };
+export type EnemyVisualOverrides = {
+  tint?: number;
+  scaleMultiplier?: number;
+};
 
 const HIT_FLASH_MS = 120;
 
@@ -21,13 +27,17 @@ export class EnemyVisualController {
   private currentAnimKey:   string | null = null;
   private hitFlashUntilMs = 0;
   private visualDefinition: EnemyVisualDefinition = getEnemyVisualDefinition('wolf');
+  private currentDirection: EnemyVisualDirection = 'SE';
+  private visualOverrides: EnemyVisualOverrides = {};
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  spawn(worldX: number, worldY: number, visualId: EnemyVisualId): void {
+  spawn(worldX: number, worldY: number, visualId: EnemyVisualId, overrides: EnemyVisualOverrides = {}): void {
     this.destroy();
     this.visualDefinition = getEnemyVisualDefinition(visualId);
-    const idleAnimation = this.visualDefinition.animations.idle;
+    this.visualOverrides = { ...overrides };
+    this.currentDirection = 'SE';
+    const idleAnimation = resolveEnemyAnimation(this.visualDefinition, 'idle', this.currentDirection);
     const shadow = this.visualDefinition.shadow;
     this.shadow = this.scene.add.ellipse(
       worldX,
@@ -37,11 +47,11 @@ export class EnemyVisualController {
       SHADOW.color,
       SHADOW.alpha,
     );
-    this.visual = this.scene.add.sprite(worldX, worldY, idleAnimation.sheetKey, 0);
+    this.visual = this.scene.add.sprite(worldX, worldY, idleAnimation.animation.sheetKey, 0);
     this.healthBarGfx = this.scene.add.graphics();
     this.visual.setOrigin(this.visualDefinition.originX, this.visualDefinition.originY);
-    this.visual.setScale(this.visualDefinition.scale);
-    this.currentAnimKey = getEnemyAnimationKey(this.visualDefinition.id, 'idle');
+    this.visual.setScale(this.getScale());
+    this.currentAnimKey = idleAnimation.key;
     this.visual.play(this.currentAnimKey);
   }
 
@@ -56,7 +66,7 @@ export class EnemyVisualController {
   applyTurnState(
     worldX: number,
     worldY: number,
-    facingRightward: boolean,
+    facing: EnemyFacingVector,
     hp: number,
     maxHp: number,
     visualState: EnemyTurnVisualState,
@@ -65,20 +75,26 @@ export class EnemyVisualController {
   ): void {
     if (!this.visual) return;
 
+    const nextDirection = resolveDirection(facing, this.currentDirection);
+    this.currentDirection = nextDirection;
+
     const shadow = this.visualDefinition.shadow;
     this.shadow?.setPosition(worldX, worldY + shadow.offsetY);
     this.shadow?.setDepth(getDynamicDepth(worldY, 4));
 
     this.visual.setPosition(worldX, worldY);
-    this.visual.setFlipX(facingRightward);
-    this.visual.setScale(this.visualDefinition.scale);
+    this.visual.setScale(this.getScale());
     this.visual.setDepth(getDynamicDepth(worldY, 8));
     this.visual.clearTint();
+    if (this.visualOverrides.tint !== undefined) {
+      this.visual.setTint(this.visualOverrides.tint);
+    }
 
-    const animKey = getEnemyAnimationKey(this.visualDefinition.id, visualState);
-    if (animKey !== this.currentAnimKey) {
-      this.visual.play(animKey);
-      this.currentAnimKey = animKey;
+    const animation = resolveEnemyAnimation(this.visualDefinition, visualState, nextDirection);
+    this.visual.setFlipX(!animation.directional && facing.x > 0);
+    if (animation.key !== this.currentAnimKey) {
+      this.visual.play(animation.key);
+      this.currentAnimKey = animation.key;
     }
 
     switch (visualState) {
@@ -102,7 +118,7 @@ export class EnemyVisualController {
     if (nowMs < this.hitFlashUntilMs) {
       this.visual.setTint(0xffffff);
       const t = (this.hitFlashUntilMs - nowMs) / HIT_FLASH_MS;
-      this.visual.setScale(this.visualDefinition.scale * (1 + 0.12 * t));
+      this.visual.setScale(this.getScale() * (1 + 0.12 * t));
     }
 
     this.updateHealthBar(hp, maxHp, worldX, worldY, visualState, showHealthBar);
@@ -131,6 +147,11 @@ export class EnemyVisualController {
     this.healthBarGfx?.destroy();
     this.healthBarGfx = null;
     this.currentAnimKey = null;
+    this.visualOverrides = {};
+  }
+
+  private getScale(): number {
+    return this.visualDefinition.scale * (this.visualOverrides.scaleMultiplier ?? 1);
   }
 
   private updateHealthBar(
@@ -165,4 +186,16 @@ export class EnemyVisualController {
     this.healthBarGfx.strokeRect(x, y, BAR.width, BAR.height);
     this.healthBarGfx.setVisible(true);
   }
+}
+
+function resolveDirection(
+  facing: EnemyFacingVector,
+  fallback: EnemyVisualDirection,
+): EnemyVisualDirection {
+  const { x, y } = facing;
+  if (x === 0 && y === 0) return fallback;
+  if (y < 0) return x < 0 ? 'NW' : 'NE';
+  if (y > 0) return x < 0 ? 'SW' : 'SE';
+  if (x > 0) return 'SE';
+  return 'NW';
 }

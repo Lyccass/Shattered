@@ -24,11 +24,17 @@ import {
   findReactionStep,
   getElevationDelta,
   getMovePath,
+  getOccupiedTileSet,
+  getParticipantDistance,
+  getParticipantFootprintSize,
+  getParticipantFootprintTiles,
   getUsableAttacks,
+  isFootprintWalkable,
   isSameSide,
   isValidAttack,
   isValidMove,
   selectReactionAttack,
+  tileKey,
   type TurnTileContext,
 } from './TurnActionValidator';
 //TODO: Fix bug where directions sometimes break - no clue why
@@ -101,14 +107,17 @@ export function createCombatState(participants: TurnParticipant[]): TurnCombatSt
     return kindSortKey(a.kind) - kindSortKey(b.kind);
   });
 
-  const firstKind = withRoll[0]?.kind;
+  const turnOrderIds = withRoll.filter((p) => p.kind !== 'object').map((p) => p.id);
+  const first = withRoll.find((p) => p.id === turnOrderIds[0]);
+  const firstKind = first?.kind;
   const firstPhase: TurnPhase =
     firstKind === 'player' || firstKind === 'companion' ? 'player_turn' : 'enemy_turn';
 
   return {
     participants: withRoll,
     pendingTelegraphs: [],
-    turnOrderIds: withRoll.map((p) => p.id),
+    triggeredMechanics: [],
+    turnOrderIds,
     activeIndex: 0,
     round: 1,
     phase: firstPhase,
@@ -145,7 +154,7 @@ export function addParticipantsToCombatState(
     if (a.initiative !== b.initiative) return a.initiative - b.initiative;
     return kindSortKey(a.kind) - kindSortKey(b.kind);
   });
-  const turnOrderIds = nextParticipants.map((p) => p.id);
+  const turnOrderIds = nextParticipants.filter((p) => p.kind !== 'object').map((p) => p.id);
   const activeIndex = activeId ? Math.max(0, turnOrderIds.indexOf(activeId)) : state.activeIndex;
 
   return {
@@ -374,7 +383,10 @@ export function buildUiSnapshot(state: TurnCombatState | null): TurnCombatUiSnap
     selectedAttackId: null,
     selectedAbilityId: null,
     activeParticipantId: activeId,
-    turnOrder: state.participants.map(toUiSnap),
+    turnOrder: state.turnOrderIds
+      .map((id) => state.participants.find((participant) => participant.id === id))
+      .filter((participant): participant is TurnParticipant => !!participant)
+      .map(toUiSnap),
   };
 }
 
@@ -433,7 +445,10 @@ export function resolvePendingTelegraphsForActor(
       continue;
     }
 
-    const hitTile = telegraph.tiles.find((tile) => tile.x === target.tileX && tile.y === target.tileY);
+    const targetTiles = getParticipantFootprintTiles(target);
+    const hitTile = telegraph.tiles.find((tile) =>
+      targetTiles.some((targetTile) => targetTile.x === tile.x && targetTile.y === tile.y),
+    );
     if (!hitTile) {
       const actorMoved = getTelegraphActorLandingResult(current, actor, telegraph.targetTile, tileCtx);
       if (actorMoved) {
@@ -454,7 +469,7 @@ export function resolvePendingTelegraphsForActor(
       actor,
       target,
       telegraph.damageType,
-      telegraph.hitChance ?? actor.hitChance ?? 80,
+      telegraph.hitChance ?? getEffectiveHitChance(actor, actor.hitChance ?? 80),
       tileCtx,
     );
     const hit = rollHitChance(hitContext.hitProbability);
@@ -462,7 +477,7 @@ export function resolvePendingTelegraphsForActor(
       ? Math.max(
           1,
           Math.ceil(
-            rollDamage(getHeightAdjustedMaxHit(telegraph.damage, actor, target, tileCtx)) *
+            rollDamage(getEffectiveMaxHit(telegraph.damage, actor, target, tileCtx)) *
               hitTile.damageMultiplier,
           ),
         )
@@ -489,6 +504,19 @@ export function resolvePendingTelegraphsForActor(
         tileY: pushed.toTile.y,
       });
     }
+    const collisionStatusApplied = pushed?.collisionStun && !killed
+      ? createAppliedStatusEffect({ kind: 'stunned', turns: 1, value: 0 })
+      : undefined;
+    if (collisionStatusApplied) {
+      const pushedTarget = current.participants.find((p) => p.id === target.id) ?? target;
+      current = updateParticipant(current, target.id, {
+        statusEffects: [
+          ...pushedTarget.statusEffects.filter((e) => e.kind !== collisionStatusApplied.kind),
+          collisionStatusApplied,
+        ],
+      });
+      current = pushParticipantTurnToEnd(current, target.id);
+    }
 
     const actorMoved = getTelegraphActorLandingResult(current, actor, telegraph.targetTile, tileCtx);
     if (actorMoved) {
@@ -506,7 +534,7 @@ export function resolvePendingTelegraphsForActor(
         damage,
         hit,
         killed,
-        statusApplied,
+        collisionStatusApplied ?? statusApplied,
         hitContext.hitChance,
         hitContext.positionalModifier,
         hitContext.heightModifier,
@@ -522,6 +550,56 @@ export function resolvePendingTelegraphsForActor(
       current = { ...current, phase: 'combat_ended', endReason: endCheck };
       outcomes.push({ kind: 'combat_ended', reason: endCheck });
       break;
+    }
+  }
+
+  return { outcomes, state: current };
+}
+
+export function resolveActiveParticipantMechanics(
+  state: TurnCombatState,
+  actorId: string,
+  tileCtx: TurnTileContext,
+): { outcomes: ActionOutcome[]; state: TurnCombatState } {
+  const actor = state.participants.find((participant) => participant.id === actorId);
+  if (!actor || actor.kind !== 'enemy' || actor.hp <= 0 || !actor.earthPillarPhase) {
+    return { outcomes: [], state };
+  }
+
+  const phase = actor.earthPillarPhase;
+  const activeProtectors = getAliveProtectors(state, actor.id);
+  const outcomes: ActionOutcome[] = [];
+  let current = cloneState(state);
+  const triggered = new Set(current.triggeredMechanics ?? []);
+  const spawnKey = `${actor.id}:${phase.id}:spawned`;
+  const actorHpRatio = actor.maxHp > 0 ? actor.hp / actor.maxHp : 1;
+
+  if (actorHpRatio <= phase.hpRatio && !triggered.has(spawnKey)) {
+    const objectParticipants = buildEarthPillarParticipants(current, actor, phase.pillarCount, phase.pillarHp, tileCtx);
+    if (objectParticipants.length > 0) {
+      triggered.add(spawnKey);
+      current = {
+        ...current,
+        triggeredMechanics: [...triggered],
+        participants: [...current.participants, ...objectParticipants],
+      };
+      outcomes.push({
+        kind: 'combat_objects_spawned',
+        actorId: actor.id,
+        objectIds: objectParticipants.map((participant) => participant.id),
+      });
+      return { outcomes, state: current };
+    }
+  }
+
+  if (activeProtectors.length > 0 && phase.healPerTurn > 0 && actor.hp < actor.maxHp) {
+    const regenKey = `${actor.id}:${phase.id}:regen:${state.round}`;
+    if (!triggered.has(regenKey)) {
+      const amount = Math.min(phase.healPerTurn, actor.maxHp - actor.hp);
+      triggered.add(regenKey);
+      current = updateParticipant(current, actor.id, { hp: actor.hp + amount });
+      current = { ...current, triggeredMechanics: [...triggered] };
+      outcomes.push({ kind: 'regenerated', actorId: actor.id, amount, newHp: actor.hp + amount });
     }
   }
 
@@ -611,10 +689,16 @@ function applyAttack(
     return prepareTelegraphedAttack(state, actor, target, attack, telegraphConfig, tileCtx);
   }
 
-  const hitContext = getResolvedHitChance(actor, target, attack.damageType, attack.hitChance ?? actor.hitChance ?? 80, tileCtx);
+  const hitContext = getResolvedHitChance(
+    actor,
+    target,
+    attack.damageType,
+    getEffectiveHitChance(actor, attack.hitChance ?? actor.hitChance ?? 80),
+    tileCtx,
+  );
   const effectiveAttack = {
     ...attack,
-    damage: getHeightAdjustedMaxHit(attack.damage, actor, target, tileCtx),
+    damage: getEffectiveMaxHit(attack.damage, actor, target, tileCtx),
   };
   const hitResult = rollAttackHit(effectiveAttack, hitContext.hitProbability);
   const hit = hitResult.hit;
@@ -665,9 +749,21 @@ function applyAttack(
       tileY: pushed.toTile.y,
     });
   }
+  const collisionStatusApplied = pushed?.collisionStun && !killed
+    ? createAppliedStatusEffect({ kind: 'stunned', turns: 1, value: 0 })
+    : undefined;
+  if (collisionStatusApplied) {
+    const pushedTarget = next.participants.find((p) => p.id === targetId) ?? target;
+    next = updateParticipant(next, targetId, {
+      statusEffects: [
+        ...pushedTarget.statusEffects.filter((e) => e.kind !== collisionStatusApplied.kind),
+        collisionStatusApplied,
+      ],
+    });
+  }
 
   // Stagger stun: push the stunned participant's turn to the end of the order
-  if (staggerResult.statusApplied?.kind === 'stunned') {
+  if (staggerResult.statusApplied?.kind === 'stunned' || collisionStatusApplied?.kind === 'stunned') {
     next = pushParticipantTurnToEnd(next, targetId);
   }
 
@@ -684,7 +780,7 @@ function applyAttack(
         damage,
         hit,
         killed,
-        statusApplied: statusApplied ?? staggerResult.statusApplied,
+        statusApplied: collisionStatusApplied ?? statusApplied ?? staggerResult.statusApplied,
         ...(pushed ? { pushed } : {}),
         hitChance: hitContext.hitChance,
         positionalModifier: hitContext.positionalModifier,
@@ -706,7 +802,7 @@ function applyAttack(
       damage,
       hit,
       killed,
-      statusApplied: statusApplied ?? staggerResult.statusApplied,
+      statusApplied: collisionStatusApplied ?? statusApplied ?? staggerResult.statusApplied,
       ...(pushed ? { pushed } : {}),
       hitChance: hitContext.hitChance,
       positionalModifier: hitContext.positionalModifier,
@@ -744,7 +840,7 @@ function applyAbility(
     };
   }
 
-  const invalidReason = getAbilityInvalidReason(actor, target, ability);
+  const invalidReason = getAbilityInvalidReason(state, actor, target, ability);
   if (invalidReason) {
     return {
       outcome: { kind: 'invalid', actorId: actor.id, reason: invalidReason },
@@ -839,6 +935,7 @@ function applyAbility(
 }
 
 function getAbilityInvalidReason(
+  state: TurnCombatState,
   actor: TurnParticipant,
   target: TurnParticipant,
   ability: TurnCombatAbility,
@@ -850,10 +947,13 @@ function getAbilityInvalidReason(
   if (target.hp <= 0) return 'Target is already defeated.';
 
   if (ability.target === 'enemy') {
-    if (actor.kind === target.kind || (actor.kind !== 'enemy' && target.kind !== 'enemy')) {
+    if (isSameSide(actor, target)) {
       return 'Invalid target.';
     }
-    const dist = chebyshevDist(actor.tileX, actor.tileY, target.tileX, target.tileY);
+    if (ability.kind === 'combat_spell' && isProtectedByEarthPillars(state, target)) {
+      return 'Target is protected by earth pillars.';
+    }
+    const dist = getParticipantDistance(actor, target);
     if (dist < (ability.minRangeTiles ?? 0) || dist > (ability.maxRangeTiles ?? 1)) {
       return 'Target is out of range.';
     }
@@ -883,7 +983,7 @@ function prepareTelegraphedAttack(
     forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
     originTile: { x: actor.tileX, y: actor.tileY },
     targetTile: { x: target.tileX, y: target.tileY },
-    tiles: buildTelegraphTiles(actor.tileX, actor.tileY, target.tileX, target.tileY, telegraphConfig, tileCtx),
+    tiles: buildTelegraphTiles(actor, target, telegraphConfig, tileCtx),
     resolveAfterRound: state.round + 1,
   };
   const nextCooldowns = {
@@ -1011,14 +1111,16 @@ function applyConsumeItem(
 }
 
 function buildTelegraphTiles(
-  actorTileX: number,
-  actorTileY: number,
-  targetTileX: number,
-  targetTileY: number,
+  actor: TurnParticipant,
+  target: TurnParticipant,
   config: NonNullable<TurnAttack['telegraph']>,
   tileCtx: TurnTileContext,
 ): TurnTelegraphTile[] {
   const warnMult = config.warningDamageMultiplier ?? 0.5;
+  const actorTileX = actor.tileX;
+  const actorTileY = actor.tileY;
+  const targetTileX = target.tileX;
+  const targetTileY = target.tileY;
 
   if (config.pattern === 'target' || config.pattern === 'target_plus_adjacent') {
     const tiles: TurnTelegraphTile[] = [{
@@ -1037,23 +1139,39 @@ function buildTelegraphTiles(
   }
 
   if (config.pattern === 'line') {
-    const dx = Math.sign(targetTileX - actorTileX);
-    const dy = Math.sign(targetTileY - actorTileY);
+    const actorCenter = getParticipantTileCenter(actor);
+    const direction = getFootprintDirection(actor, target);
+    const dx = direction.x;
+    const dy = direction.y;
     const safeDy = dx === 0 && dy === 0 ? 1 : dy;
-    const dist = chebyshevDist(actorTileX, actorTileY, targetTileX, targetTileY) || 1;
+    const dist = getParticipantDistance(actor, target) || 1;
     const length = config.length ?? dist;
-    const tiles: TurnTelegraphTile[] = [];
+    const width = Math.max(1, Math.floor(config.widthTiles ?? getParticipantFootprintSize(actor)));
+    const offsets = getLineWidthOffsets(width);
+    const targetTiles = new Set(getParticipantFootprintTiles(target).map((tile) => tileKey(tile.x, tile.y)));
+    const tiles = new Map<string, TurnTelegraphTile>();
     for (let step = 1; step <= length; step++) {
-      const x = actorTileX + dx * step;
-      const y = actorTileY + safeDy * step;
-      if (!isTileWithinBounds(x, y, tileCtx)) break;
-      tiles.push({
-        x, y,
-        intensity: step === dist ? 'danger' : 'warning',
-        damageMultiplier: step === dist ? 1 : warnMult,
-      });
+      const centerX = actorCenter.x + dx * (getParticipantFootprintSize(actor) / 2 + step - 0.5);
+      const centerY = actorCenter.y + safeDy * (getParticipantFootprintSize(actor) / 2 + step - 0.5);
+      const perpX = -safeDy;
+      const perpY = dx;
+      for (const offset of offsets) {
+        const x = Math.round(centerX + perpX * offset);
+        const y = Math.round(centerY + perpY * offset);
+        if (!isTileWithinBounds(x, y, tileCtx)) continue;
+        const key = tileKey(x, y);
+        const isTargetTile = targetTiles.has(key);
+        const isDanger = isTargetTile || step === dist;
+        const existing = tiles.get(key);
+        if (existing?.intensity === 'danger') continue;
+        tiles.set(key, {
+          x, y,
+          intensity: isDanger ? 'danger' : 'warning',
+          damageMultiplier: isDanger ? 1 : warnMult,
+        });
+      }
     }
-    return tiles;
+    return [...tiles.values()];
   }
 
   if (config.pattern === 'cone') {
@@ -1136,6 +1254,35 @@ function buildTelegraphResolvedOutcome(
   };
 }
 
+function getParticipantTileCenter(participant: TurnParticipant): { x: number; y: number } {
+  const size = getParticipantFootprintSize(participant);
+  return {
+    x: participant.tileX + (size - 1) / 2,
+    y: participant.tileY + (size - 1) / 2,
+  };
+}
+
+function getFootprintDirection(
+  actor: TurnParticipant,
+  target: TurnParticipant,
+): { x: -1 | 0 | 1; y: -1 | 0 | 1 } {
+  const actorSize = getParticipantFootprintSize(actor);
+  const targetSize = getParticipantFootprintSize(target);
+  const actorMaxX = actor.tileX + actorSize - 1;
+  const actorMaxY = actor.tileY + actorSize - 1;
+  const targetMaxX = target.tileX + targetSize - 1;
+  const targetMaxY = target.tileY + targetSize - 1;
+  const x = target.tileX > actorMaxX ? 1 : targetMaxX < actor.tileX ? -1 : 0;
+  const y = target.tileY > actorMaxY ? 1 : targetMaxY < actor.tileY ? -1 : 0;
+  return { x, y };
+}
+
+function getLineWidthOffsets(widthTiles: number): number[] {
+  if (widthTiles <= 1) return [0];
+  const start = -(widthTiles - 1) / 2;
+  return Array.from({ length: widthTiles }, (_, index) => start + index);
+}
+
 function getForcedMovementResult(
   state: TurnCombatState,
   actor: TurnParticipant,
@@ -1165,15 +1312,24 @@ function getForcedMovementResult(
 
   const fromTile = { x: target.tileX, y: target.tileY };
   let toTile = fromTile;
+  let collisionStun = false;
 
   for (let step = 0; step < forcedMovement.distance; step += 1) {
     const nextTile = { x: toTile.x + dx, y: toTile.y + dy };
-    if (!isTileOpenForForcedMove(nextTile.x, nextTile.y, target.id, state, tileCtx)) break;
+    if (!isFootprintOpenForForcedMove(target, nextTile, state, tileCtx)) {
+      collisionStun = isForcedMoveTerrainCollision(target, nextTile, tileCtx);
+      break;
+    }
     toTile = nextTile;
   }
 
-  if (toTile.x === fromTile.x && toTile.y === fromTile.y) return null;
-  return { targetId: target.id, fromTile, toTile };
+  if (toTile.x === fromTile.x && toTile.y === fromTile.y && !collisionStun) return null;
+  return {
+    targetId: target.id,
+    fromTile,
+    toTile,
+    ...(collisionStun ? { collisionStun } : {}),
+  };
 }
 //TODO
 function resolveStaggerHit(
@@ -1219,7 +1375,7 @@ function getTelegraphActorLandingResult(
     );
 
   const toTile = [targetTile, ...adjacentCandidates].find((tile) =>
-    isTileOpenForForcedMove(tile.x, tile.y, actor.id, state, tileCtx),
+    isFootprintOpenForForcedMove(actor, tile, state, tileCtx),
   );
   if (!toTile || (toTile.x === actor.tileX && toTile.y === actor.tileY)) return null;
 
@@ -1230,26 +1386,151 @@ function getTelegraphActorLandingResult(
   };
 }
 
-function isTileOpenForForcedMove(
-  tileX: number,
-  tileY: number,
-  movingParticipantId: string,
+function isFootprintOpenForForcedMove(
+  participant: TurnParticipant,
+  origin: { x: number; y: number },
   state: TurnCombatState,
   tileCtx: TurnTileContext,
 ): boolean {
-  if (!isTileWithinBounds(tileX, tileY, tileCtx)) return false;
-  if (!tileCtx.isTileWalkable(tileX, tileY)) return false;
+  if (!isFootprintWalkable(participant, origin, tileCtx)) return false;
+  const occupied = getOccupiedTileSet(state.participants, participant.id);
+  return getParticipantFootprintTiles(participant, origin).every((tile) =>
+    !occupied.has(tileKey(tile.x, tile.y)),
+  );
+}
 
-  return !state.participants.some((participant) =>
-    participant.id !== movingParticipantId &&
-    participant.hp > 0 &&
-    participant.tileX === tileX &&
-    participant.tileY === tileY,
+function isForcedMoveTerrainCollision(
+  participant: TurnParticipant,
+  origin: { x: number; y: number },
+  tileCtx: TurnTileContext,
+): boolean {
+  return getParticipantFootprintTiles(participant, origin).some((tile) =>
+    !isTileWithinBounds(tile.x, tile.y, tileCtx) || !tileCtx.isTileWalkable(tile.x, tile.y),
   );
 }
 
 function isTileWithinBounds(tileX: number, tileY: number, tileCtx: TurnTileContext): boolean {
   return tileX >= 0 && tileY >= 0 && tileX < tileCtx.mapWidth && tileY < tileCtx.mapHeight;
+}
+
+function isProtectedByEarthPillars(state: TurnCombatState, target: TurnParticipant): boolean {
+  if (!target.earthPillarPhase?.magicImmuneWhileActive) return false;
+  return getAliveProtectors(state, target.id).length > 0;
+}
+
+function getAliveProtectors(state: TurnCombatState, protectedParticipantId: string): TurnParticipant[] {
+  return state.participants.filter((participant) =>
+    participant.kind === 'object' &&
+    participant.protectsParticipantId === protectedParticipantId &&
+    participant.hp > 0,
+  );
+}
+
+function buildEarthPillarParticipants(
+  state: TurnCombatState,
+  protectedParticipant: TurnParticipant,
+  pillarCount: number,
+  pillarHp: number,
+  tileCtx: TurnTileContext,
+): TurnParticipant[] {
+  const candidates = getPillarCandidateOrigins(protectedParticipant, tileCtx);
+  const occupied = getOccupiedTileSet(state.participants);
+  const result: TurnParticipant[] = [];
+
+  for (const origin of candidates) {
+    if (result.length >= pillarCount) break;
+    const key = tileKey(origin.x, origin.y);
+    if (occupied.has(key)) continue;
+    if (!isTileWithinBounds(origin.x, origin.y, tileCtx)) continue;
+    if (!tileCtx.isTileWalkable(origin.x, origin.y)) continue;
+    occupied.add(key);
+    result.push(createEarthPillarParticipant(
+      `${protectedParticipant.id}_earth_pillar_${result.length + 1}`,
+      origin,
+      protectedParticipant.id,
+      pillarHp,
+      protectedParticipant.initiative + 50,
+    ));
+  }
+
+  return result;
+}
+
+function getPillarCandidateOrigins(
+  protectedParticipant: TurnParticipant,
+  tileCtx: TurnTileContext,
+): Array<{ x: number; y: number }> {
+  const size = getParticipantFootprintSize(protectedParticipant);
+  const minX = protectedParticipant.tileX - 1;
+  const maxX = protectedParticipant.tileX + size;
+  const minY = protectedParticipant.tileY - 1;
+  const maxY = protectedParticipant.tileY + size;
+  const preferred = [
+    { x: protectedParticipant.tileX - 1, y: protectedParticipant.tileY },
+    { x: protectedParticipant.tileX + size, y: protectedParticipant.tileY },
+    { x: protectedParticipant.tileX, y: protectedParticipant.tileY - 1 },
+    { x: protectedParticipant.tileX, y: protectedParticipant.tileY + size },
+    { x: protectedParticipant.tileX - 1, y: protectedParticipant.tileY + size - 1 },
+    { x: protectedParticipant.tileX + size, y: protectedParticipant.tileY + size - 1 },
+    { x: protectedParticipant.tileX + size - 1, y: protectedParticipant.tileY - 1 },
+    { x: protectedParticipant.tileX + size - 1, y: protectedParticipant.tileY + size },
+  ];
+  const all = new Map<string, { x: number; y: number }>();
+  for (const tile of preferred) {
+    if (isTileWithinBounds(tile.x, tile.y, tileCtx)) all.set(tileKey(tile.x, tile.y), tile);
+  }
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      if (x >= protectedParticipant.tileX && x < protectedParticipant.tileX + size &&
+          y >= protectedParticipant.tileY && y < protectedParticipant.tileY + size) {
+        continue;
+      }
+      if (!isTileWithinBounds(x, y, tileCtx)) continue;
+      all.set(tileKey(x, y), { x, y });
+    }
+  }
+  return [...all.values()];
+}
+
+function createEarthPillarParticipant(
+  id: string,
+  origin: { x: number; y: number },
+  protectsParticipantId: string,
+  hp: number,
+  initiative: number,
+): TurnParticipant {
+  return {
+    id,
+    kind: 'object',
+    name: 'Earth Pillar',
+    tileX: origin.x,
+    tileY: origin.y,
+    hp,
+    maxHp: hp,
+    apMax: 0,
+    mpMax: 0,
+    apRemaining: 0,
+    mpRemaining: 0,
+    secondaryActionMax: 0,
+    secondaryActionRemaining: 0,
+    reactionRemaining: 0,
+    initiative,
+    attackPower: 0,
+    footprintSize: 1,
+    combatObjectKind: 'earth_pillar',
+    protectsParticipantId,
+    slashDefence: 5,
+    pierceDefence: 7,
+    crushDefence: 3,
+    lightningDefence: 8,
+    fireDefence: 4,
+    coldDefence: 6,
+    poisonDefence: 99,
+    attackRangeTiles: 0,
+    attacks: [],
+    attackCooldowns: {},
+    statusEffects: [],
+  };
 }
 
 function tickStatusEffects(
@@ -1313,7 +1594,7 @@ function restoreResources(state: TurnCombatState, participantId: string): TurnCo
     .reduce((sum, e) => sum + e.value, 0);
 
   return updateParticipant(state, participantId, {
-    apRemaining: p.apMax,
+    apRemaining: getEffectiveApMax(p),
     secondaryActionRemaining: p.secondaryActionMax ?? 0,
     mpRemaining: Math.max(0, p.mpMax - slowedReduction),
     reactionRemaining: 1,
@@ -1474,6 +1755,40 @@ function getHeightAdjustedMaxHit(
     Math.round(heightAdvantage * COMBAT_POSITION_TUNING.maxHitBonusPerHeightStep),
   );
   return Math.max(0, baseMaxHit + bonus);
+}
+
+function getEffectiveMaxHit(
+  baseMaxHit: number,
+  actor: TurnParticipant,
+  target: TurnParticipant,
+  tileCtx: TurnTileContext,
+): number {
+  return getEffectiveBaseDamage(
+    actor,
+    getHeightAdjustedMaxHit(baseMaxHit, actor, target, tileCtx),
+  );
+}
+
+function getEffectiveBaseDamage(actor: TurnParticipant, baseMaxHit: number): number {
+  if (!isParticipantEnraged(actor)) return baseMaxHit;
+  const multiplier = actor.enrage?.damageMultiplier ?? 1;
+  return Math.max(0, Math.ceil(baseMaxHit * multiplier));
+}
+
+function getEffectiveHitChance(actor: TurnParticipant, baseHitChance: number): number {
+  if (!isParticipantEnraged(actor)) return baseHitChance;
+  return Math.max(0, Math.floor(baseHitChance * (actor.enrage?.hitChanceMultiplier ?? 1)));
+}
+
+function getEffectiveApMax(participant: TurnParticipant): number {
+  if (!isParticipantEnraged(participant)) return participant.apMax;
+  return Math.max(0, participant.apMax + (participant.enrage?.apBonus ?? 0));
+}
+
+function isParticipantEnraged(participant: TurnParticipant): boolean {
+  const enrage = participant.enrage;
+  if (!enrage || participant.maxHp <= 0) return false;
+  return participant.hp / participant.maxHp <= enrage.hpRatio;
 }
 
 function clampHeightDelta(value: number): number {
@@ -1700,6 +2015,7 @@ function updateParticipant(
 function cloneState(state: TurnCombatState): TurnCombatState {
   return {
     ...state,
+    triggeredMechanics: [...(state.triggeredMechanics ?? [])],
     pendingTelegraphs: (state.pendingTelegraphs ?? []).map((telegraph) => ({
       ...telegraph,
       statusEffect: telegraph.statusEffect ? { ...telegraph.statusEffect } : undefined,
@@ -1748,5 +2064,5 @@ function pushParticipantTurnToEnd(state: TurnCombatState, participantId: string)
 }
 
 function kindSortKey(kind: TurnParticipant['kind']): number {
-  return kind === 'player' ? 0 : kind === 'companion' ? 1 : 2;
+  return kind === 'player' ? 0 : kind === 'companion' ? 1 : kind === 'enemy' ? 2 : 3;
 }

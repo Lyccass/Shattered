@@ -2,6 +2,8 @@ import type {
   StatusEffectKind,
   TurnDamageType,
   TurnEnemyAiProfile,
+  TurnEnrageConfig,
+  TurnEarthPillarPhaseConfig,
   TurnForcedMovement,
   TurnTelegraphConfig,
 } from './turn/TurnCombatTypes';
@@ -43,6 +45,7 @@ export type TurnAttackDefinition = {
   cooldownTurns?: number;
   telegraph?: TurnTelegraphConfig;
   forcedMovement?: TurnForcedMovement;
+  staggerDamage?: number;
 };
 
 export type EnemyDefinition = {
@@ -50,6 +53,9 @@ export type EnemyDefinition = {
   displayName: string;
   description?: string;
   visualId: EnemyVisualId;
+  visualTint?: number;
+  visualScaleMultiplier?: number;
+  footprintSize?: 1 | 2;
   /** 1–10 display/power band. This is descriptive; combat values come from explicit stats. */
   tier: number;
   maxHealth: number;
@@ -77,6 +83,8 @@ export type EnemyDefinition = {
   /** 'aggressive' attacks on sight; 'passive' only reacts when combat is triggered. */
   behavior?: EnemyBehavior;
   aiProfile?: EnemyAiProfile;
+  enrage?: TurnEnrageConfig;
+  earthPillarPhase?: TurnEarthPillarPhaseConfig;
   attacks: TurnAttackDefinition[];
   lootTables?: EnemyLootTable[];
 };

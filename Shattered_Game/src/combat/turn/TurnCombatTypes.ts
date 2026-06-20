@@ -3,6 +3,24 @@ export type TurnAbilityKind = 'combat_spell' | 'devotion';
 export type TurnAbilityTarget = 'enemy' | 'self';
 export type TurnEnemyAiProfile = 'direct' | 'charger' | 'skirmisher' | 'herd' | 'defensive';
 
+export type TurnEnrageConfig = {
+  hpRatio: number;
+  apBonus?: number;
+  hitChanceMultiplier?: number;
+  damageMultiplier?: number;
+};
+
+export type TurnCombatObjectKind = 'earth_pillar';
+
+export type TurnEarthPillarPhaseConfig = {
+  id: string;
+  hpRatio: number;
+  pillarCount: number;
+  pillarHp: number;
+  healPerTurn: number;
+  magicImmuneWhileActive?: boolean;
+};
+
 export type StatusEffectKind =
   | 'stunned'
   | 'slowed'
@@ -28,6 +46,8 @@ export type TurnTelegraphConfig = {
   warningDamageMultiplier?: number;
   /** line: max tiles to extend past actor (defaults to actor→target distance) */
   length?: number;
+  /** line: number of tiles across the lane. Defaults to the actor footprint width. */
+  widthTiles?: number;
   /** cone: full angle in degrees (default 90) */
   angleDeg?: number;
   /** ring: ring radius in tiles (default 2) */
@@ -114,7 +134,7 @@ export type TurnCombatAbility = {
 
 export type TurnParticipant = {
   id: string;
-  kind: 'player' | 'enemy' | 'companion';
+  kind: 'player' | 'enemy' | 'companion' | 'object';
   name: string;
   tileX: number;
   tileY: number;
@@ -138,6 +158,9 @@ export type TurnParticipant = {
   attackPower: number;
   /** Weapon/attack accuracy before target defence, position, and height. */
   hitChance?: number;
+  footprintSize?: 1 | 2;
+  combatObjectKind?: TurnCombatObjectKind;
+  protectsParticipantId?: string;
   /** Poise — reduces stagger build-up per hit. */
   poise?: number;
   slashDefence: number;
@@ -163,6 +186,8 @@ export type TurnParticipant = {
   spawnId?: string;
   areaId?: string;
   lootTableId?: string;
+  enrage?: TurnEnrageConfig;
+  earthPillarPhase?: TurnEarthPillarPhaseConfig;
   /** Which companion slot this participant occupies (companion kind only) */
   companionSlot?: 'companion_1' | 'companion_2' | 'companion_3';
   statusEffects: StatusEffect[];
@@ -211,6 +236,8 @@ export type ActionOutcome =
   | { kind: 'ability_used'; actorId: string; abilityId: string; abilityName: string; abilityKind: TurnAbilityKind; targetId: string; damage?: number; healAmount?: number; newHp?: number; hit?: boolean; killed?: boolean; statusApplied?: StatusEffect; hitChance?: number; positionalModifier?: number; heightModifier?: number; positionalMultiplier?: number; heightMultiplier?: number }
   | { kind: 'telegraph_prepared'; actorId: string; targetId: string; attackId: string; attackName: string; telegraphId: string; tiles: TurnTelegraphTile[] }
   | { kind: 'telegraph_resolved'; actorId: string; targetId: string; attackId: string; attackName: string; damage: number; hit: boolean; killed: boolean; targetWasInArea: boolean; statusApplied?: StatusEffect; pushed?: TurnPushResult; actorMoved?: TurnPushResult; hitChance?: number; positionalModifier?: number; heightModifier?: number; positionalMultiplier?: number; heightMultiplier?: number }
+  | { kind: 'combat_objects_spawned'; actorId: string; objectIds: string[] }
+  | { kind: 'regenerated'; actorId: string; amount: number; newHp: number }
   | TurnStatusTickOutcome
   | { kind: 'guarded';      actorId: string; statusApplied: StatusEffect }
   | { kind: 'cleansed';     actorId: string; removedEffect: StatusEffect }
@@ -224,6 +251,7 @@ export type TurnPushResult = {
   targetId: string;
   fromTile: { x: number; y: number };
   toTile: { x: number; y: number };
+  collisionStun?: boolean;
 };
 
 export type TurnPhase = 'player_turn' | 'enemy_turn' | 'combat_ended';
@@ -233,6 +261,7 @@ export type CombatEndReason = 'victory' | 'player_died' | 'player_fled';
 export type TurnCombatState = {
   participants: TurnParticipant[];
   pendingTelegraphs?: PendingTurnTelegraph[];
+  triggeredMechanics?: string[];
   /** IDs sorted by initiative ascending (fastest first). */
   turnOrderIds: string[];
   activeIndex: number;
@@ -245,7 +274,7 @@ export type TurnCombatState = {
 
 export type TurnParticipantUiSnapshot = {
   id: string;
-  kind: 'player' | 'enemy' | 'companion';
+  kind: 'player' | 'enemy' | 'companion' | 'object';
   name: string;
   hp: number;
   maxHp: number;

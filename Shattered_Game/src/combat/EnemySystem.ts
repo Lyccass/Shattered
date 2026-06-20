@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { EnemyRegistry } from './EnemyRegistry';
 import { ENEMY_DEFINITIONS } from './EnemyDefinitions';
 import { EnemyVisualController } from './EnemyVisualController';
-import type { EnemyTurnVisualState } from './EnemyVisualController';
+import type { EnemyFacingVector, EnemyTurnVisualState } from './EnemyVisualController';
 import type { EnemyBehavior, EnemyDefinition, EnemyRuntimeRecord, EnemySpawnDefinition } from './EnemyTypes';
 import type { IsoTilemap } from '../world/IsoTilemap';
 
@@ -28,6 +28,7 @@ export class EnemySystem {
 
   /** Used to compute deltaMs from successive nowMs values. */
   private lastUpdateMs: number | null = null;
+  private lastFacing: EnemyFacingVector = { x: 0, y: 1 };
 
   constructor(scene: Phaser.Scene) {
     this.visualController = new EnemyVisualController(scene);
@@ -42,7 +43,7 @@ export class EnemySystem {
     if (!spawn) return;
 
     this.definition = this.registry.get(spawn.definitionId);
-    const origin    = tilemap.getTileCenterWorld(spawn.tileX, spawn.tileY);
+    const origin    = getFootprintCenterWorld(tilemap, spawn.tileX, spawn.tileY, this.definition.footprintSize ?? 1);
 
     this.record = {
       id:           spawn.id,
@@ -64,7 +65,7 @@ export class EnemySystem {
       nextWanderMs: 0,
     };
 
-    this.visualController.spawn(origin.x, origin.y, this.definition.visualId);
+    this.visualController.spawn(origin.x, origin.y, this.definition.visualId, getVisualOverrides(this.definition));
   }
 
   // Per-frame update (called by TurnCombatSession outside of combat)
@@ -84,7 +85,7 @@ export class EnemySystem {
         if (blockRespawn) this.record.diedAtMs = nowMs;
         this.visualController.applyTurnState(
           this.record.worldX, this.record.worldY,
-          false, 0, this.record.maxHp, 'dead', nowMs,
+          this.lastFacing, 0, this.record.maxHp, 'dead', nowMs,
           false,
         );
       }
@@ -93,10 +94,11 @@ export class EnemySystem {
 
     if (!this._inCombat) {
       this.updateWander(nowMs, deltaMs);
+      const visualState: EnemyTurnVisualState = this.record.wanderTarget ? 'moving' : 'idle';
 
       this.visualController.applyTurnState(
         this.record.worldX, this.record.worldY,
-        false, this.record.hp, this.record.maxHp, 'idle', nowMs,
+        this.lastFacing, this.record.hp, this.record.maxHp, visualState, nowMs,
         false,
       );
     }
@@ -121,16 +123,17 @@ export class EnemySystem {
   applyVisualUpdate(
     worldX: number,
     worldY: number,
-    facingRightward: boolean,
+    facing: EnemyFacingVector,
     hp: number,
     visualState: EnemyTurnVisualState,
     nowMs: number,
   ): void {
     if (!this.record) return;
+    this.lastFacing = normalizeFacing(facing, this.lastFacing);
     this.record.worldX = worldX;
     this.record.worldY = worldY;
     this.visualController.applyTurnState(
-      worldX, worldY, facingRightward, hp, this.record.maxHp, visualState, nowMs,
+      worldX, worldY, this.lastFacing, hp, this.record.maxHp, visualState, nowMs,
       true,
     );
   }
@@ -145,7 +148,7 @@ export class EnemySystem {
     this.record.tileX = tileX;
     this.record.tileY = tileY;
     if (syncWorld) {
-      const world = this.tilemap.getTileCenterWorld(tileX, tileY);
+      const world = getFootprintCenterWorld(this.tilemap, tileX, tileY, this.definition?.footprintSize ?? 1);
       this.record.worldX = world.x;
       this.record.worldY = world.y;
     }
@@ -196,6 +199,18 @@ export class EnemySystem {
     return { x: this.record.tileX, y: this.record.tileY };
   }
 
+  getFootprintTiles(): Array<{ x: number; y: number }> {
+    if (!this.record) return [];
+    const size = this.definition?.footprintSize ?? 1;
+    const tiles: Array<{ x: number; y: number }> = [];
+    for (let dy = 0; dy < size; dy += 1) {
+      for (let dx = 0; dx < size; dx += 1) {
+        tiles.push({ x: this.record.tileX + dx, y: this.record.tileY + dy });
+      }
+    }
+    return tiles;
+  }
+
   /** Whether this enemy would start combat if the player walks into aggro range. */
   wouldAggro(): boolean {
     if (!this.definition || !this.record) return false;
@@ -206,9 +221,11 @@ export class EnemySystem {
 
   isInAggroRange(playerTileX: number, playerTileY: number): boolean {
     if (!this.record || !this.definition) return false;
-    const dx = Math.abs(playerTileX - this.record.tileX);
-    const dy = Math.abs(playerTileY - this.record.tileY);
-    return Math.max(dx, dy) <= this.definition.aggroRangeTiles;
+    return this.getFootprintTiles().some((tile) => {
+      const dx = Math.abs(playerTileX - tile.x);
+      const dy = Math.abs(playerTileY - tile.y);
+      return Math.max(dx, dy) <= this.definition!.aggroRangeTiles;
+    });
   }
 
   destroy(): void {
@@ -227,11 +244,17 @@ export class EnemySystem {
     this.definition = null;
     this._inCombat = false;
     this.lastUpdateMs = null;
+    this.lastFacing = { x: 0, y: 1 };
   }
 
   private respawn(nowMs: number): void {
     if (!this.record || !this.definition || !this.tilemap) return;
-    const origin = this.tilemap.getTileCenterWorld(this.record.spawnTileX, this.record.spawnTileY);
+    const origin = getFootprintCenterWorld(
+      this.tilemap,
+      this.record.spawnTileX,
+      this.record.spawnTileY,
+      this.definition.footprintSize ?? 1,
+    );
     this.record.tileX        = this.record.spawnTileX;
     this.record.tileY        = this.record.spawnTileY;
     this.record.worldX       = origin.x;
@@ -242,7 +265,8 @@ export class EnemySystem {
     this._inCombat           = false;
     this.record.wanderTarget = null;
     this.record.nextWanderMs = nowMs + randomBetween(WANDER_MIN_WAIT_MS, WANDER_MAX_WAIT_MS);
-    this.visualController.spawn(origin.x, origin.y, this.definition.visualId);
+    this.lastFacing          = { x: 0, y: 1 };
+    this.visualController.spawn(origin.x, origin.y, this.definition.visualId, getVisualOverrides(this.definition));
   }
 
   private updateWander(nowMs: number, deltaMs: number): void {
@@ -261,11 +285,17 @@ export class EnemySystem {
     }
 
     const { tileX: targetTileX, tileY: targetTileY } = this.record.wanderTarget;
-    const targetWorld = this.tilemap.getTileCenterWorld(targetTileX, targetTileY);
+    const targetWorld = getFootprintCenterWorld(
+      this.tilemap,
+      targetTileX,
+      targetTileY,
+      this.definition?.footprintSize ?? 1,
+    );
 
     const dx   = targetWorld.x - this.record.worldX;
     const dy   = targetWorld.y - this.record.worldY;
     const dist = Math.hypot(dx, dy);
+    this.lastFacing = normalizeFacing(toFacingVector(dx, dy), this.lastFacing);
 
     if (dist <= WANDER_ARRIVE_DIST) {
       this.record.worldX       = targetWorld.x;
@@ -300,15 +330,68 @@ export class EnemySystem {
 
       if (
         this.tilemap.isTileInBounds(tx, ty) &&
-        !this.tilemap.isTileTerrainBlocked(tx, ty)
+        this.isFootprintWalkable(tx, ty)
       ) {
         return { tileX: tx, tileY: ty };
       }
     }
     return null;
   }
+
+  private isFootprintWalkable(tileX: number, tileY: number): boolean {
+    if (!this.tilemap) return false;
+    const size = this.definition?.footprintSize ?? 1;
+    for (let dy = 0; dy < size; dy += 1) {
+      for (let dx = 0; dx < size; dx += 1) {
+        const x = tileX + dx;
+        const y = tileY + dy;
+        if (!this.tilemap.isTileInBounds(x, y) || this.tilemap.isTileTerrainBlocked(x, y)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
 }
 
 function randomBetween(min: number, max: number): number {
   return min + Math.random() * (max - min);
+}
+
+function toFacingVector(dx: number, dy: number): EnemyFacingVector {
+  return {
+    x: dx < -0.001 ? -1 : dx > 0.001 ? 1 : 0,
+    y: dy < -0.001 ? -1 : dy > 0.001 ? 1 : 0,
+  };
+}
+
+function normalizeFacing(facing: EnemyFacingVector, fallback: EnemyFacingVector): EnemyFacingVector {
+  if (facing.x === 0 && facing.y === 0) return fallback;
+  return facing;
+}
+
+function getVisualOverrides(definition: EnemyDefinition): { tint?: number; scaleMultiplier?: number } {
+  return {
+    ...(definition.visualTint !== undefined ? { tint: definition.visualTint } : {}),
+    ...(definition.visualScaleMultiplier !== undefined ? { scaleMultiplier: definition.visualScaleMultiplier } : {}),
+  };
+}
+
+function getFootprintCenterWorld(
+  tilemap: IsoTilemap,
+  tileX: number,
+  tileY: number,
+  footprintSize: 1 | 2,
+): { x: number; y: number } {
+  if (footprintSize <= 1) return tilemap.getTileCenterWorld(tileX, tileY);
+  const tiles = [
+    tilemap.getTileCenterWorld(tileX, tileY),
+    tilemap.getTileCenterWorld(tileX + 1, tileY),
+    tilemap.getTileCenterWorld(tileX, tileY + 1),
+    tilemap.getTileCenterWorld(tileX + 1, tileY + 1),
+  ];
+  return {
+    x: tiles.reduce((sum, tile) => sum + tile.x, 0) / tiles.length,
+    y: tiles.reduce((sum, tile) => sum + tile.y, 0) / tiles.length,
+  };
 }

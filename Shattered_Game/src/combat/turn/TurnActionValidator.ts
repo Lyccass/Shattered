@@ -31,6 +31,81 @@ export function parseTileKey(key: string): TilePoint {
   return { x, y };
 }
 
+export function getParticipantFootprintSize(participant: TurnParticipant): 1 | 2 {
+  return participant.footprintSize ?? 1;
+}
+
+export function getParticipantFootprintTiles(
+  participant: TurnParticipant,
+  origin: TilePoint = { x: participant.tileX, y: participant.tileY },
+): TilePoint[] {
+  const size = getParticipantFootprintSize(participant);
+  const tiles: TilePoint[] = [];
+  for (let dy = 0; dy < size; dy += 1) {
+    for (let dx = 0; dx < size; dx += 1) {
+      tiles.push({ x: origin.x + dx, y: origin.y + dy });
+    }
+  }
+  return tiles;
+}
+
+export function getParticipantDistance(a: TurnParticipant, b: TurnParticipant): number {
+  return getFootprintDistance(
+    { x: a.tileX, y: a.tileY, size: getParticipantFootprintSize(a) },
+    { x: b.tileX, y: b.tileY, size: getParticipantFootprintSize(b) },
+  );
+}
+
+export function getFootprintDistance(
+  a: { x: number; y: number; size: number },
+  b: { x: number; y: number; size: number },
+): number {
+  const aMaxX = a.x + a.size - 1;
+  const aMaxY = a.y + a.size - 1;
+  const bMaxX = b.x + b.size - 1;
+  const bMaxY = b.y + b.size - 1;
+  const dx = b.x > aMaxX ? b.x - aMaxX : a.x > bMaxX ? a.x - bMaxX : 0;
+  const dy = b.y > aMaxY ? b.y - aMaxY : a.y > bMaxY ? a.y - bMaxY : 0;
+  return Math.max(dx, dy);
+}
+
+export function isParticipantOnTile(participant: TurnParticipant, tileX: number, tileY: number): boolean {
+  return getParticipantFootprintTiles(participant).some((tile) => tile.x === tileX && tile.y === tileY);
+}
+
+export function isFootprintInBounds(
+  participant: TurnParticipant,
+  origin: TilePoint,
+  tileCtx: TurnTileContext,
+): boolean {
+  return getParticipantFootprintTiles(participant, origin).every((tile) =>
+    tile.x >= 0 && tile.y >= 0 && tile.x < tileCtx.mapWidth && tile.y < tileCtx.mapHeight,
+  );
+}
+
+export function isFootprintWalkable(
+  participant: TurnParticipant,
+  origin: TilePoint,
+  tileCtx: TurnTileContext,
+): boolean {
+  return isFootprintInBounds(participant, origin, tileCtx) &&
+    getParticipantFootprintTiles(participant, origin).every((tile) => tileCtx.isTileWalkable(tile.x, tile.y));
+}
+
+export function getOccupiedTileSet(
+  participants: TurnParticipant[],
+  movingParticipantId?: string,
+): Set<string> {
+  const occupied = new Set<string>();
+  for (const participant of participants) {
+    if (participant.id === movingParticipantId || participant.hp <= 0) continue;
+    for (const tile of getParticipantFootprintTiles(participant)) {
+      occupied.add(tileKey(tile.x, tile.y));
+    }
+  }
+  return occupied;
+}
+
 export function bfsFlood(
   origin: TilePoint,
   maxCost: number,
@@ -76,13 +151,13 @@ export function getReachableTiles(
 ): { x: number; y: number }[] {
   if (participant.mpRemaining <= 0) return [];
 
-  const occupied = new Set<string>(
-    state.participants
-      .filter((p) => p.id !== participant.id && p.hp > 0)
-      .map((p) => `${p.tileX},${p.tileY}`),
-  );
+  const occupied = getOccupiedTileSet(state.participants, participant.id);
   const origin = { x: participant.tileX, y: participant.tileY };
-  const blocked = (x: number, y: number) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y));
+  const blocked = (x: number, y: number) => {
+    const candidate = { x, y };
+    return !isFootprintWalkable(participant, candidate, tileCtx) ||
+      getParticipantFootprintTiles(participant, candidate).some((tile) => occupied.has(tileKey(tile.x, tile.y)));
+  };
   const costs = bfsFlood(
     origin,
     participant.mpRemaining,
@@ -108,11 +183,11 @@ export function getAttackableTargets(
   if (attacker.apRemaining <= 0) return [];
   if (attacker.hp <= 0) return [];
 
-  const attackerIsEnemy = attacker.kind === 'enemy';
+  const attackerIsEnemy = isEnemySide(attacker);
   return state.participants.filter((p) => {
     if (p.id === attacker.id) return false;
     // player and companion are on the same side
-    if (attackerIsEnemy === (p.kind === 'enemy')) return false;
+    if (attackerIsEnemy === isEnemySide(p)) return false;
     if (p.hp <= 0) return false;
     return getUsableAttacks(attacker, p, tileCtx).length > 0;
   });
@@ -127,7 +202,7 @@ export function getUsableAttacks(
   if (attacker.hp <= 0) return [];
   if (target.hp <= 0) return [];
 
-  const dist = chebyshevDist(attacker.tileX, attacker.tileY, target.tileX, target.tileY);
+  const dist = getParticipantDistance(attacker, target);
 
   return getParticipantAttacks(attacker).filter((attack) => {
     if (attacker.apRemaining < attack.apCost) return false;
@@ -158,13 +233,13 @@ export function getMovePath(
   if (participant.mpRemaining <= 0) return null;
 
   const targetKey = `${toTileX},${toTileY}`;
-  const occupied = new Set<string>(
-    state.participants
-      .filter((p) => p.id !== participant.id && p.hp > 0)
-      .map((p) => `${p.tileX},${p.tileY}`),
-  );
+  const occupied = getOccupiedTileSet(state.participants, participant.id);
   const startKey = tileKey(participant.tileX, participant.tileY);
-  const blocked = (x: number, y: number) => !tileCtx.isTileWalkable(x, y) || occupied.has(tileKey(x, y));
+  const blocked = (x: number, y: number) => {
+    const candidate = { x, y };
+    return !isFootprintWalkable(participant, candidate, tileCtx) ||
+      getParticipantFootprintTiles(participant, candidate).some((tile) => occupied.has(tileKey(tile.x, tile.y)));
+  };
   const costs = bfsFlood(
     { x: participant.tileX, y: participant.tileY },
     participant.mpRemaining,
@@ -267,11 +342,19 @@ export function getBestApproachTile(
   const reachable = getReachableTiles(mover, state, tileCtx);
   if (reachable.length === 0) return null;
 
+  const target = state.participants.find((p) => isParticipantOnTile(p, targetTileX, targetTileY));
   let best: { x: number; y: number } | null = null;
-  let bestDist = chebyshevDist(mover.tileX, mover.tileY, targetTileX, targetTileY);
+  let bestDist = target
+    ? getParticipantDistance(mover, target)
+    : chebyshevDist(mover.tileX, mover.tileY, targetTileX, targetTileY);
 
   for (const tile of reachable) {
-    const dist = chebyshevDist(tile.x, tile.y, targetTileX, targetTileY);
+    const dist = target
+      ? getFootprintDistance(
+          { x: tile.x, y: tile.y, size: getParticipantFootprintSize(mover) },
+          { x: target.tileX, y: target.tileY, size: getParticipantFootprintSize(target) },
+        )
+      : chebyshevDist(tile.x, tile.y, targetTileX, targetTileY);
     if (dist < bestDist) {
       bestDist = dist;
       best = tile;
@@ -329,7 +412,11 @@ export function selectReactionAttack(actor: TurnParticipant, distance: number): 
 }
 
 export function isSameSide(a: TurnParticipant, b: TurnParticipant): boolean {
-  return (a.kind === 'enemy') === (b.kind === 'enemy');
+  return isEnemySide(a) === isEnemySide(b);
+}
+
+export function isEnemySide(participant: TurnParticipant): boolean {
+  return participant.kind === 'enemy' || participant.kind === 'object';
 }
 
 function rebuildPathFromCosts(

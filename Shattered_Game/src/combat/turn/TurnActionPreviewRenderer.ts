@@ -6,7 +6,10 @@ import {
   getEffectiveAttackMaxRange,
   getAttackableTargets,
   getParticipantAttacks,
+  getParticipantDistance,
+  getParticipantFootprintTiles,
   getReachableTiles,
+  isEnemySide,
   isSameSide,
   selectReactionAttack,
   type TurnTileContext,
@@ -111,7 +114,9 @@ export class TurnActionPreviewRenderer {
 
       const targets = this.getTargetPreviewTiles(active, state, selectedAttackId, selectedAbilityId, tileCtx);
       for (const target of targets) {
-        this.drawDiamond(this.previewGraphics, target.tileX, target.tileY);
+        for (const tile of getParticipantFootprintTiles(target)) {
+          this.drawDiamond(this.previewGraphics, tile.x, tile.y);
+        }
       }
       if (selectedRange) {
         this.drawTargetLabels(
@@ -155,7 +160,9 @@ export class TurnActionPreviewRenderer {
     const occupied = new Set(
       state.participants
         .filter((participant) => participant.hp > 0)
-        .map((participant) => `${participant.tileX},${participant.tileY}`),
+        .flatMap((participant) =>
+          getParticipantFootprintTiles(participant).map((tile) => `${tile.x},${tile.y}`),
+        ),
     );
     const tiles = new Map<string, { x: number; y: number }>();
     const telegraphActorIds = new Set((state.pendingTelegraphs ?? []).map((telegraph) => telegraph.actorId));
@@ -166,16 +173,21 @@ export class TurnActionPreviewRenderer {
         || enemy.hp <= 0
         || isSameSide(enemy, active)
         || telegraphActorIds.has(enemy.id)
-        || chebyshevDist(active.tileX, active.tileY, enemy.tileX, enemy.tileY) > 1
+        || getParticipantDistance(active, enemy) > 1
         || (enemy.reactionRemaining ?? 1) <= 0
         || selectReactionAttack(enemy, 1) === null
       ) {
         continue;
       }
 
-      for (let y = enemy.tileY - 1; y <= enemy.tileY + 1; y += 1) {
-        for (let x = enemy.tileX - 1; x <= enemy.tileX + 1; x += 1) {
-          if (x === enemy.tileX && y === enemy.tileY) continue;
+      const enemyTiles = getParticipantFootprintTiles(enemy);
+      const minX = Math.min(...enemyTiles.map((tile) => tile.x)) - 1;
+      const maxX = Math.max(...enemyTiles.map((tile) => tile.x)) + 1;
+      const minY = Math.min(...enemyTiles.map((tile) => tile.y)) - 1;
+      const maxY = Math.max(...enemyTiles.map((tile) => tile.y)) + 1;
+      for (let y = minY; y <= maxY; y += 1) {
+        for (let x = minX; x <= maxX; x += 1) {
+          if (enemyTiles.some((tile) => tile.x === x && tile.y === y)) continue;
           if (x < 0 || y < 0 || x >= tileCtx.mapWidth || y >= tileCtx.mapHeight) continue;
           if (!tileCtx.isTileWalkable(x, y)) continue;
           if (occupied.has(`${x},${y}`)) continue;
@@ -197,7 +209,7 @@ export class TurnActionPreviewRenderer {
         && participant.hp > 0
         && !isSameSide(participant, active)
       ))
-      .map((participant) => ({ x: participant.tileX, y: participant.tileY }));
+      .flatMap((participant) => getParticipantFootprintTiles(participant));
   }
 
   private getSelectedActionRange(
@@ -266,10 +278,10 @@ export class TurnActionPreviewRenderer {
     tileCtx: TurnTileContext,
   ): void {
     for (const target of state.participants) {
-      if (target.kind === active.kind || (active.kind !== 'enemy' && target.kind !== 'enemy')) continue;
+      if (isEnemySide(target) === isEnemySide(active)) continue;
       if (target.hp <= 0) continue;
-      if (!this.isPointerOverTile(target.tileX, target.tileY)) continue;
-      const dist = chebyshevDist(active.tileX, active.tileY, target.tileX, target.tileY);
+      if (!getParticipantFootprintTiles(target).some((tile) => this.isPointerOverTile(tile.x, tile.y))) continue;
+      const dist = getParticipantDistance(active, target);
       const effectiveMaxRange = attack ? getEffectiveAttackMaxRange(active, target, attack, tileCtx) : maxRange;
       const inRange = dist >= minRange && dist <= effectiveMaxRange;
       const hitContext = inRange
@@ -278,7 +290,7 @@ export class TurnActionPreviewRenderer {
       const labelText = hitContext
         ? `${actionName} • ${hitContext.hitChance}%`
         : 'Out of range';
-      const center = this.getDiamondCenter(target.tileX, target.tileY);
+      const center = this.getParticipantCenter(target);
       const label = this.previewGraphics.scene.add.text(
         center.x,
         center.y - 38,
@@ -312,6 +324,14 @@ export class TurnActionPreviewRenderer {
     };
   }
 
+  private getParticipantCenter(participant: TurnCombatState['participants'][number]): { x: number; y: number } {
+    const centers = getParticipantFootprintTiles(participant).map((tile) => this.getDiamondCenter(tile.x, tile.y));
+    return {
+      x: centers.reduce((sum, center) => sum + center.x, 0) / centers.length,
+      y: centers.reduce((sum, center) => sum + center.y, 0) / centers.length,
+    };
+  }
+
   private clearTargetLabels(): void {
     while (this.targetLabels.length > 0) {
       this.targetLabels.pop()?.destroy();
@@ -335,9 +355,9 @@ export class TurnActionPreviewRenderer {
       const minRange = ability.minRangeTiles ?? 0;
       const maxRange = ability.maxRangeTiles ?? 1;
       return state.participants.filter((target) => {
-        if (target.kind === active.kind || (active.kind !== 'enemy' && target.kind !== 'enemy')) return false;
+        if (isEnemySide(target) === isEnemySide(active)) return false;
         if (target.hp <= 0) return false;
-        const dist = chebyshevDist(active.tileX, active.tileY, target.tileX, target.tileY);
+        const dist = getParticipantDistance(active, target);
         return dist >= minRange && dist <= maxRange;
       });
     }
@@ -346,9 +366,9 @@ export class TurnActionPreviewRenderer {
       const attack = getParticipantAttacks(active).find((entry) => entry.id === selectedAttackId);
       if (!attack || (active.attackCooldowns?.[attack.id] ?? 0) > 0 || active.apRemaining < attack.apCost) return [];
       return state.participants.filter((target) => {
-        if (target.kind === active.kind || (active.kind !== 'enemy' && target.kind !== 'enemy')) return false;
+        if (isEnemySide(target) === isEnemySide(active)) return false;
         if (target.hp <= 0) return false;
-        const dist = chebyshevDist(active.tileX, active.tileY, target.tileX, target.tileY);
+        const dist = getParticipantDistance(active, target);
         return dist >= attack.minRangeTiles && dist <= getEffectiveAttackMaxRange(active, target, attack, tileCtx);
       });
     }

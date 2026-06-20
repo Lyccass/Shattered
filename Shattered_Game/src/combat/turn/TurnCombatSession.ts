@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { formatEnemyIdentifyReadout } from '../IdentifyReadout';
 import { EnemySystem } from '../EnemySystem';
+import type { EnemyFacingVector } from '../EnemyVisualController';
 import { HitsplatRenderer } from '../HitsplatRenderer';
 import type { EnemyBehavior, EnemySpawnDefinition } from '../EnemyTypes';
 import type { IsoTilemap } from '../../world/IsoTilemap';
@@ -36,7 +37,14 @@ import type {
   TurnDamageType,
 } from './TurnCombatTypes';
 import type { TurnTileContext } from './TurnActionValidator';
-import { chebyshevDist, getBestApproachTile, getReachableTiles } from './TurnActionValidator';
+import {
+  chebyshevDist,
+  getBestApproachTile,
+  getParticipantFootprintTiles,
+  getReachableTiles,
+  isEnemySide,
+  isParticipantOnTile,
+} from './TurnActionValidator';
 
 export type CombatEndEvent = {
   reason: CombatEndReason;
@@ -107,6 +115,7 @@ export class TurnCombatSession {
   private equippedTurnAbilities: TurnCombatAbility[] = [];
   private equippedCompanions: EquippedCompanionSlots = {};
   private companionVisuals: Map<string, CompanionVisualController> = new Map();
+  private combatObjectVisuals: Map<string, Phaser.GameObjects.Rectangle> = new Map();
   private defeatedEnemyNames: string[] = [];
   private droppedLootSummary: CombatLootDropSummary[] = [];
   private recordedDefeats = new Set<string>();
@@ -170,8 +179,7 @@ export class TurnCombatSession {
       const tile = this.currentTilemap.transform.worldToTile(feetWorldX, feetWorldY);
       return !this.enemySystems.some((es) => {
         if (!es.isAlive()) return false;
-        const t = es.getCurrentTile();
-        return t && t.x === tile.x && t.y === tile.y;
+        return es.getFootprintTiles().some((enemyTile) => enemyTile.x === tile.x && enemyTile.y === tile.y);
       });
     });
   }
@@ -179,16 +187,14 @@ export class TurnCombatSession {
   getEnemyTiles(): Array<{ tileX: number; tileY: number }> {
     return this.enemySystems.flatMap((es) => {
       if (!es.isAlive()) return [];
-      const t = es.getCurrentTile();
-      return t ? [{ tileX: t.x, tileY: t.y }] : [];
+      return es.getFootprintTiles().map((tile) => ({ tileX: tile.x, tileY: tile.y }));
     });
   }
 
   getEnemyMapMarkers(): EnemyMapMarker[] {
     return this.enemySystems.flatMap((es) => {
       if (!es.isAlive()) return [];
-      const t = es.getCurrentTile();
-      return t ? [{ tileX: t.x, tileY: t.y, attitude: es.getBehavior() }] : [];
+      return es.getFootprintTiles().map((tile) => ({ tileX: tile.x, tileY: tile.y, attitude: es.getBehavior() }));
     });
   }
 
@@ -200,9 +206,11 @@ export class TurnCombatSession {
       if (!enemySystem.isAlive()) return [];
       const definition = enemySystem.getDefinition();
       const record = enemySystem.getRecord();
-      const tile = enemySystem.getCurrentTile();
-      if (!definition || !record || !tile) return [];
-      const distance = Math.max(Math.abs(tile.x - playerTile.x), Math.abs(tile.y - playerTile.y));
+      const tiles = enemySystem.getFootprintTiles();
+      if (!definition || !record || tiles.length === 0) return [];
+      const distance = Math.min(
+        ...tiles.map((tile) => Math.max(Math.abs(tile.x - playerTile.x), Math.abs(tile.y - playerTile.y))),
+      );
       if (distance > maxRangeTiles) return [];
       return [{ definition, record, distance }];
     });
@@ -217,8 +225,7 @@ export class TurnCombatSession {
   identifyEnemyAtTile(tileX: number, tileY: number, magicRank: number): string | null {
     const es = this.enemySystems.find((enemy) => {
       if (!enemy.isAlive()) return false;
-      const t = enemy.getCurrentTile();
-      return t && t.x === tileX && t.y === tileY;
+      return enemy.getFootprintTiles().some((tile) => tile.x === tileX && tile.y === tileY);
     });
     if (!es) return null;
     const def = es.getDefinition();
@@ -629,7 +636,7 @@ export class TurnCombatSession {
     if (!this.canAcceptPlayerInput() || !this.combatState) return null;
 
     const targetParticipant = this.combatState.participants.find(
-      (p) => p.kind === 'enemy' && p.hp > 0 && p.tileX === tileX && p.tileY === tileY,
+      (p) => isEnemySide(p) && p.hp > 0 && isParticipantOnTile(p, tileX, tileY),
     );
 
     if (targetParticipant) {
@@ -751,7 +758,7 @@ export class TurnCombatSession {
 
     const target = this.enemySystems.find(
       (es) => es.isAlive() && !es.inCombat &&
-              es.getCurrentTile()?.x === tileX && es.getCurrentTile()?.y === tileY,
+              es.getFootprintTiles().some((tile) => tile.x === tileX && tile.y === tileY),
     );
     if (!target) return false;
 
@@ -764,7 +771,7 @@ export class TurnCombatSession {
   /** Returns true if any alive enemy occupies the given tile. */
   hasEnemyAtTile(tileX: number, tileY: number): boolean {
     return this.enemySystems.some(
-      (es) => es.isAlive() && es.getCurrentTile()?.x === tileX && es.getCurrentTile()?.y === tileY,
+      (es) => es.isAlive() && es.getFootprintTiles().some((tile) => tile.x === tileX && tile.y === tileY),
     );
   }
 
@@ -945,6 +952,7 @@ export class TurnCombatSession {
       initiative:      def.initiative,
       attackPower:      def.attacks[0]?.damage ?? 1,
       hitChance:        def.attacks[0]?.hitChance,
+      footprintSize:    def.footprintSize ?? 1,
       poise:            0,
       slashDefence:     def.slashDefence,
       pierceDefence:    def.pierceDefence,
@@ -971,15 +979,18 @@ export class TurnCombatSession {
         cooldownTurns: attack.cooldownTurns ?? 0,
         telegraph: attack.telegraph ? { ...attack.telegraph } : undefined,
         forcedMovement: attack.forcedMovement ? { ...attack.forcedMovement } : undefined,
+        staggerDamage: attack.staggerDamage,
       })),
       attackCooldowns: {},
       stagger:         0,
       staggerThreshold: 10,
       definitionId:    def.id,
       aiProfile:       def.aiProfile ?? 'direct',
+      enrage:          def.enrage ? { ...def.enrage } : undefined,
+      earthPillarPhase: def.earthPillarPhase ? { ...def.earthPillarPhase } : undefined,
       spawnId:         record.id,
-      areaId:          undefined,
-      lootTableId:     undefined,
+      areaId:          record.areaId,
+      lootTableId:     def.id,
       statusEffects:   [],
     };
   }
@@ -991,7 +1002,9 @@ export class TurnCombatSession {
     tileCtx: TurnTileContext,
   ): TurnParticipant[] {
     const occupied = new Set<string>(
-      enemyParticipants.map((p) => `${p.tileX},${p.tileY}`),
+      enemyParticipants.flatMap((p) =>
+        getParticipantFootprintTiles(p).map((tile) => `${tile.x},${tile.y}`),
+      ),
     );
     occupied.add(`${playerTileX},${playerTileY}`);
 
@@ -1133,6 +1146,12 @@ export class TurnCombatSession {
         }
         break;
       }
+      case 'combat_objects_spawned':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} calls earth pillars from the ground.`);
+        break;
+      case 'regenerated':
+        this.emitCombatLog(`${this.getParticipantName(outcome.actorId)} draws strength from the earth and restores ${outcome.amount} HP.`);
+        break;
       case 'status_tick':
         if (outcome.damage > 0) {
           const suffix = outcome.killed ? ' Defeated.' : '';
@@ -1185,6 +1204,7 @@ export class TurnCombatSession {
 
     switch (outcome.kind) {
       case 'attacked': {
+        this.syncCombatObjectVisuals();
         const targetEs = this.findEnemySystem(outcome.targetId);
         if (targetEs) {
           this.syncEnemyCombatHp(outcome.targetId);
@@ -1249,6 +1269,7 @@ export class TurnCombatSession {
       }
 
       case 'ability_used': {
+        this.syncCombatObjectVisuals();
         const targetEs = this.findEnemySystem(outcome.targetId);
         if (targetEs) {
           this.syncEnemyCombatHp(outcome.targetId);
@@ -1292,6 +1313,7 @@ export class TurnCombatSession {
       }
 
       case 'telegraph_resolved': {
+        this.syncCombatObjectVisuals();
         if (!outcome.targetWasInArea) {
           if (outcome.actorMoved) this.handleTelegraphActorMoveVisual(outcome.actorMoved);
           break;
@@ -1364,9 +1386,23 @@ export class TurnCombatSession {
         const actor = this.combatState?.participants.find((p) => p.id === outcome.actorId);
         if (es && actor && this.currentTilemap) {
           const world = this.currentTilemap.getTileCenterWorld(actor.tileX, actor.tileY);
-          es.applyVisualUpdate(world.x, world.y, false, actor.hp, 'windup', this.scene.time.now);
+          es.applyVisualUpdate(world.x, world.y, getEnemyFacing(actor), actor.hp, 'windup', this.scene.time.now);
           this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
         }
+        break;
+      }
+
+      case 'combat_objects_spawned':
+        this.syncCombatObjectVisuals();
+        this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
+        break;
+
+      case 'regenerated': {
+        this.syncEnemyCombatHp(outcome.actorId);
+        const es = this.findEnemySystem(outcome.actorId);
+        const pos = es?.getWorldPosition();
+        if (pos) this.hitsplatRenderer.show(pos.x, pos.y, outcome.amount, 0, '+HP', '#86efac');
+        this.animQueue.push({ kind: 'delay', durationMs: ENEMY_TURN_DELAY_MS });
         break;
       }
 
@@ -1529,12 +1565,15 @@ export class TurnCombatSession {
         const es = this.findEnemySystem(step.enemyId);
         const record = this.combatState?.participants.find((p) => p.id === step.enemyId);
         if (es && record) {
-          const facingRight = step.toWorld.x > step.fromWorld.x;
-          es.applyVisualUpdate(worldX, worldY, facingRight, record.hp, step.visualState ?? 'moving', nowMs);
+          const facing = getEnemyFacingFromWorldDelta(
+            step.toWorld.x - step.fromWorld.x,
+            step.toWorld.y - step.fromWorld.y,
+          );
+          es.applyVisualUpdate(worldX, worldY, facing, record.hp, step.visualState ?? 'moving', nowMs);
         }
         if (t >= 1) {
           if (es && record) {
-            es.applyVisualUpdate(step.toWorld.x, step.toWorld.y, false, record.hp, 'idle', nowMs);
+            es.applyVisualUpdate(step.toWorld.x, step.toWorld.y, getEnemyFacing(record), record.hp, 'idle', nowMs);
           }
           this.shiftAnimQueue();
         }
@@ -1547,7 +1586,7 @@ export class TurnCombatSession {
         if (attackerEs && record) {
           const pos = attackerEs.getWorldPosition();
           if (pos) {
-            attackerEs.applyVisualUpdate(pos.x, pos.y, false, record.hp,
+            attackerEs.applyVisualUpdate(pos.x, pos.y, getEnemyFacing(record), record.hp,
               elapsed >= step.durationMs ? 'idle' : 'attacking', nowMs);
           }
         }
@@ -1654,6 +1693,7 @@ export class TurnCombatSession {
 
     for (const vc of this.companionVisuals.values()) vc.destroy();
     this.companionVisuals.clear();
+    this.destroyCombatObjectVisuals();
 
     this.combatState   = null;
     this.animQueue     = [];
@@ -1683,6 +1723,7 @@ export class TurnCombatSession {
     this.defeatedEnemyNames = [];
     this.droppedLootSummary = [];
     this.recordedDefeats.clear();
+    this.destroyCombatObjectVisuals();
   }
 
   // Private: helpers
@@ -1741,7 +1782,51 @@ export class TurnCombatSession {
     if (!es || !participant) return;
     es.setCombatHp(participant.hp);
     const pos = es.getWorldPosition();
-    if (pos) es.applyVisualUpdate(pos.x, pos.y, false, participant.hp, 'idle', this.scene.time.now);
+    if (pos) es.applyVisualUpdate(pos.x, pos.y, getEnemyFacing(participant), participant.hp, 'idle', this.scene.time.now);
+  }
+
+  private syncCombatObjectVisuals(): void {
+    if (!this.currentTilemap || !this.combatState) {
+      this.destroyCombatObjectVisuals();
+      return;
+    }
+
+    const liveObjects = new Set<string>();
+    for (const participant of this.combatState.participants) {
+      if (participant.kind !== 'object' || participant.hp <= 0) continue;
+      liveObjects.add(participant.id);
+      const world = this.getParticipantWorldCenter(participant);
+      let visual = this.combatObjectVisuals.get(participant.id);
+      if (!visual) {
+        visual = this.scene.add.rectangle(world.x, world.y - 10, 28, 42, 0x7a4f2a, 0.94);
+        visual.setStrokeStyle(2, 0xd6b26e, 0.9);
+        this.combatObjectVisuals.set(participant.id, visual);
+      }
+      visual.setPosition(world.x, world.y - 10);
+      visual.setDepth(world.y + 18);
+      visual.setAlpha(participant.combatObjectKind === 'earth_pillar' ? 0.94 : 0.85);
+    }
+
+    for (const [id, visual] of this.combatObjectVisuals) {
+      if (liveObjects.has(id)) continue;
+      visual.destroy();
+      this.combatObjectVisuals.delete(id);
+    }
+  }
+
+  private destroyCombatObjectVisuals(): void {
+    for (const visual of this.combatObjectVisuals.values()) visual.destroy();
+    this.combatObjectVisuals.clear();
+  }
+
+  private getParticipantWorldCenter(participant: TurnParticipant): { x: number; y: number } {
+    if (!this.currentTilemap) return { x: 0, y: 0 };
+    const tiles = getParticipantFootprintTiles(participant);
+    const centers = tiles.map((tile) => this.currentTilemap!.getTileCenterWorld(tile.x, tile.y));
+    return {
+      x: centers.reduce((sum, tile) => sum + tile.x, 0) / centers.length,
+      y: centers.reduce((sum, tile) => sum + tile.y, 0) / centers.length,
+    };
   }
 
   private handleForcedMovementVisual(pushed: {
@@ -1751,7 +1836,10 @@ export class TurnCombatSession {
   }): void {
     if (!this.currentTilemap) return;
 
-    const to = this.currentTilemap.getTileCenterWorld(pushed.toTile.x, pushed.toTile.y);
+    const participant = this.combatState?.participants.find((p) => p.id === pushed.targetId);
+    const to = participant
+      ? this.getParticipantWorldCenter({ ...participant, tileX: pushed.toTile.x, tileY: pushed.toTile.y })
+      : this.currentTilemap.getTileCenterWorld(pushed.toTile.x, pushed.toTile.y);
     if (pushed.targetId === 'player') {
       this.playerController?.setClickMoveTarget(to.x, to.y);
       return;
@@ -1767,7 +1855,9 @@ export class TurnCombatSession {
     const es = this.findEnemySystem(pushed.targetId);
     if (!es) return;
 
-    const from = this.currentTilemap.getTileCenterWorld(pushed.fromTile.x, pushed.fromTile.y);
+    const from = participant
+      ? this.getParticipantWorldCenter({ ...participant, tileX: pushed.fromTile.x, tileY: pushed.fromTile.y })
+      : this.currentTilemap.getTileCenterWorld(pushed.fromTile.x, pushed.fromTile.y);
     es.setCombatTile(pushed.toTile.x, pushed.toTile.y, false);
     this.animQueue.push({
       kind: 'move_tween',
@@ -1796,8 +1886,13 @@ export class TurnCombatSession {
     const es = this.findEnemySystem(moved.targetId);
     if (!es) return;
 
-    const from = this.currentTilemap.getTileCenterWorld(moved.fromTile.x, moved.fromTile.y);
-    const to = this.currentTilemap.getTileCenterWorld(moved.toTile.x, moved.toTile.y);
+    const participant = this.combatState?.participants.find((p) => p.id === moved.targetId);
+    const from = participant
+      ? this.getParticipantWorldCenter({ ...participant, tileX: moved.fromTile.x, tileY: moved.fromTile.y })
+      : this.currentTilemap.getTileCenterWorld(moved.fromTile.x, moved.fromTile.y);
+    const to = participant
+      ? this.getParticipantWorldCenter({ ...participant, tileX: moved.toTile.x, tileY: moved.toTile.y })
+      : this.currentTilemap.getTileCenterWorld(moved.toTile.x, moved.toTile.y);
     es.setCombatTile(moved.toTile.x, moved.toTile.y, false);
     this.animQueue.push({
       kind: 'move_tween',
@@ -1818,8 +1913,13 @@ export class TurnCombatSession {
 
     let previousTile = fromTile;
     for (const tile of path) {
-      const fromWorld = this.currentTilemap.getTileCenterWorld(previousTile.x, previousTile.y);
-      const toWorld = this.currentTilemap.getTileCenterWorld(tile.x, tile.y);
+      const participant = this.combatState?.participants.find((p) => p.id === enemyId);
+      const fromWorld = participant
+        ? this.getParticipantWorldCenter({ ...participant, tileX: previousTile.x, tileY: previousTile.y })
+        : this.currentTilemap.getTileCenterWorld(previousTile.x, previousTile.y);
+      const toWorld = participant
+        ? this.getParticipantWorldCenter({ ...participant, tileX: tile.x, tileY: tile.y })
+        : this.currentTilemap.getTileCenterWorld(tile.x, tile.y);
       this.animQueue.push({
         kind: 'move_tween',
         enemyId,
@@ -2048,6 +2148,20 @@ function getTurnFacingFromDelta(dx: number, dy: number): Pick<TurnParticipant, '
   return {
     facingX: dx < 0 ? -1 : dx > 0 ? 1 : 0,
     facingY: dy < 0 ? -1 : dy > 0 ? 1 : 0,
+  };
+}
+
+function getEnemyFacing(participant: TurnParticipant): EnemyFacingVector {
+  return {
+    x: participant.facingX ?? 0,
+    y: participant.facingY ?? 1,
+  };
+}
+
+function getEnemyFacingFromWorldDelta(dx: number, dy: number): EnemyFacingVector {
+  return {
+    x: dx < -0.001 ? -1 : dx > 0.001 ? 1 : 0,
+    y: dy < -0.001 ? -1 : dy > 0.001 ? 1 : 0,
   };
 }
 
