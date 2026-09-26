@@ -7,7 +7,7 @@ Runtime art is in `public/assets/forest-painterly/natural-cliffs/`:
 - `shoulder.png`: lower curved rock shoulder for ends, overlaps and changing silhouettes.
 - `ascent.png`: winding earthen ascent with rock and vegetation shoulders.
 
-Generated using built-in ImageGen, with the user's coastal painting as a style reference. Exact prompts are in `prompts.json`. Original generated alpha is preserved.
+Original sprite alpha is preserved.
 
 Search **Natural Cliff** in the editor: 18 placements (three art types, three uniform sizes, two mirrored facings). Sizes use 2×2, 3×3 and 4×4 footprints. These are organic overlapping scenery modules, not edge-welded terrain/autotile cells. Use low end rocks to conceal joins, stagger outlines, and mix shoulders with columns; do not stretch sprites vertically. Mirrored facings are convenient compositional variants, not separately relit art.
 

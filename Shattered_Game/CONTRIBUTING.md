@@ -1,6 +1,6 @@
-# AGENTS.md
+# Contributing
 
-Every AI contributor should read this file before working in this repository.
+Every contributor should read this file before working in this repository.
 
 ## First Principles
 
@@ -192,4 +192,4 @@ The rounded cliff art kit is opt-in: `/forest-pack.html?sample=cliffs`, source/e
 
 The current `?sample=cliffs` preview uses `NaturalCliffSample.ts` and the painted overlap modules in `NaturalCliffDefinitions.ts`. Artwork and assembly limits are documented in `art/forest-painterly/source/natural-cliffs-v4/README.md`. The cliff sample export command now serializes this natural assembly; old kit IDs remain available for compatibility.
 
-Source Falls is north of Old River Gate: the ascent branches from `(62,18)` to Spring Overlook at `(54,5)`. The preview has Source Falls, Falls Ascent, and Spring Overlook landmark buttons. The slope follows the existing continuous terrain relief; water and rock faces are blocked. Artwork and its generation prompt are documented in `art/forest-painterly/source/source-falls/README.md`.
+Source Falls is north of Old River Gate: the ascent branches from `(62,18)` to Spring Overlook at `(54,5)`. The preview has Source Falls, Falls Ascent, and Spring Overlook landmark buttons. The slope follows the existing continuous terrain relief; water and rock faces are blocked. Artwork is documented in `art/forest-painterly/source/source-falls/README.md`.

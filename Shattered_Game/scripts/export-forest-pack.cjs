@@ -1,5 +1,5 @@
 // Deterministic atlas slicing and isometric export. Artwork lives in art/forest-painterly/source.
-// Requires sharp and pngjs; NODE_PATH may point at the bundled Codex Node packages.
+// Requires sharp and pngjs available to Node.
 const fs = require('node:fs');
 const path = require('node:path');
 const sharp = require('sharp');

@@ -4,4 +4,4 @@ The main Wake map now includes Source Falls beside Source Bluffs, north of Old R
 
 `src/shared/editor/SourceFallsSection.ts` authors the relief, river outlet, clear ascent and overlapping scenery through the editor model. Rebuild using `node scripts/build-river-woodland.mjs`; this also rebakes the 2× ground images. The path is walkable and follows the existing smooth visual relief; no new gameplay elevation layer is introduced. Cliff faces and water remain blocked.
 
-The new sprite is `public/assets/forest-painterly/natural-cliffs/waterfall.png` (1536×1024 with original alpha). Generated with the built-in ImageGen tool using `natural-cliffs/columns.png` as a style reference. The exact prompt is saved in `prompt.txt`. The three existing natural cliff/shoulder placements soften its continuation into the hillside. No global cliff modules or old preview layouts were changed.
+The new sprite is `public/assets/forest-painterly/natural-cliffs/waterfall.png` (1536×1024 with original alpha). The three existing natural cliff/shoulder placements soften its continuation into the hillside. No global cliff modules or old preview layouts were changed.

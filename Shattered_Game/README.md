@@ -368,13 +368,13 @@ Not next:
 - Database migration for static authoring data
 - Huge raid battles
 - PvP economy warfare
-- Full AI-generated quest systems
+- Fully generated quest systems
 - WoW-style expansion reset treadmill
 - Mandatory base-building, crafting, or combat progression
 
-## Future AI Contributors
+## Contributing
 
-Read `AGENTS.md` before changing code. It summarizes the rules that matter most for future AI work: ownership boundaries, verification, generated-data caution, and where to make changes.
+Read `CONTRIBUTING.md` before changing code. It summarizes the rules that matter most for contributions: ownership boundaries, verification, generated-data caution, and where to make changes.
 
 ### River Woodland composition
 
@@ -384,7 +384,7 @@ The painted forest catalog also includes a woodland shack, lanterns, direction s
 
 River Woodland includes broad highlands and cliff outcrops, with Western Overlook and Source Bluffs preview landmarks. Painted grass brushes 15–18 raise the visual surface by 30–72 world pixels without changing the earlier low hills or movement rules.
 
-The current painted coast follows the 2026-09-15 reference: warm paths, olive grass, turquoise water, painted trees, flowers, cattails, and modular mossy cliffs/stairs. Open `forest-pack.html?sample=coast` for a compact assembly preview. New sprites are in the normal editor object catalog; `scripts/export-forest-sample.mjs` exports its map and coastal prefab definitions. The asset README documents seam constraints, generation prompts, and the visual-only height limitation.
+The current painted coast follows the 2026-09-15 reference: warm paths, olive grass, turquoise water, painted trees, flowers, cattails, and modular mossy cliffs/stairs. Open `forest-pack.html?sample=coast` for a compact assembly preview. New sprites are in the normal editor object catalog; `scripts/export-forest-sample.mjs` exports its map and coastal prefab definitions. The asset README documents seam constraints and the visual-only height limitation.
 
 River Woodland uses four modular plateau groups (`forest_grass_19`) with continuous tops and automatically exposed rock faces. Former cliff/stair scenery placements have been removed from the world composition. Plateau tiles remain blocked; this does not implement elevated traversal. Forest materials retain their 256×128 processing resolution and ground caches render at 2× world resolution.
 
@@ -398,4 +398,4 @@ The rounded cliff art kit is opt-in: `/forest-pack.html?sample=cliffs`, source/e
 
 The current `?sample=cliffs` preview uses `NaturalCliffSample.ts` and the painted overlap modules in `NaturalCliffDefinitions.ts`. Artwork and assembly limits are documented in `art/forest-painterly/source/natural-cliffs-v4/README.md`. The cliff sample export command now serializes this natural assembly; old kit IDs remain available for compatibility.
 
-Source Falls is north of Old River Gate: the ascent branches from `(62,18)` to Spring Overlook at `(54,5)`. The preview has Source Falls, Falls Ascent, and Spring Overlook landmark buttons. The slope follows the existing continuous terrain relief; water and rock faces are blocked. Artwork and its generation prompt are documented in `art/forest-painterly/source/source-falls/README.md`.
+Source Falls is north of Old River Gate: the ascent branches from `(62,18)` to Spring Overlook at `(54,5)`. The preview has Source Falls, Falls Ascent, and Spring Overlook landmark buttons. The slope follows the existing continuous terrain relief; water and rock faces are blocked. Artwork is documented in `art/forest-painterly/source/source-falls/README.md`.

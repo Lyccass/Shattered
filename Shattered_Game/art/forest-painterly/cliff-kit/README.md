@@ -1,6 +1,6 @@
 # Rounded painted cliff kit
 
-130 transparent PNG modules at 4× world resolution, plus 56 raised climb configurations in the editor (186 entries total). Built-in ImageGen supplied the painted rock master; deterministic mesh export supplies matching isometric sockets and rounded geometry. The prompt is recorded in ../source/cliff-kit-v3/prompt.txt.
+130 transparent PNG modules at 4× world resolution, plus 56 raised climb configurations in the editor (186 entries total). The mesh exporter supplies matching isometric joins and rounded geometry.
 
 Open `/forest-pack.html?sample=cliffs` for the assembly scene, or import `assembly.json` into the map editor. Search objects for **Cliff Kit**. The active woodland is intentionally unchanged.
 
