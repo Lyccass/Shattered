@@ -4,7 +4,8 @@ export const PROTOTYPE_SCALE = {
   playerVisualScale: 2,
   mapWidth: 192,
   mapHeight: 192,
-  terrainChunkSize: 32,
+  // Render in small batches; authored world chunks remain 32×32.
+  terrainChunkSize: 8,
   terrainChunkVisibleRadius: 1,
   terrainChunkRetainRadius: 2,
   terrainChunkBleedTiles: 1,

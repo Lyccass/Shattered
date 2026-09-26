@@ -6,8 +6,8 @@
   "bounds": {
     "minChunkX": 0,
     "minChunkY": 0,
-    "maxChunkX": 999,
-    "maxChunkY": 999
+    "maxChunkX": 2,
+    "maxChunkY": 2
   },
   "defaultRegionId": "harbor_coast",
   "regions": [

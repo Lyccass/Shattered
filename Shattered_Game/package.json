@@ -10,12 +10,14 @@
     "build:editor": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "bake:ground": "node scripts/bake-forest-ground.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.9",
     "typescript": "^5.9.3",
     "vite": "^7.2.7",
     "vitest": "^4.1.6"

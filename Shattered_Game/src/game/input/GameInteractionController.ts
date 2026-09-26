@@ -208,7 +208,9 @@ export class GameInteractionController {
 
     const isoTilemap = worldRuntimeCoordinator.getIsoTilemap();
     if (!isoTilemap) return;
-    const targetTile = isoTilemap.transform.worldToTile(worldX, worldY);
+    // Interaction approach points already use logical ground coordinates.
+    const ground=preservePendingInteraction ? {x:worldX,y:worldY} : isoTilemap.surfaceToGround(worldX,worldY);
+    const targetTile = isoTilemap.transform.worldToTile(ground.x, ground.y);
 
     if (!isoTilemap.isTileInBounds(targetTile.x, targetTile.y)) {
       if (!preservePendingInteraction) {

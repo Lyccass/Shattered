@@ -2,6 +2,7 @@ import { PROTOTYPE_SCALE } from '../../config/prototypeScale';
 import Phaser from 'phaser';
 import { TERRAIN_TILE_DEFINITIONS } from './TerrainTileDefinitions';
 import { TERRAIN_TRANSITION_DEFINITIONS } from './TerrainTransitionDefinitions';
+import { FOREST_TERRAIN_DEFINITIONS, FOREST_OVERLAY_ASSETS } from './ForestTerrainDefinitions';
 
 type TerrainSourceAsset = {
   sourceKey: string;
@@ -18,6 +19,8 @@ const TERRAIN_TARGET_HEIGHT = PROTOTYPE_SCALE.tileHeight;
 // excluded until their definitions reference them.
 function buildActiveRenderKeys(): Set<string> {
   const keys = new Set<string>();
+  FOREST_OVERLAY_ASSETS.forEach(id => keys.add(`terrain-${id}`));
+  keys.add('terrain-forest_water_glints');
   for (const def of TERRAIN_TILE_DEFINITIONS) {
     keys.add(def.spriteFrame);
   }
@@ -32,6 +35,8 @@ function buildActiveRenderKeys(): Set<string> {
 const ACTIVE_RENDER_KEYS = buildActiveRenderKeys();
 
 const SOURCE_ASSETS: TerrainSourceAsset[] = [
+  ...FOREST_TERRAIN_DEFINITIONS.map(def => createTerrainAsset(def.id, `/assets/forest-painterly/${def.id}.png`)),
+  ...[...FOREST_OVERLAY_ASSETS, 'forest_water_glints'].map(id => createTerrainAsset(id, `/assets/forest-painterly/${id}.png`)),
   ...createNumberedTerrainAssets('grassA', '/assets/Grass_A_PNG/Grass_A_', 44),
   ...createNumberedTerrainAssets('groundA', '/assets/Ground_A_PNG/Ground_A_', 48),
   ...createNumberedTerrainAssets('waterBottom', '/assets/Water/Bottom_', 5),
@@ -59,6 +64,8 @@ const SOURCE_ASSETS: TerrainSourceAsset[] = [
 ].filter(({ renderKey }) => ACTIVE_RENDER_KEYS.has(renderKey));
 
 export function preloadTerrainAssets(scene: Phaser.Scene): void {
+  if(!scene.textures.exists('forest-grass-world-hd'))scene.load.image('forest-grass-world-hd','/assets/forest-painterly/grass-world-hd.png');
+  if(!scene.textures.exists('forest-cliff-material'))scene.load.image('forest-cliff-material','/assets/forest-painterly/coastal-cliff-face.png');
   SOURCE_ASSETS.forEach(({ sourceKey, path }) => {
     if (!scene.textures.exists(sourceKey)) {
       scene.load.image(sourceKey, path);
@@ -97,8 +104,9 @@ function createScaledTexture(scene: Phaser.Scene, { sourceKey, renderKey }: Terr
   }
 
   const sourceImage = scene.textures.get(sourceKey).getSourceImage() as HTMLImageElement;
-  const width = TERRAIN_TARGET_WIDTH;
-  const height = TERRAIN_TARGET_HEIGHT;
+  const forest = sourceKey.includes('forest_');
+  const width = forest ? TERRAIN_TARGET_WIDTH * 4 : TERRAIN_TARGET_WIDTH;
+  const height = forest ? TERRAIN_TARGET_HEIGHT * 4 : TERRAIN_TARGET_HEIGHT;
   const canvasTexture = scene.textures.createCanvas(renderKey, width, height);
 
   if (!canvasTexture) {
@@ -106,7 +114,7 @@ function createScaledTexture(scene: Phaser.Scene, { sourceKey, renderKey }: Terr
   }
 
   const context = canvasTexture.getContext();
-  context.imageSmoothingEnabled = false;
+  context.imageSmoothingEnabled = forest;
   context.drawImage(sourceImage, 0, 0, width, height);
   canvasTexture.refresh();
 }

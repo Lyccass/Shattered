@@ -26,7 +26,7 @@ type NpcVisual = {
 export class NpcVisualController {
   private visuals = new Map<string, NpcVisual>();
 
-  constructor(private readonly scene: Phaser.Scene) {}
+  constructor(private readonly scene: Phaser.Scene, private readonly surfaceLift: (x:number,y:number)=>number = () => 0) {}
 
   syncAll(states: readonly NpcRuntimeState[], displayNames: Map<string, string>): void {
     const activeIds = new Set(states.map((s) => s.id));
@@ -111,17 +111,18 @@ export class NpcVisualController {
 
     const { worldX, worldY } = state;
     const depth = getDynamicDepth(worldY, 4);
+    const surfaceY = worldY - this.surfaceLift(worldX, worldY);
 
-    visual.shadow.setPosition(worldX, worldY + 2);
+    visual.shadow.setPosition(worldX, surfaceY + 2);
     visual.shadow.setDepth(depth - 1);
 
-    visual.body.setPosition(worldX, worldY - 8);
+    visual.body.setPosition(worldX, surfaceY - 8);
     visual.body.setDepth(depth);
 
-    visual.nameText.setPosition(worldX, worldY + NAME_OFFSET_Y);
+    visual.nameText.setPosition(worldX, surfaceY + NAME_OFFSET_Y);
     visual.nameText.setDepth(depth + 2);
 
-    const bubbleY = worldY + BUBBLE_OFFSET_Y;
+    const bubbleY = surfaceY + BUBBLE_OFFSET_Y;
 
     if (state.bubbleText !== visual.lastBubbleText) {
       visual.lastBubbleText = state.bubbleText;

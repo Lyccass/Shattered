@@ -1,0 +1,571 @@
+{
+  "version": 1,
+  "tileWidth": 64,
+  "tileHeight": 32,
+  "terrain": [
+    {
+      "id": "forest_grass_1",
+      "family": "grass",
+      "path": "/assets/forest-painterly/forest_grass_1.png"
+    },
+    {
+      "id": "forest_grass_2",
+      "family": "grass",
+      "path": "/assets/forest-painterly/forest_grass_2.png"
+    },
+    {
+      "id": "forest_grass_3",
+      "family": "grass",
+      "path": "/assets/forest-painterly/forest_grass_3.png"
+    },
+    {
+      "id": "forest_grass_4",
+      "family": "grass",
+      "path": "/assets/forest-painterly/forest_grass_4.png"
+    },
+    {
+      "id": "forest_dirt_1",
+      "family": "dirt",
+      "path": "/assets/forest-painterly/forest_dirt_1.png"
+    },
+    {
+      "id": "forest_dirt_2",
+      "family": "dirt",
+      "path": "/assets/forest-painterly/forest_dirt_2.png"
+    },
+    {
+      "id": "forest_dirt_3",
+      "family": "dirt",
+      "path": "/assets/forest-painterly/forest_dirt_3.png"
+    },
+    {
+      "id": "forest_dirt_4",
+      "family": "dirt",
+      "path": "/assets/forest-painterly/forest_dirt_4.png"
+    },
+    {
+      "id": "forest_stone_1",
+      "family": "stone",
+      "path": "/assets/forest-painterly/forest_stone_1.png"
+    },
+    {
+      "id": "forest_stone_2",
+      "family": "stone",
+      "path": "/assets/forest-painterly/forest_stone_2.png"
+    },
+    {
+      "id": "forest_stone_3",
+      "family": "stone",
+      "path": "/assets/forest-painterly/forest_stone_3.png"
+    },
+    {
+      "id": "forest_stone_4",
+      "family": "stone",
+      "path": "/assets/forest-painterly/forest_stone_4.png"
+    },
+    {
+      "id": "forest_water_1",
+      "family": "water",
+      "path": "/assets/forest-painterly/forest_water_1.png"
+    },
+    {
+      "id": "forest_water_2",
+      "family": "water",
+      "path": "/assets/forest-painterly/forest_water_2.png"
+    },
+    {
+      "id": "forest_water_3",
+      "family": "water",
+      "path": "/assets/forest-painterly/forest_water_3.png"
+    },
+    {
+      "id": "forest_water_4",
+      "family": "water",
+      "path": "/assets/forest-painterly/forest_water_4.png"
+    },
+    {
+      "id": "forest_sand_1",
+      "family": "sand",
+      "path": "/assets/forest-painterly/forest_sand_1.png"
+    },
+    {
+      "id": "forest_sand_2",
+      "family": "sand",
+      "path": "/assets/forest-painterly/forest_sand_2.png"
+    },
+    {
+      "id": "forest_sand_3",
+      "family": "sand",
+      "path": "/assets/forest-painterly/forest_sand_3.png"
+    },
+    {
+      "id": "forest_sand_4",
+      "family": "sand",
+      "path": "/assets/forest-painterly/forest_sand_4.png"
+    },
+    {
+      "id": "forest_grass_5",
+      "family": "grass",
+      "label": "Moss Carpet",
+      "path": "/assets/forest-painterly/forest_grass_5.png"
+    },
+    {
+      "id": "forest_grass_6",
+      "family": "grass",
+      "label": "Fallen Leaves",
+      "path": "/assets/forest-painterly/forest_grass_6.png"
+    },
+    {
+      "id": "forest_grass_7",
+      "family": "grass",
+      "label": "Woodland Twigs",
+      "path": "/assets/forest-painterly/forest_grass_7.png"
+    },
+    {
+      "id": "forest_grass_8",
+      "family": "grass",
+      "label": "Pebbled Grass",
+      "path": "/assets/forest-painterly/forest_grass_8.png"
+    },
+    {
+      "id": "forest_grass_9",
+      "family": "grass",
+      "label": "Hill Foot",
+      "heightOffset": 4,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_9.png"
+    },
+    {
+      "id": "forest_grass_10",
+      "family": "grass",
+      "label": "Lower Slope",
+      "heightOffset": 8,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_10.png"
+    },
+    {
+      "id": "forest_grass_11",
+      "family": "grass",
+      "label": "Hill Shoulder",
+      "heightOffset": 14,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_11.png"
+    },
+    {
+      "id": "forest_grass_12",
+      "family": "grass",
+      "label": "Hill Crest",
+      "heightOffset": 22,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_12.png"
+    },
+    {
+      "id": "forest_grass_13",
+      "family": "grass",
+      "label": "Shallow Hollow",
+      "heightOffset": -5,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_13.png"
+    },
+    {
+      "id": "forest_grass_14",
+      "family": "grass",
+      "label": "Gentle Rise",
+      "heightOffset": 11,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_14.png"
+    },
+    {
+      "id": "forest_grass_15",
+      "family": "grass",
+      "label": "Highland Foot",
+      "heightOffset": 30,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_15.png"
+    },
+    {
+      "id": "forest_grass_16",
+      "family": "grass",
+      "label": "Highland Slope",
+      "heightOffset": 42,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_16.png"
+    },
+    {
+      "id": "forest_grass_17",
+      "family": "grass",
+      "label": "Highland Shoulder",
+      "heightOffset": 56,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_17.png"
+    },
+    {
+      "id": "forest_grass_18",
+      "family": "grass",
+      "label": "High Plateau",
+      "heightOffset": 72,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_18.png"
+    },
+    {
+      "id": "forest_grass_19",
+      "family": "grass",
+      "label": "Cliff Plateau Module",
+      "heightOffset": 96,
+      "requiresReliefRenderer": true,
+      "path": "/assets/forest-painterly/forest_grass_19.png"
+    }
+  ],
+  "objects": [
+    {
+      "id": "forest_ferns",
+      "path": "/assets/forest-painterly/forest_ferns.png",
+      "width": 124,
+      "height": 87,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_stump",
+      "path": "/assets/forest-painterly/forest_stump.png",
+      "width": 116,
+      "height": 81,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_ramp",
+      "path": "/assets/forest-painterly/forest_ramp.png",
+      "width": 256,
+      "height": 207,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_wall_x",
+      "path": "/assets/forest-painterly/forest_wall_x.png",
+      "width": 192,
+      "height": 160,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_wall_y",
+      "path": "/assets/forest-painterly/forest_wall_y.png",
+      "width": 192,
+      "height": 157,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_wall_corner",
+      "path": "/assets/forest-painterly/forest_wall_corner.png",
+      "width": 192,
+      "height": 114,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_tall_birch",
+      "path": "/assets/forest-painterly/forest_tall_birch.png",
+      "width": 262,
+      "height": 640,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_fallen_branch",
+      "path": "/assets/forest-painterly/forest_fallen_branch.png",
+      "width": 116,
+      "height": 69,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_twigs",
+      "path": "/assets/forest-painterly/forest_twigs.png",
+      "width": 72,
+      "height": 41,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_pebble_scatter",
+      "path": "/assets/forest-painterly/forest_pebble_scatter.png",
+      "width": 76,
+      "height": 46,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_leaf_litter",
+      "path": "/assets/forest-painterly/forest_leaf_litter.png",
+      "width": 88,
+      "height": 52,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_flowers_lavender",
+      "path": "/assets/forest-painterly/forest_flowers_lavender.png",
+      "width": 68,
+      "height": 50,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_tall_copper_beech",
+      "path": "/assets/forest-painterly/forest_tall_copper_beech.png",
+      "width": 434,
+      "height": 600,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_mushrooms_red",
+      "path": "/assets/forest-painterly/forest_mushrooms_red.png",
+      "width": 44,
+      "height": 42,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_mushrooms_gold",
+      "path": "/assets/forest-painterly/forest_mushrooms_gold.png",
+      "width": 48,
+      "height": 44,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_mushrooms_lavender",
+      "path": "/assets/forest-painterly/forest_mushrooms_lavender.png",
+      "width": 44,
+      "height": 46,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_hill_low",
+      "path": "/assets/forest-painterly/forest_hill_low.png",
+      "width": 256,
+      "height": 136,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_hill_rolling",
+      "path": "/assets/forest-painterly/forest_hill_rolling.png",
+      "width": 384,
+      "height": 240,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_slope_x",
+      "path": "/assets/forest-painterly/forest_slope_x.png",
+      "width": 256,
+      "height": 168,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_slope_y",
+      "path": "/assets/forest-painterly/forest_slope_y.png",
+      "width": 256,
+      "height": 166,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_shack",
+      "path": "/assets/forest-painterly/forest_shack.png",
+      "width": 480,
+      "height": 501,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_lantern_post",
+      "path": "/assets/forest-painterly/forest_lantern_post.png",
+      "width": 96,
+      "height": 238,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_direction_sign",
+      "path": "/assets/forest-painterly/forest_direction_sign.png",
+      "width": 112,
+      "height": 159,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_large_bush",
+      "path": "/assets/forest-painterly/forest_large_bush.png",
+      "width": 220,
+      "height": 130,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_fence_x",
+      "path": "/assets/forest-painterly/forest_fence_x.png",
+      "width": 160,
+      "height": 128,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_wooden_gate",
+      "path": "/assets/forest-painterly/forest_wooden_gate.png",
+      "width": 160,
+      "height": 135,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_bench",
+      "path": "/assets/forest-painterly/forest_bench.png",
+      "width": 128,
+      "height": 119,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_supplies",
+      "path": "/assets/forest-painterly/forest_supplies.png",
+      "width": 108,
+      "height": 105,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_fence_y",
+      "path": "/assets/forest-painterly/forest_fence_y.png",
+      "width": 160,
+      "height": 128,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_gate_y",
+      "path": "/assets/forest-painterly/forest_gate_y.png",
+      "width": 160,
+      "height": 135,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_tall_oak",
+      "path": "/assets/forest-painterly/forest_tall_oak.png",
+      "width": 547,
+      "height": 520,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_oak",
+      "path": "/assets/forest-painterly/forest_oak.png",
+      "width": 340,
+      "height": 323,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_young_oak",
+      "path": "/assets/forest-painterly/forest_young_oak.png",
+      "width": 220,
+      "height": 209,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_ancient_oak",
+      "path": "/assets/forest-painterly/forest_ancient_oak.png",
+      "width": 757,
+      "height": 720,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_tall_beech",
+      "path": "/assets/forest-painterly/forest_tall_beech.png",
+      "width": 631,
+      "height": 600,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_tall_golden_birch",
+      "path": "/assets/forest-painterly/forest_tall_golden_birch.png",
+      "width": 380,
+      "height": 640,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_tall_burgundy_oak",
+      "path": "/assets/forest-painterly/forest_tall_burgundy_oak.png",
+      "width": 569,
+      "height": 560,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_flowers_cream",
+      "path": "/assets/forest-painterly/forest_flowers_cream.png",
+      "width": 76,
+      "height": 39,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_flowers",
+      "path": "/assets/forest-painterly/forest_coast_flowers.png",
+      "width": 124,
+      "height": 63,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_rocks",
+      "path": "/assets/forest-painterly/forest_rocks.png",
+      "width": 128,
+      "height": 81,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_boulder",
+      "path": "/assets/forest-painterly/forest_boulder.png",
+      "width": 152,
+      "height": 96,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_cliff_high",
+      "path": "/assets/forest-painterly/forest_cliff_high.png",
+      "width": 256,
+      "height": 262,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_cliff_low",
+      "path": "/assets/forest-painterly/forest_cliff_low.png",
+      "width": 256,
+      "height": 170,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_stairs_x",
+      "path": "/assets/forest-painterly/forest_coast_stairs_x.png",
+      "width": 288,
+      "height": 260,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_reeds",
+      "path": "/assets/forest-painterly/forest_coast_reeds.png",
+      "width": 68,
+      "height": 65,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_stairs_y",
+      "path": "/assets/forest-painterly/forest_coast_stairs_y.png",
+      "width": 288,
+      "height": 260,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_cliff_x",
+      "path": "/assets/forest-painterly/forest_coast_cliff_x.png",
+      "width": 192,
+      "height": 240,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_cliff_y",
+      "path": "/assets/forest-painterly/forest_coast_cliff_y.png",
+      "width": 192,
+      "height": 240,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_cliff_corner",
+      "path": "/assets/forest-painterly/forest_coast_cliff_corner.png",
+      "width": 256,
+      "height": 272,
+      "scale": 0.5
+    },
+    {
+      "id": "forest_coast_ledge_painted",
+      "path": "/assets/forest-painterly/forest_coast_ledge_painted.png",
+      "width": 640,
+      "height": 464,
+      "scale": 0.5
+    }
+  ]
+}

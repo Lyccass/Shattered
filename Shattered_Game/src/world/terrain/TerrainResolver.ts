@@ -100,6 +100,7 @@ export class TerrainResolver {
     const baseCandidates = this.definitions.filter(
       (definition) =>
         definition.family === renderFamily &&
+        definition.weight > 0 &&
         (definition.role === 'full' || definition.role === 'decorated'),
     );
 
@@ -259,8 +260,8 @@ export class TerrainResolver {
 }
 
 function transitionKey(
-  from: RenderTerrainFamily,
-  to: RenderTerrainFamily,
+  from: TerrainFamily,
+  to: TerrainFamily,
   kind: TerrainTransitionKind,
   direction: IsoEdgeKey | IsoCornerKey | string,
 ): string {

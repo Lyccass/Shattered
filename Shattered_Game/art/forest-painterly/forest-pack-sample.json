@@ -1,0 +1,4815 @@
+{
+  "id": "forest_pack_sample",
+  "displayName": "Painted Forest — Art Sample",
+  "spaceType": "open_world",
+  "width": 22,
+  "height": 22,
+  "terrain": [
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "stone",
+      "stone",
+      "stone",
+      "stone",
+      "stone",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "stone",
+      "stone",
+      "stone",
+      "stone",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "stone",
+      "stone",
+      "stone",
+      "stone",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "stone",
+      "stone",
+      "stone",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "stone",
+      "stone",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "dirt",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "dirt",
+      "dirt",
+      "dirt",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "dirt",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "dirt",
+      "dirt",
+      "dirt",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "dirt",
+      "dirt",
+      "dirt",
+      "dirt",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ],
+    [
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "grass",
+      "sand",
+      "sand",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water",
+      "water"
+    ]
+  ],
+  "spawnPoints": {
+    "default": {
+      "id": "default",
+      "tileX": 11,
+      "tileY": 11
+    }
+  },
+  "objects": [
+    {
+      "id": "forest_sample_0",
+      "definitionId": "forest_tall_oak",
+      "tileX": 3,
+      "tileY": 5
+    },
+    {
+      "id": "forest_sample_1",
+      "definitionId": "forest_tall_golden_birch",
+      "tileX": 7,
+      "tileY": 3
+    },
+    {
+      "id": "forest_sample_2",
+      "definitionId": "forest_tall_copper_beech",
+      "tileX": 4,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_3",
+      "definitionId": "forest_ancient_oak",
+      "tileX": 13,
+      "tileY": 18
+    },
+    {
+      "id": "forest_sample_4",
+      "definitionId": "forest_tall_burgundy_oak",
+      "tileX": 9,
+      "tileY": 1
+    },
+    {
+      "id": "forest_sample_5",
+      "definitionId": "forest_young_oak",
+      "tileX": 9,
+      "tileY": 14
+    },
+    {
+      "id": "forest_sample_6",
+      "definitionId": "forest_ferns",
+      "tileX": 4,
+      "tileY": 7
+    },
+    {
+      "id": "forest_sample_7",
+      "definitionId": "forest_ferns",
+      "tileX": 6,
+      "tileY": 5
+    },
+    {
+      "id": "forest_sample_8",
+      "definitionId": "forest_ferns",
+      "tileX": 8,
+      "tileY": 18
+    },
+    {
+      "id": "forest_sample_9",
+      "definitionId": "forest_ferns",
+      "tileX": 14,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_10",
+      "definitionId": "forest_boulder",
+      "tileX": 14,
+      "tileY": 10
+    },
+    {
+      "id": "forest_sample_11",
+      "definitionId": "forest_rocks",
+      "tileX": 16,
+      "tileY": 15
+    },
+    {
+      "id": "forest_sample_12",
+      "definitionId": "forest_stump",
+      "tileX": 8,
+      "tileY": 15
+    },
+    {
+      "id": "forest_sample_13",
+      "definitionId": "forest_wall_x",
+      "tileX": 11,
+      "tileY": 5
+    },
+    {
+      "id": "forest_sample_14",
+      "definitionId": "forest_wall_x",
+      "tileX": 13,
+      "tileY": 5
+    },
+    {
+      "id": "forest_sample_15",
+      "definitionId": "forest_wall_y",
+      "tileX": 11,
+      "tileY": 6
+    },
+    {
+      "id": "forest_sample_16",
+      "definitionId": "forest_wall_corner",
+      "tileX": 13,
+      "tileY": 7
+    },
+    {
+      "id": "forest_sample_17",
+      "definitionId": "forest_cliff_low",
+      "tileX": 5,
+      "tileY": 8
+    },
+    {
+      "id": "forest_sample_18",
+      "definitionId": "forest_cliff_high",
+      "tileX": 2,
+      "tileY": 9
+    },
+    {
+      "id": "forest_sample_19",
+      "definitionId": "forest_ramp",
+      "tileX": 7,
+      "tileY": 8
+    },
+    {
+      "id": "forest_sample_20",
+      "definitionId": "forest_rocks",
+      "tileX": 8,
+      "tileY": 2
+    },
+    {
+      "id": "forest_sample_21",
+      "definitionId": "forest_pebble_scatter",
+      "tileX": 10,
+      "tileY": 3
+    },
+    {
+      "id": "forest_sample_22",
+      "definitionId": "forest_ferns",
+      "tileX": 10,
+      "tileY": 2
+    },
+    {
+      "id": "forest_sample_23",
+      "definitionId": "forest_mushrooms_red",
+      "tileX": 3,
+      "tileY": 7
+    },
+    {
+      "id": "forest_sample_24",
+      "definitionId": "forest_mushrooms_red",
+      "tileX": 12,
+      "tileY": 18
+    },
+    {
+      "id": "forest_sample_25",
+      "definitionId": "forest_mushrooms_gold",
+      "tileX": 6,
+      "tileY": 3
+    },
+    {
+      "id": "forest_sample_26",
+      "definitionId": "forest_mushrooms_gold",
+      "tileX": 5,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_27",
+      "definitionId": "forest_mushrooms_lavender",
+      "tileX": 9,
+      "tileY": 3
+    },
+    {
+      "id": "forest_sample_28",
+      "definitionId": "forest_mushrooms_lavender",
+      "tileX": 11,
+      "tileY": 17
+    },
+    {
+      "id": "forest_sample_29",
+      "definitionId": "forest_fallen_branch",
+      "tileX": 5,
+      "tileY": 17
+    },
+    {
+      "id": "forest_sample_30",
+      "definitionId": "forest_fallen_branch",
+      "tileX": 6,
+      "tileY": 4
+    },
+    {
+      "id": "forest_sample_31",
+      "definitionId": "forest_twigs",
+      "tileX": 7,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_32",
+      "definitionId": "forest_twigs",
+      "tileX": 4,
+      "tileY": 6
+    },
+    {
+      "id": "forest_sample_33",
+      "definitionId": "forest_leaf_litter",
+      "tileX": 3,
+      "tileY": 6
+    },
+    {
+      "id": "forest_sample_34",
+      "definitionId": "forest_leaf_litter",
+      "tileX": 7,
+      "tileY": 5
+    },
+    {
+      "id": "forest_sample_35",
+      "definitionId": "forest_pebble_scatter",
+      "tileX": 14,
+      "tileY": 14
+    },
+    {
+      "id": "forest_sample_36",
+      "definitionId": "forest_pebble_scatter",
+      "tileX": 15,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_37",
+      "definitionId": "forest_flowers_cream",
+      "tileX": 7,
+      "tileY": 13
+    },
+    {
+      "id": "forest_sample_38",
+      "definitionId": "forest_flowers_cream",
+      "tileX": 6,
+      "tileY": 14
+    },
+    {
+      "id": "forest_sample_39",
+      "definitionId": "forest_flowers_cream",
+      "tileX": 5,
+      "tileY": 12
+    },
+    {
+      "id": "forest_sample_40",
+      "definitionId": "forest_flowers_lavender",
+      "tileX": 11,
+      "tileY": 15
+    },
+    {
+      "id": "forest_sample_41",
+      "definitionId": "forest_flowers_lavender",
+      "tileX": 12,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_42",
+      "definitionId": "forest_flowers_lavender",
+      "tileX": 13,
+      "tileY": 14
+    },
+    {
+      "id": "forest_sample_43",
+      "definitionId": "forest_tall_birch",
+      "tileX": 2,
+      "tileY": 13
+    },
+    {
+      "id": "forest_sample_44",
+      "definitionId": "forest_tall_oak",
+      "tileX": 8,
+      "tileY": 10
+    },
+    {
+      "id": "forest_sample_45",
+      "definitionId": "forest_tall_oak",
+      "tileX": 10,
+      "tileY": 9
+    },
+    {
+      "id": "forest_sample_46",
+      "definitionId": "forest_flower_patch",
+      "tileX": 2,
+      "tileY": 2
+    },
+    {
+      "id": "forest_sample_47",
+      "definitionId": "forest_flower_patch",
+      "tileX": 4,
+      "tileY": 2
+    },
+    {
+      "id": "forest_sample_48",
+      "definitionId": "forest_flower_patch",
+      "tileX": 12,
+      "tileY": 2
+    },
+    {
+      "id": "forest_sample_49",
+      "definitionId": "forest_flower_patch",
+      "tileX": 14,
+      "tileY": 2
+    },
+    {
+      "id": "forest_sample_50",
+      "definitionId": "forest_fern_bed",
+      "tileX": 12,
+      "tileY": 12
+    },
+    {
+      "id": "forest_sample_51",
+      "definitionId": "forest_rock_garden",
+      "tileX": 2,
+      "tileY": 16
+    },
+    {
+      "id": "forest_sample_52",
+      "definitionId": "forest_flower_patch",
+      "tileX": 8,
+      "tileY": 20
+    },
+    {
+      "id": "forest_sample_53",
+      "definitionId": "forest_flower_patch",
+      "tileX": 10,
+      "tileY": 20
+    }
+  ],
+  "transitions": [],
+  "zones": [],
+  "interactionAnchors": [],
+  "metadata": {
+    "source": "map_editor_v0",
+    "editorTerrainTiles": {
+      "0,0": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,0": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,0": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,0": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,0": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,0": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,0": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,0": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,0": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,0": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,0": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,0": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,0": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,0": {
+        "id": "forest_grass_5",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_5",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,0": {
+        "id": "forest_grass_5",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_5",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,0": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,0": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,0": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,0": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,0": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,0": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,0": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,1": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,1": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,1": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,1": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,1": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,1": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,1": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,1": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,1": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,1": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,1": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,1": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,1": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,1": {
+        "id": "forest_grass_5",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_5",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,1": {
+        "id": "forest_grass_5",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_5",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,1": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,1": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,1": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,1": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,1": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,1": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,1": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,2": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,2": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,2": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,2": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,2": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,2": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,2": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,2": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,2": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,2": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,2": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,2": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,2": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,2": {
+        "id": "forest_grass_14",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_14",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,2": {
+        "id": "forest_grass_14",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_14",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,2": {
+        "id": "forest_grass_5",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_5",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,2": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,2": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,2": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,2": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,2": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,2": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,3": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,3": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,3": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,3": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,3": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,3": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,3": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,3": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,3": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,3": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,3": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,3": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,3": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,3": {
+        "id": "forest_grass_14",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_14",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,3": {
+        "id": "forest_grass_14",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_14",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,3": {
+        "id": "forest_grass_5",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_5",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,3": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,3": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,3": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,3": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,3": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,3": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,4": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,4": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,4": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,4": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,4": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,4": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,4": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,4": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,4": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,4": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,4": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,4": {
+        "id": "forest_stone_2",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,4": {
+        "id": "forest_stone_1",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,4": {
+        "id": "forest_stone_4",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,4": {
+        "id": "forest_stone_3",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,4": {
+        "id": "forest_stone_2",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,4": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,4": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,4": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,4": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,4": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,4": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,5": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,5": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,5": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,5": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,5": {
+        "id": "forest_stone_1",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,5": {
+        "id": "forest_stone_4",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,5": {
+        "id": "forest_stone_3",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,5": {
+        "id": "forest_stone_2",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,5": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,5": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,5": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,5": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,5": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,5": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,5": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,6": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,6": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,6": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,6": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,6": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,6": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,6": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,6": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,6": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,6": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,6": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,6": {
+        "id": "forest_stone_4",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,6": {
+        "id": "forest_stone_3",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,6": {
+        "id": "forest_stone_2",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,6": {
+        "id": "forest_stone_1",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,6": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,6": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,6": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,6": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,6": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,6": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,6": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,7": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,7": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,7": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,7": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,7": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,7": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,7": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,7": {
+        "id": "forest_grass_6",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_6",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,7": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,7": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,7": {
+        "id": "forest_grass_4",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,7": {
+        "id": "forest_stone_3",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,7": {
+        "id": "forest_stone_2",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,7": {
+        "id": "forest_stone_1",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,7": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,7": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,7": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,7": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,7": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,7": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,7": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,7": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,8": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,8": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,8": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,8": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,8": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,8": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,8": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,8": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,8": {
+        "id": "forest_grass_13",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_13",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,8": {
+        "id": "forest_grass_13",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_13",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,8": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,8": {
+        "id": "forest_stone_2",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,8": {
+        "id": "forest_stone_1",
+        "family": "stone",
+        "textureKey": "terrain-forest_stone_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,8": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,8": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,8": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,8": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,8": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,8": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,8": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,8": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,8": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,9": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,9": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,9": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,9": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,9": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,9": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,9": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,9": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,9": {
+        "id": "forest_grass_13",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_13",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,9": {
+        "id": "forest_grass_13",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_13",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,9": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,9": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,9": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,9": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,9": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,9": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,9": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,9": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,9": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,9": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,9": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,9": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,10": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,10": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,10": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,10": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,10": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,10": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,10": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,10": {
+        "id": "forest_grass_4",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,10": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,10": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,10": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,10": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,10": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,10": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,10": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,10": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,10": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,10": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,10": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,10": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,10": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,10": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,11": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,11": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,11": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,11": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,11": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,11": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,11": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,11": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,11": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,11": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,11": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,11": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,11": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,11": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,11": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,11": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,11": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,11": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,11": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,11": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,11": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,11": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,12": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,12": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,12": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,12": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,12": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,12": {
+        "id": "forest_grass_4",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,12": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,12": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,12": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,12": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,12": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,12": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,12": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,12": {
+        "id": "forest_grass_4",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,12": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,12": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,12": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,12": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,12": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,12": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,12": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,12": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,13": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,13": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,13": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,13": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,13": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,13": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,13": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,13": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,13": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,13": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,13": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,13": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,13": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,13": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,13": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,13": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,13": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,13": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,13": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,13": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,13": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,13": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,14": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,14": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,14": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,14": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,14": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,14": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,14": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,14": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,14": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,14": {
+        "id": "forest_grass_2",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,14": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,14": {
+        "id": "forest_grass_4",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,14": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,14": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,14": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,14": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,14": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,14": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,14": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,14": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,14": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,14": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,15": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,15": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,15": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,15": {
+        "id": "forest_dirt_3",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,15": {
+        "id": "forest_dirt_2",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,15": {
+        "id": "forest_dirt_1",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,15": {
+        "id": "forest_dirt_4",
+        "family": "dirt",
+        "textureKey": "terrain-forest_dirt_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,15": {
+        "id": "forest_grass_3",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,15": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,15": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,15": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,15": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,15": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,15": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,15": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,15": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,15": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,15": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,15": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,15": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,15": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,15": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,16": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,16": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,16": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,16": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,16": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,16": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,16": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,16": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,16": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,16": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,16": {
+        "id": "forest_sand_1",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,16": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,16": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,16": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,16": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,16": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,17": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,17": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,17": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,17": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,17": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,17": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,17": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,17": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,17": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,17": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,17": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,17": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,17": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,17": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,17": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,17": {
+        "id": "forest_grass_8",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_8",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,17": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,17": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,17": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,17": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,17": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,17": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,18": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,18": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,18": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,18": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,18": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,18": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,18": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,18": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,18": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,18": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,18": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,18": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,18": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,18": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,18": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,18": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,18": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,18": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,18": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,18": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,18": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,18": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,19": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,19": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,19": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,19": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,19": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,19": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,19": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,19": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,19": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,19": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,19": {
+        "id": "forest_grass_12",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_12",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,19": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,19": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,19": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,19": {
+        "id": "forest_sand_4",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_4",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,19": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,19": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,19": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,19": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,19": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,19": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,19": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,20": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,20": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,20": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,20": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,20": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,20": {
+        "id": "forest_grass_11",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_11",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,20": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,20": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,20": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,20": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,20": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,20": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,20": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,20": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,20": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,20": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "0,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "1,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "2,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "3,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "4,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "5,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "6,21": {
+        "id": "forest_grass_7",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_7",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "7,21": {
+        "id": "forest_grass_1",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_1",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "8,21": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "9,21": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "10,21": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "11,21": {
+        "id": "forest_grass_10",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_10",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "12,21": {
+        "id": "forest_grass_9",
+        "family": "grass",
+        "textureKey": "terrain-forest_grass_9",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "13,21": {
+        "id": "forest_sand_3",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_3",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "14,21": {
+        "id": "forest_sand_2",
+        "family": "sand",
+        "textureKey": "terrain-forest_sand_2",
+        "walkable": true,
+        "flipX": false,
+        "flipY": false
+      },
+      "15,21": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "16,21": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "17,21": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "18,21": {
+        "id": "forest_water_2",
+        "family": "water",
+        "textureKey": "terrain-forest_water_2",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "19,21": {
+        "id": "forest_water_1",
+        "family": "water",
+        "textureKey": "terrain-forest_water_1",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "20,21": {
+        "id": "forest_water_4",
+        "family": "water",
+        "textureKey": "terrain-forest_water_4",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      },
+      "21,21": {
+        "id": "forest_water_3",
+        "family": "water",
+        "textureKey": "terrain-forest_water_3",
+        "walkable": false,
+        "flipX": false,
+        "flipY": false
+      }
+    },
+    "editorAssetReferences": {
+      "objectDefinitionIds": [
+        "forest_ancient_oak",
+        "forest_boulder",
+        "forest_cliff_high",
+        "forest_cliff_low",
+        "forest_fallen_branch",
+        "forest_fern_bed",
+        "forest_ferns",
+        "forest_flower_patch",
+        "forest_flowers_cream",
+        "forest_flowers_lavender",
+        "forest_leaf_litter",
+        "forest_mushrooms_gold",
+        "forest_mushrooms_lavender",
+        "forest_mushrooms_red",
+        "forest_pebble_scatter",
+        "forest_ramp",
+        "forest_rock_garden",
+        "forest_rocks",
+        "forest_stump",
+        "forest_tall_birch",
+        "forest_tall_burgundy_oak",
+        "forest_tall_copper_beech",
+        "forest_tall_golden_birch",
+        "forest_tall_oak",
+        "forest_twigs",
+        "forest_wall_corner",
+        "forest_wall_x",
+        "forest_wall_y",
+        "forest_young_oak"
+      ],
+      "terrainBrushIds": [
+        "forest_dirt_1",
+        "forest_dirt_2",
+        "forest_dirt_3",
+        "forest_dirt_4",
+        "forest_grass_1",
+        "forest_grass_10",
+        "forest_grass_11",
+        "forest_grass_12",
+        "forest_grass_13",
+        "forest_grass_14",
+        "forest_grass_2",
+        "forest_grass_3",
+        "forest_grass_4",
+        "forest_grass_5",
+        "forest_grass_6",
+        "forest_grass_7",
+        "forest_grass_8",
+        "forest_grass_9",
+        "forest_sand_1",
+        "forest_sand_2",
+        "forest_sand_3",
+        "forest_sand_4",
+        "forest_stone_1",
+        "forest_stone_2",
+        "forest_stone_3",
+        "forest_stone_4",
+        "forest_water_1",
+        "forest_water_2",
+        "forest_water_3",
+        "forest_water_4"
+      ]
+    }
+  }
+}

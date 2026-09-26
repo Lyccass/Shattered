@@ -1,6 +1,7 @@
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { OBJECT_TEXTURES } from './ObjectAssets';
 import { INTERACTION_OBJECT_DEFINITIONS } from './InteractionObjectDefinitions';
+import { FOREST_OBJECT_DEFINITIONS } from './ForestObjectDefinitions';
 import type { GridFootprint, ObjectDefinition, ShadowDefinition } from './ObjectTypes';
 
 const TH = PROTOTYPE_SCALE.tileHeight;
@@ -41,6 +42,7 @@ const DEFAULT_DEPTH = {
 } as const;
 
 export const OBJECT_DEFINITIONS: ObjectDefinition[] = [
+  ...FOREST_OBJECT_DEFINITIONS,
   // ---- Rocks ----
   {
     id: 'small_rock',

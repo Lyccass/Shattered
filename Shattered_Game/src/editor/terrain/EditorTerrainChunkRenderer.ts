@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { ForestReliefRenderer } from '../../world/terrain/ForestReliefRenderer';
+import { createForestWaterGlints } from '../../world/terrain/ForestAmbientAnimation';
+import { isForestTerrain, resolveForestTransitions } from '../../world/terrain/ForestTerrainDefinitions';
 import {
   getEditorTerrainAt,
   getEditorTerrainTilePaint,
@@ -23,6 +26,7 @@ const TERRAIN_DEPTH = 0;
 type ChunkObject = Phaser.GameObjects.GameObject;
 
 export class EditorTerrainChunkRenderer {
+  private readonly relief: ForestReliefRenderer;
   private readonly chunks = new Map<string, ChunkObject[]>();
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
 
@@ -30,7 +34,7 @@ export class EditorTerrainChunkRenderer {
     private readonly scene: Phaser.Scene,
     private readonly transform: IsoTransformConfig,
     private readonly catalog: EditorTerrainCatalog,
-  ) {}
+  ) { this.relief = new ForestReliefRenderer(scene); }
 
   setUiCamera(camera: Phaser.Cameras.Scene2D.Camera): void {
     this.uiCamera = camera;
@@ -51,8 +55,8 @@ export class EditorTerrainChunkRenderer {
   renderChunksAroundTile(map: EditorMapDefinition, tileX: number, tileY: number): void {
     const chunks = new Set<string>();
 
-    for (let y = tileY - 1; y <= tileY + 1; y += 1) {
-      for (let x = tileX - 1; x <= tileX + 1; x += 1) {
+    for (let y = tileY - 2; y <= tileY + 2; y += 1) {
+      for (let x = tileX - 2; x <= tileX + 2; x += 1) {
         if (!isTileInsideMap(map, x, y)) {
           continue;
         }
@@ -127,7 +131,22 @@ export class EditorTerrainChunkRenderer {
         continue;
       }
 
-      objects.push(this.createTileObject(tileX, tileY, paint));
+      if (isForestTerrain(paint.id)) {
+        const transitions=resolveForestTransitions(paint.family,tileX,tileY,(x,y)=>getEditorTerrainAt(map,x,y));
+        const key=this.relief.texture(tileX,tileY,paint.family,paint.textureKey,
+          transitions.map(item=>item.definition.spriteFrame),(x,y)=>{
+            const adjacent=this.getTilePaint(map,x,y);
+            return adjacent ? (isForestTerrain(adjacent.id)?adjacent.id:adjacent.family) : null;
+          });
+        const center=getTileCenterWorld(this.transform,tileX,tileY);
+        const image=this.scene.add.image(center.x,center.y,key).setScale(.25).setDepth(TERRAIN_DEPTH);
+        image.once(Phaser.GameObjects.Events.DESTROY,()=>this.relief.release(key));
+        objects.push(image);
+        if(paint.family==='water' && !transitions.length) {
+          const glints=createForestWaterGlints(this.scene,center.x,center.y,TERRAIN_DEPTH+.01);
+          if(glints)objects.push(glints);
+        }
+      } else objects.push(this.createTileObject(tileX,tileY,paint));
     }
 
     this.chunks.set(key, objects);
@@ -144,7 +163,7 @@ export class EditorTerrainChunkRenderer {
     }
 
     const center = getTileCenterWorld(this.transform, tileX, tileY);
-    const textureScale = paint.textureScale;
+    const textureScale = paint.textureScale ?? (isForestTerrain(paint.id) ? .25 : undefined);
 
     if (textureScale !== undefined) {
       const image = this.scene.add.image(

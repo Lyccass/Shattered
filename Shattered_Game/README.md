@@ -23,6 +23,8 @@ Main browser entrypoints:
 
 - `index.html` boots `src/apps/game/main.ts`
 - `editor.html` boots `src/apps/editor/main.ts`
+- The authored Wake world uses painted forest terrain, varied trees, rolling hills, ruins, and a beach. The game includes subtle foliage and ambient flight motion; elevation remains visual.
+- `forest-pack.html` boots the painted forest art preview. See [pack workflow and limitations](art/forest-painterly/README.md).
 
 ## Quick Start
 
@@ -50,7 +52,7 @@ Run tests:
 npm test
 ```
 
-Build both app entrypoints:
+Build the app entrypoints:
 
 ```bash
 npm run build
@@ -373,3 +375,27 @@ Not next:
 ## Future AI Contributors
 
 Read `AGENTS.md` before changing code. It summarizes the rules that matter most for future AI work: ownership boundaries, verification, generated-data caution, and where to make changes.
+
+### River Woodland composition
+
+The Wake chunks `(0,0)` through `(2,2)` form a bounded 96×96 River Woodland area. Three river crossings connect twelve landmarks, including Eastwood Camp, Mosswatch Ruins, Willow Meadows, River Mouth, and Amber Cove. Species mix across habitat boundaries. `forest-pack.html` previews this layout and exports it as an editor map; landmark buttons focus each place. Rebuild all nine authored chunks with `node scripts/build-river-woodland.mjs`. The script preserves original resources, NPCs, encounters, and hand-authored objects, validates every output before writing, and checks route access with preserved gameplay obstacles included. The manifest bounds are the nine authored chunks.
+
+The painted forest catalog also includes a woodland shack, lanterns, direction signs, timber fences and closed gates in both isometric directions, a bench, supplies, and larger swaying bushes. They are placed by the River Woodland authoring workflow and available as editor objects. Re-exporting the forest pack includes these ten additional sprites via `scripts/export-settlement-props.cjs`; source art and generation notes are in `art/forest-painterly/README.md`. Shack interiors and opening gates are not implemented.
+
+River Woodland includes broad highlands and cliff outcrops, with Western Overlook and Source Bluffs preview landmarks. Painted grass brushes 15–18 raise the visual surface by 30–72 world pixels without changing the earlier low hills or movement rules.
+
+The current painted coast follows the 2026-09-15 reference: warm paths, olive grass, turquoise water, painted trees, flowers, cattails, and modular mossy cliffs/stairs. Open `forest-pack.html?sample=coast` for a compact assembly preview. New sprites are in the normal editor object catalog; `scripts/export-forest-sample.mjs` exports its map and coastal prefab definitions. The asset README documents seam constraints, generation prompts, and the visual-only height limitation.
+
+River Woodland uses four modular plateau groups (`forest_grass_19`) with continuous tops and automatically exposed rock faces. Former cliff/stair scenery placements have been removed from the world composition. Plateau tiles remain blocked; this does not implement elevated traversal. Forest materials retain their 256×128 processing resolution and ground caches render at 2× world resolution.
+
+Current River Woodland placement: the requested Source Falls section now adds a painted waterfall, three overlapping natural cliff modules, and a walkable dirt ascent beside Source Bluffs. It is authored in `src/shared/editor/SourceFallsSection.ts` and exported by the normal woodland build. Keep other areas free of cliff scenery and `forest_grass_19` tiles; preserve smooth hills and the improved floor resolution. The unused plateau brush remains available in the catalog only.
+
+Painted ground rendering uses 8×8 render chunks independently of the 32×32 authored world chunks, so visible terrain does not wait for an entire authored chunk to bake. Homogeneous grass skips multi-material pixel blending; HD sampling, hill lighting, and rounded terrain boundaries retain their existing resolution.
+
+The active Wake world uses pre-exported 2× ground images loaded before gameplay. `npm run bake:ground` rebuilds those images with the same relief/material renderer; `node scripts/build-river-woodland.mjs` runs it automatically after exporting the map. Terrain signatures include the neighbour halo to reject stale images after edits. The runtime baker remains for edited/custom terrain only; there is no temporary flat-floor layer. Compact worlds up to 3×3 authored chunks load their terrain data before rendering.
+
+The rounded cliff art kit is opt-in: `/forest-pack.html?sample=cliffs`, source/export guide in `art/forest-painterly/cliff-kit/README.md`. Export with `node scripts/export-cliff-kit.mjs` and `node scripts/export-cliff-kit-sample.mjs`. Modules use `ObjectDefinition.fixedElevation` for a shared join plane in both game and editor. They remain blocking scenery; do not imply that stairs enable elevated movement. The older kit remains preview-only; Source Falls uses the natural painted modules.
+
+The current `?sample=cliffs` preview uses `NaturalCliffSample.ts` and the painted overlap modules in `NaturalCliffDefinitions.ts`. Artwork and assembly limits are documented in `art/forest-painterly/source/natural-cliffs-v4/README.md`. The cliff sample export command now serializes this natural assembly; old kit IDs remain available for compatibility.
+
+Source Falls is north of Old River Gate: the ascent branches from `(62,18)` to Spring Overlook at `(54,5)`. The preview has Source Falls, Falls Ascent, and Spring Overlook landmark buttons. The slope follows the existing continuous terrain relief; water and rock faces are blocked. Artwork and its generation prompt are documented in `art/forest-painterly/source/source-falls/README.md`.

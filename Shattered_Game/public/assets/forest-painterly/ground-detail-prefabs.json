@@ -1,0 +1,380 @@
+[
+  {
+    "id": "forest_fern_bed",
+    "displayName": "Low Fern Bed",
+    "category": "foliage",
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "blocksMovement": false,
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_ferns",
+          "scale": 0.21,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -13,
+          "localOffsetY": 0,
+          "flipX": false
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_ferns",
+          "scale": 0.17,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 13,
+          "localOffsetY": 6,
+          "flipX": true
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_leaf_litter",
+          "scale": 0.23,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 10,
+          "flipX": false
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 9747797
+    }
+  },
+  {
+    "id": "forest_woodland_litter",
+    "displayName": "Woodland Litter",
+    "category": "foliage",
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "blocksMovement": false,
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_leaf_litter",
+          "scale": 0.32,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -12,
+          "localOffsetY": 2,
+          "flipX": false
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_twigs",
+          "scale": 0.32,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 10,
+          "localOffsetY": 7,
+          "flipX": true
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_pebble_scatter",
+          "scale": 0.21,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -2,
+          "localOffsetY": 12,
+          "flipX": false
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 9747797
+    }
+  },
+  {
+    "id": "forest_flower_patch",
+    "displayName": "Wildflower Patch",
+    "category": "foliage",
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "blocksMovement": false,
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_flowers_cream",
+          "scale": 0.35,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -12,
+          "localOffsetY": 0,
+          "flipX": false
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_flowers_lavender",
+          "scale": 0.3,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 11,
+          "localOffsetY": 7,
+          "flipX": true
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_ferns",
+          "scale": 0.13,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 10,
+          "flipX": false
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 9747797
+    }
+  },
+  {
+    "id": "forest_mushroom_bed",
+    "displayName": "Mushroom Bed",
+    "category": "foliage",
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "blocksMovement": false,
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_leaf_litter",
+          "scale": 0.32,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 10,
+          "flipX": false
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_mushrooms_red",
+          "scale": 0.35,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -9,
+          "localOffsetY": 3,
+          "flipX": true
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_mushrooms_gold",
+          "scale": 0.3,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 11,
+          "localOffsetY": 7,
+          "flipX": false
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 9747797
+    }
+  },
+  {
+    "id": "forest_rock_garden",
+    "displayName": "Mossy Pebble Bed",
+    "category": "foliage",
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "blocksMovement": false,
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_pebble_scatter",
+          "scale": 0.35,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -10,
+          "localOffsetY": 4,
+          "flipX": false
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_rocks",
+          "scale": 0.15,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 11,
+          "localOffsetY": 5,
+          "flipX": true
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_ferns",
+          "scale": 0.15,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 2,
+          "localOffsetY": 11,
+          "flipX": false
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 9747797
+    }
+  },
+  {
+    "id": "forest_branch_bed",
+    "displayName": "Fallen Branch Bed",
+    "category": "foliage",
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "blocksMovement": false,
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_leaf_litter",
+          "scale": 0.3,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -10,
+          "localOffsetY": 10,
+          "flipX": false
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_fallen_branch",
+          "scale": 0.32,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 3,
+          "flipX": true
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_mushrooms_lavender",
+          "scale": 0.25,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 15,
+          "localOffsetY": 10,
+          "flipX": false
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 9747797
+    }
+  }
+]

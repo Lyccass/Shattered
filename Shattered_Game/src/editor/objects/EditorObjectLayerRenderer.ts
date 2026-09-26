@@ -1,4 +1,10 @@
+import { forestLedgeTexture } from '../../objects/ForestLedgeBlend';
+import { getForestVisualVariation, type ForestVisualVariation } from '../../objects/ForestVisualVariation';
 import Phaser from 'phaser';
+import { blendedForestSurfaceHeight } from '../../shared/iso/ForestRelief';
+import { isForestTerrain } from '../../world/terrain/ForestTerrainDefinitions';
+import { getEditorTerrainTilePaint, getEditorTerrainAt } from '../../shared/editor/EditorMapModel';
+import { animateForestProp } from '../../world/terrain/ForestAmbientAnimation';
 import type { EditorMapDefinition, EditorPlacedObject } from '../../shared/editor/EditorMapModel';
 import {
   getTileCenterWorld,
@@ -7,6 +13,7 @@ import {
 } from '../../shared/iso/IsoCoordinates';
 import type { ObjectDefinition, VisualPart } from '../../objects/ObjectTypes';
 import type { EditorObjectCatalog } from './EditorObjectCatalog';
+import { createObjectGroundShadow } from '../../objects/ObjectGroundShadow';
 
 const OBJECT_DEPTH_BASE = 5_000;
 
@@ -35,7 +42,15 @@ export class EditorObjectLayerRenderer {
         continue;
       }
 
-      this.objects.push(this.createObjectVisual(object, definition));
+      const paint=getEditorTerrainTilePaint(map,object.tileX,object.tileY);
+      const lift=definition.fixedElevation ?? (paint && isForestTerrain(paint.id)?blendedForestSurfaceHeight(object.tileX+.5,object.tileY+.5,(x,y)=>{
+        const adjacent=getEditorTerrainTilePaint(map,x,y);
+        return adjacent && isForestTerrain(adjacent.id)?adjacent.id:getEditorTerrainAt(map,x,y);
+      }):0);
+      this.objects.push(this.createObjectVisual(object, definition, lift));
+      const anchor=getTileCenterWorld(this.transform,object.tileX,object.tileY);
+      const shadow=createObjectGroundShadow(this.scene,definition,anchor.x,anchor.y-lift,100,getForestVisualVariation(object.id,definition));
+      if(shadow)this.objects.push(shadow);
     }
 
     this.uiCamera?.ignore(this.objects);
@@ -70,16 +85,17 @@ export class EditorObjectLayerRenderer {
   private createObjectVisual(
     object: EditorPlacedObject,
     definition: ObjectDefinition,
+    lift: number,
   ): Phaser.GameObjects.Container {
     const anchor = getTileCenterWorld(this.transform, object.tileX, object.tileY);
-    const visual = this.scene.add.container(anchor.x, anchor.y);
+    const visual = this.scene.add.container(anchor.x, anchor.y-lift);
     const graphics = this.scene.add.graphics();
 
     visual.setDepth(OBJECT_DEPTH_BASE + object.tileX + object.tileY + 0.5);
     visual.add(graphics);
 
     for (const part of definition.visual.parts) {
-      drawPart(this.scene, visual, graphics, part);
+      drawPart(this.scene, visual, graphics, part, getForestVisualVariation(object.id,definition));
     }
 
     this.drawFootprint(graphics, definition);
@@ -109,18 +125,20 @@ function drawPart(
   container: Phaser.GameObjects.Container,
   graphics: Phaser.GameObjects.Graphics,
   part: VisualPart,
+  variation: ForestVisualVariation,
 ): void {
   if (part.shape === 'sprite') {
     if (!scene.textures.exists(part.textureKey)) {
       return;
     }
 
-    const image = scene.add.image(part.localOffsetX, part.localOffsetY, part.textureKey);
-    image.setOrigin(part.originX ?? 0.5, part.originY ?? 0.5);
-    image.setScale(part.scale);
+    const image = scene.add.image(part.localOffsetX, part.localOffsetY, forestLedgeTexture(scene,part.textureKey));
+    image.setOrigin(variation.flipX ? 1-(part.originX ?? .5) : (part.originX ?? .5), part.originY ?? .5);
+    image.setScale(part.scale * variation.width, part.scale * variation.height);
     image.setAlpha(part.alpha ?? 1);
-    image.setFlipX(part.flipX ?? false);
+    image.setFlipX((part.flipX ?? false) !== variation.flipX);
     container.add(image);
+    animateForestProp(scene, image);
     return;
   }
 

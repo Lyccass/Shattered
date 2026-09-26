@@ -169,3 +169,27 @@ If you cannot run a check, say so clearly in your final response.
 - unrelated asset files
 
 Do not revert user changes. If the working tree is dirty, inspect before editing and preserve unrelated work.
+
+## Painted Forest Artwork
+
+The optional pack preview is `forest-pack.html`; source artwork and export instructions live in `art/forest-painterly/README.md`. Keep forest terrain opt-in (zero procedural weight). Relief is visual only, not movement elevation. Follow the latest 2026-09-15 coastal reference in `art/forest-painterly/source/coastal-v2/`: painted olive grass, warm paths, soft hills, mossy column cliffs, and turquoise water. Preserve seamless material edges and rounded terrain transitions. Run `scripts/verify-forest-pack.cjs` with its documented Node dependencies after exporting assets.
+
+`node scripts/expand-painted-world.mjs` rebuilds generated Wake scenery through the editor chunk adapter and validates its output. Preserve gameplay layers and hand-authored object IDs when changing it.
+
+The current 3×3 River Woodland composition is authored by `src/shared/editor/RiverWoodlandMap.ts` and exported with `node scripts/build-river-woodland.mjs`. Keep its three crossings and landmark routes connected; tests cover reachability. The older expansion script must not overwrite chunks marked `composition: river_woodland_v1`.
+
+The reference-coast assembly preview is `forest-pack.html?sample=coast`. `scripts/export-forest-pack.cjs` runs settlement and coastal exporters in sequence. `node scripts/export-forest-sample.mjs` exports both samples and their prefab definitions. Modular coastal cliffs require a shared base elevation when joined.
+
+River Woodland cliff geometry now uses blocked `forest_grass_19` terrain modules, not cliff scenery objects. Keep internal faces suppressed and corners closed; `ForestPlateau.test.ts` covers boundary ownership. Floor materials preserve 256×128 samples and game ground caches use 2× world resolution.
+
+Current River Woodland placement: the requested Source Falls section now adds a painted waterfall, three overlapping natural cliff modules, and a walkable dirt ascent beside Source Bluffs. It is authored in `src/shared/editor/SourceFallsSection.ts` and exported by the normal woodland build. Keep other areas free of cliff scenery and `forest_grass_19` tiles; preserve smooth hills and the improved floor resolution. The unused plateau brush remains available in the catalog only.
+
+Painted ground rendering uses 8×8 render chunks independently of the 32×32 authored world chunks, so visible terrain does not wait for an entire authored chunk to bake. Homogeneous grass skips multi-material pixel blending; HD sampling, hill lighting, and rounded terrain boundaries retain their existing resolution.
+
+The active Wake world uses pre-exported 2× ground images loaded before gameplay. `npm run bake:ground` rebuilds those images with the same relief/material renderer; `node scripts/build-river-woodland.mjs` runs it automatically after exporting the map. Terrain signatures include the neighbour halo to reject stale images after edits. The runtime baker remains for edited/custom terrain only; there is no temporary flat-floor layer. Compact worlds up to 3×3 authored chunks load their terrain data before rendering.
+
+The rounded cliff art kit is opt-in: `/forest-pack.html?sample=cliffs`, source/export guide in `art/forest-painterly/cliff-kit/README.md`. Export with `node scripts/export-cliff-kit.mjs` and `node scripts/export-cliff-kit-sample.mjs`. Modules use `ObjectDefinition.fixedElevation` for a shared join plane in both game and editor. They remain blocking scenery; do not imply that stairs enable elevated movement. The older kit remains preview-only; Source Falls uses the natural painted modules.
+
+The current `?sample=cliffs` preview uses `NaturalCliffSample.ts` and the painted overlap modules in `NaturalCliffDefinitions.ts`. Artwork and assembly limits are documented in `art/forest-painterly/source/natural-cliffs-v4/README.md`. The cliff sample export command now serializes this natural assembly; old kit IDs remain available for compatibility.
+
+Source Falls is north of Old River Gate: the ascent branches from `(62,18)` to Spring Overlook at `(54,5)`. The preview has Source Falls, Falls Ascent, and Spring Overlook landmark buttons. The slope follows the existing continuous terrain relief; water and rock faces are blocked. Artwork and its generation prompt are documented in `art/forest-painterly/source/source-falls/README.md`.

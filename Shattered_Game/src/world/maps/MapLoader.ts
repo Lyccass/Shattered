@@ -178,8 +178,11 @@ export class MapLoader {
       height,
       defaultTerrain: defaultRegion.defaultTerrain,
     });
+    // Compact authored worlds fit in one initial data load. This also supplies
+    // the neighbour halo needed to identify their pre-exported ground images.
+    const compactRadius = Math.max(manifest.bounds.maxChunkX, manifest.bounds.maxChunkY);
     const activeWindow = new ActiveWorldChunkWindow(provider, {
-      loadRadius: PROTOTYPE_SCALE.terrainChunkVisibleRadius,
+      loadRadius: compactRadius <= 2 ? compactRadius : PROTOTYPE_SCALE.terrainChunkVisibleRadius,
       retainRadius: PROTOTYPE_SCALE.terrainChunkRetainRadius,
     });
     const initialChunks = await activeWindow.loadAroundTile(spawnPoint.tileX, spawnPoint.tileY);

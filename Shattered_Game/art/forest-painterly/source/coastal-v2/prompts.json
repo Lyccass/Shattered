@@ -1,0 +1,58 @@
+{
+  "mode": "built-in image_gen",
+  "reference": "source/coastal-v2/reference-2026-09-15.jpg",
+  "prompts": [
+    {
+      "id": "grass",
+      "prompt": "Use case: stylized-concept. Asset type: seamless game material. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. A seamless repeating square top-down grass MATERIAL TEXTURE, edge-to-edge opaque coverage, flat lighting across the tile. Quiet olive grass with small hand-painted individual grass blade strokes and tiny sparse leaf flecks, subtle value variation, no patches of bare soil, no objects, no hills or shadows, no large clumps. No diamond silhouette; software projects this into isometric ground. Opposite edges must connect invisibly."
+    },
+    {
+      "id": "dirt",
+      "prompt": "Use case: stylized-concept. Asset type: seamless game material. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. A seamless repeating square top-down packed ochre earth PATH MATERIAL TEXTURE, edge-to-edge opaque coverage. Warm softly painted sandy ochre brown, tiny sparse grey pebbles and short straw flecks; no road shape, no grass border, no objects, no large motifs. Uniform flat lighting, opposite edges connect invisibly. Software projects this into isometric ground."
+    },
+    {
+      "id": "sand",
+      "prompt": "Use case: stylized-concept. Asset type: seamless game material. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. A seamless repeating square top-down BEACH SAND MATERIAL TEXTURE, edge-to-edge opaque coverage. Warm pale golden beige sand with subtle tiny speckled pebbles, a few tiny shell flecks, very quiet surface variation. No coastline, no water, no grass border, no objects, no strong ripples. Uniform light, opposite edges connect invisibly."
+    },
+    {
+      "id": "water",
+      "prompt": "Use case: stylized-concept. Asset type: seamless game material. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. A seamless repeating square top-down clear TURQUOISE WATER MATERIAL TEXTURE, edge-to-edge opaque coverage. As in the reference: teal turquoise transparent water, softly visible rounded underwater stones and sand tones, broken thin softly painted pale aqua caustic arcs. Calm and readable, no whirlpool, no foam, no shore, no islands, no objects. Uniform light. Opposite edges connect invisibly."
+    },
+    {
+      "id": "cliff_x",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One modular straight vertical cliff wall segment, 2:1 isometric camera. Horizontal axis recedes down-right with slope 1/2. Four adjoining tall natural grey rock columns form one continuous wall, moss draping from a LEVEL grassy top ledge. Straight parallel top/bottom edges, both vertical end cuts same height, no rounded end boulders. Front visible face, narrow top cap, 2 tiles long, 96 world pixels tall. Transparent background; no ground diamond, no soil apron, no shadow outside object. Whole object visible with margin."
+    },
+    {
+      "id": "cliff_corner",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One modular exterior corner of a tall cliff, 2:1 isometric camera. Two vertical grey column-rock cliff faces meet at a front corner; level olive grass cap above, moss hanging down the rock edges. Match a wall 96 world pixels tall. Crisp natural rock planes, narrow top cap not a hill or a boulder. Transparent background; no ground diamond or scenery. Whole object visible with margin."
+    },
+    {
+      "id": "stairs",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One flight of seven weathered grey stone steps climbing upward toward upper right at 2:1 isometric perspective, moss between squared stone treads and tiny grass at side edges. It connects beach level to a high grassy cliff terrace; isolated staircase only, no adjacent cliff or landscape. Transparent background; no ground tile, no surrounding shadow. Whole object visible with margin."
+    },
+    {
+      "id": "oak",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One mature leafy oak tree exactly in the reference style. Readable branched brown trunk, spreading roots, irregular airy canopy made from many broad olive green leaf clumps with warm lime sunlit tips. Tree height 5 times a human; vertical trunk, 2:1 isometric ground roots. No grass island, no shadow baked outside root silhouette. Transparent background. Entire canopy and roots visible with margin."
+    },
+    {
+      "id": "birch",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One tall slender golden birch tree exactly in the reference style. Upright creamy white bark trunk with dark markings, several loose airy golden amber leaf clusters separated by branches; graceful rather than spherical canopy. 2:1 isometric roots, 6 times human height. No grass island, no outside cast shadow. Transparent background; entire tree visible with margin."
+    },
+    {
+      "id": "burgundy",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One smaller red burgundy woodland tree exactly in the reference style. Brown branching trunk and spreading roots, airy broad burgundy crimson leaf masses with coral-red sunlit edges; 3 times human height. 2:1 isometric roots, no grass island, no outside cast shadow. Transparent background, entire tree visible with margin."
+    },
+    {
+      "id": "flowers",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One small loose woodland ground-detail cluster: a few white daisy-like flowers, tiny pale pink flowers and sparse delicate olive grasses, asymmetrical and airy, reference style. 2:1 isometric ground perspective. Transparent background including between leaves, no grass floor patch, no ground tile, no outside shadow. Whole cluster visible."
+    },
+    {
+      "id": "rocks",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One small cluster of three weathered cool grey rocks with olive moss caps, warm lit top planes, a couple of grass blades and small white flower at base, reference style. 2:1 isometric ground. Transparent background, no ground patch or ground tile or outside cast shadow, whole cluster visible."
+    },
+    {
+      "id": "reeds",
+      "prompt": "Use case: stylized-concept. Asset type: transparent game sprite. Input image: style reference only. Match the reference image as a cohesive hand-painted isometric fantasy game art set: soft but defined brush shapes, olive/lime grass, warm ochre dirt, mossy cool grey faceted stone, sunlit warm highlights from upper left, dark green ambient shadows. Detailed and painterly, no pixel art, no black outlines, no photorealism, no text or characters. One airy clump of shoreline reeds and cattails, thin long green curved leaves, 3 brown seed heads, reference style. 2:1 isometric ground. Transparent background, no water no soil or ground tile no outside shadow, whole clump visible."
+    }
+  ]
+}

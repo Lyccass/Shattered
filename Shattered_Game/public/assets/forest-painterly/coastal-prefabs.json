@@ -1,0 +1,617 @@
+[
+  {
+    "id": "forest_coast_cliff_x",
+    "displayName": "Coastal Cliff — X",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_cliff_x",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 16,
+          "localOffsetY": 32
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_cliff_y",
+    "displayName": "Coastal Cliff — Y",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 1
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_cliff_y",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -16,
+          "localOffsetY": 32
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_cliff_corner",
+    "displayName": "Coastal Cliff — Corner",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 1
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_cliff_corner",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 48
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_stairs_x",
+    "displayName": "Moss Stone Stairs X (Scenery)",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      },
+      {
+        "x": 2,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 2,
+        "y": 1
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_stairs_x",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 16,
+          "localOffsetY": 34
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_stairs_y",
+    "displayName": "Moss Stone Stairs Y (Scenery)",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 0,
+        "y": 2
+      },
+      {
+        "x": 1,
+        "y": 2
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_stairs_y",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -16,
+          "localOffsetY": 34
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_reeds",
+    "displayName": "Coastal Cattails",
+    "category": "foliage",
+    "blocksMovement": false,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_reeds",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 10
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_flowers",
+    "displayName": "Flowering Stone Detail",
+    "category": "foliage",
+    "blocksMovement": false,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_flowers",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 0,
+          "localOffsetY": 10
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_ledge",
+    "displayName": "Coastal Cliff — Painted Ledge",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      },
+      {
+        "x": 2,
+        "y": 0
+      },
+      {
+        "x": 3,
+        "y": 0
+      },
+      {
+        "x": 4,
+        "y": 0
+      },
+      {
+        "x": 5,
+        "y": 0
+      },
+      {
+        "x": 6,
+        "y": 0
+      },
+      {
+        "x": 7,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 2,
+        "y": 1
+      },
+      {
+        "x": 3,
+        "y": 1
+      },
+      {
+        "x": 4,
+        "y": 1
+      },
+      {
+        "x": 5,
+        "y": 1
+      },
+      {
+        "x": 6,
+        "y": 1
+      },
+      {
+        "x": 7,
+        "y": 1
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_ledge_painted",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 96,
+          "localOffsetY": 144
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  },
+  {
+    "id": "forest_coast_ledge_stairs",
+    "displayName": "Coastal Cliff — Ledge with Stairs (Scenery)",
+    "category": "cliff",
+    "blocksMovement": true,
+    "collisionFootprint": [
+      {
+        "x": 0,
+        "y": 0
+      },
+      {
+        "x": 1,
+        "y": 0
+      },
+      {
+        "x": 2,
+        "y": 0
+      },
+      {
+        "x": 3,
+        "y": 0
+      },
+      {
+        "x": 4,
+        "y": 0
+      },
+      {
+        "x": 5,
+        "y": 0
+      },
+      {
+        "x": 6,
+        "y": 0
+      },
+      {
+        "x": 7,
+        "y": 0
+      },
+      {
+        "x": 0,
+        "y": 1
+      },
+      {
+        "x": 1,
+        "y": 1
+      },
+      {
+        "x": 2,
+        "y": 1
+      },
+      {
+        "x": 3,
+        "y": 1
+      },
+      {
+        "x": 4,
+        "y": 1
+      },
+      {
+        "x": 5,
+        "y": 1
+      },
+      {
+        "x": 6,
+        "y": 1
+      },
+      {
+        "x": 7,
+        "y": 1
+      },
+      {
+        "x": 2,
+        "y": 2
+      },
+      {
+        "x": 3,
+        "y": 2
+      },
+      {
+        "x": 4,
+        "y": 2
+      },
+      {
+        "x": 2,
+        "y": 3
+      },
+      {
+        "x": 3,
+        "y": 3
+      },
+      {
+        "x": 4,
+        "y": 3
+      },
+      {
+        "x": 2,
+        "y": 4
+      },
+      {
+        "x": 3,
+        "y": 4
+      },
+      {
+        "x": 4,
+        "y": 4
+      },
+      {
+        "x": 2,
+        "y": 5
+      },
+      {
+        "x": 3,
+        "y": 5
+      },
+      {
+        "x": 4,
+        "y": 5
+      }
+    ],
+    "visual": {
+      "parts": [
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_ledge_painted",
+          "scale": 0.5,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": 96,
+          "localOffsetY": 144
+        },
+        {
+          "shape": "sprite",
+          "textureKey": "object-forest_coast_stairs_x",
+          "scale": 0.65,
+          "originX": 0.5,
+          "originY": 1,
+          "localOffsetX": -16,
+          "localOffsetY": 146
+        }
+      ]
+    },
+    "shadow": {
+      "enabled": false,
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "width": 0,
+      "height": 0,
+      "alpha": 0
+    },
+    "depth": {
+      "anchorMode": "frontTileCenter",
+      "localOffsetX": 0,
+      "localOffsetY": 0,
+      "depthOffset": 0.1
+    },
+    "debug": {
+      "color": 7903064
+    }
+  }
+]

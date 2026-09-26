@@ -1,4 +1,6 @@
+import { preloadForestGround } from '../world/terrain/PrebakedForestGround';
 import Phaser from 'phaser';
+import { ForestAtmosphere } from '../game/world/ForestAtmosphere';
 import { getDefaultAudioMixerSettings, SfxSystem } from '../audio/SfxSystem';
 import { CameraSystem } from '../camera/CameraSystem';
 import { createEnemyAnimations, preloadEnemyAssets } from '../combat/EnemyAssets';
@@ -74,6 +76,7 @@ export class GameScene extends Phaser.Scene {
     preloadPlayerAssets(this);
     preloadEnemyAssets(this);
     preloadTerrainAssets(this);
+    preloadForestGround(this);
     preloadObjectAssets(this);
   }
 
@@ -120,6 +123,8 @@ export class GameScene extends Phaser.Scene {
     );
 
     this.worldRuntimeCoordinator = new WorldRuntimeCoordinator(this, this.gameEventBus);
+    new ForestAtmosphere(this, () => this.worldRuntimeCoordinator?.hasActiveRuntime()
+      ? this.worldRuntimeCoordinator.getIsoTilemap() : null);
     this.worldRuntimeCoordinator.setRuntimeReconciledCallback(() => {
       if (this.turnCombatSession?.isInCombat()) return;
       this.bindTurnCombatToRuntime();

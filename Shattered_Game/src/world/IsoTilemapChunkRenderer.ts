@@ -148,7 +148,7 @@ export class IsoTilemapChunkRenderer {
     options: InvalidateTileRectOptions = {},
   ): void {
     const bleedTiles = options.includeBleed ?? true
-      ? this.bleedTiles
+      ? Math.max(2, this.bleedTiles)
       : 0;
     const minCoord = getChunkCoordForTile(
       Math.max(0, tileX - bleedTiles),
@@ -326,6 +326,10 @@ export class IsoTilemapChunkRenderer {
       centerChunkX,
       centerChunkY,
     );
+    // Finished images are cheap to materialize; cover the whole visible range now.
+    for (const key of sortedVisibleGroundKeys.filter(key => !this.materializedChunks.has(key))) {
+      this.materializeChunk(this.chunkConfigsByKey.get(key)!);
+    }
     const frameStartedAt = this.now();
     this.tilesDrawnThisFrame = 0;
 
@@ -517,7 +521,7 @@ export class IsoTilemapChunkRenderer {
   private materializeChunk(config: TerrainChunkConfig): MaterializedTerrainChunk {
     const chunk = this.drawSystem.materializeChunk(config);
 
-    chunk.groundLayer.setVisible(false);
+    chunk.groundLayer.setVisible(chunk.isGroundReady);
     chunk.gridLayer.setVisible(false);
     this.materializedChunks.set(config.key, chunk);
     this.peakMaterializedChunkCount = Math.max(this.peakMaterializedChunkCount, this.materializedChunks.size);

@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { blendedForestSurfaceHeight } from '../shared/iso/ForestRelief';
+import { isForestTerrain } from './terrain/ForestTerrainDefinitions';
 import { PROTOTYPE_SCALE } from '../config/prototypeScale';
 import { RENDER_DEPTHS } from '../render/RenderLayers';
 import { generateOrganicIsland } from './IslandGenerator';
@@ -171,6 +173,27 @@ export class IsoTilemap {
 
   getTerrainFamilyAtTile(tileX: number, tileY: number): string | null {
     return this.worldGrid.getTile(tileX, tileY);
+  }
+
+  getSurfaceLift(worldX: number, worldY: number): number {
+    const grid=this.transform.worldToGrid(worldX,worldY);
+    const tile=this.transform.gridToTile(grid);
+    const current=this.resolveTerrainTile(tile.x,tile.y)?.baseTileDefinition;
+    if(!current || !isForestTerrain(current.id))return 0;
+    return blendedForestSurfaceHeight(grid.x+.5,grid.y+.5,(x,y)=>{
+      const adjacent=this.resolveTerrainTile(x,y)?.baseTileDefinition;
+      return adjacent ? (isForestTerrain(adjacent.id)?adjacent.id:adjacent.family) : null;
+    });
+  }
+
+  surfaceToGround(worldX: number, worldY: number): Phaser.Math.Vector2 {
+    let groundY=worldY;
+    for(let pass=0;pass<12;pass++) {
+      const next=worldY+this.getSurfaceLift(worldX,groundY);
+      if(Math.abs(next-groundY)<.01){groundY=next;break;}
+      groundY=next;
+    }
+    return new Phaser.Math.Vector2(worldX,groundY);
   }
 
   resolveTerrainTile(tileX: number, tileY: number): ResolvedTerrainTile | null {

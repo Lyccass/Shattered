@@ -5,6 +5,7 @@ import {
   type TerrainRole,
   type TerrainTileDefinition,
 } from './TerrainTypes';
+import { FOREST_TERRAIN_DEFINITIONS } from './ForestTerrainDefinitions';
 
 type TerrainDefinitionInput = {
   id: string;
@@ -41,6 +42,7 @@ export const TERRAIN_TILE_DEFINITIONS: TerrainTileDefinition[] = [
   // shoreline/corner art is paused. This keeps blocked water tiles visually
   // predictable until the full water autotile set is mapped cleanly.
   defineTile({ id: 'waterA', family: 'water', walkable: false, edgeTag: 'water', spriteFrame: 'terrain-waterA', weight: 1 }),
+  ...FOREST_TERRAIN_DEFINITIONS,
 ];
 
 function defineTile({

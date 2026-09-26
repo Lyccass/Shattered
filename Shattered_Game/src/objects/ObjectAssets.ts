@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { FOREST_OBJECT_ASSETS } from './ForestObjectDefinitions';
 
 export const OBJECT_TEXTURES = {
   tree01: 'object-tree-01',
@@ -13,6 +14,7 @@ export const OBJECT_TEXTURES = {
 } as const;
 
 const OBJECT_ASSETS: Array<{ key: string; path: string }> = [
+  ...FOREST_OBJECT_ASSETS,
   { key: OBJECT_TEXTURES.tree01, path: '/assets/Objects/Tree_01.png' },
   { key: OBJECT_TEXTURES.tree02, path: '/assets/Objects/Tree_02.png' },
   { key: OBJECT_TEXTURES.stone01, path: '/assets/Objects/Stone_01.png' },

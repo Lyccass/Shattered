@@ -1,4 +1,8 @@
+import { findPrebakedForestGround } from '../terrain/PrebakedForestGround';
 import Phaser from 'phaser';
+import { ForestReliefRenderer } from '../terrain/ForestReliefRenderer';
+import { isForestTerrain } from '../terrain/ForestTerrainDefinitions';
+import { createForestWaterGlints } from '../terrain/ForestAmbientAnimation';
 import { RENDER_DEPTHS } from '../../render/RenderLayers';
 import { IsoTransform } from '../IsoTransform';
 import { TerrainResolutionCache } from '../terrain/TerrainResolutionCache';
@@ -17,7 +21,7 @@ import {
 const GRID_ALPHA = 0.055;
 
 export type MaterializedTerrainChunk = TerrainChunkConfig & {
-  groundLayer: Phaser.GameObjects.RenderTexture;
+  groundLayer: Phaser.GameObjects.RenderTexture | Phaser.GameObjects.Image;
   gridLayer: Phaser.GameObjects.RenderTexture;
   chunkDebugLayer: Phaser.GameObjects.Graphics;
   groundDrawOrder: Array<{ gridX: number; gridY: number }>;
@@ -28,9 +32,12 @@ export type MaterializedTerrainChunk = TerrainChunkConfig & {
   builtGridMode: GridMode;
   gridBuildMode: GridMode;
   lastDebugSignature?: string;
+  ambientImages: Phaser.GameObjects.Image[];
+  reliefKeys: string[];
 };
 
 export class TerrainChunkDrawSystem {
+  private readonly relief: ForestReliefRenderer;
   private tileStamp?: Phaser.GameObjects.Image;
   private gridScratch?: Phaser.GameObjects.Graphics;
 
@@ -38,15 +45,25 @@ export class TerrainChunkDrawSystem {
     private readonly scene: Phaser.Scene,
     private readonly transform: IsoTransform,
     private readonly terrainResolutionCache: TerrainResolutionCache,
-  ) {}
+  ) { this.relief = new ForestReliefRenderer(scene); }
 
   materializeChunk(config: TerrainChunkConfig): MaterializedTerrainChunk {
-    const groundLayer = this.scene.add.renderTexture(
+    // Highest forest brush adds 72px to the 31px rolling surface.
+    // Keep the entire crest inside the render texture, including bleed tiles.
+    config = { ...config, bounds: { ...config.bounds, y: config.bounds.y - 128, height: config.bounds.height + 128 } };
+    const baked = findPrebakedForestGround(config,
+      (x,y)=>this.terrainResolutionCache.resolveTile(x,y)?.baseTileDefinition.id??null,
+      key=>this.scene.textures.exists(key));
+    const groundLayer = baked
+      ? this.scene.add.image(config.bounds.x,config.bounds.y,baked)
+      : this.scene.add.renderTexture(
       config.bounds.x,
       config.bounds.y,
-      config.bounds.width,
-      config.bounds.height,
+      config.bounds.width * 2,
+      config.bounds.height * 2,
     );
+    groundLayer.setScale(.5);
+    if (!baked) (groundLayer as Phaser.GameObjects.RenderTexture).camera.setOrigin(0,0).setZoom(2);
     const gridLayer = this.scene.add.renderTexture(
       config.bounds.x,
       config.bounds.y,
@@ -61,8 +78,18 @@ export class TerrainChunkDrawSystem {
     gridLayer.setDepth(RENDER_DEPTHS.GRID);
     chunkDebugLayer.setDepth(RENDER_DEPTHS.DEBUG - 1);
 
+    const ambientImages: Phaser.GameObjects.Image[] = [];
+    if (baked) for (const {gridX,gridY} of createTileDrawOrder(config,false)) {
+      const tile=this.terrainResolutionCache.resolveTile(gridX,gridY);
+      if(tile?.baseTileDefinition.family!=='water'||tile.transitionOverlays.length)continue;
+      const center=this.transform.getTileCenterWorld(gridX,gridY);
+      const glints=createForestWaterGlints(this.scene,center.x,center.y,RENDER_DEPTHS.GROUND+.01);
+      if(glints)ambientImages.push(glints);
+    }
     return {
       ...config,
+      ambientImages,
+      reliefKeys: [],
       groundLayer,
       gridLayer,
       chunkDebugLayer,
@@ -70,27 +97,55 @@ export class TerrainChunkDrawSystem {
       gridDrawOrder: createTileDrawOrder(config, false),
       groundDrawIndex: 0,
       gridDrawIndex: 0,
-      isGroundReady: false,
+      isGroundReady: !!baked,
       builtGridMode: 'off',
       gridBuildMode: 'off',
     };
   }
 
   buildGroundChunkStep(chunk: MaterializedTerrainChunk, maxTiles: number): number {
+    if (chunk.isGroundReady) return 0;
     if (chunk.groundDrawIndex === 0) {
-      chunk.groundLayer.clear();
+      chunk.reliefKeys.forEach(key => this.relief.release(key));
+      chunk.reliefKeys.length = 0;
+      chunk.ambientImages.forEach(image => image.destroy());
+      chunk.ambientImages.length = 0;
+      (chunk.groundLayer as Phaser.GameObjects.RenderTexture).clear();
       chunk.groundLayer.setVisible(false);
     }
 
     let processedTiles = 0;
+    const started = performance.now();
 
-    while (processedTiles < maxTiles && chunk.groundDrawIndex < chunk.groundDrawOrder.length) {
+    while (processedTiles < maxTiles && chunk.groundDrawIndex < chunk.groundDrawOrder.length
+      && (processedTiles === 0 || performance.now() - started < 5)) {
       const { gridX, gridY } = chunk.groundDrawOrder[chunk.groundDrawIndex];
       const resolvedTile = this.terrainResolutionCache.resolveTile(gridX, gridY);
       chunk.groundDrawIndex += 1;
       processedTiles += 1;
 
       if (!resolvedTile) {
+        continue;
+      }
+
+      if (isForestTerrain(resolvedTile.baseTileDefinition.id)) {
+        const tile = resolvedTile.baseTileDefinition;
+        const key = this.relief.texture(gridX,gridY,tile.family,tile.spriteFrame,
+          resolvedTile.transitionOverlays.map(item=>item.definition.spriteFrame),
+          (x,y)=>{
+            const neighbour=this.terrainResolutionCache.resolveTile(x,y)?.baseTileDefinition;
+            return neighbour ? (isForestTerrain(neighbour.id)?neighbour.id:neighbour.family) : null;
+          });
+        chunk.reliefKeys.push(key);
+        const center=this.transform.getTileCenterWorld(gridX,gridY);
+        const stamp=this.getTileStamp(key);
+        stamp.setTexture(key).setPosition(center.x-chunk.bounds.x,center.y-chunk.bounds.y).setScale(.25).setFlip(false,false);
+        (chunk.groundLayer as Phaser.GameObjects.RenderTexture).draw(stamp);stamp.setScale(1);
+        if(tile.family==='water' && !resolvedTile.transitionOverlays.length
+          && gridX>=chunk.startX && gridX<chunk.endX && gridY>=chunk.startY && gridY<chunk.endY) {
+          const glints=createForestWaterGlints(this.scene,center.x,center.y,RENDER_DEPTHS.GROUND+.01);
+          if(glints)chunk.ambientImages.push(glints);
+        }
         continue;
       }
 
@@ -113,6 +168,7 @@ export class TerrainChunkDrawSystem {
       }
 
       this.drawResolvedTransitionArt(chunk, resolvedTile, tileCenter.x, tileCenter.y);
+
     }
 
     if (chunk.groundDrawIndex >= chunk.groundDrawOrder.length) {
@@ -198,12 +254,15 @@ export class TerrainChunkDrawSystem {
   }
 
   destroyChunk(chunk: MaterializedTerrainChunk): void {
+    chunk.reliefKeys.forEach(key => this.relief.release(key));
+    chunk.ambientImages.forEach(image => image.destroy());
     chunk.groundLayer.destroy();
     chunk.gridLayer.destroy();
     chunk.chunkDebugLayer.destroy();
   }
 
   destroy(): void {
+    this.relief.destroy();
     this.tileStamp?.destroy();
     this.tileStamp = undefined;
     this.gridScratch?.destroy();
@@ -310,7 +369,7 @@ export class TerrainChunkDrawSystem {
     const { flipX, flipY, offsetX = 0, offsetY = 0, scale } = transform;
 
     if (!flipX && !flipY && scale === undefined && offsetX === 0 && offsetY === 0) {
-      chunk.groundLayer.drawFrame(textureKey, undefined, drawX, drawY);
+      (chunk.groundLayer as Phaser.GameObjects.RenderTexture).drawFrame(textureKey, undefined, drawX, drawY);
       return;
     }
 
@@ -325,7 +384,7 @@ export class TerrainChunkDrawSystem {
     stamp.setFlip(flipX, flipY);
     stamp.setScale(scale ?? 1);
 
-    chunk.groundLayer.draw(stamp);
+    (chunk.groundLayer as Phaser.GameObjects.RenderTexture).draw(stamp);
     stamp.setScale(1);
   }
 

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { PLAYER_CONFIG } from './PlayerConfig';
 import type { PlayerAnimationStateId } from './PlayerAnimationState';
 import type { PlayerAnimationDirection } from './PlayerAssets';
 import { IsoTilemap } from '../world/IsoTilemap';
@@ -55,6 +56,7 @@ export class PlayerController {
         false,
         this.animationDirection,
       );
+      this.alignWithSurface();
       return;
     }
 
@@ -80,6 +82,14 @@ export class PlayerController {
       this.movementIntent.lengthSq() > 0 && movementSpeedMultiplier > 1.01,
       this.animationDirection,
     );
+    this.alignWithSurface();
+  }
+
+  private alignWithSurface(): void {
+    const feet=this.getFeetPoint();
+    const lift=this.tilemap.getSurfaceLift(feet.x,feet.y);
+    // Change only the drawing origin. Movement, saves and depth use ground feet.
+    this.sprite.setOrigin(PLAYER_CONFIG.originX,PLAYER_CONFIG.originY+lift/Math.max(1,this.sprite.displayHeight));
   }
 
   getFeetPoint(): Phaser.Math.Vector2 {

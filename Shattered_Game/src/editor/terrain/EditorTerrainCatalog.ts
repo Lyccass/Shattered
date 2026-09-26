@@ -1,3 +1,4 @@
+import { FOREST_BRUSH_LABELS } from '../../world/terrain/ForestTerrainDefinitions';
 import type { TerrainFamily } from '../../shared/map/TerrainTypes';
 import { TERRAIN_TILE_DEFINITIONS } from '../../world/terrain/TerrainTileDefinitions';
 import { TERRAIN_TRANSITION_DEFINITIONS } from '../../world/terrain/TerrainTransitionDefinitions';
@@ -29,7 +30,8 @@ const TERRAIN_FAMILY_ORDER: TerrainFamily[] = ['grass', 'dirt', 'stone', 'water'
 export function createEditorTerrainCatalog(): EditorTerrainCatalog {
   const baseBrushes = TERRAIN_TILE_DEFINITIONS.map((definition): EditorTerrainBrush => ({
     id: definition.id,
-    label: definition.id,
+    ...(definition.id.startsWith('forest_') ? { category: 'Painted Forest', textureScale:.25 } : {}),
+    label: FOREST_BRUSH_LABELS[definition.id] ?? definition.id,
     family: definition.family,
     textureKey: definition.spriteFrame,
     source: 'base',

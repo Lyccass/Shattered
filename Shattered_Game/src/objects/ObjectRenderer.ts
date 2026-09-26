@@ -1,5 +1,9 @@
+import { forestLedgeTexture } from './ForestLedgeBlend';
+import { getForestVisualVariation, type ForestVisualVariation } from './ForestVisualVariation';
 import Phaser from 'phaser';
-import { getDynamicDepth } from '../render/RenderLayers';
+import { animateForestProp } from '../world/terrain/ForestAmbientAnimation';
+import { getDynamicDepth, RENDER_DEPTHS } from '../render/RenderLayers';
+import { createObjectGroundShadow } from './ObjectGroundShadow';
 import { IsoTransform } from '../world/IsoTransform';
 import { getObjectDepthAnchorWorld } from './ObjectDepth';
 import type { ObjectDefinition, ObjectInstance, VisualPart } from './ObjectTypes';
@@ -8,6 +12,7 @@ export type ObjectOcclusionTarget = {
   instanceId: string;
   definition: ObjectDefinition;
   visual: Phaser.GameObjects.Container;
+  shadow?: Phaser.GameObjects.Graphics;
 };
 
 // ObjectRenderer draws static object visuals from
@@ -21,6 +26,7 @@ export class ObjectRenderer {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly transform: IsoTransform,
+    private readonly surfaceOffset: (x: number, y: number) => number = () => 0,
   ) {}
 
   render(instance: ObjectInstance, definition: ObjectDefinition): void {
@@ -29,6 +35,7 @@ export class ObjectRenderer {
     }
 
     const anchor = this.transform.getTileCenterWorld(instance.tileX, instance.tileY);
+    anchor.y -= definition.fixedElevation ?? this.surfaceOffset(instance.tileX,instance.tileY);
     const depthAnchor = getObjectDepthAnchorWorld(this.transform, instance, definition);
     const depth = getDynamicDepth(depthAnchor.y, definition.depth.depthOffset);
 
@@ -38,22 +45,25 @@ export class ObjectRenderer {
     visual.add(graphics);
 
     for (const part of definition.visual.parts) {
-      drawPart(this.scene, visual, graphics, part);
+      drawPart(this.scene, visual, graphics, part, getForestVisualVariation(instance.id,definition));
     }
 
-    this.rendered.set(instance.id, { instanceId: instance.id, definition, visual });
+    const shadow=createObjectGroundShadow(this.scene,definition,anchor.x,anchor.y,RENDER_DEPTHS.SHADOW,getForestVisualVariation(instance.id,definition));
+    this.rendered.set(instance.id, { instanceId: instance.id, definition, visual, shadow });
   }
 
   remove(instanceId: string): void {
     const entry = this.rendered.get(instanceId);
     if (!entry) return;
     entry.visual.destroy(true);
+    entry.shadow?.destroy();
     this.rendered.delete(instanceId);
   }
 
   destroyAll(): void {
     for (const entry of this.rendered.values()) {
       entry.visual.destroy(true);
+      entry.shadow?.destroy();
     }
 
     this.rendered.clear();
@@ -69,14 +79,16 @@ function drawPart(
   container: Phaser.GameObjects.Container,
   graphics: Phaser.GameObjects.Graphics,
   part: VisualPart,
+  variation: ForestVisualVariation,
 ): void {
   if (part.shape === 'sprite') {
-    const image = scene.add.image(part.localOffsetX, part.localOffsetY, part.textureKey);
-    image.setOrigin(part.originX ?? 0.5, part.originY ?? 0.5);
-    image.setScale(part.scale);
+    const image = scene.add.image(part.localOffsetX, part.localOffsetY, forestLedgeTexture(scene,part.textureKey));
+    image.setOrigin(variation.flipX ? 1-(part.originX ?? .5) : (part.originX ?? .5), part.originY ?? .5);
+    image.setScale(part.scale * variation.width, part.scale * variation.height);
     image.setAlpha(part.alpha ?? 1);
-    image.setFlipX(part.flipX ?? false);
+    image.setFlipX((part.flipX ?? false) !== variation.flipX);
     container.add(image);
+    animateForestProp(scene, image);
     return;
   }
 

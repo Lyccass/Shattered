@@ -47,6 +47,7 @@ export type TerrainTransitionKind =
 export type TerrainTransitionRenderMode = 'replaceBase' | 'overlay' | 'debugOnly';
 
 export type TerrainEdgeTag =
+  | 'sand'
   | 'grass'
   | 'dirt'
   | 'stone'
@@ -79,7 +80,7 @@ export type TerrainTransitionDebugStyle = {
 
 export type TerrainTileDefinition = {
   id: string;
-  family: RenderTerrainFamily;
+  family: TerrainFamily;
   role: TerrainRole;
   spriteFrame: string;
   weight: number;
@@ -92,8 +93,8 @@ export type TerrainTileDefinition = {
 
 export type TerrainTransitionDefinition = {
   id: string;
-  fromFamily: RenderTerrainFamily;
-  toFamily: RenderTerrainFamily;
+  fromFamily: TerrainFamily;
+  toFamily: TerrainFamily;
   kind: TerrainTransitionKind;
   direction: TerrainTransitionDirection;
   spriteFrame: string;

@@ -17,6 +17,7 @@ export default defineConfig({
       input: {
         game: 'index.html',
         editor: 'editor.html',
+        forestPreview: 'forest-pack.html',
       },
     },
   },

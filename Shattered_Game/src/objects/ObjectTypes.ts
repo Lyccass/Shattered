@@ -92,6 +92,8 @@ export type DebugDefinition = {
 };
 
 export type ObjectDefinition = {
+  /** Fixed world-pixel datum for connected modular architecture. */
+  fixedElevation?: number;
   id: string;
   displayName: string;
   category: ObjectCategory;

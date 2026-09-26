@@ -1,3 +1,5 @@
+import { blendedForestSurfaceHeight } from '../../shared/iso/ForestRelief';
+import { isForestTerrain } from '../terrain/ForestTerrainDefinitions';
 import Phaser from 'phaser';
 import { ObjectDebugRenderer } from '../../objects/ObjectDebugRenderer';
 import { ObjectOcclusionSystem } from '../../objects/ObjectOcclusionSystem';
@@ -24,7 +26,13 @@ export class WorldObjectManager {
   ): void {
     this.clearMapObjects();
 
-    this.objectRenderer = new ObjectRenderer(this.scene, runtime.isoTilemap.transform);
+    this.objectRenderer = new ObjectRenderer(this.scene, runtime.isoTilemap.transform, (x,y)=>{
+      const tile=runtime.isoTilemap.resolveTerrainTile(x,y)?.baseTileDefinition;
+      return tile && isForestTerrain(tile.id)?blendedForestSurfaceHeight(x+.5,y+.5,(sx,sy)=>{
+        const adjacent=runtime.isoTilemap.resolveTerrainTile(sx,sy)?.baseTileDefinition;
+        return adjacent ? (isForestTerrain(adjacent.id)?adjacent.id:adjacent.family) : null;
+      }):0;
+    });
     this.objectDebugRenderer = new ObjectDebugRenderer(this.scene, runtime.isoTilemap.transform);
     this.objectDebugRenderer.setVisible(this.objectDebugVisible);
     this.objectPlacementSystem = new ObjectPlacementSystem(

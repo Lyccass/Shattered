@@ -325,7 +325,7 @@ export class WorldRuntimeCoordinator {
     this.npcSystem?.destroy();
     this.npcVisualController?.destroy();
     this.npcSystem = new NpcSystem();
-    this.npcVisualController = new NpcVisualController(this.scene);
+    this.npcVisualController = new NpcVisualController(this.scene, (x,y) => this.getIsoTilemap()?.getSurfaceLift(x,y) ?? 0);
 
     const nowMs = this.scene.time.now;
     const npcAnchors = runtime.interactionAnchors.filter((a) => a.interactionType === 'npc');
@@ -371,7 +371,7 @@ export class WorldRuntimeCoordinator {
     this.npcSystem?.destroy();
     this.npcVisualController?.destroy();
     this.npcSystem = new NpcSystem();
-    this.npcVisualController = new NpcVisualController(this.scene);
+    this.npcVisualController = new NpcVisualController(this.scene, (x,y) => this.getIsoTilemap()?.getSurfaceLift(x,y) ?? 0);
 
     this.mapRuntimeConfigurator.configureLoadedRuntime(runtime);
     this.streamingReconciler.reconcile(runtime);

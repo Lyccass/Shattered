@@ -7,6 +7,7 @@ import {
   type TerrainFamily,
 } from './TerrainTypes';
 import { WorldGrid } from '../WorldGrid';
+import { isForestTerrain, resolveForestTransitions } from './ForestTerrainDefinitions';
 
 type TerrainResolverLike = Pick<TerrainResolver, 'resolve'>;
 type ExactTerrainPaint = {
@@ -68,6 +69,11 @@ export class TerrainResolutionCache {
 
     if (exactPaint) {
       const resolved = createExactResolvedTerrainTile(exactPaint);
+      if (isForestTerrain(exactPaint.id)) {
+        resolved.baseTransform.scale = exactPaint.textureScale ?? .25;
+        resolved.transitionOverlays = resolveForestTransitions(exactPaint.family, tileX, tileY,
+          (x, y) => this.worldGrid.getTile(x, y));
+      }
       this.cache.set(key, resolved);
       return resolved;
     }
@@ -101,7 +107,7 @@ function cacheKey(tileX: number, tileY: number): string {
 }
 
 function createExactResolvedTerrainTile(paint: ExactTerrainPaint): ResolvedTerrainTile {
-  const renderFamily = getRenderTerrainFamily(paint.family);
+  const renderFamily = isForestTerrain(paint.id) ? paint.family : getRenderTerrainFamily(paint.family);
 
   return {
     baseTileDefinition: {
